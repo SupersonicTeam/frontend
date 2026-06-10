@@ -19,6 +19,11 @@ import {
   Chart,
   BarController,
   BarElement,
+  PieController,
+  ArcElement,
+  LineController,
+  PointElement,
+  LineElement,
   CategoryScale,
   LinearScale,
   Legend,
@@ -27,12 +32,18 @@ import {
   type ChartData,
 } from 'chart.js';
 
-// Registro enxuto: so o necessario para o grafico de barras (mantem Chart.js no chunk lazy do dashboard).
-Chart.register(BarController, BarElement, CategoryScale, LinearScale, Legend, Tooltip);
+// Registro enxuto: so barras/pizza/linha (mantem Chart.js no chunk lazy do dashboard).
+Chart.register(
+  BarController, BarElement,
+  PieController, ArcElement,
+  LineController, PointElement, LineElement,
+  CategoryScale, LinearScale, Legend, Tooltip,
+);
 import {
   DashboardService,
   LOGGED_PRODUCER_ID,
   ResumoMensalNotas,
+  DistribuicaoImposto,
 } from '../../core/services/dashboard.service';
 import { NotificacaoService } from '../../core/services/notificacao.service';
 import { ToastService } from '../../core/services/toast.service';
@@ -133,6 +144,93 @@ export class DashboardComponent implements OnInit {
     },
   };
 
+  // Grafico: distribuicao de impostos (pizza)
+  readonly distribuicaoImpostos = signal<DistribuicaoImposto[]>([]);
+
+  readonly pieChartData = computed<ChartData<'pie'>>(() => {
+    const d = this.distribuicaoImpostos();
+    return {
+      labels: d.map(x => x.nome),
+      datasets: [
+        {
+          data: d.map(x => x.valor),
+          backgroundColor: [
+            'hsl(142, 44%, 32%)',
+            'hsl(33, 55%, 52%)',
+            'hsl(142, 25%, 55%)',
+            'hsl(0, 72%, 51%)',
+            'hsl(205, 45%, 50%)',
+          ],
+          borderColor: 'hsl(0, 0%, 100%)',
+          borderWidth: 2,
+        },
+      ],
+    };
+  });
+
+  readonly pieChartOptions: ChartConfiguration<'pie'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } },
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${this.formatCurrency(ctx.parsed as number)}`,
+        },
+      },
+    },
+  };
+
+  // Grafico: tendencia mensal (linha) — reusa notasPorMes
+  readonly lineChartData = computed<ChartData<'line'>>(() => {
+    const dados = this.notasPorMes();
+    return {
+      labels: dados.map(d => d.mes),
+      datasets: [
+        {
+          label: 'Entradas',
+          data: dados.map(d => d.entradas),
+          borderColor: 'hsl(33, 55%, 52%)',
+          backgroundColor: 'hsl(33, 55%, 52%)',
+          tension: 0.35,
+          pointRadius: 3,
+        },
+        {
+          label: 'Saídas',
+          data: dados.map(d => d.saidas),
+          borderColor: 'hsl(142, 44%, 32%)',
+          backgroundColor: 'hsl(142, 44%, 32%)',
+          tension: 0.35,
+          pointRadius: 3,
+        },
+      ],
+    };
+  });
+
+  readonly lineChartOptions: ChartConfiguration<'line'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } },
+      },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { family: 'Inter' } } },
+      y: {
+        beginAtZero: true,
+        ticks: { precision: 0, font: { family: 'Inter' } },
+        grid: { color: 'hsl(142, 15%, 88%)' },
+      },
+    },
+  };
+
   // Simulador — breakdown de impostos das notas
   showSimuladorDetalhe = signal(false);
 
@@ -206,6 +304,11 @@ export class DashboardComponent implements OnInit {
     this.dashboardService.getNotasPorMes(LOGGED_PRODUCER_ID).subscribe({
       next: data => { this.notasPorMes.set(data); this.loadingGrafico.set(false); },
       error: () => this.loadingGrafico.set(false),
+    });
+
+    this.dashboardService.getDistribuicaoImpostos(LOGGED_PRODUCER_ID).subscribe({
+      next: data => this.distribuicaoImpostos.set(data),
+      error: () => {},
     });
   }
 

@@ -128,6 +128,50 @@
     }
   </div>
 
+  <!-- Card: Distribuição de impostos (pizza) -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+        <svg lucideDollarSign [size]="20" class="text-primary" />
+        Distribuição de impostos
+      </h2>
+      <span class="text-xs text-muted-foreground">CBS × IBS × FUNRURAL</span>
+    </div>
+    @if (loadingGrafico()) {
+      <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
+    } @else if (distribuicaoImpostos().length) {
+      <div class="h-64">
+        <canvas baseChart [type]="'pie'" [data]="pieChartData()" [options]="pieChartOptions"></canvas>
+      </div>
+    } @else {
+      <div class="h-64 flex items-center justify-center text-muted-foreground text-sm">
+        Sem dados de impostos.
+      </div>
+    }
+  </div>
+
+  <!-- Card: Tendência mensal (linha) -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+        <svg lucideTrendingUp [size]="20" class="text-primary" />
+        Tendência mensal
+      </h2>
+      <span class="text-xs text-muted-foreground">Entradas × Saídas</span>
+    </div>
+    @if (loadingGrafico()) {
+      <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
+    } @else if (notasPorMes().length) {
+      <div class="h-64">
+        <canvas baseChart [type]="'line'" [data]="lineChartData()" [options]="lineChartOptions"></canvas>
+      </div>
+    } @else {
+      <div class="h-64 flex items-center justify-center text-muted-foreground text-sm">
+        Sem dados.
+      </div>
+    }
+  </div>
+
   <!-- Card: Simulador Inteligente de Impostos -->
   <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
     <div class="flex items-center justify-between mb-4">
