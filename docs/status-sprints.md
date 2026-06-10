@@ -3,6 +3,24 @@
 Documento vivo que reconcilia o board `agroContabilScrum` (GitHub, org SupersonicTeam, projeto #2)
 com o estado **real** do código do frontend. Auditoria por evidência (leitura de código + build + runtime).
 
+## ✅ Conclusão — Sprints 0 e 1 (frontend) 100% (2026-06-10)
+
+Todos os gaps reais foram **implementados** e as issues fechadas no board:
+
+| Issue | Entrega | Commit |
+|---|---|---|
+| #13 Gráficos | barras + **pizza** (CBS×IBS×FUNRURAL) + **linha de tendência** + animação | `33f3cda`, `5eb9a72`, `12f691f` |
+| #11 Dashboard | **card de alertas e pendências** (vencimentos) | `16aedf3` |
+| #12 Apuração | **seletor de período** (mês/ano) + **indicador de status** | `95b6420` |
+| #9 Migração | **interceptor HTTP** (`apiInterceptor`: baseURL + erros) | `8022bdd` |
+| #4/#9/#10 Material | **Angular Material híbrido** (tema agro, MatTooltip, MatSlideToggle) | `3892625` |
+| #10 Setup | **ThemeService** claro/escuro + **shared/ui** (UiCard, UiButton) | `bd792fe` |
+
+Stack ampliada: `@angular/material`, `@angular/animations`, `ng2-charts`, `chart.js` (alinhados ao Angular 21.2).
+Build inicial ~475 kB (sob budget). **Pendente da S0:** só **#7 CI/CD frontend** (depende de remote + eslint → S10).
+
+---
+
 ## Princípio de reconciliação
 
 O board foi escrito assumindo **Angular 18 + NgModules + Angular Material + OnPush**. O código real está
