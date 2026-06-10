@@ -13,6 +13,7 @@ import {
   LucideSprout,
   LucideChevronDown,
   LucideChevronUp,
+  LucideBell,
 } from '@lucide/angular';
 import { BaseChartDirective } from 'ng2-charts';
 import {
@@ -46,8 +47,9 @@ import {
   DistribuicaoImposto,
 } from '../../core/services/dashboard.service';
 import { NotificacaoService } from '../../core/services/notificacao.service';
+import { CalendarioService } from '../../core/services/calendario.service';
 import { ToastService } from '../../core/services/toast.service';
-import { FluxoCaixa, NotaFiscal } from '../../core/models/types';
+import { FluxoCaixa, NotaFiscal, VencimentoFiscal } from '../../core/models/types';
 
 interface DocItem {
   id: number;
@@ -76,6 +78,7 @@ interface DocItem {
     LucideSprout,
     LucideChevronDown,
     LucideChevronUp,
+    LucideBell,
     BaseChartDirective,
   ],
   templateUrl: './dashboard.component.html',
@@ -83,6 +86,7 @@ interface DocItem {
 export class DashboardComponent implements OnInit {
   private readonly dashboardService = inject(DashboardService);
   private readonly notificacaoService = inject(NotificacaoService);
+  private readonly calendarioService = inject(CalendarioService);
   private readonly toastService = inject(ToastService);
 
   readonly mesAtual = this.getMesAtual();
@@ -94,6 +98,8 @@ export class DashboardComponent implements OnInit {
 
   readonly fluxoCaixa = signal<FluxoCaixa | null>(null);
   readonly notas = signal<NotaFiscal[]>([]);
+  readonly loadingAlertas = signal(false);
+  readonly alertas = signal<VencimentoFiscal[]>([]);
   readonly notaDetalhada = signal<NotaFiscal | null>(null);
   readonly previewDoc = signal<DocItem | null>(null);
 
@@ -309,6 +315,19 @@ export class DashboardComponent implements OnInit {
     this.dashboardService.getDistribuicaoImpostos(LOGGED_PRODUCER_ID).subscribe({
       next: data => this.distribuicaoImpostos.set(data),
       error: () => {},
+    });
+
+    this.loadingAlertas.set(true);
+    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID).subscribe({
+      next: data => {
+        const ordenados = data
+          .slice()
+          .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento))
+          .slice(0, 5);
+        this.alertas.set(ordenados);
+        this.loadingAlertas.set(false);
+      },
+      error: () => this.loadingAlertas.set(false),
     });
   }
 
