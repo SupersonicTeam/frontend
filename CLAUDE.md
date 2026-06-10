@@ -18,6 +18,8 @@ imposto, contador, rascunho).
 - **Tailwind CSS v4** via PostCSS (`@import "tailwindcss"` em `src/styles.css`; **não há** `tailwind.config.js`).
 - **@lucide/angular** para ícones.
 - **Angular Material** — uso **híbrido/pontual** (datepicker, tabela paginada, select), Tailwind continua a base.
+- **ng2-charts + chart.js** — gráficos. Registro **enxuto por componente** (`Chart.register(...)` no componente, não
+  `provideCharts` no `app.config`) para o Chart.js ficar no **chunk lazy**, não no bundle inicial. Ex.: dashboard.
 - RxJS 7.8, testes em **Vitest** (jsdom). TypeScript strict.
 
 ## Comandos (rodar dentro de `frontend/`)
@@ -116,7 +118,7 @@ Domínio: `Produtor`, `NotaFiscal` + `ItemNotaFiscal`, `FluxoCaixa`, `RascunhoNo
 
 ## Estado das sprints (frontend)
 
-Frontend ~85-90% pronto. Gaps reais (em ordem de sprint): gráficos ng2-charts no dashboard (S1) ·
+Frontend ~85-90% pronto. Gaps reais (em ordem de sprint): ~~gráficos ng2-charts no dashboard (S1)~~ ✅ feito ·
 filtros grupo/status em Documentos (S2) · seletor multi-produtor no Contador · download PDF/XML (S3) ·
 dialog inline de anexar no Calendário · polir estados loading/erro/vazio (S5) · WCAG + README (S10).
 Plano completo: `../../../.claude/plans/` (sessão de planejamento).

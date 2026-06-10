@@ -65,6 +65,27 @@ Obs.: `ng build` roda local e passa, mas não há pipeline. Pendente real (depen
 | Interceptor HTTP (baseURL + erros globais) | Sprint 5 (#34) |
 | CI/CD frontend (`ng lint` + `ng build`) + eslint + remote | Sprint 10 / quando houver remote |
 
+---
+
+## Sprint 1 — gráficos (#13)
+
+Escopo acordado: **só o gráfico de barras "Notas por mês"** (das 3 visualizações do board, pizza e linha
+ficam adiadas). Dados via **mock no service** (`getNotasPorMes`), pronto para `/api`.
+
+| Tarefa | Status | Evidência / nota |
+|---|---|---|
+| Instalar ng2-charts + chart.js | ✅ | `package.json` (+ `@angular/cdk@21` p/ resolver peer dep) |
+| Gráfico de barras "notas por mês" (6 meses) | ✅ | Card no `dashboard.component.html`; barras Entradas (laranja) × Saídas (verde) |
+| Dados mock no service, pronto p/ API | ✅ | `getNotasPorMes` em `dashboard.service.ts` (GET `/dashboard/:id/notas-por-mes` + fallback mock) |
+| Estados loading/vazio | ✅ | Skeleton + empty state no card |
+| Responsivo (desktop + mobile) | ✅ | Validado em runtime a 1280px e 375px |
+| Bundle dentro do budget | ✅ | Chart.js no chunk lazy do dashboard (registro enxuto); inicial mantém ~378 kB |
+
+Pizza (IBS vs CBS) e linha de tendência: **adiadas** (não priorizadas nesta sprint).
+Animação de entrada do gráfico: **desligada** (`animation: false`) por estabilidade; reativável se desejado.
+
+---
+
 ## Itens para atualizar no board (GitHub) — quando houver scope `project` no token
 
 - #9, #4: marcar tarefas de módulos/OnPush como "feito via standalone+zoneless"; mover Material p/ S2; mover interceptor p/ S5.

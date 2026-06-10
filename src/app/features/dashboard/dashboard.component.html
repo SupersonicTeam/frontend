@@ -100,6 +100,34 @@
     </div>
   </div>
 
+  <!-- Card: Notas por mês (gráfico) -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+        <svg lucideTrendingUp [size]="20" class="text-primary" />
+        Notas por mês
+      </h2>
+      @if (loadingGrafico()) {
+        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+      } @else {
+        <span class="text-xs text-muted-foreground">Últimos 6 meses</span>
+      }
+    </div>
+
+    @if (loadingGrafico()) {
+      <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
+    } @else if (notasPorMes().length) {
+      <div class="h-64">
+        <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions"></canvas>
+      </div>
+    } @else {
+      <div class="h-64 flex flex-col items-center justify-center text-center text-muted-foreground">
+        <svg lucideFile [size]="32" class="mb-2 opacity-60" />
+        <p class="text-sm">Nenhuma nota para exibir no período.</p>
+      </div>
+    }
+  </div>
+
   <!-- Card: Simulador Inteligente de Impostos -->
   <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
     <div class="flex items-center justify-between mb-4">

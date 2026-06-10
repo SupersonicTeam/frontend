@@ -5,6 +5,26 @@ import { FluxoCaixa, NotaFiscal, Produtor, RascunhoNota } from '../models/types'
 
 export const LOGGED_PRODUCER_ID = 'c4f29a8c-1559-4e6c-b0fd-05ce55753c4f';
 
+export interface ResumoMensalNotas {
+  mes: string;
+  entradas: number;
+  saidas: number;
+}
+
+const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+// Amostra ilustrativa [entradas, saidas] usada enquanto o backend nao expoe /notas-por-mes.
+const AMOSTRA_MENSAL: ReadonlyArray<readonly [number, number]> = [
+  [4, 6], [7, 5], [5, 9], [8, 7], [6, 11], [9, 8],
+];
+
+function mockNotasPorMes(): ResumoMensalNotas[] {
+  const hoje = new Date();
+  return AMOSTRA_MENSAL.map(([entradas, saidas], i) => {
+    const d = new Date(hoje.getFullYear(), hoje.getMonth() - (5 - i), 1);
+    return { mes: MESES_PT[d.getMonth()], entradas, saidas };
+  });
+}
+
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private readonly api = inject(ApiService);
@@ -70,5 +90,13 @@ export class DashboardService {
   // GET /dashboard/:produtorId/impostos-por-tipo
   getImpostosPorTipo(produtorId: string): Observable<unknown> {
     return this.api.get<unknown>(`/dashboard/${produtorId}/impostos-por-tipo`).pipe(catchError(() => of(null)));
+  }
+
+  // GET /dashboard/:produtorId/notas-por-mes  → fallback mock enquanto backend pendente
+  getNotasPorMes(produtorId: string): Observable<ResumoMensalNotas[]> {
+    return this.api.get<ResumoMensalNotas[]>(`/dashboard/${produtorId}/notas-por-mes`).pipe(
+      map(res => (res?.length ? res : mockNotasPorMes())),
+      catchError(() => of(mockNotasPorMes()))
+    );
   }
 }

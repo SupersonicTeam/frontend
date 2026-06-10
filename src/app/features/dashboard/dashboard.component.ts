@@ -14,7 +14,26 @@ import {
   LucideChevronDown,
   LucideChevronUp,
 } from '@lucide/angular';
-import { DashboardService, LOGGED_PRODUCER_ID } from '../../core/services/dashboard.service';
+import { BaseChartDirective } from 'ng2-charts';
+import {
+  Chart,
+  BarController,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  Legend,
+  Tooltip,
+  type ChartConfiguration,
+  type ChartData,
+} from 'chart.js';
+
+// Registro enxuto: so o necessario para o grafico de barras (mantem Chart.js no chunk lazy do dashboard).
+Chart.register(BarController, BarElement, CategoryScale, LinearScale, Legend, Tooltip);
+import {
+  DashboardService,
+  LOGGED_PRODUCER_ID,
+  ResumoMensalNotas,
+} from '../../core/services/dashboard.service';
 import { NotificacaoService } from '../../core/services/notificacao.service';
 import { ToastService } from '../../core/services/toast.service';
 import { FluxoCaixa, NotaFiscal } from '../../core/models/types';
@@ -46,6 +65,7 @@ interface DocItem {
     LucideSprout,
     LucideChevronDown,
     LucideChevronUp,
+    BaseChartDirective,
   ],
   templateUrl: './dashboard.component.html',
 })
@@ -65,6 +85,53 @@ export class DashboardComponent implements OnInit {
   readonly notas = signal<NotaFiscal[]>([]);
   readonly notaDetalhada = signal<NotaFiscal | null>(null);
   readonly previewDoc = signal<DocItem | null>(null);
+
+  // Grafico: notas por mes (ultimos 6 meses)
+  readonly loadingGrafico = signal(false);
+  readonly notasPorMes = signal<ResumoMensalNotas[]>([]);
+
+  readonly barChartData = computed<ChartData<'bar'>>(() => {
+    const dados = this.notasPorMes();
+    return {
+      labels: dados.map(d => d.mes),
+      datasets: [
+        {
+          label: 'Entradas',
+          data: dados.map(d => d.entradas),
+          backgroundColor: 'hsl(33, 55%, 52%)',
+          borderRadius: 6,
+          maxBarThickness: 28,
+        },
+        {
+          label: 'Saídas',
+          data: dados.map(d => d.saidas),
+          backgroundColor: 'hsl(142, 44%, 32%)',
+          borderRadius: 6,
+          maxBarThickness: 28,
+        },
+      ],
+    };
+  });
+
+  readonly barChartOptions: ChartConfiguration<'bar'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } },
+      },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { family: 'Inter' } } },
+      y: {
+        beginAtZero: true,
+        ticks: { precision: 0, font: { family: 'Inter' } },
+        grid: { color: 'hsl(142, 15%, 88%)' },
+      },
+    },
+  };
 
   // Simulador — breakdown de impostos das notas
   showSimuladorDetalhe = signal(false);
@@ -133,6 +200,12 @@ export class DashboardComponent implements OnInit {
     this.dashboardService.getProdutor(LOGGED_PRODUCER_ID).subscribe({
       next: p => { if (p?.nome) this.nomeUsuario.set(p.nome); },
       error: () => {},
+    });
+
+    this.loadingGrafico.set(true);
+    this.dashboardService.getNotasPorMes(LOGGED_PRODUCER_ID).subscribe({
+      next: data => { this.notasPorMes.set(data); this.loadingGrafico.set(false); },
+      error: () => this.loadingGrafico.set(false),
     });
   }
 
