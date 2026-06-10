@@ -1,0 +1,381 @@
+<div class="space-y-6 max-w-2xl mx-auto">
+
+  <!-- Header -->
+  <div>
+    <h1 class="text-2xl md:text-3xl font-heading font-bold text-foreground">
+      Olá, {{ nomeUsuario() }} 👋
+    </h1>
+    <p class="text-muted-foreground text-base mt-1">{{ mesAtual }}</p>
+  </div>
+
+  <!-- Card: Resumo financeiro -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border">
+    <div class="flex items-center justify-between px-5 pt-5 pb-3">
+      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+        <svg lucideDollarSign [size]="20" class="text-primary" />
+        Resumo rápido
+        @if (loadingFluxo()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+        }
+      </h2>
+      <button
+        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-sm hover:bg-green-50 transition-colors disabled:opacity-50"
+        (click)="handleNotificarWhatsApp()"
+        [disabled]="enviandoNotificacao()"
+      >
+        @if (enviandoNotificacao()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" />
+        } @else {
+          <svg lucideMessageCircle [size]="16" />
+        }
+        <span class="hidden sm:inline">Notificar</span>
+      </button>
+    </div>
+
+    <div class="px-5 pb-5 space-y-4">
+      <div class="grid grid-cols-3 gap-2 sm:gap-4">
+        <div class="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 sm:p-3 rounded-xl bg-muted/60 text-center sm:text-left">
+          <svg lucideTrendingDown [size]="20" class="text-destructive shrink-0 hidden sm:block" />
+          <div>
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Entradas</p>
+            @if (loadingFluxo()) {
+              <div class="h-5 w-20 bg-muted animate-pulse rounded mt-1"></div>
+            } @else {
+              <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
+                {{ formatCurrency(fluxoCaixa()?.totalEntradas ?? 0) }}
+              </p>
+            }
+          </div>
+        </div>
+
+        <div class="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 sm:p-3 rounded-xl bg-muted/60 text-center sm:text-left">
+          <svg lucideTrendingUp [size]="20" class="text-primary shrink-0 hidden sm:block" />
+          <div>
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Saídas</p>
+            @if (loadingFluxo()) {
+              <div class="h-5 w-20 bg-muted animate-pulse rounded mt-1"></div>
+            } @else {
+              <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
+                {{ formatCurrency(fluxoCaixa()?.totalSaidas ?? 0) }}
+              </p>
+            }
+          </div>
+        </div>
+
+        <div class="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 sm:p-3 rounded-xl bg-primary/10 text-center sm:text-left">
+          <svg lucideDollarSign [size]="20" class="text-primary shrink-0 hidden sm:block" />
+          <div>
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Lucro</p>
+            @if (loadingFluxo()) {
+              <div class="h-5 w-20 bg-muted animate-pulse rounded mt-1"></div>
+            } @else {
+              <p class="text-sm sm:text-lg font-heading font-bold text-primary">
+                {{ formatCurrency(fluxoCaixa()?.saldo ?? 0) }}
+              </p>
+            }
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full bg-muted/80 text-xs sm:text-sm w-fit">
+        <svg lucideDollarSign [size]="12" class="text-destructive shrink-0" />
+        <span class="text-muted-foreground hidden sm:inline">Imposto:</span>
+        <span class="font-semibold text-foreground">
+          {{ loadingFluxo() ? '...' : formatCurrency(fluxoCaixa()?.totalImpostos ?? 0) }}
+        </span>
+      </div>
+
+      @if (!loadingFluxo() && fluxoCaixa()) {
+        <div class="pt-3 border-t border-border hidden sm:block">
+          <p class="text-xs text-muted-foreground leading-relaxed">
+            <span class="font-medium text-foreground">💡 De onde vem o imposto previsto?</span><br />
+            Este valor é a soma de todos os impostos cobrados nas suas notas (compras e vendas):
+            <span class="font-medium"> CBS, IBS, FUNRURAL, ICMS e IPI</span>.
+            No agronegócio, você tem <span class="font-medium text-primary">60% de redução</span> nas
+            alíquotas de CBS (8,8% → 3,5%) e IBS (17,7% → 7,1%), totalizando cerca de
+            <span class="font-medium text-primary">10,6%</span> ao invés dos 26,5% do regime comum.
+          </p>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Card: Notas por mês (gráfico) -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+        <svg lucideTrendingUp [size]="20" class="text-primary" />
+        Notas por mês
+      </h2>
+      @if (loadingGrafico()) {
+        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+      } @else {
+        <span class="text-xs text-muted-foreground">Últimos 6 meses</span>
+      }
+    </div>
+
+    @if (loadingGrafico()) {
+      <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
+    } @else if (notasPorMes().length) {
+      <div class="h-64">
+        <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions"></canvas>
+      </div>
+    } @else {
+      <div class="h-64 flex flex-col items-center justify-center text-center text-muted-foreground">
+        <svg lucideFile [size]="32" class="mb-2 opacity-60" />
+        <p class="text-sm">Nenhuma nota para exibir no período.</p>
+      </div>
+    }
+  </div>
+
+  <!-- Card: Simulador Inteligente de Impostos -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+        <svg lucideSprout [size]="20" class="text-primary" />
+        Simulador Inteligente
+      </h2>
+      @if (loadingNotas()) {
+        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+      } @else {
+        <div class="flex gap-2">
+          <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">Agropecuária</span>
+          <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">-60% CBS/IBS</span>
+        </div>
+      }
+    </div>
+
+    <!-- KPI principal -->
+    <div class="p-4 rounded-xl bg-primary/5 border border-primary/10 mb-4">
+      <p class="text-xs text-muted-foreground mb-1">Imposto estimado total</p>
+      @if (loadingNotas()) {
+        <div class="h-8 w-32 bg-muted animate-pulse rounded mt-1"></div>
+      } @else {
+        <p class="text-2xl font-heading font-bold text-primary">
+          {{ formatCurrency(totalImpostoCalculado() || (fluxoCaixa()?.totalImpostos ?? 0)) }}
+        </p>
+        <p class="text-xs text-muted-foreground mt-1">
+          Regime: Pessoa Física Rural · Tributação efetiva: ~10,6%
+        </p>
+      }
+    </div>
+
+    <!-- Tabela breakdown -->
+    @if (!loadingNotas() && impostoBreakdown().length > 0) {
+      <div class="space-y-1 mb-4">
+        <div class="grid grid-cols-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
+          <span>Tributo</span>
+          <span class="text-center">Alíquota</span>
+          <span class="text-right">Valor</span>
+        </div>
+        @for (item of impostoBreakdown(); track item.nome) {
+          <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-sm">
+            <div class="flex items-center gap-1.5">
+              <span class="font-medium text-foreground">{{ item.nome }}</span>
+              @if (item.reducao) {
+                <span class="text-[9px] bg-green-100 text-green-700 px-1 rounded">-60%</span>
+              }
+            </div>
+            <div class="text-center">
+              <span class="text-foreground font-medium">{{ item.aliquota }}</span>
+              @if (item.original) {
+                <span class="text-[10px] text-muted-foreground line-through ml-1">{{ item.original }}</span>
+              }
+            </div>
+            <span class="text-right font-semibold text-foreground">{{ formatCurrency(item.valor) }}</span>
+          </div>
+        }
+        <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg bg-primary/5 border border-primary/10 text-sm mt-1">
+          <span class="font-bold text-foreground">Total</span>
+          <span></span>
+          <span class="text-right font-bold text-primary">{{ formatCurrency(totalImpostoCalculado()) }}</span>
+        </div>
+      </div>
+    } @else if (!loadingNotas()) {
+      <!-- Sem notas — mostra tabela estimada -->
+      <div class="space-y-1 mb-4">
+        <div class="grid grid-cols-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
+          <span>Tributo</span><span class="text-center">Alíquota</span><span class="text-right">Economia</span>
+        </div>
+        @for (item of [
+          {nome: 'CBS', aliquota: '3,5%', original: '8,8%', economia: '-60%'},
+          {nome: 'IBS Estadual', aliquota: '5,1%', original: '12,7%', economia: '-60%'},
+          {nome: 'IBS Municipal', aliquota: '2,0%', original: '5,0%', economia: '-60%'},
+          {nome: 'FUNRURAL', aliquota: '1,5%', original: null, economia: null}
+        ]; track item.nome) {
+          <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-sm">
+            <div class="flex items-center gap-1.5">
+              <span class="font-medium text-foreground">{{ item.nome }}</span>
+              @if (item.economia) { <span class="text-[9px] bg-green-100 text-green-700 px-1 rounded">{{ item.economia }}</span> }
+            </div>
+            <div class="text-center">
+              <span class="text-foreground font-medium">{{ item.aliquota }}</span>
+              @if (item.original) { <span class="text-[10px] text-muted-foreground line-through ml-1">{{ item.original }}</span> }
+            </div>
+            <span class="text-right text-xs text-muted-foreground">Estimado</span>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Toggle detalhe -->
+    <button
+      class="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+      (click)="showSimuladorDetalhe.update(v => !v)"
+    >
+      <span>💡 Como funciona a redução tributária?</span>
+      @if (showSimuladorDetalhe()) {
+        <svg lucideChevronUp [size]="14" />
+      } @else {
+        <svg lucideChevronDown [size]="14" />
+      }
+    </button>
+
+    @if (showSimuladorDetalhe()) {
+      <div class="mt-2 pt-2 border-t border-border">
+        <p class="text-xs text-muted-foreground leading-relaxed">
+          No agronegócio, a <strong class="text-foreground">Reforma Tributária</strong> garante
+          <strong class="text-primary">60% de redução</strong> nas alíquotas de CBS (8,8% → 3,5%)
+          e IBS (17,7% → 7,1%). A tributação efetiva total é de aproximadamente
+          <strong class="text-primary">10,6%</strong> ao invés dos 26,5% do regime comum.
+          O FUNRURAL incide sobre a receita bruta à alíquota de 1,5%.
+        </p>
+      </div>
+    }
+  </div>
+
+  <!-- Card: Últimos documentos -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border">
+    <div class="flex items-center gap-2 px-5 pt-5 pb-3">
+      <svg lucideFileText [size]="20" class="text-primary" />
+      <h2 class="text-base font-semibold text-foreground">Últimos documentos enviados</h2>
+      @if (loadingNotas()) {
+        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+      }
+    </div>
+    <div class="px-5 pb-5">
+      @if (loadingNotas()) {
+        <div class="space-y-3">
+          @for (i of [1,2,3]; track i) {
+            <div class="h-12 bg-muted/60 animate-pulse rounded-lg"></div>
+          }
+        </div>
+      } @else if (documentos().length === 0) {
+        <p class="text-sm text-muted-foreground text-center py-6">Nenhum documento encontrado.</p>
+      } @else {
+        <ul class="divide-y divide-border">
+          @for (doc of documentos(); track doc.id) {
+            <li class="flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-2">
+              <div class="min-w-0 flex-1">
+                <p class="text-sm font-medium text-foreground truncate">{{ doc.nome }}</p>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-xs text-muted-foreground">{{ doc.tipo }}</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ getStatusStyle(doc.status).color }}">
+                    {{ getStatusStyle(doc.status).label }}
+                  </span>
+                  @if (doc.valor > 0) {
+                    <span class="text-xs font-medium text-primary">{{ formatCurrency(doc.valor) }}</span>
+                  }
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <span class="text-xs text-muted-foreground hidden sm:inline">{{ formatDate(doc.data) }}</span>
+                <button
+                  class="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted transition-colors"
+                  (click)="abrirPreview(doc)"
+                >
+                  <svg lucideEye [size]="16" />
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Modal preview documento -->
+@if (previewDoc()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharPreview()">
+    <div class="absolute inset-0 bg-foreground/50"></div>
+    <div
+      class="relative bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
+        <h3 class="font-heading text-lg font-semibold text-foreground">{{ previewDoc()?.nome }}</h3>
+        <button
+          class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors"
+          (click)="fecharPreview()"
+        >
+          <svg lucideX [size]="18" />
+        </button>
+      </div>
+
+      <div class="px-6 py-5 space-y-4">
+        @if (loadingDetalhes()) {
+          <div class="flex flex-col items-center gap-4 py-8">
+            <svg lucideLoaderCircle [size]="32" class="animate-spin text-primary" />
+            <p class="text-sm text-muted-foreground">Carregando detalhes...</p>
+          </div>
+        } @else if (notaDetalhada()) {
+          <div class="rounded-xl border border-border bg-muted/30 flex items-center justify-center min-h-[120px]">
+            <div class="flex flex-col items-center gap-2 py-5 text-muted-foreground">
+              <svg lucideFile [size]="36" />
+              <span class="text-sm font-medium">NF-e {{ notaDetalhada()?.numero }}</span>
+              <span class="text-xs">{{ notaDetalhada()?.tipo === 'entrada' ? 'Nota de Entrada' : 'Nota de Saída' }}</span>
+            </div>
+          </div>
+          <dl class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+            <div>
+              <dt class="text-muted-foreground">Número</dt>
+              <dd class="font-medium text-foreground">{{ notaDetalhada()?.numero || '—' }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Série</dt>
+              <dd class="font-medium text-foreground">{{ notaDetalhada()?.serie || '—' }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Valor Total</dt>
+              <dd class="font-semibold text-lg text-primary">{{ formatCurrency(notaDetalhada()?.valorTotal ?? 0) }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Status</dt>
+              <dd><span class="text-[10px] px-2 py-0.5 rounded-full {{ getStatusStyle(notaDetalhada()?.status).color }}">
+                {{ getStatusStyle(notaDetalhada()?.status).label }}
+              </span></dd>
+            </div>
+          </dl>
+        } @else {
+          <div class="rounded-xl border border-border bg-muted/30 flex items-center justify-center min-h-[100px]">
+            <div class="flex flex-col items-center gap-2 py-5 text-muted-foreground">
+              <svg lucideFile [size]="36" />
+              <span class="text-sm font-medium">Documento</span>
+            </div>
+          </div>
+          <dl class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
+            <div>
+              <dt class="text-muted-foreground">Tipo</dt>
+              <dd class="font-medium text-foreground">{{ previewDoc()?.tipo }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">Data</dt>
+              <dd class="font-medium text-foreground">{{ formatDate(previewDoc()?.data ?? '') }}</dd>
+            </div>
+          </dl>
+        }
+      </div>
+
+      <div class="flex gap-3 px-6 pb-6 pt-2 border-t border-border">
+        <button
+          class="flex-1 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
+          (click)="fecharPreview()"
+        >Fechar</button>
+        <button class="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
+          <svg lucideDownload [size]="16" /> Baixar
+        </button>
+      </div>
+    </div>
+  </div>
+}

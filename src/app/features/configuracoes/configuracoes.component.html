@@ -1,0 +1,121 @@
+<div class="space-y-6 max-w-xl mx-auto">
+
+  <!-- Header -->
+  <div class="flex items-center gap-3">
+    <svg lucideSettings [size]="28" class="text-primary" />
+    <h1 class="text-2xl md:text-3xl font-heading font-bold text-foreground">Configurações</h1>
+  </div>
+
+  <!-- Perfil -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border p-6 space-y-5">
+    <div class="flex items-center gap-2 mb-2">
+      <svg lucideUser [size]="18" class="text-primary" />
+      <h2 class="font-heading font-semibold text-base text-foreground">Dados do Perfil</h2>
+    </div>
+    <div class="flex items-center gap-4">
+      <div class="w-16 h-16 rounded-full bg-primary/15 text-primary flex items-center justify-center font-heading text-2xl font-bold select-none">
+        {{ nome().charAt(0) }}
+      </div>
+      <div>
+        <p class="font-medium text-foreground">{{ nome() }}</p>
+        <p class="text-sm text-muted-foreground">Produtor Rural</p>
+      </div>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-foreground mb-1.5">Nome completo</label>
+        <input type="text" [value]="nome()" (input)="nome.set($any($event.target).value)"
+          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+          placeholder="Seu nome completo" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-foreground mb-1.5">E-mail</label>
+        <input type="email" [value]="email()" (input)="email.set($any($event.target).value)"
+          class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+          placeholder="seu@email.com" />
+      </div>
+    </div>
+    <button
+      class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+      (click)="salvarPerfil()"
+      [disabled]="salvando()"
+    >
+      @if (salvoSucesso()) {
+        <svg lucideCheck [size]="16" /> Salvo!
+      } @else if (salvando()) {
+        <svg class="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10" class="opacity-25" /><path d="M4 12a8 8 0 018-8" class="opacity-75" />
+        </svg>
+        Salvando...
+      } @else {
+        <svg lucideSave [size]="16" /> Salvar alterações
+      }
+    </button>
+  </div>
+
+  <!-- Segurança -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <svg lucideLock [size]="18" class="text-primary" />
+        <h2 class="font-heading font-semibold text-base text-foreground">Segurança</h2>
+      </div>
+      <button class="text-sm text-primary hover:underline font-medium" (click)="alterarSenha.update(v => !v)">
+        {{ alterarSenha() ? 'Cancelar' : 'Alterar senha' }}
+      </button>
+    </div>
+
+    @if (alterarSenha()) {
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-foreground mb-1.5">Senha atual</label>
+          <div class="relative">
+            <input [type]="showSenha() ? 'text' : 'password'" [value]="senhaAtual()" (input)="senhaAtual.set($any($event.target).value)"
+              class="w-full px-4 py-2.5 pr-12 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+              placeholder="••••••••" />
+            <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors" (click)="showSenha.update(v => !v)">
+              @if (showSenha()) { <svg lucideEyeOff [size]="16" /> } @else { <svg lucideEye [size]="16" /> }
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-foreground mb-1.5">Nova senha</label>
+          <div class="relative">
+            <input [type]="showNovaSenha() ? 'text' : 'password'" [value]="novaSenha()" (input)="novaSenha.set($any($event.target).value)"
+              class="w-full px-4 py-2.5 pr-12 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+              placeholder="••••••••" />
+            <button type="button" class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors" (click)="showNovaSenha.update(v => !v)">
+              @if (showNovaSenha()) { <svg lucideEyeOff [size]="16" /> } @else { <svg lucideEye [size]="16" /> }
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-foreground mb-1.5">Confirmar nova senha</label>
+          <input type="password" [value]="confirmarSenha()" (input)="confirmarSenha.set($any($event.target).value)"
+            class="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors"
+            [class.border-destructive]="novaSenha() && confirmarSenha() && novaSenha() !== confirmarSenha()"
+            placeholder="••••••••" />
+          @if (novaSenha() && confirmarSenha() && novaSenha() !== confirmarSenha()) {
+            <p class="text-xs text-destructive mt-1">As senhas não conferem</p>
+          }
+        </div>
+        <button class="w-full px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+          [disabled]="!senhaAtual() || !novaSenha() || novaSenha() !== confirmarSenha()">
+          Atualizar senha
+        </button>
+      </div>
+    } @else {
+      <p class="text-sm text-muted-foreground">Por segurança, utilize uma senha forte com letras, números e caracteres especiais.</p>
+    }
+  </div>
+
+  <!-- Sobre o sistema -->
+  <div class="bg-card rounded-2xl shadow-sm border border-border p-6">
+    <h2 class="font-heading font-semibold text-base text-foreground mb-4">Sobre o sistema</h2>
+    <dl class="space-y-2 text-sm">
+      <div class="flex justify-between"><dt class="text-muted-foreground">Versão</dt><dd class="font-medium text-foreground">1.0.0</dd></div>
+      <div class="flex justify-between"><dt class="text-muted-foreground">Plataforma</dt><dd class="font-medium text-foreground">AgroPainel Web</dd></div>
+      <div class="flex justify-between"><dt class="text-muted-foreground">Framework</dt><dd class="font-medium text-foreground">Angular 21</dd></div>
+    </dl>
+  </div>
+</div>
