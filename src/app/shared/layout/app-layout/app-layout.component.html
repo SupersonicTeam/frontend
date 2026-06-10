@@ -1,0 +1,203 @@
+<div class="h-screen overflow-hidden flex flex-col bg-background">
+
+  <!-- Header fixo -->
+  <header class="h-14 md:h-16 bg-topbar flex items-center px-4 md:px-6 shrink-0 z-50">
+    <button
+      class="md:hidden mr-3 text-topbar-foreground hover:opacity-80 transition-opacity"
+      (click)="toggleMobileMenu()"
+      aria-label="Menu"
+    >
+      @if (mobileMenuOpen()) {
+        <svg lucideX [size]="24" />
+      } @else {
+        <svg lucideMenu [size]="24" />
+      }
+    </button>
+
+    <svg lucideSprout [size]="28" class="text-sidebar-primary mr-2" />
+    <span class="font-heading text-lg md:text-xl font-bold text-topbar-foreground tracking-tight">
+      AgroPainel
+    </span>
+
+    <div class="ml-auto flex items-center gap-2">
+      <!-- Notificações -->
+      <div class="relative">
+        <button
+          class="relative flex items-center justify-center w-9 h-9 rounded-full text-topbar-foreground hover:bg-white/10 transition-colors"
+          (click)="toggleNotificacoes()"
+          aria-label="Notificações"
+        >
+          <svg lucideBell [size]="22" />
+          @if (notificacoesService.naoLidas() > 0) {
+            <span class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none">
+              {{ notificacoesService.naoLidas() }}
+            </span>
+          }
+        </button>
+
+        @if (notificacoesOpen()) {
+          <div class="fixed inset-0 z-40" (click)="closeNotificacoes()"></div>
+          <div class="absolute right-0 top-11 z-50 w-[340px] max-w-[90vw] bg-card rounded-xl shadow-xl border border-border overflow-hidden">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+              <h4 class="font-semibold text-sm text-foreground">Notificações</h4>
+              <div class="flex gap-1">
+                <button
+                  class="flex items-center gap-1 px-2 py-1 rounded text-xs text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  (click)="notificacoesService.marcarTodasLidas()"
+                  [disabled]="notificacoesService.naoLidas() === 0"
+                >
+                  <svg lucideCheck [size]="13" /> Marcar lidas
+                </button>
+                <button
+                  class="flex items-center gap-1 px-2 py-1 rounded text-xs text-destructive hover:bg-muted transition-colors disabled:opacity-50"
+                  (click)="notificacoesService.limparTodas()"
+                  [disabled]="notificacoesService.notificacoes().length === 0"
+                >
+                  <svg lucideTrash2 [size]="13" /> Limpar
+                </button>
+              </div>
+            </div>
+            <div class="max-h-[320px] overflow-y-auto divide-y divide-border">
+              @if (notificacoesService.notificacoes().length === 0) {
+                <p class="text-center text-muted-foreground text-sm py-8">Nenhuma notificação</p>
+              } @else {
+                @for (n of notificacoesService.notificacoes(); track n.id) {
+                  <button
+                    class="w-full text-left px-4 py-3 flex gap-3 items-start hover:bg-muted/60 transition-colors"
+                    [class.bg-primary/5]="!n.lida"
+                    (click)="handleNotificacaoClick(n)"
+                  >
+                    <span class="text-base mt-0.5">{{ tipoIcon(n.tipo) }}</span>
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xs font-medium text-muted-foreground">{{ n.tipo }}</span>
+                        @if (!n.lida) {
+                          <span class="h-2 w-2 rounded-full bg-green-500 shrink-0"></span>
+                        }
+                      </div>
+                      <p class="text-sm truncate text-foreground">{{ n.titulo }}</p>
+                      <span class="text-[11px] text-muted-foreground">{{ n.dataHora }}</span>
+                    </div>
+                  </button>
+                }
+              }
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Configurações -->
+      <a
+        routerLink="/configuracoes"
+        class="flex items-center justify-center w-9 h-9 rounded-full text-topbar-foreground hover:bg-white/10 transition-colors"
+        aria-label="Configurações"
+      >
+        <svg lucideSettings [size]="20" />
+      </a>
+    </div>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden relative">
+
+    <!-- Desktop Sidebar -->
+    <aside class="hidden md:flex flex-col w-56 bg-sidebar shrink-0 border-r border-sidebar-accent h-full overflow-y-auto">
+      <nav class="flex-1 py-4 px-3 space-y-1">
+        <a routerLink="/dashboard" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
+           [routerLinkActiveOptions]="{exact:false}"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
+          <svg lucideLayoutDashboard [size]="20" /><span>Dashboard</span>
+        </a>
+        <a routerLink="/calendario" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
+           [routerLinkActiveOptions]="{exact:false}"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
+          <svg lucideCalendar [size]="20" /><span>Calendário</span>
+        </a>
+        <a routerLink="/documentos" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
+           [routerLinkActiveOptions]="{exact:false}"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
+          <svg lucideFileText [size]="20" /><span>Documentos</span>
+        </a>
+        <a routerLink="/chat" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
+           [routerLinkActiveOptions]="{exact:false}"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
+          <svg lucideMessageSquare [size]="20" /><span>Chat</span>
+        </a>
+        <a routerLink="/contador" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
+           [routerLinkActiveOptions]="{exact:false}"
+           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
+          <svg lucideCalculator [size]="20" /><span>Contador</span>
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Mobile slide-down menu -->
+    @if (mobileMenuOpen()) {
+      <div class="absolute inset-0 z-20 md:hidden">
+        <div class="absolute inset-0 bg-foreground/30" (click)="closeMobileMenu()"></div>
+        <nav class="relative bg-card rounded-b-xl shadow-lg mx-2 mt-1 p-3 space-y-1">
+          <a routerLink="/dashboard" routerLinkActive="bg-primary/10 text-primary"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
+             (click)="closeMobileMenu()">
+            <svg lucideLayoutDashboard [size]="22" /><span>Dashboard</span>
+          </a>
+          <a routerLink="/calendario" routerLinkActive="bg-primary/10 text-primary"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
+             (click)="closeMobileMenu()">
+            <svg lucideCalendar [size]="22" /><span>Calendário</span>
+          </a>
+          <a routerLink="/documentos" routerLinkActive="bg-primary/10 text-primary"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
+             (click)="closeMobileMenu()">
+            <svg lucideFileText [size]="22" /><span>Documentos</span>
+          </a>
+          <a routerLink="/chat" routerLinkActive="bg-primary/10 text-primary"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
+             (click)="closeMobileMenu()">
+            <svg lucideMessageSquare [size]="22" /><span>Chat</span>
+          </a>
+          <a routerLink="/contador" routerLinkActive="bg-primary/10 text-primary"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
+             (click)="closeMobileMenu()">
+            <svg lucideCalculator [size]="22" /><span>Contador</span>
+          </a>
+        </nav>
+      </div>
+    }
+
+    <!-- Conteúdo principal -->
+    <main class="flex-1 overflow-y-auto overflow-x-hidden pb-20 md:pb-6 p-3 sm:p-4 md:p-6 flex flex-col">
+      <router-outlet />
+    </main>
+  </div>
+
+  <!-- Bottom Navigation mobile -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-bottomnav border-t border-border flex justify-around items-center h-16 shadow-lg">
+    <a routerLink="/dashboard" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
+       class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
+      <svg lucideLayoutDashboard [size]="22" /><span class="text-[10px] font-medium leading-tight">Dashboard</span>
+    </a>
+    <a routerLink="/calendario" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
+       class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
+      <svg lucideCalendar [size]="22" /><span class="text-[10px] font-medium leading-tight">Calendário</span>
+    </a>
+    <a routerLink="/documentos" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
+       class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
+      <svg lucideFileText [size]="22" /><span class="text-[10px] font-medium leading-tight">Documentos</span>
+    </a>
+    <a routerLink="/chat" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
+       class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
+      <svg lucideMessageSquare [size]="22" /><span class="text-[10px] font-medium leading-tight">Chat</span>
+    </a>
+    <a routerLink="/contador" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
+       class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
+      <svg lucideCalculator [size]="22" /><span class="text-[10px] font-medium leading-tight">Contador</span>
+    </a>
+  </nav>
+
+  <app-toast-container />
+</div>

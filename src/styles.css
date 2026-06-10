@@ -1,3 +1,57 @@
-/* You can add global styles to this file, and also import other style files */
-
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --color-primary: hsl(142 44% 32%);
+  --color-primary-foreground: hsl(80 20% 90%);
+  --color-secondary: hsl(33 30% 90%);
+  --color-secondary-foreground: hsl(142 30% 22%);
+  --color-accent: hsl(33 55% 52%);
+  --color-accent-foreground: hsl(0 0% 100%);
+  --color-muted: hsl(40 20% 93%);
+  --color-muted-foreground: hsl(142 10% 40%);
+  --color-destructive: hsl(0 72% 51%);
+  --color-destructive-foreground: hsl(0 0% 100%);
+  --color-border: hsl(142 15% 88%);
+  --color-card: hsl(0 0% 100%);
+  --color-card-foreground: hsl(142 30% 12%);
+  --color-background: hsl(40 25% 97%);
+  --color-foreground: hsl(142 30% 12%);
+  --color-sidebar: hsl(142 30% 22%);
+  --color-sidebar-foreground: hsl(80 20% 90%);
+  --color-sidebar-accent: hsl(142 25% 28%);
+  --color-sidebar-primary: hsl(80 60% 65%);
+  --color-topbar: hsl(142 30% 22%);
+  --color-topbar-foreground: hsl(80 20% 90%);
+  --color-bottomnav: hsl(0 0% 100%);
+  --color-bottomnav-foreground: hsl(142 10% 50%);
+  --color-bottomnav-active: hsl(142 44% 32%);
+
+  --font-family-heading: 'Sora', ui-sans-serif, system-ui, sans-serif;
+  --font-family-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+*, *::before, *::after {
+  font-family: var(--font-family-body);
+  box-sizing: border-box;
+}
+
+body {
+  background-color: hsl(40 25% 97%);
+  color: hsl(142 30% 12%);
+}
+
+.font-heading {
+  font-family: var(--font-family-heading) !important;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-family-heading);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
