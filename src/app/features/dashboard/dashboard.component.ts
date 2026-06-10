@@ -264,6 +264,38 @@ export class DashboardComponent implements OnInit {
     this.impostoBreakdown().reduce((s, i) => s + i.valor, 0)
   );
 
+  // Apuracao: periodo selecionavel (mes/ano) + status (#12)
+  readonly meses = [
+    { v: 1, nome: 'Janeiro' }, { v: 2, nome: 'Fevereiro' }, { v: 3, nome: 'Março' },
+    { v: 4, nome: 'Abril' }, { v: 5, nome: 'Maio' }, { v: 6, nome: 'Junho' },
+    { v: 7, nome: 'Julho' }, { v: 8, nome: 'Agosto' }, { v: 9, nome: 'Setembro' },
+    { v: 10, nome: 'Outubro' }, { v: 11, nome: 'Novembro' }, { v: 12, nome: 'Dezembro' },
+  ];
+  readonly anos = [
+    new Date().getFullYear(),
+    new Date().getFullYear() - 1,
+    new Date().getFullYear() - 2,
+  ];
+  readonly periodoMes = signal(new Date().getMonth() + 1);
+  readonly periodoAno = signal(new Date().getFullYear());
+
+  readonly statusApuracao = computed<{ label: string; classe: string }>(() => {
+    const agora = new Date();
+    const atual = agora.getFullYear() * 100 + (agora.getMonth() + 1);
+    const sel = this.periodoAno() * 100 + this.periodoMes();
+    if (sel === atual) return { label: 'Aberto', classe: 'bg-green-100 text-green-700' };
+    if (sel < atual) return { label: 'Fechado', classe: 'bg-muted text-muted-foreground' };
+    return { label: 'Em processamento', classe: 'bg-accent/15 text-accent' };
+  });
+
+  setMes(valor: string): void {
+    this.periodoMes.set(Number(valor));
+  }
+
+  setAno(valor: string): void {
+    this.periodoAno.set(Number(valor));
+  }
+
   readonly documentos = computed(() =>
     this.notas()
       .slice()

@@ -238,6 +238,34 @@
       }
     </div>
 
+    <!-- Período selecionável + status da apuração (#12) -->
+    <div class="flex flex-wrap items-center gap-2 mb-4">
+      <select
+        class="text-sm rounded-lg border border-border bg-card px-2 py-1.5 text-foreground"
+        (change)="setMes($any($event.target).value)"
+        aria-label="Mês de apuração"
+      >
+        @for (m of meses; track m.v) {
+          <option [value]="m.v" [selected]="m.v === periodoMes()">{{ m.nome }}</option>
+        }
+      </select>
+      <select
+        class="text-sm rounded-lg border border-border bg-card px-2 py-1.5 text-foreground"
+        (change)="setAno($any($event.target).value)"
+        aria-label="Ano de apuração"
+      >
+        @for (a of anos; track a) {
+          <option [value]="a" [selected]="a === periodoAno()">{{ a }}</option>
+        }
+      </select>
+      <span
+        class="text-xs px-2 py-1 rounded-full font-medium ml-auto"
+        [class]="statusApuracao().classe"
+      >
+        {{ statusApuracao().label }}
+      </span>
+    </div>
+
     <!-- KPI principal -->
     <div class="p-4 rounded-xl bg-primary/5 border border-primary/10 mb-4">
       <p class="text-xs text-muted-foreground mb-1">Imposto estimado total</p>
