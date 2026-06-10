@@ -55,3 +55,12 @@ h1, h2, h3, h4 {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+/* Angular Material (uso híbrido/pontual) — tinta agro sobre o tema prebuilt azure-blue.
+   Carregado depois do prebuilt no angular.json, então estes tokens vencem. */
+html {
+  --mat-sys-primary: #2e7648;
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: #b8e6c4;
+  --mat-sys-on-primary-container: #00210f;
+}

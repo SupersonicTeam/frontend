@@ -14,6 +14,7 @@ import {
   LucideMessageSquare,
   LucideCalculator,
 } from '@lucide/angular';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { NotificacoesService } from '../../../core/services/notificacoes.service';
 import { ToastContainerComponent } from '../../components/toast-container/toast-container.component';
 
@@ -32,6 +33,7 @@ export interface NavItem {
     RouterLink,
     RouterLinkActive,
     ToastContainerComponent,
+    MatTooltipModule,
     LucideSprout,
     LucideMenu,
     LucideX,
