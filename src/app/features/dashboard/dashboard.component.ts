@@ -127,7 +127,7 @@ export class DashboardComponent implements OnInit {
   readonly barChartOptions: ChartConfiguration<'bar'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: false,
+    animation: { duration: 700 },
     plugins: {
       legend: {
         position: 'bottom',
@@ -171,7 +171,7 @@ export class DashboardComponent implements OnInit {
   readonly pieChartOptions: ChartConfiguration<'pie'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: false,
+    animation: { duration: 700 },
     plugins: {
       legend: {
         position: 'bottom',
@@ -214,7 +214,7 @@ export class DashboardComponent implements OnInit {
   readonly lineChartOptions: ChartConfiguration<'line'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: false,
+    animation: { duration: 700 },
     plugins: {
       legend: {
         position: 'bottom',
