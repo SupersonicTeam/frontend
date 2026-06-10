@@ -1,5 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import {
   LucideSettings,
   LucideUser,
@@ -8,15 +9,31 @@ import {
   LucideEye,
   LucideEyeOff,
   LucideCheck,
+  LucideMoon,
 } from '@lucide/angular';
+import { ThemeService } from '../../core/services/theme.service';
+import { UiCardComponent } from '../../shared/ui/ui-card.component';
 
 @Component({
   selector: 'app-configuracoes',
   standalone: true,
-  imports: [FormsModule, LucideSettings, LucideUser, LucideLock, LucideSave, LucideEye, LucideEyeOff, LucideCheck],
+  imports: [
+    FormsModule,
+    MatSlideToggleModule,
+    UiCardComponent,
+    LucideSettings,
+    LucideUser,
+    LucideLock,
+    LucideSave,
+    LucideEye,
+    LucideEyeOff,
+    LucideCheck,
+    LucideMoon,
+  ],
   templateUrl: './configuracoes.component.html',
 })
 export class ConfiguracoesComponent {
+  readonly themeService = inject(ThemeService);
   showSenha = signal(false);
   showNovaSenha = signal(false);
   salvando = signal(false);

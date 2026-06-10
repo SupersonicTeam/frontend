@@ -53,6 +53,25 @@
     </button>
   </div>
 
+  <!-- Aparência: tema claro/escuro (#10) — usa ui-card (SharedModule) + MatSlideToggle -->
+  <ui-card>
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <svg lucideMoon [size]="18" class="text-primary" />
+        <div>
+          <h2 class="font-heading font-semibold text-base text-foreground">Aparência</h2>
+          <p class="text-sm text-muted-foreground">Alternar entre tema claro e escuro</p>
+        </div>
+      </div>
+      <mat-slide-toggle
+        [checked]="themeService.tema() === 'escuro'"
+        (change)="themeService.alternar()"
+      >
+        {{ themeService.tema() === 'escuro' ? 'Escuro' : 'Claro' }}
+      </mat-slide-toggle>
+    </div>
+  </ui-card>
+
   <!-- Segurança -->
   <div class="bg-card rounded-2xl shadow-sm border border-border p-6 space-y-4">
     <div class="flex items-center justify-between">
