@@ -139,9 +139,10 @@ export function buildNotaFiscalXml(nota: NotaFiscal): string {
 </NFe>`;
 }
 
-// Notas de exemplo enquanto o backend (/dashboard/notas) não responde.
-// A nota 2 tem um item SEM CFOP de propósito → exercita o painel de 422 ao gerar XML.
-function mockNotas(): NotaFiscal[] {
+// Notas de exemplo usadas como fallback de demonstração quando /dashboard/notas
+// falha (backend offline). A nota 2 tem um item SEM CFOP de propósito → exercita
+// o painel de 422 ao gerar XML.
+export function mockNotas(): NotaFiscal[] {
   return [
     {
       id: 'mock-nota-1',
@@ -209,11 +210,10 @@ export class DashboardService {
     return this.api.get<FluxoCaixa>(`/dashboard/${produtorId}/fluxo-caixa`).pipe(catchError(() => of(null)));
   }
 
+  // Propaga o erro de propósito: cada caller decide o fallback (ex.: mockNotas() +
+  // banner de "offline" em Documentos). Não mascara falha de carregamento.
   getNotas(produtorId: string): Observable<NotaFiscal[]> {
-    return this.api.get<NotaFiscal[]>('/dashboard/notas', { produtorId }).pipe(
-      map(res => (res?.length ? res : mockNotas())),
-      catchError(() => of(mockNotas())),
-    );
+    return this.api.get<NotaFiscal[]>('/dashboard/notas', { produtorId });
   }
 
   getNota(id: string): Observable<NotaFiscal | null> {

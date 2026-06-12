@@ -7,7 +7,7 @@ import {
   LucideFileCheck, LucideTrendingUp, LucideLoaderCircle,
   LucideFileOutput,
 } from '@lucide/angular';
-import { DashboardService, LOGGED_PRODUCER_ID } from '../../core/services/dashboard.service';
+import { DashboardService, LOGGED_PRODUCER_ID, mockNotas } from '../../core/services/dashboard.service';
 import { ContadorService } from '../../core/services/contador.service';
 import { ToastService } from '../../core/services/toast.service';
 import {
@@ -77,6 +77,14 @@ export class DocumentosComponent implements OnInit {
   grupo = signal('todos');
   statusFilter = signal('todos');
   busca = signal('');
+  ordenacao = signal<'data' | 'valor'>('data');
+
+  // Carregamento de notas
+  notasErro = signal(false);
+
+  // Importar nota via XML/PDF (drag-and-drop)
+  importando = signal(false);
+  dragOver = signal(false);
 
   // View dialogs
   previewNota = signal<NotaFiscal | null>(null);
@@ -136,6 +144,12 @@ export class DocumentosComponent implements OnInit {
     // Busca
     if (busca) lista = lista.filter(n => (n.naturezaOperacao || '').toLowerCase().includes(busca) || (n.numero || '').toLowerCase().includes(busca));
 
+    // Ordenação
+    lista.sort((a, b) => {
+      if (this.ordenacao() === 'valor') return (b.valorTotal ?? 0) - (a.valorTotal ?? 0);
+      return new Date(b.dataEmissao ?? 0).getTime() - new Date(a.dataEmissao ?? 0).getTime();
+    });
+
     return lista;
   });
 
@@ -162,9 +176,16 @@ export class DocumentosComponent implements OnInit {
 
   carregarDados(): void {
     this.loading.set(true);
+    this.notasErro.set(false);
     this.dashboardService.getNotas(LOGGED_PRODUCER_ID).subscribe({
-      next: data => { this.notas.set(data); this.loading.set(false); },
-      error: () => this.loading.set(false),
+      next: data => { this.notas.set(data); this.notasErro.set(false); this.loading.set(false); },
+      error: () => {
+        // Falha ao carregar (ex.: backend offline) → sinaliza o erro e exibe
+        // dados de exemplo para a tela continuar utilizável.
+        this.notas.set(mockNotas());
+        this.notasErro.set(true);
+        this.loading.set(false);
+      },
     });
     this.dashboardService.getRascunhos(LOGGED_PRODUCER_ID).subscribe({ next: d => this.rascunhos.set(d), error: () => {} });
     this.contadorService.getPendencias(LOGGED_PRODUCER_ID).subscribe({ next: d => this.solicitacoes.set(d), error: () => {} });
@@ -331,6 +352,56 @@ export class DocumentosComponent implements OnInit {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // === Importar nota (XML/PDF, drag-and-drop) ===
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    this.dragOver.set(true);
+  }
+
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.dragOver.set(false);
+  }
+
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.dragOver.set(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (file) this.importarArquivo(file);
+  }
+
+  onFileImport(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (file) this.importarArquivo(file);
+    input.value = '';
+  }
+
+  importarArquivo(file: File): void {
+    const nome = file.name.toLowerCase();
+    if (!nome.endsWith('.xml') && !nome.endsWith('.pdf')) {
+      this.toastService.error('Envie um arquivo XML ou PDF da NF-e.');
+      return;
+    }
+    this.importando.set(true);
+    this.dashboardService.uploadNota(file).subscribe({
+      next: nota => {
+        this.importando.set(false);
+        if (nota) {
+          this.notas.update(list => [nota, ...list]);
+          this.notasErro.set(false);
+          this.toastService.success('Nota importada com sucesso!');
+        } else {
+          this.toastService.error('Não foi possível importar a nota.');
+        }
+      },
+      error: () => {
+        this.importando.set(false);
+        this.toastService.error('Não foi possível importar a nota.');
+      },
+    });
   }
 
   // Formatação CPF/CNPJ

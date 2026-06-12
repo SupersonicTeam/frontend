@@ -45,6 +45,7 @@ import {
   LOGGED_PRODUCER_ID,
   ResumoMensalNotas,
   DistribuicaoImposto,
+  mockNotas,
 } from '../../core/services/dashboard.service';
 import { NotificacaoService } from '../../core/services/notificacao.service';
 import { CalendarioService } from '../../core/services/calendario.service';
@@ -328,7 +329,7 @@ export class DashboardComponent implements OnInit {
     this.loadingNotas.set(true);
     this.dashboardService.getNotas(LOGGED_PRODUCER_ID).subscribe({
       next: data => { this.notas.set(data); this.loadingNotas.set(false); },
-      error: () => this.loadingNotas.set(false),
+      error: () => { this.notas.set(mockNotas()); this.loadingNotas.set(false); },
     });
 
     this.dashboardService.getProdutor(LOGGED_PRODUCER_ID).subscribe({
