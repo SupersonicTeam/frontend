@@ -139,6 +139,60 @@ export function buildNotaFiscalXml(nota: NotaFiscal): string {
 </NFe>`;
 }
 
+// Notas de exemplo enquanto o backend (/dashboard/notas) não responde.
+// A nota 2 tem um item SEM CFOP de propósito → exercita o painel de 422 ao gerar XML.
+function mockNotas(): NotaFiscal[] {
+  return [
+    {
+      id: 'mock-nota-1',
+      produtorId: LOGGED_PRODUCER_ID,
+      chaveAcesso: '35260612345678000190550010000010231000000017',
+      tipo: 'saida',
+      numero: '1023',
+      serie: '1',
+      cfop: '5102',
+      naturezaOperacao: 'Venda de produção do estabelecimento',
+      nomeEmitente: 'Fazenda Boa Vista LTDA',
+      cpfCnpjEmitente: '12.345.678/0001-90',
+      dataEmissao: '2026-05-20T00:00:00.000Z',
+      valorProdutos: 12000,
+      valorTotal: 12000,
+      valorCbs: 420,
+      valorIbs: 860,
+      valorFunrural: 180,
+      status: 'validada',
+      itens: [
+        {
+          id: 'mi1', numeroItem: 1, descricao: 'Soja em grão', codigoProduto: 'SOJA01',
+          ncm: '12019000', cfop: '5102', unidade: 'KG', quantidade: 1000,
+          valorUnitario: 12, valorTotal: 12000,
+        },
+      ],
+    },
+    {
+      id: 'mock-nota-2',
+      produtorId: LOGGED_PRODUCER_ID,
+      chaveAcesso: '35260687654321000110550010000010241000000028',
+      tipo: 'saida',
+      numero: '1024',
+      serie: '1',
+      naturezaOperacao: 'Venda de milho',
+      nomeEmitente: 'Fazenda Boa Vista LTDA',
+      cpfCnpjEmitente: '12.345.678/0001-90',
+      dataEmissao: '2026-05-28T00:00:00.000Z',
+      valorProdutos: 8000,
+      valorTotal: 8000,
+      status: 'pendente',
+      itens: [
+        {
+          id: 'mi2', numeroItem: 1, descricao: 'Milho em grão', codigoProduto: 'MILHO01',
+          ncm: '10059010', unidade: 'KG', quantidade: 800, valorUnitario: 10, valorTotal: 8000,
+        },
+      ],
+    },
+  ];
+}
+
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private readonly api = inject(ApiService);
@@ -156,7 +210,10 @@ export class DashboardService {
   }
 
   getNotas(produtorId: string): Observable<NotaFiscal[]> {
-    return this.api.get<NotaFiscal[]>('/dashboard/notas', { produtorId }).pipe(catchError(() => of([])));
+    return this.api.get<NotaFiscal[]>('/dashboard/notas', { produtorId }).pipe(
+      map(res => (res?.length ? res : mockNotas())),
+      catchError(() => of(mockNotas())),
+    );
   }
 
   getNota(id: string): Observable<NotaFiscal | null> {
