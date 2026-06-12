@@ -1,11 +1,12 @@
 name: CI
 
 # Sprint 0 / #7 — CI básico do frontend Angular: lint + build + testes.
+# Fluxo: trabalho direto na `dev`, promoção `dev` -> `main`. CI roda em ambas.
 on:
   pull_request:
     branches: [dev, main]
   push:
-    branches: [dev]
+    branches: [dev, main]
 
 jobs:
   build:
