@@ -10,7 +10,14 @@ import {
 import { DashboardService, LOGGED_PRODUCER_ID } from '../../core/services/dashboard.service';
 import { ContadorService } from '../../core/services/contador.service';
 import { ToastService } from '../../core/services/toast.service';
-import { NotaFiscal, RascunhoNota, SolicitacaoContador } from '../../core/models/types';
+import {
+  ApiErrorEnvelope,
+  FiscalError,
+  NotaFiscal,
+  RascunhoNota,
+  SolicitacaoContador,
+} from '../../core/models/types';
+import { gerarNotaPdf } from '../../core/utils/nota-pdf';
 
 export interface ItemForm {
   descricao: string;
@@ -76,6 +83,10 @@ export class DocumentosComponent implements OnInit {
   viewRascunho = signal<RascunhoNota | null>(null);
   feedbackRascunho = signal<RascunhoNota | null>(null);
   emitirRascunho = signal<RascunhoNota | null>(null);
+
+  // Download de nota (PDF/XML)
+  baixandoXml = signal(false);
+  errosFiscais = signal<FiscalError[]>([]);
 
   // Upload/Anexar dialog
   showAnexar = signal(false);
@@ -270,6 +281,56 @@ export class DocumentosComponent implements OnInit {
     if (!this.solicitacaoSelecionada()) return;
     this.toastService.success('Documento anexado com sucesso!');
     this.fecharAnexar();
+  }
+
+  // === Download de nota (PDF/XML) ===
+  abrirPreview(nota: NotaFiscal): void {
+    this.errosFiscais.set([]);
+    this.previewNota.set(nota);
+  }
+
+  fecharPreview(): void {
+    this.previewNota.set(null);
+    this.errosFiscais.set([]);
+  }
+
+  baixarXml(nota: NotaFiscal): void {
+    this.baixandoXml.set(true);
+    this.errosFiscais.set([]);
+    this.dashboardService.gerarXmlNota(nota).subscribe({
+      next: xml => {
+        this.baixandoXml.set(false);
+        this.triggerDownload(`nota-${nota.numero || nota.id}.xml`, xml, 'application/xml');
+        this.toastService.success('XML gerado com sucesso!');
+      },
+      error: (err: ApiErrorEnvelope) => {
+        this.baixandoXml.set(false);
+        if (err?.errors?.length) {
+          this.errosFiscais.set(err.errors);
+          this.toastService.error('A nota possui inconsistências fiscais.');
+        } else {
+          this.toastService.error('Erro ao gerar o XML.');
+        }
+      },
+    });
+  }
+
+  async baixarPdf(nota: NotaFiscal): Promise<void> {
+    try {
+      await gerarNotaPdf(nota);
+    } catch {
+      this.toastService.error('Erro ao gerar o PDF.');
+    }
+  }
+
+  private triggerDownload(filename: string, content: string, mime: string): void {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   // Formatação CPF/CNPJ
