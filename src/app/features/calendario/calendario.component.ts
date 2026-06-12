@@ -3,7 +3,6 @@ import { RouterLink } from '@angular/router';
 import {
   LucideCalendar, LucideChevronLeft, LucideChevronRight,
   LucideCheck, LucideMessageCircle, LucideLoaderCircle,
-  LucideCoins, LucideClipboardList, LucideFileText, LucideMail,
 } from '@lucide/angular';
 import { forkJoin } from 'rxjs';
 import { CalendarioService } from '../../core/services/calendario.service';
@@ -20,7 +19,6 @@ import { LOGGED_PRODUCER_ID } from '../../core/services/dashboard.service';
     RouterLink,
     LucideCalendar, LucideChevronLeft, LucideChevronRight,
     LucideCheck, LucideMessageCircle, LucideLoaderCircle,
-    LucideCoins, LucideClipboardList, LucideFileText, LucideMail,
   ],
   templateUrl: './calendario.component.html',
 })
@@ -168,13 +166,8 @@ export class CalendarioComponent implements OnInit {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  tipoIconClass(tipo: string): string {
-    return {
-      'imposto': 'bg-amber-50 text-amber-600',
-      'obrigacao': 'bg-blue-50 text-blue-600',
-      'declaracao': 'bg-violet-50 text-violet-600',
-      'solicitacao': 'bg-orange-50 text-orange-600',
-    }[tipo] ?? 'bg-muted text-muted-foreground';
+  tipoIcon(tipo: string): string {
+    return { 'imposto': '💰', 'obrigacao': '📋', 'declaracao': '📄', 'pagamento': '💳', 'solicitacao': '📨' }[tipo] ?? '📅';
   }
 
   prioridadeColor(p?: string): string {
