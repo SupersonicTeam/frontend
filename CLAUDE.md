@@ -111,10 +111,11 @@ Domínio: `Produtor`, `NotaFiscal` + `ItemNotaFiscal`, `FluxoCaixa`, `RascunhoNo
 
 ## Git / fluxo de trabalho
 
-- `master` = protegida (só scaffold) — **nunca commitar nela**.
-- `dev` = integração (baseline do port + sprints mergeadas).
-- `feature/sprintN-*` = uma branch por sprint, sai de `dev`, revisada antes do merge.
-- Repo é **local, sem remote** por enquanto. `dist/`, `node_modules/`, `.angular/cache` já no `.gitignore`.
+- Remote: `origin` → `github.com/SupersonicTeam/frontend`. Só duas branches: **`main`** (estável) e **`dev`** (trabalho).
+- **Fluxo (decisão de 2026-06-11):** commitar as alterações **direto na `dev`**; promover **`dev` → `main`** (merge) ao
+  fechar um marco. **Sem branch por tarefa.**
+- **CI** (`.github/workflows/ci.yml`): roda **lint · build · test** (Node 22) em push para `dev` e `main`.
+- Antes de promover pra `main`, garanta lint/build/test verdes localmente. `dist/`, `node_modules/`, `.angular/cache` no `.gitignore`.
 
 ## Estado das sprints (frontend)
 
