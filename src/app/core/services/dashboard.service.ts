@@ -13,7 +13,7 @@ export interface ResumoMensalNotas {
 
 const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 // Amostra ilustrativa [entradas, saidas] usada enquanto o backend nao expoe /notas-por-mes.
-const AMOSTRA_MENSAL: ReadonlyArray<readonly [number, number]> = [
+const AMOSTRA_MENSAL: readonly (readonly [number, number])[] = [
   [4, 6], [7, 5], [5, 9], [8, 7], [6, 11], [9, 8],
 ];
 
@@ -24,6 +24,18 @@ function mockNotasPorMes(): ResumoMensalNotas[] {
     return { mes: MESES_PT[d.getMonth()], entradas, saidas };
   });
 }
+
+export interface DistribuicaoImposto {
+  nome: string;
+  valor: number;
+}
+
+// Mock enquanto o backend nao expoe /distribuicao-impostos (valores ilustrativos em R$).
+const MOCK_DISTRIBUICAO: DistribuicaoImposto[] = [
+  { nome: 'CBS', valor: 3500 },
+  { nome: 'IBS', valor: 7100 },
+  { nome: 'FUNRURAL', valor: 1500 },
+];
 
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
@@ -97,6 +109,14 @@ export class DashboardService {
     return this.api.get<ResumoMensalNotas[]>(`/dashboard/${produtorId}/notas-por-mes`).pipe(
       map(res => (res?.length ? res : mockNotasPorMes())),
       catchError(() => of(mockNotasPorMes()))
+    );
+  }
+
+  // GET /dashboard/:produtorId/distribuicao-impostos  → fallback mock enquanto backend pendente
+  getDistribuicaoImpostos(produtorId: string): Observable<DistribuicaoImposto[]> {
+    return this.api.get<DistribuicaoImposto[]>(`/dashboard/${produtorId}/distribuicao-impostos`).pipe(
+      map(res => (res?.length ? res : MOCK_DISTRIBUICAO)),
+      catchError(() => of(MOCK_DISTRIBUICAO))
     );
   }
 }

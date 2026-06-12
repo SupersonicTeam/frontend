@@ -13,12 +13,18 @@ import {
   LucideSprout,
   LucideChevronDown,
   LucideChevronUp,
+  LucideBell,
 } from '@lucide/angular';
 import { BaseChartDirective } from 'ng2-charts';
 import {
   Chart,
   BarController,
   BarElement,
+  PieController,
+  ArcElement,
+  LineController,
+  PointElement,
+  LineElement,
   CategoryScale,
   LinearScale,
   Legend,
@@ -27,16 +33,23 @@ import {
   type ChartData,
 } from 'chart.js';
 
-// Registro enxuto: so o necessario para o grafico de barras (mantem Chart.js no chunk lazy do dashboard).
-Chart.register(BarController, BarElement, CategoryScale, LinearScale, Legend, Tooltip);
+// Registro enxuto: so barras/pizza/linha (mantem Chart.js no chunk lazy do dashboard).
+Chart.register(
+  BarController, BarElement,
+  PieController, ArcElement,
+  LineController, PointElement, LineElement,
+  CategoryScale, LinearScale, Legend, Tooltip,
+);
 import {
   DashboardService,
   LOGGED_PRODUCER_ID,
   ResumoMensalNotas,
+  DistribuicaoImposto,
 } from '../../core/services/dashboard.service';
 import { NotificacaoService } from '../../core/services/notificacao.service';
+import { CalendarioService } from '../../core/services/calendario.service';
 import { ToastService } from '../../core/services/toast.service';
-import { FluxoCaixa, NotaFiscal } from '../../core/models/types';
+import { FluxoCaixa, NotaFiscal, VencimentoFiscal } from '../../core/models/types';
 
 interface DocItem {
   id: number;
@@ -65,6 +78,7 @@ interface DocItem {
     LucideSprout,
     LucideChevronDown,
     LucideChevronUp,
+    LucideBell,
     BaseChartDirective,
   ],
   templateUrl: './dashboard.component.html',
@@ -72,6 +86,7 @@ interface DocItem {
 export class DashboardComponent implements OnInit {
   private readonly dashboardService = inject(DashboardService);
   private readonly notificacaoService = inject(NotificacaoService);
+  private readonly calendarioService = inject(CalendarioService);
   private readonly toastService = inject(ToastService);
 
   readonly mesAtual = this.getMesAtual();
@@ -83,6 +98,8 @@ export class DashboardComponent implements OnInit {
 
   readonly fluxoCaixa = signal<FluxoCaixa | null>(null);
   readonly notas = signal<NotaFiscal[]>([]);
+  readonly loadingAlertas = signal(false);
+  readonly alertas = signal<VencimentoFiscal[]>([]);
   readonly notaDetalhada = signal<NotaFiscal | null>(null);
   readonly previewDoc = signal<DocItem | null>(null);
 
@@ -116,7 +133,94 @@ export class DashboardComponent implements OnInit {
   readonly barChartOptions: ChartConfiguration<'bar'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
-    animation: false,
+    animation: { duration: 700 },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } },
+      },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { font: { family: 'Inter' } } },
+      y: {
+        beginAtZero: true,
+        ticks: { precision: 0, font: { family: 'Inter' } },
+        grid: { color: 'hsl(142, 15%, 88%)' },
+      },
+    },
+  };
+
+  // Grafico: distribuicao de impostos (pizza)
+  readonly distribuicaoImpostos = signal<DistribuicaoImposto[]>([]);
+
+  readonly pieChartData = computed<ChartData<'pie'>>(() => {
+    const d = this.distribuicaoImpostos();
+    return {
+      labels: d.map(x => x.nome),
+      datasets: [
+        {
+          data: d.map(x => x.valor),
+          backgroundColor: [
+            'hsl(142, 44%, 32%)',
+            'hsl(33, 55%, 52%)',
+            'hsl(142, 25%, 55%)',
+            'hsl(0, 72%, 51%)',
+            'hsl(205, 45%, 50%)',
+          ],
+          borderColor: 'hsl(0, 0%, 100%)',
+          borderWidth: 2,
+        },
+      ],
+    };
+  });
+
+  readonly pieChartOptions: ChartConfiguration<'pie'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 700 },
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } },
+      },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ${ctx.label}: ${this.formatCurrency(ctx.parsed as number)}`,
+        },
+      },
+    },
+  };
+
+  // Grafico: tendencia mensal (linha) — reusa notasPorMes
+  readonly lineChartData = computed<ChartData<'line'>>(() => {
+    const dados = this.notasPorMes();
+    return {
+      labels: dados.map(d => d.mes),
+      datasets: [
+        {
+          label: 'Entradas',
+          data: dados.map(d => d.entradas),
+          borderColor: 'hsl(33, 55%, 52%)',
+          backgroundColor: 'hsl(33, 55%, 52%)',
+          tension: 0.35,
+          pointRadius: 3,
+        },
+        {
+          label: 'Saídas',
+          data: dados.map(d => d.saidas),
+          borderColor: 'hsl(142, 44%, 32%)',
+          backgroundColor: 'hsl(142, 44%, 32%)',
+          tension: 0.35,
+          pointRadius: 3,
+        },
+      ],
+    };
+  });
+
+  readonly lineChartOptions: ChartConfiguration<'line'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 700 },
     plugins: {
       legend: {
         position: 'bottom',
@@ -143,8 +247,6 @@ export class DashboardComponent implements OnInit {
     const totalFunrural = notas.reduce((s, n) => s + (n.valorFunrural ?? 0), 0);
     const totalIcms = notas.reduce((s, n) => s + (n.valorIcms ?? 0), 0);
     const totalIpi = notas.reduce((s, n) => s + (n.valorIpi ?? 0), 0);
-    const total = totalCbs + totalIbs + totalFunrural + totalIcms + totalIpi;
-    const base = notas.reduce((s, n) => s + (n.valorTotal ?? 0), 0);
 
     return [
       { nome: 'CBS', aliquota: '3,5%', original: '8,8%', valor: totalCbs, reducao: true },
@@ -159,6 +261,38 @@ export class DashboardComponent implements OnInit {
   readonly totalImpostoCalculado = computed(() =>
     this.impostoBreakdown().reduce((s, i) => s + i.valor, 0)
   );
+
+  // Apuracao: periodo selecionavel (mes/ano) + status (#12)
+  readonly meses = [
+    { v: 1, nome: 'Janeiro' }, { v: 2, nome: 'Fevereiro' }, { v: 3, nome: 'Março' },
+    { v: 4, nome: 'Abril' }, { v: 5, nome: 'Maio' }, { v: 6, nome: 'Junho' },
+    { v: 7, nome: 'Julho' }, { v: 8, nome: 'Agosto' }, { v: 9, nome: 'Setembro' },
+    { v: 10, nome: 'Outubro' }, { v: 11, nome: 'Novembro' }, { v: 12, nome: 'Dezembro' },
+  ];
+  readonly anos = [
+    new Date().getFullYear(),
+    new Date().getFullYear() - 1,
+    new Date().getFullYear() - 2,
+  ];
+  readonly periodoMes = signal(new Date().getMonth() + 1);
+  readonly periodoAno = signal(new Date().getFullYear());
+
+  readonly statusApuracao = computed<{ label: string; classe: string }>(() => {
+    const agora = new Date();
+    const atual = agora.getFullYear() * 100 + (agora.getMonth() + 1);
+    const sel = this.periodoAno() * 100 + this.periodoMes();
+    if (sel === atual) return { label: 'Aberto', classe: 'bg-green-100 text-green-700' };
+    if (sel < atual) return { label: 'Fechado', classe: 'bg-muted text-muted-foreground' };
+    return { label: 'Em processamento', classe: 'bg-accent/15 text-accent' };
+  });
+
+  setMes(valor: string): void {
+    this.periodoMes.set(Number(valor));
+  }
+
+  setAno(valor: string): void {
+    this.periodoAno.set(Number(valor));
+  }
 
   readonly documentos = computed(() =>
     this.notas()
@@ -206,6 +340,24 @@ export class DashboardComponent implements OnInit {
     this.dashboardService.getNotasPorMes(LOGGED_PRODUCER_ID).subscribe({
       next: data => { this.notasPorMes.set(data); this.loadingGrafico.set(false); },
       error: () => this.loadingGrafico.set(false),
+    });
+
+    this.dashboardService.getDistribuicaoImpostos(LOGGED_PRODUCER_ID).subscribe({
+      next: data => this.distribuicaoImpostos.set(data),
+      error: () => {},
+    });
+
+    this.loadingAlertas.set(true);
+    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID).subscribe({
+      next: data => {
+        const ordenados = data
+          .slice()
+          .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento))
+          .slice(0, 5);
+        this.alertas.set(ordenados);
+        this.loadingAlertas.set(false);
+      },
+      error: () => this.loadingAlertas.set(false),
     });
   }
 

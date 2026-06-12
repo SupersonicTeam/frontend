@@ -37,8 +37,8 @@
 }
 
 body {
-  background-color: hsl(40 25% 97%);
-  color: hsl(142 30% 12%);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
 }
 
 .font-heading {
@@ -54,4 +54,28 @@ h1, h2, h3, h4 {
 }
 .scrollbar-none::-webkit-scrollbar {
   display: none;
+}
+
+/* Angular Material (uso híbrido/pontual) — tinta agro sobre o tema prebuilt azure-blue.
+   Carregado depois do prebuilt no angular.json, então estes tokens vencem. */
+html {
+  --mat-sys-primary: #2e7648;
+  --mat-sys-on-primary: #ffffff;
+  --mat-sys-primary-container: #b8e6c4;
+  --mat-sys-on-primary-container: #00210f;
+}
+
+/* Tema escuro (#10) — ativado pela classe .dark no <html> (ThemeService).
+   Sobrescreve os tokens de superfície do design system; utilitários Tailwind
+   (bg-card, text-foreground, border-border, etc.) passam a usar estes valores. */
+.dark {
+  --color-background: hsl(150 18% 9%);
+  --color-foreground: hsl(80 12% 90%);
+  --color-card: hsl(150 16% 13%);
+  --color-card-foreground: hsl(80 12% 90%);
+  --color-border: hsl(150 10% 22%);
+  --color-muted: hsl(150 12% 18%);
+  --color-muted-foreground: hsl(80 6% 60%);
+  --color-secondary: hsl(150 12% 20%);
+  --color-secondary-foreground: hsl(80 12% 90%);
 }

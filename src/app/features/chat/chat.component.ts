@@ -38,7 +38,7 @@ export class ChatComponent implements AfterViewChecked {
   ];
 
   ngAfterViewChecked(): void {
-    try { this.endRef?.nativeElement?.scrollIntoView({ behavior: 'smooth' }); } catch {}
+    try { this.endRef?.nativeElement?.scrollIntoView({ behavior: 'smooth' }); } catch { /* scroll best-effort */ }
   }
 
   enviar(texto?: string): void {

@@ -26,6 +26,8 @@
           class="relative flex items-center justify-center w-9 h-9 rounded-full text-topbar-foreground hover:bg-white/10 transition-colors"
           (click)="toggleNotificacoes()"
           aria-label="Notificações"
+          matTooltip="Notificações"
+          matTooltipPosition="below"
         >
           <svg lucideBell [size]="22" />
           @if (notificacoesService.naoLidas() > 0) {
@@ -91,6 +93,8 @@
         routerLink="/configuracoes"
         class="flex items-center justify-center w-9 h-9 rounded-full text-topbar-foreground hover:bg-white/10 transition-colors"
         aria-label="Configurações"
+        matTooltip="Configurações"
+        matTooltipPosition="below"
       >
         <svg lucideSettings [size]="20" />
       </a>
