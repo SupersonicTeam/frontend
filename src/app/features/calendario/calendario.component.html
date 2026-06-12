@@ -199,7 +199,15 @@
       <div class="space-y-0">
         @for (v of vencimentosDoMes(); track v.id) {
           <div class="flex items-center gap-4 py-3 border-b border-border last:border-0">
-            <div class="text-2xl shrink-0">{{ tipoIcon(v.tipo) }}</div>
+            <div class="flex items-center justify-center w-10 h-10 rounded-xl shrink-0 {{ tipoIconClass(v.tipo) }}">
+              @switch (v.tipo) {
+                @case ('imposto') { <svg lucideCoins [size]="20" /> }
+                @case ('obrigacao') { <svg lucideClipboardList [size]="20" /> }
+                @case ('declaracao') { <svg lucideFileText [size]="20" /> }
+                @case ('solicitacao') { <svg lucideMail [size]="20" /> }
+                @default { <svg lucideCalendar [size]="20" /> }
+              }
+            </div>
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-foreground">{{ v.titulo }}</p>
               @if (v.descricao) { <p class="text-xs text-muted-foreground truncate">{{ v.descricao }}</p> }
