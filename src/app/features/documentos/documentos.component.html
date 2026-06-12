@@ -31,7 +31,28 @@
         class="w-full pl-9 pr-4 py-2 rounded-xl border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         [value]="busca()" (input)="busca.set($any($event.target).value)" />
     </div>
+
+    <select class="px-3 py-2 rounded-xl border border-border bg-card text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+      [value]="ordenacao()" (change)="ordenacao.set($any($event.target).value)" title="Ordenar">
+      <option value="data">Mais recentes</option>
+      <option value="valor">Maior valor</option>
+    </select>
   </div>
+
+  <!-- ── IMPORTAR NF-e (drag-and-drop) ── -->
+  <label
+    class="flex flex-col items-center justify-center gap-1.5 py-6 px-4 rounded-2xl border-2 border-dashed cursor-pointer transition-colors {{ dragOver() ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40' }}"
+    (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+    @if (importando()) {
+      <svg lucideLoaderCircle [size]="24" class="animate-spin text-primary" />
+      <span class="text-sm text-muted-foreground">Importando nota…</span>
+    } @else {
+      <svg lucideUpload [size]="24" class="text-muted-foreground" />
+      <span class="text-sm font-medium text-foreground">Arraste o XML/PDF da NF-e aqui</span>
+      <span class="text-xs text-muted-foreground">ou clique para selecionar</span>
+    }
+    <input type="file" accept=".xml,.pdf" class="hidden" (change)="onFileImport($event)" [disabled]="importando()" />
+  </label>
 
   <!-- ── CARREGANDO ── -->
   @if (loading()) {
@@ -39,6 +60,19 @@
       @for (i of [1,2,3]; track i) { <div class="h-20 bg-muted/60 animate-pulse rounded-2xl"></div> }
     </div>
   } @else {
+
+    <!-- ── ERRO AO CARREGAR ── -->
+    @if (notasErro()) {
+      <div class="flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+        <div class="flex-1 text-sm">
+          <p class="font-medium text-destructive">Não foi possível carregar as notas do servidor.</p>
+          <p class="text-muted-foreground text-xs">Exibindo dados de exemplo. Verifique a conexão e tente novamente.</p>
+        </div>
+        <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-sm hover:bg-muted shrink-0" (click)="carregarDados()">
+          <svg lucideRefreshCw [size]="14" /> Tentar novamente
+        </button>
+      </div>
+    }
 
     <!-- ── SEÇÃO: NF-e Oficiais ── -->
     @if (notasFiltradas().length > 0 || grupo() === 'todos' || grupo() === 'documentos') {
