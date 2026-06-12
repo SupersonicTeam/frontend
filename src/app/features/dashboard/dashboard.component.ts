@@ -247,8 +247,6 @@ export class DashboardComponent implements OnInit {
     const totalFunrural = notas.reduce((s, n) => s + (n.valorFunrural ?? 0), 0);
     const totalIcms = notas.reduce((s, n) => s + (n.valorIcms ?? 0), 0);
     const totalIpi = notas.reduce((s, n) => s + (n.valorIpi ?? 0), 0);
-    const total = totalCbs + totalIbs + totalFunrural + totalIcms + totalIpi;
-    const base = notas.reduce((s, n) => s + (n.valorTotal ?? 0), 0);
 
     return [
       { nome: 'CBS', aliquota: '3,5%', original: '8,8%', valor: totalCbs, reducao: true },

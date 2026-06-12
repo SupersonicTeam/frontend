@@ -17,7 +17,9 @@ Todos os gaps reais foram **implementados** e as issues fechadas no board:
 | #10 Setup | **ThemeService** claro/escuro + **shared/ui** (UiCard, UiButton) | `bd792fe` |
 
 Stack ampliada: `@angular/material`, `@angular/animations`, `ng2-charts`, `chart.js` (alinhados ao Angular 21.2).
-Build inicial ~475 kB (sob budget). **Pendente da S0:** só **#7 CI/CD frontend** (depende de remote + eslint → S10).
+Build inicial ~475 kB (sob budget). **#7 CI/CD frontend** — ✅ **concluído** (2026-06-11): remote criado
+(`origin` SupersonicTeam/frontend), `@angular-eslint` instalado + script `lint`, workflow GitHub Actions
+(`.github/workflows/ci.yml`: lint · build · test em PRs p/ `dev`/`main` e push em `dev`).
 
 ---
 
@@ -57,13 +59,14 @@ DoD: serve sem erros ✅ · roteamento funcional ✅ · HttpClient configurado �
 
 DoD: `ng serve` funciona ✅ · strict sem erros ✅ (build limpo, TS strict).
 
-### #7 — CI/CD básico com GitHub Actions (parte frontend)
+### #7 — CI/CD básico com GitHub Actions (parte frontend) ✅
 | Tarefa | Status | Evidência / nota |
 |---|---|---|
-| Workflow CI frontend (`ng lint` + `ng build`) | ❌ | Sem `.github/workflows` no projeto; sem eslint; sem script `lint` no `package.json` |
-| Rodar em PRs | ❌ | Repo frontend é **local, sem remote** — CI inviável por ora |
+| Workflow CI frontend (`ng lint` + `ng build` + test) | ✅ | `.github/workflows/ci.yml` — Node 22, `npm ci` → lint · build · test |
+| Rodar em PRs | ✅ | `on: pull_request` p/ `dev`/`main` + `push` em `dev`. Remote: `origin` SupersonicTeam/frontend |
+| ESLint configurado | ✅ | `@angular-eslint` 21.4 + script `lint`. a11y de template = `warn` (backlog WCAG → S10) |
 
-Obs.: `ng build` roda local e passa, mas não há pipeline. Pendente real (depende de remote + eslint).
+Obs.: lint 0 erros / 101 warnings (a11y + dívida de estilo, rastreadas); build e testes (Vitest) verdes localmente.
 
 ### #8 — Usuário mockado fixo (parte frontend)
 | Tarefa | Status | Evidência / nota |
@@ -81,7 +84,7 @@ Obs.: `ng build` roda local e passa, mas não há pipeline. Pendente real (depen
 |---|---|
 | Angular Material (instalação + 1º uso) | Sprint 2 (tabela Documentos) / Contador / Calendário |
 | Interceptor HTTP (baseURL + erros globais) | Sprint 5 (#34) |
-| CI/CD frontend (`ng lint` + `ng build`) + eslint + remote | Sprint 10 / quando houver remote |
+| ~~CI/CD frontend + eslint + remote~~ | ✅ **concluído na S0** (2026-06-11) |
 
 ---
 

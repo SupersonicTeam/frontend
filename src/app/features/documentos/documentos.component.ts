@@ -276,7 +276,7 @@ export class DocumentosComponent implements OnInit {
   formatCpfCnpj(event: Event): void {
     const input = event.target as HTMLInputElement;
     const numeros = input.value.replace(/\D/g, '');
-    let formatted = numeros;
+    let formatted: string;
     if (numeros.length <= 11) {
       formatted = numeros.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2');
     } else {

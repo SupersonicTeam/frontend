@@ -13,7 +13,7 @@ export interface ResumoMensalNotas {
 
 const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 // Amostra ilustrativa [entradas, saidas] usada enquanto o backend nao expoe /notas-por-mes.
-const AMOSTRA_MENSAL: ReadonlyArray<readonly [number, number]> = [
+const AMOSTRA_MENSAL: readonly (readonly [number, number])[] = [
   [4, 6], [7, 5], [5, 9], [8, 7], [6, 11], [9, 8],
 ];
 
