@@ -1,4 +1,4 @@
-import type { NotaFiscal } from '../models/types';
+import type { NotaFiscal } from '@models/nota-fiscal.model';
 
 /**
  * Gera um DANFE simplificado (PDF) da nota e dispara o download.

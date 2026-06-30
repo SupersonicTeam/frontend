@@ -1,41 +1,36 @@
 import { Routes } from '@angular/router';
-import { AppLayoutComponent } from './shared/layout/app-layout/app-layout.component';
+import { AppLayout } from '@shared/layout/app-layout/app-layout';
 
 export const routes: Routes = [
   {
     path: '',
-    component: AppLayoutComponent,
+    component: AppLayout,
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       {
         path: 'dashboard',
-        loadComponent: () =>
-          import('./features/dashboard/dashboard.component').then(m => m.DashboardComponent),
+        loadComponent: () => import('@pages/dashboard/dashboard').then((m) => m.DashboardPage),
       },
       {
         path: 'calendario',
-        loadComponent: () =>
-          import('./features/calendario/calendario.component').then(m => m.CalendarioComponent),
+        loadComponent: () => import('@pages/calendario/calendario').then((m) => m.CalendarioPage),
       },
       {
         path: 'documentos',
-        loadComponent: () =>
-          import('./features/documentos/documentos.component').then(m => m.DocumentosComponent),
+        loadComponent: () => import('@pages/documentos/documentos').then((m) => m.DocumentosPage),
       },
       {
         path: 'chat',
-        loadComponent: () =>
-          import('./features/chat/chat.component').then(m => m.ChatComponent),
+        loadComponent: () => import('@pages/chat/chat').then((m) => m.ChatPage),
       },
       {
         path: 'contador',
-        loadComponent: () =>
-          import('./features/contador/contador.component').then(m => m.ContadorComponent),
+        loadComponent: () => import('@pages/contador/contador').then((m) => m.ContadorPage),
       },
       {
         path: 'configuracoes',
         loadComponent: () =>
-          import('./features/configuracoes/configuracoes.component').then(m => m.ConfiguracoesComponent),
+          import('@pages/configuracoes/configuracoes').then((m) => m.ConfiguracoesPage),
       },
     ],
   },
