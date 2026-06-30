@@ -30,7 +30,7 @@ imposto, contador, rascunho).
 | Build de produção (`dist/`) | `npm run build` |
 | Build dev (source-maps, watch) | `npm run watch` |
 | Testes unitários (Vitest) | `npm test` |
-| Scaffold de componente | `npx ng generate component features/<nome>` |
+| Scaffold de componente | `npx ng generate component pages/<nome>` |
 
 ## Backend / API
 
@@ -40,55 +40,83 @@ imposto, contador, rascunho).
 
 ## Estrutura
 
+Padrão por camadas (estilo Frimesa), adotado na issue #7. Arquivos de componente **sem** sufixo `.component`
+(ex.: `dashboard.ts` + `dashboard.html`, classe `DashboardPage`).
+
 ```
 src/
   main.ts                      # bootstrapApplication(App, appConfig)
   styles.css                   # Tailwind v4 + @theme (design tokens)
   environments/                # environment.ts (apiUrl), environment.prod.ts
   app/
-    app.ts / app.html / app.css   # raiz (note: SEM sufixo .component no root)
+    app.ts / app.html / app.css   # raiz (SEM sufixo .component)
     app.config.ts              # providers: router, provideHttpClient(withFetch()), error listeners
-    app.routes.ts              # rotas (ver tabela abaixo)
-    core/
-      models/types.ts          # TODOS os tipos de domínio
-      services/                # services HTTP + estado (ver tabela)
-    features/<nome>/           # *.component.ts + *.component.html (lazy-loaded)
+    app.routes.ts              # rotas lazy via @pages (ver tabela abaixo)
+    core/                      # infraestrutura cross-cutting
+      models/*.model.ts        # tipos de domínio (1 arquivo por domínio)
+      enums/*.enum.ts          # unions/enums (ex.: status-rascunho)
+      DTOs/shared/responses/   # DTOs de API (ex.: api-error.response — envelope de erro)
+      config/                  # constantes (ex.: produtor-logado → LOGGED_PRODUCER_ID)
+      services/                # services CROSS-CUTTING (api, toast, theme, notificacoes-UI)
+      interceptors/            # api.interceptor
+      utils/                   # nota-pdf
+    services/<feat>/data-access/<feat>.service.ts   # services de NEGÓCIO, classes XxxApi (ver tabela)
+    pages/<nome>/<nome>.ts + <nome>.html            # páginas rotáveis, classes XxxPage (lazy-loaded)
     shared/
-      layout/app-layout/       # AppLayoutComponent (shell: header, sidebar, notificações)
-      components/toast-container/
+      layout/app-layout/       # AppLayout (shell: header, sidebar, notificações)
+      components/toast-container/   # ToastContainer
+      ui/                      # UiButton, UiCard
 ```
+
+### Path aliases (`tsconfig.json`)
+
+Imports sempre via alias (sem `../../`): `@core/*` · `@services/*` · `@pages/*` · `@shared/*` ·
+`@models/*` (= `core/models`) · `@dtos/*` (= `core/DTOs`) · `@env/*` (= `src/environments`).
 
 ## Rotas (`app.routes.ts`)
 
-Tudo sob `AppLayoutComponent`, lazy via `loadComponent`. `''` → redirect `dashboard`; `**` → `dashboard`.
+Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `**` → `dashboard`.
 
-| Rota | Componente | Arquivos |
+| Rota | Classe | Arquivos |
 |---|---|---|
-| `/dashboard` | DashboardComponent | `features/dashboard/dashboard.component.{ts,html}` |
-| `/calendario` | CalendarioComponent | `features/calendario/calendario.component.{ts,html}` |
-| `/documentos` | DocumentosComponent | `features/documentos/documentos.component.{ts,html}` |
-| `/chat` | ChatComponent | `features/chat/chat.component.{ts,html}` |
-| `/contador` | ContadorComponent | `features/contador/contador.component.{ts,html}` |
-| `/configuracoes` | ConfiguracoesComponent | `features/configuracoes/configuracoes.component.{ts,html}` |
+| `/dashboard` | DashboardPage | `pages/dashboard/dashboard.{ts,html}` |
+| `/calendario` | CalendarioPage | `pages/calendario/calendario.{ts,html}` |
+| `/documentos` | DocumentosPage | `pages/documentos/documentos.{ts,html}` |
+| `/chat` | ChatPage | `pages/chat/chat.{ts,html}` |
+| `/contador` | ContadorPage | `pages/contador/contador.{ts,html}` |
+| `/configuracoes` | ConfiguracoesPage | `pages/configuracoes/configuracoes.{ts,html}` |
 
-## Services (`core/services/`)
+## Services
 
-| Service | Papel |
+**Negócio** — `services/<feat>/data-access/<feat>.service.ts`, classes `XxxApi`, importados via `@services/...`:
+
+| Classe | Import | Papel |
+|---|---|---|
+| `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | Notas, fluxo de caixa, rascunhos, impostos. Exporta também `mockNotas`, `ResumoMensalNotas`, `DistribuicaoImposto`. |
+| `CalendarioApi` | `@services/calendario/data-access/calendario.service` | Vencimentos/eventos fiscais (com fallback mock). |
+| `ChatApi` | `@services/chat/data-access/chat.service` | Chat com o assistente (POST /chat). |
+| `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. |
+| `NotificacaoApi` | `@services/notificacao/data-access/notificacao.service` | Notificações externas (WhatsApp). |
+
+**Cross-cutting** — permanecem em `core/services/`, importados via `@core/services/...`:
+
+| Classe | Papel |
 |---|---|
-| `api.service.ts` | **Cliente HTTP genérico** (get/post/put/patch/delete/uploadFile) sobre `environment.apiUrl`. Todo service novo deve usá-lo. |
-| `dashboard.service.ts` | Notas, fluxo de caixa, rascunhos, impostos. |
-| `calendario.service.ts` | Vencimentos/eventos fiscais (com fallback mock). |
-| `chat.service.ts` | Chat com o assistente (POST /chat). |
-| `contador.service.ts` | Pendências/solicitações/documentos do contador (mapeia backend→frontend). |
-| `notificacao.service.ts` | Notificações externas (WhatsApp). |
-| `notificacoes.service.ts` | Estado **local** de notificações da UI (signal). |
-| `toast.service.ts` | Toasts (auto-dismiss 4s), renderizados por `ToastContainerComponent`. |
+| `ApiService` | **Cliente HTTP genérico** (get/post/put/patch/delete/uploadFile) sobre `environment.apiUrl`. Todo service de negócio o usa. |
+| `NotificacoesService` | Estado **local** de notificações da UI (signal). Não confundir com `NotificacaoApi`. |
+| `ToastService` | Toasts (auto-dismiss 4s), renderizados por `ToastContainer`. |
+| `ThemeService` | Tema claro/escuro. |
 
-## Models (`core/models/types.ts`)
+`LOGGED_PRODUCER_ID` mora em `@core/config/produtor-logado`.
 
-Domínio: `Produtor`, `NotaFiscal` + `ItemNotaFiscal`, `FluxoCaixa`, `RascunhoNota` + `ItemRascunhoNota`,
-`SolicitacaoContador`, `DocumentoContador`, `ChatMessage`, `VencimentoFiscal`, `Notificacao`,
-`ContatoProdutor`, `ProdutorContador`. Campos de status são unions de string (ex.: rascunho|enviado|revisao...).
+## Models (`core/models/*.model.ts`, via `@models/...`)
+
+Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `ProdutorContador`),
+`nota-fiscal.model.ts` (`NotaFiscal`, `ItemNotaFiscal`), `rascunho-nota.model.ts` (`RascunhoNota`,
+`ItemRascunhoNota`), `solicitacao-contador.model.ts` (`SolicitacaoContador`, `DocumentoContador`),
+`chat-message.model.ts`, `vencimento-fiscal.model.ts`, `notificacao.model.ts`, `fluxo-caixa.model.ts`.
+`StatusRascunho` em `@core/enums/status-rascunho.enum`. Envelope de erro da API (`ApiErrorEnvelope`,
+`FiscalError`) em `@dtos/shared/responses/api-error.response`. Campos de status são unions de string.
 
 ## Design system (`src/styles.css`, bloco `@theme`)
 
@@ -111,11 +139,11 @@ Domínio: `Produtor`, `NotaFiscal` + `ItemNotaFiscal`, `FluxoCaixa`, `RascunhoNo
 
 ## Git / fluxo de trabalho
 
-- Remote: `origin` → `github.com/SupersonicTeam/frontend`. Só duas branches: **`main`** (estável) e **`dev`** (trabalho).
-- **Fluxo (decisão de 2026-06-11):** commitar as alterações **direto na `dev`**; promover **`dev` → `main`** (merge) ao
-  fechar um marco. **Sem branch por tarefa.**
-- **CI** (`.github/workflows/ci.yml`): roda **lint · build · test** (Node 22) em push para `dev` e `main`.
-- Antes de promover pra `main`, garanta lint/build/test verdes localmente. `dist/`, `node_modules/`, `.angular/cache` no `.gitignore`.
+- Remote: `origin` → `github.com/SupersonicTeam/frontend`.
+- **Fluxo:** uma **issue** por tarefa → branch **`feature/<n>-<slug>`** a partir de `main` → **PR para `main`**
+  (corpo com `Closes #<n>`) → merge após CI verde. Branches mergeadas são deletadas.
+- **CI** (`.github/workflows/ci.yml`): roda **lint · build · test** (Node 22). Garanta os três verdes
+  localmente antes de abrir/mergear o PR. `dist/`, `node_modules/`, `.angular/cache` no `.gitignore`.
 
 ## Estado das sprints (frontend)
 

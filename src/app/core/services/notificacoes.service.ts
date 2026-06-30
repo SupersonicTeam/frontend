@@ -1,5 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { Notificacao } from '../models/types';
+import { Notificacao } from '@models/notificacao.model';
 
 @Injectable({ providedIn: 'root' })
 export class NotificacoesService {
