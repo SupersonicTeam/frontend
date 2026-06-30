@@ -1,59 +1,57 @@
-# Frontend
+# AgroTributos — Frontend (Angular)
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 21.1.1.
+SPA educacional sobre a **reforma tributária 2026** (CBS/IBS/FUNRURAL) para produtores rurais: assistente
+fiscal com IA ("João"), calculadora de impostos, leitura/geração de nota fiscal e dashboard financeiro.
+Consome a API NestJS do diretório irmão `backend/` em `/api`.
 
-## Development server
+## Stack
 
-To start a local development server, run:
+- **Angular 21** — standalone (sem NgModules), **zoneless** (sem `zone.js` → estado reativo com **signals**).
+- **Tailwind CSS v4** via PostCSS (`@import "tailwindcss"` em `src/styles.css`; sem `tailwind.config.js`).
+- **Angular Material** (uso híbrido/pontual), **@lucide/angular** (ícones), **ng2-charts + chart.js** (gráficos).
+- **Vitest** (jsdom) para testes unitários. TypeScript strict.
 
-```bash
-ng serve
+## Comandos (rodar dentro de `frontend/`)
+
+| Ação | Comando |
+|---|---|
+| Dev server (porta 4200, proxy `/api` → `http://localhost:3001`) | `npm start` |
+| Build de produção (`dist/`) | `npm run build` |
+| Build dev (source-maps, watch) | `npm run watch` |
+| Testes unitários (Vitest) | `npm test` |
+| Lint | `npm run lint` |
+| Scaffold de página | `npx ng generate component pages/<nome>` |
+
+A app sobe em `http://localhost:4200/` e recarrega ao salvar. O backend (`backend/`, porta 3001) precisa estar
+no ar para os dados reais; onde o endpoint ainda não existe, os services usam mock/estado local.
+
+## Estrutura de pastas
+
+Organização por camadas (path aliases no `tsconfig.json` eliminam imports relativos):
+
+```
+src/app/
+  app.ts / app.config.ts / app.routes.ts   # raiz, providers e rotas lazy
+  core/                                     # infraestrutura cross-cutting
+    models/*.model.ts                       # tipos de domínio (1 por domínio)   → @models
+    enums/ · DTOs/ · config/                # unions, DTOs de API, constantes     → @core/...
+    services/                               # ApiService, ToastService, ThemeService, NotificacoesService → @core/services
+    interceptors/ · utils/
+  services/<feat>/data-access/<feat>.service.ts   # services de negócio, classes XxxApi   → @services
+  pages/<nome>/<nome>.{ts,html}             # páginas rotáveis, classes XxxPage    → @pages
+  shared/ layout/ · components/ · ui/       # AppLayout, ToastContainer, UiButton, UiCard → @shared
 ```
 
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
+**Aliases:** `@core` `@services` `@pages` `@shared` `@models` (= `core/models`) `@dtos` (= `core/DTOs`)
+`@env` (= `src/environments`).
 
-## Code scaffolding
+## Rotas
 
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+Todas sob o shell `AppLayout`, lazy via `loadComponent`: `/dashboard`, `/calendario`, `/documentos`,
+`/chat`, `/contador`, `/configuracoes`. `''` e `**` redirecionam para `dashboard`.
 
-```bash
-ng generate component component-name
-```
+## Fluxo de contribuição
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
-
-```bash
-ng generate --help
-```
-
-## Building
-
-To build the project run:
-
-```bash
-ng build
-```
-
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
-
-## Running unit tests
-
-To execute unit tests with the [Vitest](https://vitest.dev/) test runner, use the following command:
-
-```bash
-ng test
-```
-
-## Running end-to-end tests
-
-For end-to-end (e2e) testing, run:
-
-```bash
-ng e2e
-```
-
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
-
-## Additional Resources
-
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+Uma **issue** por tarefa → branch `feature/<n>-<slug>` a partir de `main` → **PR para `main`**
+(`Closes #<n>`) → merge após o **CI** (`lint · build · test`) ficar verde. Garanta os três verdes
+localmente antes de abrir o PR.
