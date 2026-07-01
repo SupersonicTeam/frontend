@@ -7,6 +7,10 @@ import {
   LucideCheck,
   LucideMessageCircle,
   LucideLoaderCircle,
+  LucideCoins,
+  LucideClipboardList,
+  LucideFileText,
+  LucideMail,
 } from '@lucide/angular';
 import { forkJoin } from 'rxjs';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
@@ -28,6 +32,10 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
     LucideCheck,
     LucideMessageCircle,
     LucideLoaderCircle,
+    LucideCoins,
+    LucideClipboardList,
+    LucideFileText,
+    LucideMail,
   ],
   templateUrl: './calendario.html',
 })
@@ -207,11 +215,14 @@ export class CalendarioPage implements OnInit {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  tipoIcon(tipo: string): string {
+  tipoIconClass(tipo: string): string {
     return (
-      { imposto: '💰', obrigacao: '📋', declaracao: '📄', pagamento: '💳', solicitacao: '📨' }[
-        tipo
-      ] ?? '📅'
+      {
+        imposto: 'bg-amber-50 text-amber-600',
+        obrigacao: 'bg-blue-50 text-blue-600',
+        declaracao: 'bg-violet-50 text-violet-600',
+        solicitacao: 'bg-orange-50 text-orange-600',
+      }[tipo] ?? 'bg-muted text-muted-foreground'
     );
   }
 
