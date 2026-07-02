@@ -19,7 +19,9 @@ import {
   LucideLoaderCircle,
   LucideFileOutput,
 } from '@lucide/angular';
+import { HttpErrorResponse } from '@angular/common/http';
 import { DashboardApi, mockNotas } from '@services/dashboard/data-access/dashboard.service';
+import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
@@ -27,6 +29,7 @@ import { NotaFiscal } from '@models/nota-fiscal.model';
 import { RascunhoNota } from '@models/rascunho-nota.model';
 import { SolicitacaoContador } from '@models/solicitacao-contador.model';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
+import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
 
 export interface ItemForm {
@@ -116,6 +119,7 @@ const PERIODO_OPTIONS = [
 })
 export class DocumentosPage implements OnInit {
   private readonly dashboardService = inject(DashboardApi);
+  private readonly notasApi = inject(NotasApi);
   private readonly contadorService = inject(ContadorApi);
   private readonly toastService = inject(ToastService);
 
@@ -194,20 +198,21 @@ export class DocumentosPage implements OnInit {
       });
     }
 
-    // Tipo (entrada/saida)
-    if (this.tipo() !== 'todos') lista = lista.filter((n) => n.tipo === this.tipo());
+    // Tipo do documento (NFE/NFA)
+    if (this.tipo() !== 'todos') lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
 
-    // Busca
+    // Busca (natureza da operação, número ou destinatário)
     if (busca)
       lista = lista.filter(
         (n) =>
           (n.naturezaOperacao || '').toLowerCase().includes(busca) ||
-          (n.numero || '').toLowerCase().includes(busca),
+          String(n.numero ?? '').includes(busca) ||
+          (n.destinatarioNome || '').toLowerCase().includes(busca),
       );
 
     // Ordenação
     lista.sort((a, b) => {
-      if (this.ordenacao() === 'valor') return (b.valorTotal ?? 0) - (a.valorTotal ?? 0);
+      if (this.ordenacao() === 'valor') return (b.valorTotalNota ?? 0) - (a.valorTotalNota ?? 0);
       return new Date(b.dataEmissao ?? 0).getTime() - new Date(a.dataEmissao ?? 0).getTime();
     });
 
@@ -255,28 +260,40 @@ export class DocumentosPage implements OnInit {
   }
 
   carregarDados(): void {
-    this.loading.set(true);
-    this.notasErro.set(false);
-    this.dashboardService.getNotas(LOGGED_PRODUCER_ID).subscribe({
-      next: (data) => {
-        this.notas.set(data);
-        this.notasErro.set(false);
-        this.loading.set(false);
-      },
-      error: () => {
-        // Falha ao carregar (ex.: backend offline) → sinaliza o erro e exibe
-        // dados de exemplo para a tela continuar utilizável.
-        this.notas.set(mockNotas());
-        this.notasErro.set(true);
-        this.loading.set(false);
-      },
-    });
+    this.recarregarNotas();
     this.dashboardService
       .getRascunhos(LOGGED_PRODUCER_ID)
       .subscribe({ next: (d) => this.rascunhos.set(d), error: () => {} });
     this.contadorService
       .getPendencias(LOGGED_PRODUCER_ID)
       .subscribe({ next: (d) => this.solicitacoes.set(d), error: () => {} });
+  }
+
+  /**
+   * Recarrega as notas do produtor a partir do backend real (`GET /api/notas`).
+   * Em falha (ex.: backend offline) exibe `mockNotas()` com o banner "dados de
+   * exemplo" (`notasErro`), mantendo a tela utilizável.
+   */
+  recarregarNotas(): void {
+    this.loading.set(true);
+    this.notasApi.listar({ page: 0, size: 100, sort: 'dataEmissao,desc' }).subscribe({
+      next: (page) => {
+        this.notas.set(page.content);
+        this.notasErro.set(false);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.notas.set(mockNotas());
+        this.notasErro.set(true);
+        this.loading.set(false);
+      },
+    });
+  }
+
+  /** Substitui a nota na listagem e no preview após uma atualização do backend. */
+  private atualizarNotaLocal(nota: NotaFiscal): void {
+    this.notas.update((list) => list.map((n) => (n.id === nota.id ? nota : n)));
+    if (this.previewNota()?.id === nota.id) this.previewNota.set(nota);
   }
 
   // === Gerar Rascunho ===
@@ -444,23 +461,48 @@ export class DocumentosPage implements OnInit {
     this.errosFiscais.set([]);
   }
 
+  /**
+   * Gera (se necessário) e baixa o XML assinado da nota via backend real.
+   * Nota já com XML (`XML_GERADO`+) baixa direto; caso contrário gera primeiro
+   * (`POST gerar-xml` → `GET xml`). Em 422 exibe as inconsistências no painel.
+   * O fluxo completo de emissão (SEFAZ/DANFE) é tratado na #12.
+   */
   baixarXml(nota: NotaFiscal): void {
     this.baixandoXml.set(true);
     this.errosFiscais.set([]);
-    this.dashboardService.gerarXmlNota(nota).subscribe({
-      next: (xml) => {
-        this.baixandoXml.set(false);
-        this.triggerDownload(`nota-${nota.numero || nota.id}.xml`, xml, 'application/xml');
-        this.toastService.success('XML gerado com sucesso!');
+    const jaGerado = nota.status !== 'RASCUNHO' && nota.status !== 'COM_INCONSISTENCIAS';
+    if (jaGerado) {
+      this.baixarXmlGerado(nota);
+      return;
+    }
+    this.notasApi.gerarXml(nota.id).subscribe({
+      next: (atualizada) => {
+        this.atualizarNotaLocal(atualizada);
+        this.baixarXmlGerado(atualizada);
       },
-      error: (err: ApiErrorEnvelope) => {
+      error: (err: HttpErrorResponse) => {
         this.baixandoXml.set(false);
-        if (err?.errors?.length) {
-          this.errosFiscais.set(err.errors);
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        if (err?.status === 422 && env?.errors?.length) {
+          this.errosFiscais.set(env.errors);
           this.toastService.error('A nota possui inconsistências fiscais.');
         } else {
-          this.toastService.error('Erro ao gerar o XML.');
+          this.toastService.error(env?.message ?? 'Erro ao gerar o XML.');
         }
+      },
+    });
+  }
+
+  private baixarXmlGerado(nota: NotaFiscal): void {
+    this.notasApi.obterXml(nota.id).subscribe({
+      next: (xml) => {
+        this.baixandoXml.set(false);
+        this.triggerDownload(`nota-${nota.numero ?? nota.id}.xml`, xml, 'application/xml');
+        this.toastService.success('XML assinado baixado com sucesso!');
+      },
+      error: () => {
+        this.baixandoXml.set(false);
+        this.toastService.error('Erro ao baixar o XML.');
       },
     });
   }
@@ -514,17 +556,16 @@ export class DocumentosPage implements OnInit {
       this.toastService.error('Envie um arquivo XML ou PDF da NF-e.');
       return;
     }
+    if (!nome.endsWith('.xml')) {
+      this.toastService.info('A importação lê apenas o XML da NF-e (o PDF não é aceito pelo backend).');
+      return;
+    }
     this.importando.set(true);
-    this.dashboardService.uploadNota(file).subscribe({
-      next: (nota) => {
+    this.notasApi.importar([file]).subscribe({
+      next: () => {
         this.importando.set(false);
-        if (nota) {
-          this.notas.update((list) => [nota, ...list]);
-          this.notasErro.set(false);
-          this.toastService.success('Nota importada com sucesso!');
-        } else {
-          this.toastService.error('Não foi possível importar a nota.');
-        }
+        this.recarregarNotas();
+        this.toastService.success('Importação processada. Confira a lista de notas.');
       },
       error: () => {
         this.importando.set(false);
@@ -555,7 +596,7 @@ export class DocumentosPage implements OnInit {
   }
 
   // Helpers
-  formatCurrency(v?: number): string {
+  formatCurrency(v?: number | null): string {
     return (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
@@ -593,17 +634,11 @@ export class DocumentosPage implements OnInit {
   }
 
   notaStatusLabel(status?: string): string {
-    const map: Record<string, string> = { validada: 'Validado', pendente: 'Pendente', erro: 'Erro' };
-    return map[status ?? ''] ?? 'Encaminhado';
+    return statusNotaLabel(status);
   }
 
   notaStatusColor(status?: string): string {
-    const map: Record<string, string> = {
-      validada: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
-      pendente: 'bg-yellow-100 text-yellow-800 border border-yellow-200',
-      erro: 'bg-red-100 text-red-800 border border-red-200',
-    };
-    return map[status ?? ''] ?? 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+    return statusNotaBadge(status);
   }
 
   solicitacaoStatusLabel(status: string): string {
