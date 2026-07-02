@@ -1,5 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   LucideFileText,
   LucideSearch,
@@ -12,26 +13,26 @@ import {
   LucideRefreshCw,
   LucidePlus,
   LucideTrash2,
-  LucideSend,
   LucideClipboardList,
   LucideFileCheck,
-  LucideTrendingUp,
   LucideLoaderCircle,
   LucideFileOutput,
+  LucidePencil,
+  LucideTriangleAlert,
 } from '@lucide/angular';
-import { HttpErrorResponse } from '@angular/common/http';
-import { DashboardApi, mockNotas } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
+import { mockNotas } from '@services/dashboard/data-access/dashboard.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
-import { NotaFiscal } from '@models/nota-fiscal.model';
-import { RascunhoNota } from '@models/rascunho-nota.model';
+import { NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
 import { SolicitacaoContador } from '@models/solicitacao-contador.model';
+import { NotaFiscalRequest, NotaFiscalItemRequest } from '@dtos/notas/nota-fiscal.request';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
 import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
 
+/** Item do formulário (strings, convertidas para número ao montar o request). */
 export interface ItemForm {
   descricao: string;
   codigoProduto: string;
@@ -55,33 +56,8 @@ const emptyItem = (): ItemForm => ({
 });
 
 const UFS = [
-  'AC',
-  'AL',
-  'AM',
-  'AP',
-  'BA',
-  'CE',
-  'DF',
-  'ES',
-  'GO',
-  'MA',
-  'MG',
-  'MS',
-  'MT',
-  'PA',
-  'PB',
-  'PE',
-  'PI',
-  'PR',
-  'RJ',
-  'RN',
-  'RO',
-  'RR',
-  'RS',
-  'SC',
-  'SE',
-  'SP',
-  'TO',
+  'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT',
+  'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
 ];
 
 const PERIODO_OPTIONS = [
@@ -91,6 +67,11 @@ const PERIODO_OPTIONS = [
   { value: 'mes', label: 'Este mês' },
   { value: 'mesAnterior', label: 'Mês anterior' },
 ];
+
+/** Só os dígitos de um CPF/CNPJ (remove máscara). */
+function soDigitos(v: string): string {
+  return (v ?? '').replace(/\D/g, '');
+}
 
 @Component({
   selector: 'app-documentos',
@@ -108,24 +89,22 @@ const PERIODO_OPTIONS = [
     LucideRefreshCw,
     LucidePlus,
     LucideTrash2,
-    LucideSend,
     LucideClipboardList,
     LucideFileCheck,
-    LucideTrendingUp,
     LucideLoaderCircle,
     LucideFileOutput,
+    LucidePencil,
+    LucideTriangleAlert,
   ],
   templateUrl: './documentos.html',
 })
 export class DocumentosPage implements OnInit {
-  private readonly dashboardService = inject(DashboardApi);
   private readonly notasApi = inject(NotasApi);
   private readonly contadorService = inject(ContadorApi);
   private readonly toastService = inject(ToastService);
 
   // Data
   notas = signal<NotaFiscal[]>([]);
-  rascunhos = signal<RascunhoNota[]>([]);
   solicitacoes = signal<SolicitacaoContador[]>([]);
   loading = signal(false);
   salvando = signal(false);
@@ -133,7 +112,6 @@ export class DocumentosPage implements OnInit {
   // Filters
   periodo = signal('todos');
   tipo = signal('todos');
-  grupo = signal('todos');
   statusFilter = signal('todos');
   busca = signal('');
   ordenacao = signal<'data' | 'valor'>('data');
@@ -141,15 +119,14 @@ export class DocumentosPage implements OnInit {
   // Carregamento de notas
   notasErro = signal(false);
 
-  // Importar nota via XML/PDF (drag-and-drop)
+  // Importar nota via XML (drag-and-drop)
   importando = signal(false);
   dragOver = signal(false);
 
   // View dialogs
   previewNota = signal<NotaFiscal | null>(null);
-  viewRascunho = signal<RascunhoNota | null>(null);
-  feedbackRascunho = signal<RascunhoNota | null>(null);
-  emitirRascunho = signal<RascunhoNota | null>(null);
+  notaParaExcluir = signal<NotaFiscal | null>(null);
+  excluindo = signal(false);
 
   // Download de nota (PDF/XML)
   baixandoXml = signal(false);
@@ -160,18 +137,26 @@ export class DocumentosPage implements OnInit {
   solicitacaoSelecionada = signal('');
   arquivoSelecionado = signal<string | null>(null);
 
-  // Gerar Rascunho dialog
-  showGerarRascunho = signal(false);
-  rascunhoTipo = signal<'entrada' | 'saida'>('saida');
-  rascunhoDestinatario = signal('');
-  rascunhoCpfCnpj = signal('');
-  rascunhoUf = signal('');
-  rascunhoCfop = signal('');
-  rascunhoNatureza = signal('');
-  rascunhoData = signal('');
-  rascunhoValor = signal('');
-  rascunhoObs = signal('');
-  rascunhoItens = signal<ItemForm[]>([emptyItem()]);
+  // ── Formulário de nota (criar/editar) — alinhado ao NotaFiscalRequest ──
+  showFormNota = signal(false);
+  formNotaId = signal<string | null>(null); // null = criar; id = editar (PUT)
+  formNumero = signal('');
+  formSerie = signal('1');
+  formTipoDoc = signal<TipoDocumento>('NFE');
+  formNatureza = signal('');
+  formData = signal('');
+  formDestNome = signal('');
+  formDestCpfCnpj = signal('');
+  formDestIe = signal('');
+  formEndLogradouro = signal('');
+  formEndNumero = signal('');
+  formEndMunicipio = signal('');
+  formEndIbge = signal('');
+  formEndUf = signal('');
+  formEndCep = signal('');
+  formItens = signal<ItemForm[]>([emptyItem()]);
+  /** Erros de validação devolvidos pelo backend (400/422), exibidos campo a campo. */
+  erroNota = signal<FiscalError[]>([]);
 
   readonly periodoOptions = PERIODO_OPTIONS;
   readonly ufs = UFS;
@@ -201,7 +186,10 @@ export class DocumentosPage implements OnInit {
     // Tipo do documento (NFE/NFA)
     if (this.tipo() !== 'todos') lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
 
-    // Busca (natureza da operação, número ou destinatário)
+    // Status
+    if (this.statusFilter() !== 'todos') lista = lista.filter((n) => n.status === this.statusFilter());
+
+    // Busca (natureza, número ou destinatário)
     if (busca)
       lista = lista.filter(
         (n) =>
@@ -217,16 +205,6 @@ export class DocumentosPage implements OnInit {
     });
 
     return lista;
-  });
-
-  readonly rascunhosFiltrados = computed(() => {
-    const busca = this.busca().toLowerCase();
-    return this.rascunhos().filter(
-      (r) =>
-        !busca ||
-        (r.titulo || '').toLowerCase().includes(busca) ||
-        (r.naturezaOperacao || '').toLowerCase().includes(busca),
-    );
   });
 
   readonly solicitacoesFiltradas = computed(() => {
@@ -247,13 +225,29 @@ export class DocumentosPage implements OnInit {
     () => this.solicitacoes().find((s) => s.id === this.solicitacaoSelecionada()) ?? null,
   );
 
-  readonly canSubmitRascunho = computed(
-    () =>
-      !!this.rascunhoDestinatario().trim() &&
-      !!this.rascunhoData() &&
-      !!this.rascunhoValor() &&
-      this.rascunhoItens().some((i) => i.descricao && i.quantidade),
-  );
+  /** Um item é válido quando tem os campos exigidos pelo backend (NCM 8 díg, CFOP 4 díg). */
+  private itemValido(i: ItemForm): boolean {
+    return (
+      !!i.descricao.trim() &&
+      /^\d{8}$/.test(i.ncm.trim()) &&
+      /^\d{4}$/.test(i.cfop.trim()) &&
+      !!i.unidade.trim() &&
+      Number(i.quantidade) > 0 &&
+      Number(i.valorUnitario) > 0
+    );
+  }
+
+  readonly canSubmitNota = computed(() => {
+    const cpfCnpjLen = soDigitos(this.formDestCpfCnpj()).length;
+    return (
+      Number(this.formNumero()) > 0 &&
+      !!this.formNatureza().trim() &&
+      !!this.formData() &&
+      !!this.formDestNome().trim() &&
+      (cpfCnpjLen === 11 || cpfCnpjLen === 14) &&
+      this.formItens().some((i) => this.itemValido(i))
+    );
+  });
 
   ngOnInit(): void {
     this.carregarDados();
@@ -261,12 +255,9 @@ export class DocumentosPage implements OnInit {
 
   carregarDados(): void {
     this.recarregarNotas();
-    this.dashboardService
-      .getRascunhos(LOGGED_PRODUCER_ID)
-      .subscribe({ next: (d) => this.rascunhos.set(d), error: () => {} });
     this.contadorService
       .getPendencias(LOGGED_PRODUCER_ID)
-      .subscribe({ next: (d) => this.solicitacoes.set(d), error: () => {} });
+      .subscribe({ next: (d) => this.solicitacoes.set(d), error: () => undefined });
   }
 
   /**
@@ -296,97 +287,170 @@ export class DocumentosPage implements OnInit {
     if (this.previewNota()?.id === nota.id) this.previewNota.set(nota);
   }
 
-  // === Gerar Rascunho ===
-  resetRascunhoForm(): void {
-    this.rascunhoTipo.set('saida');
-    this.rascunhoDestinatario.set('');
-    this.rascunhoCpfCnpj.set('');
-    this.rascunhoUf.set('');
-    this.rascunhoCfop.set('');
-    this.rascunhoNatureza.set('');
-    this.rascunhoData.set('');
-    this.rascunhoValor.set('');
-    this.rascunhoObs.set('');
-    this.rascunhoItens.set([emptyItem()]);
+  // ─────────────────────────── Formulário de nota ───────────────────────────
+
+  /** Só notas em RASCUNHO ou COM_INCONSISTENCIAS podem ser editadas/excluídas (backend: 409 fora disso). */
+  podeEditar(nota?: NotaFiscal | null): boolean {
+    return nota?.status === 'RASCUNHO' || nota?.status === 'COM_INCONSISTENCIAS';
   }
 
-  abrirGerarRascunho(): void {
-    this.resetRascunhoForm();
-    this.showGerarRascunho.set(true);
-  }
-  fecharGerarRascunho(): void {
-    this.showGerarRascunho.set(false);
+  private resetForm(): void {
+    this.formNotaId.set(null);
+    this.formNumero.set('');
+    this.formSerie.set('1');
+    this.formTipoDoc.set('NFE');
+    this.formNatureza.set('');
+    this.formData.set('');
+    this.formDestNome.set('');
+    this.formDestCpfCnpj.set('');
+    this.formDestIe.set('');
+    this.formEndLogradouro.set('');
+    this.formEndNumero.set('');
+    this.formEndMunicipio.set('');
+    this.formEndIbge.set('');
+    this.formEndUf.set('');
+    this.formEndCep.set('');
+    this.formItens.set([emptyItem()]);
+    this.erroNota.set([]);
   }
 
-  salvarRascunho(enviarContador = false): void {
-    if (!this.canSubmitRascunho()) return;
+  abrirNovaNota(): void {
+    this.resetForm();
+    this.showFormNota.set(true);
+  }
+
+  /** Abre o formulário pré-preenchido para editar uma nota em RASCUNHO/COM_INCONSISTENCIAS. */
+  editarNota(nota: NotaFiscal): void {
+    this.resetForm();
+    this.formNotaId.set(nota.id);
+    this.formNumero.set(String(nota.numero ?? ''));
+    this.formSerie.set(String(nota.serie ?? 1));
+    this.formTipoDoc.set(nota.tipoDocumento ?? 'NFE');
+    this.formNatureza.set(nota.naturezaOperacao ?? '');
+    this.formData.set(nota.dataEmissao?.split('T')[0] ?? '');
+    this.formDestNome.set(nota.destinatarioNome ?? '');
+    this.formDestCpfCnpj.set(nota.destinatarioCpfCnpj ?? '');
+    this.formDestIe.set(nota.destinatarioIe ?? '');
+    const e = nota.destinatarioEndereco;
+    this.formEndLogradouro.set(e?.logradouro ?? '');
+    this.formEndNumero.set(e?.numero ?? '');
+    this.formEndMunicipio.set(e?.municipio ?? '');
+    this.formEndIbge.set(e?.codigoMunicipioIbge ?? '');
+    this.formEndUf.set(e?.uf ?? '');
+    this.formEndCep.set(e?.cep ?? '');
+    this.formItens.set(
+      (nota.itens ?? []).map((it) => ({
+        descricao: it.descricao ?? '',
+        codigoProduto: it.codigoProduto ?? '',
+        ncm: it.ncm ?? '',
+        cfop: it.cfop ?? '',
+        unidade: it.unidade ?? 'UN',
+        quantidade: String(it.quantidade ?? ''),
+        valorUnitario: String(it.valorUnitario ?? ''),
+        valorTotal: String(it.valorTotal ?? ''),
+      })),
+    );
+    if (!this.formItens().length) this.formItens.set([emptyItem()]);
+    this.previewNota.set(null);
+    this.showFormNota.set(true);
+  }
+
+  fecharForm(): void {
+    this.showFormNota.set(false);
+  }
+
+  private enderecoPreenchido(): boolean {
+    return !!(
+      this.formEndLogradouro() ||
+      this.formEndNumero() ||
+      this.formEndMunicipio() ||
+      this.formEndIbge() ||
+      this.formEndUf() ||
+      this.formEndCep()
+    );
+  }
+
+  private buildNotaRequest(): NotaFiscalRequest {
+    const itens: NotaFiscalItemRequest[] = this.formItens()
+      .filter((i) => this.itemValido(i))
+      .map((item, idx) => ({
+        numeroItem: idx + 1,
+        codigoProduto: item.codigoProduto.trim() || undefined,
+        descricao: item.descricao.trim(),
+        ncm: item.ncm.trim(),
+        cfop: item.cfop.trim(),
+        unidade: item.unidade.trim(),
+        quantidade: Number(item.quantidade),
+        valorUnitario: Number(item.valorUnitario),
+      }));
+
+    const req: NotaFiscalRequest = {
+      numero: Number(this.formNumero()),
+      serie: this.formSerie() ? Number(this.formSerie()) : undefined,
+      naturezaOperacao: this.formNatureza().trim(),
+      // dataEmissao como OffsetDateTime no fuso America/Sao_Paulo (-03:00, sem horário de verão).
+      dataEmissao: `${this.formData()}T00:00:00-03:00`,
+      tipoDocumento: this.formTipoDoc(),
+      destinatarioNome: this.formDestNome().trim(),
+      destinatarioCpfCnpj: soDigitos(this.formDestCpfCnpj()),
+      destinatarioIe: this.formDestIe().trim() || undefined,
+      itens,
+    };
+
+    if (this.enderecoPreenchido()) {
+      req.destinatarioEndereco = {
+        logradouro: this.formEndLogradouro().trim() || undefined,
+        numero: this.formEndNumero().trim() || undefined,
+        municipio: this.formEndMunicipio().trim() || undefined,
+        codigoMunicipioIbge: soDigitos(this.formEndIbge()) || undefined,
+        uf: this.formEndUf().trim().toUpperCase() || undefined,
+        cep: soDigitos(this.formEndCep()) || undefined,
+      };
+    }
+    return req;
+  }
+
+  salvarNota(): void {
+    if (!this.canSubmitNota() || this.salvando()) return;
     this.salvando.set(true);
-    const dto = this.buildRascunhoDto();
-    this.dashboardService.criarRascunho(dto).subscribe({
-      next: (r) => {
+    this.erroNota.set([]);
+    const req = this.buildNotaRequest();
+    const id = this.formNotaId();
+    const req$ = id ? this.notasApi.atualizar(id, req) : this.notasApi.criar(req);
+    req$.subscribe({
+      next: () => {
         this.salvando.set(false);
-        if (r) {
-          this.rascunhos.update((list) => [r, ...list]);
-          if (enviarContador && r.id) {
-            this.dashboardService.enviarRascunhoContador(r.id).subscribe({
-              next: (updated) => {
-                if (updated)
-                  this.rascunhos.update((list) =>
-                    list.map((x) => (x.id === updated.id ? updated : x)),
-                  );
-              },
-              error: () => {},
-            });
-          }
-          this.toastService.success(
-            enviarContador ? 'Rascunho enviado ao contador!' : 'Rascunho salvo!',
-          );
-        }
-        this.fecharGerarRascunho();
+        this.toastService.success(id ? 'Nota atualizada!' : 'Nota criada em rascunho!');
+        this.fecharForm();
+        this.recarregarNotas();
       },
-      error: () => {
+      error: (err: HttpErrorResponse) => {
         this.salvando.set(false);
-        this.toastService.error('Erro ao salvar rascunho.');
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        if (env?.errors?.length) {
+          this.erroNota.set(env.errors);
+          this.toastService.error(env.message ?? 'Corrija os campos destacados.');
+        } else {
+          this.toastService.error(env?.message ?? 'Erro ao salvar a nota.');
+        }
       },
     });
   }
 
-  private buildRascunhoDto(): unknown {
-    return {
-      produtorId: LOGGED_PRODUCER_ID,
-      tipo: this.rascunhoTipo(),
-      cfop: this.rascunhoCfop() || undefined,
-      naturezaOperacao: this.rascunhoNatureza() || undefined,
-      nomeDestinatario: this.rascunhoDestinatario(),
-      cpfCnpjDestinatario: this.rascunhoCpfCnpj().replace(/\D/g, '') || undefined,
-      ufDestino: this.rascunhoUf() || undefined,
-      dataEmissao: this.rascunhoData(),
-      observacoes: this.rascunhoObs() || undefined,
-      itens: this.rascunhoItens()
-        .filter((i) => i.descricao && i.quantidade)
-        .map((item, idx) => ({
-          numeroItem: idx + 1,
-          codigoProduto: item.codigoProduto || undefined,
-          descricao: item.descricao,
-          ncm: item.ncm || undefined,
-          cfop: item.cfop || undefined,
-          unidade: item.unidade || undefined,
-          quantidade: parseFloat(item.quantidade),
-          valorUnitario: parseFloat(item.valorUnitario) || 0,
-          valorTotal: parseFloat(item.valorTotal) || 0,
-        })),
-    };
+  /** Primeiro erro do backend cujo `field` casa (exato ou por prefixo) com o campo dado. */
+  erroDe(campo: string): FiscalError | undefined {
+    return this.erroNota().find((e) => e.field === campo || e.field?.startsWith(campo + '.'));
   }
 
-  // Itens do rascunho
+  // Itens do formulário
   addItem(): void {
-    this.rascunhoItens.update((list) => [...list, emptyItem()]);
+    this.formItens.update((list) => [...list, emptyItem()]);
   }
   removeItem(idx: number): void {
-    this.rascunhoItens.update((list) => list.filter((_, i) => i !== idx));
+    this.formItens.update((list) => list.filter((_, i) => i !== idx));
   }
   updateItem(idx: number, field: keyof ItemForm, value: string): void {
-    this.rascunhoItens.update((list) =>
+    this.formItens.update((list) =>
       list.map((item, i) => {
         if (i !== idx) return item;
         const updated = { ...item, [field]: value };
@@ -404,34 +468,34 @@ export class DocumentosPage implements OnInit {
     );
   }
 
-  // === Enviar rascunho existente ===
-  enviarRascunhoContador(id: string): void {
-    this.dashboardService.enviarRascunhoContador(id).subscribe({
-      next: (r) => {
-        if (r) this.rascunhos.update((list) => list.map((x) => (x.id === r.id ? r : x)));
-        this.toastService.success('Rascunho enviado ao contador!');
-      },
-      error: () => this.toastService.error('Erro ao enviar.'),
-    });
+  // ─────────────────────────── Excluir nota ───────────────────────────
+  pedirExclusao(nota: NotaFiscal): void {
+    this.notaParaExcluir.set(nota);
   }
 
-  // === Emitir NF-e ===
-  confirmarEmitir(rascunho: RascunhoNota): void {
-    this.salvando.set(true);
-    this.dashboardService
-      .feedbackRascunho(rascunho.id, { status: 'finalizado', feedback: 'Emitido pelo produtor' })
-      .subscribe({
-        next: (r) => {
-          this.salvando.set(false);
-          if (r) this.rascunhos.update((list) => list.map((x) => (x.id === r.id ? r : x)));
-          this.toastService.success('NF-e emitida com sucesso!');
-          this.emitirRascunho.set(null);
-        },
-        error: () => {
-          this.salvando.set(false);
-          this.toastService.error('Erro ao emitir.');
-        },
-      });
+  cancelarExclusao(): void {
+    this.notaParaExcluir.set(null);
+  }
+
+  confirmarExclusao(): void {
+    const nota = this.notaParaExcluir();
+    if (!nota) return;
+    this.excluindo.set(true);
+    this.notasApi.excluir(nota.id).subscribe({
+      next: () => {
+        this.excluindo.set(false);
+        this.notaParaExcluir.set(null);
+        if (this.previewNota()?.id === nota.id) this.previewNota.set(null);
+        this.notas.update((list) => list.filter((n) => n.id !== nota.id));
+        this.toastService.success('Nota excluída.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.excluindo.set(false);
+        this.notaParaExcluir.set(null);
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        this.toastService.error(env?.message ?? 'Não foi possível excluir a nota.');
+      },
+    });
   }
 
   // === Anexar documento ===
@@ -450,7 +514,7 @@ export class DocumentosPage implements OnInit {
     this.fecharAnexar();
   }
 
-  // === Download de nota (PDF/XML) ===
+  // === Preview + Download de nota (PDF/XML) ===
   abrirPreview(nota: NotaFiscal): void {
     this.errosFiscais.set([]);
     this.previewNota.set(nota);
@@ -470,8 +534,7 @@ export class DocumentosPage implements OnInit {
   baixarXml(nota: NotaFiscal): void {
     this.baixandoXml.set(true);
     this.errosFiscais.set([]);
-    const jaGerado = nota.status !== 'RASCUNHO' && nota.status !== 'COM_INCONSISTENCIAS';
-    if (jaGerado) {
+    if (!this.podeEditar(nota)) {
       this.baixarXmlGerado(nota);
       return;
     }
@@ -525,7 +588,7 @@ export class DocumentosPage implements OnInit {
     URL.revokeObjectURL(url);
   }
 
-  // === Importar nota (XML/PDF, drag-and-drop) ===
+  // === Importar nota (XML, drag-and-drop) ===
   onDragOver(event: DragEvent): void {
     event.preventDefault();
     this.dragOver.set(true);
@@ -552,10 +615,6 @@ export class DocumentosPage implements OnInit {
 
   importarArquivo(file: File): void {
     const nome = file.name.toLowerCase();
-    if (!nome.endsWith('.xml') && !nome.endsWith('.pdf')) {
-      this.toastService.error('Envie um arquivo XML ou PDF da NF-e.');
-      return;
-    }
     if (!nome.endsWith('.xml')) {
       this.toastService.info('A importação lê apenas o XML da NF-e (o PDF não é aceito pelo backend).');
       return;
@@ -574,7 +633,7 @@ export class DocumentosPage implements OnInit {
     });
   }
 
-  // Formatação CPF/CNPJ
+  // Máscara CPF/CNPJ do formulário
   formatCpfCnpj(event: Event): void {
     const input = event.target as HTMLInputElement;
     const numeros = input.value.replace(/\D/g, '');
@@ -591,7 +650,7 @@ export class DocumentosPage implements OnInit {
         .replace(/(\d{3})(\d)/, '$1/$2')
         .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
     }
-    this.rascunhoCpfCnpj.set(formatted);
+    this.formDestCpfCnpj.set(formatted);
     input.value = formatted;
   }
 
@@ -607,30 +666,6 @@ export class DocumentosPage implements OnInit {
       month: 'short',
       year: 'numeric',
     });
-  }
-
-  rascunhoStatusLabel(status: string): string {
-    const map: Record<string, string> = {
-      rascunho: 'Rascunho',
-      enviado: 'Enviado',
-      revisao: 'Em Revisão',
-      aprovado: 'Aprovado',
-      reprovado: 'Devolvido',
-      finalizado: 'Finalizado',
-    };
-    return map[status] ?? status;
-  }
-
-  rascunhoStatusColor(status: string): string {
-    const map: Record<string, string> = {
-      rascunho: 'bg-gray-100 text-gray-700 border border-gray-200',
-      enviado: 'bg-blue-100 text-blue-700 border border-blue-200',
-      revisao: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-      aprovado: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-      reprovado: 'bg-red-100 text-red-700 border border-red-200',
-      finalizado: 'bg-purple-100 text-purple-700 border border-purple-200',
-    };
-    return map[status] ?? 'bg-gray-100 text-gray-700';
   }
 
   notaStatusLabel(status?: string): string {
