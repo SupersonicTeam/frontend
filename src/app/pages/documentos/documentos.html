@@ -122,6 +122,26 @@
           }
         </div>
       }
+
+      @if (totalPaginas() > 1) {
+        <nav class="flex items-center justify-between gap-2 pt-1" aria-label="Paginação das notas fiscais">
+          <button
+            class="px-3 py-1.5 rounded-xl border border-border text-sm hover:bg-muted disabled:opacity-40"
+            [disabled]="pageIndex() === 0"
+            (click)="irParaPagina(pageIndex() - 1)">
+            ‹ Anterior
+          </button>
+          <span class="text-xs text-muted-foreground">
+            Página {{ pageIndex() + 1 }} de {{ totalPaginas() }} · {{ totalElements() }} notas
+          </span>
+          <button
+            class="px-3 py-1.5 rounded-xl border border-border text-sm hover:bg-muted disabled:opacity-40"
+            [disabled]="pageIndex() + 1 >= totalPaginas()"
+            (click)="irParaPagina(pageIndex() + 1)">
+            Próxima ›
+          </button>
+        </nav>
+      }
     </div>
 
     <!-- ── SEÇÃO: Solicitações do Contador ── -->

@@ -120,8 +120,11 @@ export class DocumentosPage implements OnInit {
   busca = signal('');
   ordenacao = signal<'data' | 'valor'>('data');
 
-  // Carregamento de notas
+  // Carregamento de notas + paginação server-side (Page<T> do Spring)
   notasErro = signal(false);
+  pageIndex = signal(0);
+  pageSize = signal(12);
+  totalElements = signal(0);
 
   // Importar nota via XML (drag-and-drop)
   importando = signal(false);
@@ -286,18 +289,34 @@ export class DocumentosPage implements OnInit {
    */
   recarregarNotas(): void {
     this.loading.set(true);
-    this.notasApi.listar({ page: 0, size: 100, sort: 'dataEmissao,desc' }).subscribe({
-      next: (page) => {
-        this.notas.set(page.content);
-        this.notasErro.set(false);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.notas.set(mockNotas());
-        this.notasErro.set(true);
-        this.loading.set(false);
-      },
-    });
+    this.notasApi
+      .listar({ page: this.pageIndex(), size: this.pageSize(), sort: 'dataEmissao,desc' })
+      .subscribe({
+        next: (page) => {
+          this.notas.set(page.content);
+          this.totalElements.set(page.totalElements);
+          this.notasErro.set(false);
+          this.loading.set(false);
+        },
+        error: () => {
+          const mock = mockNotas();
+          this.notas.set(mock);
+          this.totalElements.set(mock.length);
+          this.notasErro.set(true);
+          this.loading.set(false);
+        },
+      });
+  }
+
+  /** Total de páginas (server-side, a partir de totalElements/pageSize). */
+  readonly totalPaginas = computed(() => Math.max(1, Math.ceil(this.totalElements() / this.pageSize())));
+
+  /** Vai para uma página (0-based) e recarrega do backend (Pageable). */
+  irParaPagina(idx: number): void {
+    const alvo = Math.min(Math.max(0, idx), this.totalPaginas() - 1);
+    if (alvo === this.pageIndex()) return;
+    this.pageIndex.set(alvo);
+    this.recarregarNotas();
   }
 
   /** Substitui a nota na listagem e no preview após uma atualização do backend. */
@@ -934,12 +953,12 @@ export class DocumentosPage implements OnInit {
 
   solicitacaoStatusColor(status: string): string {
     const map: Record<string, string> = {
-      pendente: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-      enviado: 'bg-blue-100 text-blue-700 border border-blue-200',
-      concluido: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-      cancelado: 'bg-gray-100 text-gray-700 border border-gray-200',
-      rejeitado: 'bg-red-100 text-red-700 border border-red-200',
+      pendente: 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
+      enviado: 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
+      concluido: 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
+      cancelado: 'bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
+      rejeitado: 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
     };
-    return map[status] ?? 'bg-gray-100 text-gray-700';
+    return map[status] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
   }
 }
