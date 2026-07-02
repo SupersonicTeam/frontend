@@ -19,6 +19,7 @@ import {
   LucideFileOutput,
   LucidePencil,
   LucideTriangleAlert,
+  LucideSend,
 } from '@lucide/angular';
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { mockNotas } from '@services/dashboard/data-access/dashboard.service';
@@ -28,7 +29,7 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
 import { SolicitacaoContador } from '@models/solicitacao-contador.model';
 import { NotaFiscalRequest, NotaFiscalItemRequest } from '@dtos/notas/nota-fiscal.request';
-import { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
+import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
 import { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
 import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
@@ -97,6 +98,7 @@ function soDigitos(v: string): string {
     LucideFileOutput,
     LucidePencil,
     LucideTriangleAlert,
+    LucideSend,
   ],
   templateUrl: './documentos.html',
 })
@@ -141,6 +143,13 @@ export class DocumentosPage implements OnInit {
   cancelarAlvo = signal<NotaFiscal | null>(null);
   motivoCancel = signal('');
   cancelando = signal(false);
+
+  // Emissão SEFAZ / DANFE (#12)
+  enviandoSefaz = signal(false);
+  consultandoStatus = signal(false);
+  baixandoDanfe = signal(false);
+  /** Último retorno da SEFAZ (cStat/motivo/protocolo) exibido no preview. */
+  sefazRetorno = signal<SefazRetorno | null>(null);
 
   // Upload/Anexar dialog
   showAnexar = signal(false);
@@ -387,8 +396,9 @@ export class DocumentosPage implements OnInit {
         const env = err?.error as ApiErrorEnvelope | undefined;
         if (err?.status === 422 && env?.errors?.length) {
           this.errosFiscais.set(env.errors);
+          // O 422 move a nota para COM_INCONSISTENCIAS; reflete no preview e na lista.
+          this.atualizarNotaLocal({ ...nota, status: 'COM_INCONSISTENCIAS' });
           this.verValidacoes(nota);
-          this.recarregarNotas(); // status virou COM_INCONSISTENCIAS
           this.toastService.error('Não foi possível gerar o XML: inconsistências fiscais.');
         } else if (err?.status === 409) {
           this.toastService.error(env?.message ?? 'Ação inválida para o status atual.');
@@ -444,6 +454,75 @@ export class DocumentosPage implements OnInit {
         this.cancelando.set(false);
         const env = err?.error as ApiErrorEnvelope | undefined;
         this.toastService.error(env?.message ?? 'Não foi possível cancelar a nota.');
+      },
+    });
+  }
+
+  // ─────────────── Emissão: SEFAZ e DANFE (#12) ───────────────
+
+  /** Transmite a NF-e (XML_GERADO) à SEFAZ e reflete o retorno (cStat/motivo/protocolo). */
+  enviarSefaz(nota: NotaFiscal): void {
+    this.enviandoSefaz.set(true);
+    this.sefazRetorno.set(null);
+    this.notasApi.enviarSefaz(nota.id).subscribe({
+      next: (r) => {
+        this.enviandoSefaz.set(false);
+        this.sefazRetorno.set(r);
+        this.atualizarNotaLocal({ ...nota, status: r.status, chaveAcesso: r.chaveAcesso });
+        if (r.status === 'AUTORIZADA') this.toastService.success(`Autorizada pela SEFAZ (cStat ${r.cStat}).`);
+        else if (r.status === 'REJEITADA') this.toastService.error(`Rejeitada (cStat ${r.cStat}): ${r.xMotivo}`);
+        else this.toastService.info(`Pendente na SEFAZ: ${r.xMotivo}`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.enviandoSefaz.set(false);
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        if (err?.status === 502) {
+          this.toastService.error('SEFAZ indisponível após as tentativas. Tente novamente em instantes.');
+        } else if (err?.status === 409) {
+          this.toastService.error(env?.message ?? 'Envio inválido para o status atual.');
+        } else {
+          this.toastService.error(env?.message ?? 'Falha ao enviar à SEFAZ.');
+        }
+      },
+    });
+  }
+
+  /** Consulta e sincroniza o status da NF-e na SEFAZ (notas transmitidas). */
+  consultarStatus(nota: NotaFiscal): void {
+    this.consultandoStatus.set(true);
+    this.notasApi.consultarStatus(nota.id).subscribe({
+      next: (r) => {
+        this.consultandoStatus.set(false);
+        this.sefazRetorno.set(r);
+        this.atualizarNotaLocal({ ...nota, status: r.status, chaveAcesso: r.chaveAcesso });
+        this.toastService.success(`Status sincronizado: ${statusNotaLabel(r.status)} (cStat ${r.cStat}).`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.consultandoStatus.set(false);
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        this.toastService.error(env?.message ?? 'Falha ao consultar o status na SEFAZ.');
+      },
+    });
+  }
+
+  /** Baixa a DANFE oficial (PDF do backend via JasperReports) para notas já com XML. */
+  baixarDanfe(nota: NotaFiscal): void {
+    this.baixandoDanfe.set(true);
+    this.notasApi.baixarPdf(nota.id).subscribe({
+      next: (blob) => {
+        this.baixandoDanfe.set(false);
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `danfe-${nota.numero ?? nota.id}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        this.toastService.success('DANFE baixada.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.baixandoDanfe.set(false);
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        this.toastService.error(env?.message ?? 'DANFE indisponível (gere o XML primeiro).');
       },
     });
   }
@@ -679,6 +758,7 @@ export class DocumentosPage implements OnInit {
   abrirPreview(nota: NotaFiscal): void {
     this.errosFiscais.set([]);
     this.validacoes.set([]);
+    this.sefazRetorno.set(null);
     this.previewNota.set(nota);
     if (this.podeVerValidacoes(nota)) this.verValidacoes(nota);
   }
@@ -687,6 +767,7 @@ export class DocumentosPage implements OnInit {
     this.previewNota.set(null);
     this.errosFiscais.set([]);
     this.validacoes.set([]);
+    this.sefazRetorno.set(null);
   }
 
   /**

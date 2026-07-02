@@ -254,6 +254,9 @@
               <li class="text-xs text-foreground">
                 <span class="font-medium">{{ erro.field }}</span>: {{ erro.message }}
                 @if (erro.suggestion) { <span class="block text-muted-foreground">{{ erro.suggestion }}</span> }
+                @if (erro.expectedValue || erro.rejectedValue) {
+                  <span class="block text-muted-foreground">Esperado: {{ erro.expectedValue || '—' }} · Informado: {{ erro.rejectedValue || '—' }}</span>
+                }
               </li>
             }
           </ul>
@@ -273,6 +276,16 @@
           </ul>
         </div>
       }
+      <!-- Retorno da SEFAZ (após enviar/consultar) -->
+      @if (sefazRetorno(); as r) {
+        <div class="mx-6 mb-2 rounded-xl border border-border bg-muted/30 p-3 text-xs space-y-1">
+          <p class="font-semibold text-foreground">Retorno da SEFAZ</p>
+          <div class="flex justify-between"><span class="text-muted-foreground">Situação</span><span class="font-medium text-foreground">{{ r.cStat }} — {{ r.xMotivo }}</span></div>
+          @if (r.protocolo) { <div class="flex justify-between"><span class="text-muted-foreground">Protocolo</span><span class="font-medium text-foreground">{{ r.protocolo }}</span></div> }
+          @if (r.dataAutorizacao) { <div class="flex justify-between"><span class="text-muted-foreground">Autorização</span><span class="font-medium text-foreground">{{ formatDate(r.dataAutorizacao) }}</span></div> }
+        </div>
+      }
+
       <!-- Ações contextuais por status (#14): só aparecem as válidas para o status atual -->
       <div class="flex flex-wrap gap-2 px-6 pb-6 pt-2 border-t border-border">
         @if (podeEditar(previewNota())) {
@@ -292,6 +305,23 @@
             @if (gerandoXml()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Gerando... }
             @else { <svg lucideFileOutput [size]="16" /> Gerar XML }
           </button>
+          <button
+            class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted"
+            (click)="baixarPdf(previewNota()!)"
+            title="Pré-visualização sem valor fiscal (rascunho)"
+          >
+            <svg lucideDownload [size]="16" /> Prévia
+          </button>
+        }
+        @if (podeEnviarSefaz(previewNota())) {
+          <button
+            class="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            [disabled]="enviandoSefaz()"
+            (click)="enviarSefaz(previewNota()!)"
+          >
+            @if (enviandoSefaz()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Enviando... }
+            @else { <svg lucideSend [size]="16" /> Enviar à SEFAZ }
+          </button>
         }
         @if (temArquivos(previewNota())) {
           <button
@@ -304,10 +334,24 @@
             XML
           </button>
           <button
-            class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted"
-            (click)="baixarPdf(previewNota()!)"
+            class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-50"
+            [disabled]="baixandoDanfe()"
+            (click)="baixarDanfe(previewNota()!)"
           >
-            <svg lucideDownload [size]="16" /> DANFE
+            @if (baixandoDanfe()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
+            @else { <svg lucideDownload [size]="16" /> }
+            DANFE
+          </button>
+        }
+        @if (podeConsultarSefaz(previewNota())) {
+          <button
+            class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-50"
+            [disabled]="consultandoStatus()"
+            (click)="consultarStatus(previewNota()!)"
+          >
+            @if (consultandoStatus()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
+            @else { <svg lucideRefreshCw [size]="16" /> }
+            Consultar SEFAZ
           </button>
         }
         @if (podeCancelar(previewNota())) {
