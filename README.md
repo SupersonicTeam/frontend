@@ -1,4 +1,4 @@
-# AgroTributos — Frontend (Angular)
+# AgroContábil — Frontend (Angular)
 
 SPA educacional sobre a **reforma tributária 2026** (CBS/IBS/FUNRURAL) para produtores rurais: assistente
 fiscal com IA ("João"), calculadora de impostos, leitura/geração de nota fiscal e dashboard financeiro.

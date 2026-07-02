@@ -1,4 +1,4 @@
-# CLAUDE.md — Frontend AgroPainel (Angular)
+# CLAUDE.md — Frontend AgroContábil (Angular)
 
 Mapa de referência rápida do `frontend/`. **Consulte este arquivo antes de explorar o código** — ele evita
 buscas caras. Mantenha-o atualizado quando criar features/services novos.
