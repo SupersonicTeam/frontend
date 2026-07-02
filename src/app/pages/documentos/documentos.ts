@@ -28,7 +28,9 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
 import { SolicitacaoContador } from '@models/solicitacao-contador.model';
 import { NotaFiscalRequest, NotaFiscalItemRequest } from '@dtos/notas/nota-fiscal.request';
+import { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
+import { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
 import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
 
@@ -131,6 +133,14 @@ export class DocumentosPage implements OnInit {
   // Download de nota (PDF/XML)
   baixandoXml = signal(false);
   errosFiscais = signal<FiscalError[]>([]);
+
+  // Ciclo de vida (#14): gerar XML, validações, cancelamento
+  gerandoXml = signal(false);
+  validacoes = signal<NotaValidacaoResponse[]>([]);
+  carregandoValidacoes = signal(false);
+  cancelarAlvo = signal<NotaFiscal | null>(null);
+  motivoCancel = signal('');
+  cancelando = signal(false);
 
   // Upload/Anexar dialog
   showAnexar = signal(false);
@@ -285,6 +295,157 @@ export class DocumentosPage implements OnInit {
   private atualizarNotaLocal(nota: NotaFiscal): void {
     this.notas.update((list) => list.map((n) => (n.id === nota.id ? nota : n)));
     if (this.previewNota()?.id === nota.id) this.previewNota.set(nota);
+  }
+
+  // ─────────────── Stepper de ciclo de vida (#14) ───────────────
+  readonly STEPPER_STEPS = ['Rascunho', 'XML gerado', 'Enviada', 'Autorizada'];
+
+  /** Estado visual de cada etapa do stepper para o status atual da nota. */
+  stepperEstado(status: StatusNotaFiscal | undefined, idx: number): 'done' | 'current' | 'todo' | 'error' | 'warn' {
+    switch (status) {
+      case 'RASCUNHO':
+        return idx === 0 ? 'current' : 'todo';
+      case 'COM_INCONSISTENCIAS':
+        return idx === 0 ? 'error' : 'todo';
+      case 'XML_GERADO':
+        return idx < 1 ? 'done' : idx === 1 ? 'current' : 'todo';
+      case 'AUTORIZADA':
+        return 'done';
+      case 'REJEITADA':
+        return idx < 2 ? 'done' : idx === 2 ? 'error' : 'todo';
+      case 'PENDENTE_SEFAZ':
+        return idx < 2 ? 'done' : idx === 2 ? 'warn' : 'todo';
+      case 'CANCELADA':
+        return 'done';
+      default:
+        return 'todo';
+    }
+  }
+
+  /** Classe do círculo da etapa por estado. */
+  stepperClasse(estado: string): string {
+    switch (estado) {
+      case 'done':
+        return 'bg-primary text-primary-foreground border-primary';
+      case 'current':
+        return 'bg-blue-100 text-blue-700 border-blue-400 dark:bg-blue-950 dark:text-blue-300';
+      case 'error':
+        return 'bg-red-100 text-red-700 border-red-400 dark:bg-red-950 dark:text-red-300';
+      case 'warn':
+        return 'bg-yellow-100 text-yellow-700 border-yellow-400 dark:bg-yellow-950 dark:text-yellow-300';
+      default:
+        return 'bg-muted text-muted-foreground border-border';
+    }
+  }
+
+  // ─────────────── Visibilidade de ações por status (#14) ───────────────
+  /** XML pode ser gerado só em RASCUNHO/COM_INCONSISTENCIAS. */
+  podeGerarXml(nota?: NotaFiscal | null): boolean {
+    return nota?.status === 'RASCUNHO' || nota?.status === 'COM_INCONSISTENCIAS';
+  }
+  /** XML/DANFE disponíveis após a geração do XML (409 em RASCUNHO/COM_INCONSISTENCIAS). */
+  temArquivos(nota?: NotaFiscal | null): boolean {
+    return !!nota && !this.podeGerarXml(nota);
+  }
+  /** Envio à SEFAZ só em XML_GERADO. */
+  podeEnviarSefaz(nota?: NotaFiscal | null): boolean {
+    return nota?.status === 'XML_GERADO';
+  }
+  /** Consulta de status só para notas transmitidas. */
+  podeConsultarSefaz(nota?: NotaFiscal | null): boolean {
+    return (
+      nota?.status === 'AUTORIZADA' ||
+      nota?.status === 'REJEITADA' ||
+      nota?.status === 'PENDENTE_SEFAZ'
+    );
+  }
+  /** Cancelamento só de nota AUTORIZADA. */
+  podeCancelar(nota?: NotaFiscal | null): boolean {
+    return nota?.status === 'AUTORIZADA';
+  }
+  /** Histórico de inconsistências relevante em COM_INCONSISTENCIAS/REJEITADA. */
+  podeVerValidacoes(nota?: NotaFiscal | null): boolean {
+    return nota?.status === 'COM_INCONSISTENCIAS' || nota?.status === 'REJEITADA';
+  }
+
+  /**
+   * Gera o XML da nota (RASCUNHO/COM_INCONSISTENCIAS → XML_GERADO). Em 422 mostra as
+   * inconsistências e carrega o histórico de validações; 500 = certificado ausente no backend.
+   */
+  gerarXml(nota: NotaFiscal): void {
+    this.gerandoXml.set(true);
+    this.errosFiscais.set([]);
+    this.notasApi.gerarXml(nota.id).subscribe({
+      next: (atualizada) => {
+        this.gerandoXml.set(false);
+        this.atualizarNotaLocal(atualizada);
+        this.validacoes.set([]);
+        this.toastService.success('XML gerado e assinado!');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.gerandoXml.set(false);
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        if (err?.status === 422 && env?.errors?.length) {
+          this.errosFiscais.set(env.errors);
+          this.verValidacoes(nota);
+          this.recarregarNotas(); // status virou COM_INCONSISTENCIAS
+          this.toastService.error('Não foi possível gerar o XML: inconsistências fiscais.');
+        } else if (err?.status === 409) {
+          this.toastService.error(env?.message ?? 'Ação inválida para o status atual.');
+        } else {
+          // 500 CERTIFICADO_AUSENTE ou outra falha do backend.
+          const detalhe = env?.errors?.[0]?.message ?? env?.message;
+          this.toastService.error(detalhe ?? 'Erro ao gerar o XML.');
+        }
+      },
+    });
+  }
+
+  /** Carrega o histórico de inconsistências (GET /validacoes) para exibir no preview. */
+  verValidacoes(nota: NotaFiscal): void {
+    this.carregandoValidacoes.set(true);
+    this.notasApi.listarValidacoes(nota.id).subscribe({
+      next: (v) => {
+        this.validacoes.set(v);
+        this.carregandoValidacoes.set(false);
+      },
+      error: () => {
+        this.validacoes.set([]);
+        this.carregandoValidacoes.set(false);
+      },
+    });
+  }
+
+  // ─────────────── Cancelamento (#14) ───────────────
+  readonly motivoCancelValido = computed(() => {
+    const m = this.motivoCancel().trim();
+    return m.length >= 15 && m.length <= 255;
+  });
+
+  pedirCancelamento(nota: NotaFiscal): void {
+    this.motivoCancel.set('');
+    this.cancelarAlvo.set(nota);
+  }
+  fecharCancelamento(): void {
+    this.cancelarAlvo.set(null);
+  }
+  confirmarCancelamento(): void {
+    const nota = this.cancelarAlvo();
+    if (!nota || !this.motivoCancelValido()) return;
+    this.cancelando.set(true);
+    this.notasApi.cancelar(nota.id, this.motivoCancel().trim()).subscribe({
+      next: () => {
+        this.cancelando.set(false);
+        this.cancelarAlvo.set(null);
+        this.atualizarNotaLocal({ ...nota, status: 'CANCELADA' });
+        this.toastService.success('Nota cancelada junto à SEFAZ.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.cancelando.set(false);
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        this.toastService.error(env?.message ?? 'Não foi possível cancelar a nota.');
+      },
+    });
   }
 
   // ─────────────────────────── Formulário de nota ───────────────────────────
@@ -517,12 +678,15 @@ export class DocumentosPage implements OnInit {
   // === Preview + Download de nota (PDF/XML) ===
   abrirPreview(nota: NotaFiscal): void {
     this.errosFiscais.set([]);
+    this.validacoes.set([]);
     this.previewNota.set(nota);
+    if (this.podeVerValidacoes(nota)) this.verValidacoes(nota);
   }
 
   fecharPreview(): void {
     this.previewNota.set(null);
     this.errosFiscais.set([]);
+    this.validacoes.set([]);
   }
 
   /**
