@@ -5,7 +5,8 @@ import type { NotaFiscal } from '@models/nota-fiscal.model';
  *
  * O `jspdf` é importado dinamicamente para ficar no chunk lazy da feature
  * (fora do bundle inicial), seguindo o mesmo padrão do chart.js no dashboard.
- * É um documento de visualização — não tem valor fiscal.
+ * É um documento de visualização — não tem valor fiscal. O DANFE oficial vem do
+ * backend (`GET /api/notas/{id}/pdf`, JasperReports) após a geração do XML (#12).
  */
 export async function gerarNotaPdf(nota: NotaFiscal): Promise<void> {
   const { jsPDF } = await import('jspdf');
@@ -45,12 +46,11 @@ export async function gerarNotaPdf(nota: NotaFiscal): Promise<void> {
   // Identificação
   doc.setFontSize(9);
   const idLines: [string, string][] = [
-    ['Número', nota.numero || '—'],
-    ['Série', nota.serie || '—'],
-    ['Tipo', nota.tipo === 'entrada' ? 'Entrada' : 'Saída'],
+    ['Número', nota.numero != null ? String(nota.numero) : '—'],
+    ['Série', nota.serie != null ? String(nota.serie) : '—'],
+    ['Documento', nota.tipoDocumento === 'NFA' ? 'NFA (avulsa)' : 'NF-e (modelo 55)'],
     ['Emissão', formatDate(nota.dataEmissao)],
     ['Natureza', nota.naturezaOperacao || '—'],
-    ['CFOP', nota.cfop || '—'],
   ];
   idLines.forEach(([label, value]) => {
     doc.setFont('helvetica', 'bold');
@@ -68,19 +68,20 @@ export async function gerarNotaPdf(nota: NotaFiscal): Promise<void> {
   line(6);
   sep();
 
-  // Emitente
+  // Destinatário
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text('Emitente', M, y);
+  doc.text('Destinatário', M, y);
   line(5);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
-  doc.text(`Nome: ${nota.nomeEmitente || '—'}`, M, y);
+  doc.text(`Nome: ${nota.destinatarioNome || '—'}`, M, y);
   line(5);
-  doc.text(`CPF/CNPJ: ${nota.cpfCnpjEmitente || '—'}`, M, y);
+  doc.text(`CPF/CNPJ: ${formatCpfCnpj(nota.destinatarioCpfCnpj)}`, M, y);
   line(5);
-  if (nota.destino) {
-    doc.text(`Destino: ${nota.destino}`, M, y);
+  const end = nota.destinatarioEndereco;
+  if (end && (end.municipio || end.uf)) {
+    doc.text(`Município: ${[end.municipio, end.uf].filter(Boolean).join(' / ') || '—'}`, M, y);
     line(5);
   }
   sep();
@@ -91,10 +92,11 @@ export async function gerarNotaPdf(nota: NotaFiscal): Promise<void> {
   doc.text('Itens', M, y);
   line(6);
   doc.setFontSize(8);
-  // colunas: Descrição | NCM | Qtd | Un | Vlr Unit | Vlr Total
-  const cols = { desc: M, ncm: 95, qtd: 120, un: 138, unit: 150, total: right };
+  // colunas: Descrição | NCM | CFOP | Qtd | Un | Vlr Unit | Vlr Total
+  const cols = { desc: M, ncm: 88, cfop: 108, qtd: 124, un: 138, unit: 152, total: right };
   doc.text('Descrição', cols.desc, y);
   doc.text('NCM', cols.ncm, y);
+  doc.text('CFOP', cols.cfop, y);
   doc.text('Qtd', cols.qtd, y, { align: 'right' });
   doc.text('Un', cols.un, y);
   doc.text('Vlr Unit', cols.unit, y, { align: 'right' });
@@ -106,9 +108,9 @@ export async function gerarNotaPdf(nota: NotaFiscal): Promise<void> {
   doc.setFont('helvetica', 'normal');
   for (const item of nota.itens ?? []) {
     pageBreak();
-    const desc = truncate(item.descricao, 48);
-    doc.text(desc, cols.desc, y);
+    doc.text(truncate(item.descricao, 40), cols.desc, y);
     doc.text(item.ncm || '—', cols.ncm, y);
+    doc.text(item.cfop || '—', cols.cfop, y);
     doc.text(String(item.quantidade ?? 0), cols.qtd, y, { align: 'right' });
     doc.text(item.unidade || '—', cols.un, y);
     doc.text(brl(item.valorUnitario), cols.unit, y, { align: 'right' });
@@ -131,38 +133,26 @@ export async function gerarNotaPdf(nota: NotaFiscal): Promise<void> {
   doc.text('Totais', M, y);
   line(6);
   doc.setFontSize(9);
-  const totais: [string, number | undefined][] = [
-    ['Produtos', nota.valorProdutos],
-    ['Frete', nota.valorFrete],
-    ['Seguro', nota.valorSeguro],
-    ['Desconto', nota.valorDesconto],
-  ];
-  totais.forEach(([label, value]) => {
-    if (value === undefined || value === null) return;
-    doc.setFont('helvetica', 'normal');
-    doc.text(label, M, y);
-    doc.text(brl(value), right, y, { align: 'right' });
-    line(5);
-  });
+  doc.setFont('helvetica', 'normal');
+  doc.text('Produtos', M, y);
+  doc.text(brl(nota.valorTotalProdutos), right, y, { align: 'right' });
+  line(5);
   doc.setFont('helvetica', 'bold');
   doc.text('Total da nota', M, y);
-  doc.text(brl(nota.valorTotal), right, y, { align: 'right' });
+  doc.text(brl(nota.valorTotalNota), right, y, { align: 'right' });
   line(6);
 
-  // Impostos (só os > 0)
-  const impostosFonte: [string, number | undefined][] = [
-    ['CBS', nota.valorCbs],
-    ['IBS', nota.valorIbs],
-    ['FUNRURAL', nota.valorFunrural],
-    ['ICMS', nota.valorIcms],
-    ['IPI', nota.valorIpi],
+  // Impostos IBS/CBS (informativos em 2026, só os > 0)
+  const impostosFonte: [string, number | null | undefined][] = [
+    ['CBS', nota.valorTotalCbs],
+    ['IBS', nota.valorTotalIbs],
   ];
   const impostos = impostosFonte.filter(([, v]) => (v ?? 0) > 0) as [string, number][];
   if (impostos.length) {
     sep();
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10);
-    doc.text('Impostos', M, y);
+    doc.text('Impostos (informativos — reforma 2026)', M, y);
     line(6);
     doc.setFontSize(9);
     impostos.forEach(([label, value]) => {
@@ -173,29 +163,23 @@ export async function gerarNotaPdf(nota: NotaFiscal): Promise<void> {
     });
   }
 
-  // Observações
-  if (nota.observacoes) {
-    sep();
-    pageBreak(20);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
-    doc.text('Observações', M, y);
-    line(5);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text(doc.splitTextToSize(nota.observacoes, right - M), M, y);
-  }
-
-  doc.save(`nota-${nota.numero || nota.id}.pdf`);
+  doc.save(`nota-${nota.numero ?? nota.id}.pdf`);
 }
 
-function brl(v?: number): string {
+function brl(v?: number | null): string {
   return (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function formatDate(iso?: string): string {
   if (!iso) return '—';
   return new Date(iso.split('T')[0] + 'T12:00:00').toLocaleDateString('pt-BR');
+}
+
+function formatCpfCnpj(doc?: string): string {
+  const n = (doc ?? '').replace(/\D/g, '');
+  if (n.length === 11) return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+  if (n.length === 14) return n.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+  return doc || '—';
 }
 
 function truncate(s: string, max: number): string {

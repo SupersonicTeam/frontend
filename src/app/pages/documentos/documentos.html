@@ -21,13 +21,13 @@
     <select class="px-3 py-2 rounded-xl border border-border bg-card text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
       [value]="tipo()" (change)="tipo.set($any($event.target).value)">
       <option value="todos">Todos os tipos</option>
-      <option value="entrada">Entrada</option>
-      <option value="saida">Saída</option>
+      <option value="NFE">NF-e (modelo 55)</option>
+      <option value="NFA">NFA (avulsa)</option>
     </select>
 
     <div class="flex-1 min-w-[180px] relative">
       <svg lucideSearch [size]="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input type="text" placeholder="Buscar documento..."
+      <input type="text" placeholder="Buscar por natureza, número ou destinatário..."
         class="w-full pl-9 pr-4 py-2 rounded-xl border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         [value]="busca()" (input)="busca.set($any($event.target).value)" />
     </div>
@@ -48,10 +48,10 @@
       <span class="text-sm text-muted-foreground">Importando nota…</span>
     } @else {
       <svg lucideUpload [size]="24" class="text-muted-foreground" />
-      <span class="text-sm font-medium text-foreground">Arraste o XML/PDF da NF-e aqui</span>
+      <span class="text-sm font-medium text-foreground">Arraste o XML da NF-e aqui</span>
       <span class="text-xs text-muted-foreground">ou clique para selecionar</span>
     }
-    <input type="file" accept=".xml,.pdf" class="hidden" (change)="onFileImport($event)" [disabled]="importando()" />
+    <input type="file" accept=".xml" class="hidden" (change)="onFileImport($event)" [disabled]="importando()" />
   </label>
 
   <!-- ── CARREGANDO ── -->
@@ -74,46 +74,75 @@
       </div>
     }
 
-    <!-- ── SEÇÃO: NF-e Oficiais ── -->
-    @if (notasFiltradas().length > 0 || grupo() === 'todos' || grupo() === 'documentos') {
-      <div class="space-y-3">
-        <div class="flex items-center gap-2">
-          <svg lucideFileCheck [size]="18" class="text-muted-foreground" />
-          <h2 class="text-base font-semibold text-foreground">Notas Fiscais Oficiais</h2>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{{ notasFiltradas().length }}</span>
-        </div>
-
-        @if (notasFiltradas().length === 0) {
-          <div class="flex flex-col items-center justify-center py-10 text-center bg-card rounded-2xl border border-border">
-            <svg lucideFile [size]="36" class="text-muted-foreground mb-2" />
-            <p class="text-sm text-muted-foreground">Nenhuma nota encontrada com os filtros selecionados.</p>
-          </div>
-        } @else {
-          <div class="grid gap-3 sm:grid-cols-2">
-            @for (nota of notasFiltradas(); track nota.id) {
-              <div class="bg-card rounded-2xl border border-border p-4 space-y-2 hover:ring-2 hover:ring-primary/20 transition-shadow cursor-pointer" (click)="abrirPreview(nota)">
-                <div class="flex items-start justify-between gap-2">
-                  <div class="min-w-0 flex-1">
-                    <p class="font-medium text-foreground leading-tight truncate">{{ nota.naturezaOperacao || 'NF-e ' + nota.numero }}</p>
-                    <p class="text-xs text-muted-foreground mt-0.5">{{ nota.tipo === 'entrada' ? 'Entrada' : 'Saída' }}</p>
-                  </div>
-                  <div class="flex items-center gap-1.5 shrink-0">
-                    <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ notaStatusColor(nota.status) }}">{{ notaStatusLabel(nota.status) }}</span>
-                    <button class="p-1.5 rounded-lg hover:bg-muted transition-colors text-muted-foreground" (click)="$event.stopPropagation(); abrirPreview(nota)">
-                      <svg lucideEye [size]="15" />
-                    </button>
-                  </div>
-                </div>
-                <div class="flex items-center justify-between text-sm">
-                  <span class="text-muted-foreground text-xs">{{ formatDate(nota.dataEmissao) }}</span>
-                  <span class="font-semibold text-foreground">{{ formatCurrency(nota.valorTotal) }}</span>
-                </div>
-              </div>
-            }
-          </div>
-        }
+    <!-- ── SEÇÃO: NF-e ── -->
+    <div class="space-y-3">
+      <div class="flex items-center gap-2">
+        <svg lucideFileCheck [size]="18" class="text-muted-foreground" />
+        <h2 class="text-base font-semibold text-foreground">Notas Fiscais</h2>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{{ notasFiltradas().length }}</span>
       </div>
-    }
+
+      @if (notasFiltradas().length === 0) {
+        <div class="flex flex-col items-center justify-center py-10 text-center bg-card rounded-2xl border border-border">
+          <svg lucideFile [size]="36" class="text-muted-foreground mb-2" />
+          <p class="text-sm text-muted-foreground">Nenhuma nota encontrada.</p>
+          <button class="mt-3 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90" (click)="abrirNovaNota()">
+            <svg lucidePlus [size]="14" /> Criar nota
+          </button>
+        </div>
+      } @else {
+        <div class="grid gap-3 sm:grid-cols-2">
+          @for (nota of notasFiltradas(); track nota.id) {
+            <div class="bg-card rounded-2xl border border-border p-4 space-y-2 hover:ring-2 hover:ring-primary/20 transition-shadow">
+              <div class="flex items-start justify-between gap-2">
+                <button type="button" class="min-w-0 flex-1 text-left" (click)="abrirPreview(nota)">
+                  <p class="font-medium text-foreground leading-tight truncate">{{ nota.naturezaOperacao || 'NF-e ' + nota.numero }}</p>
+                  <p class="text-xs text-muted-foreground mt-0.5">Nº {{ nota.numero }} · {{ nota.destinatarioNome }}</p>
+                </button>
+                <span class="text-[10px] px-1.5 py-0.5 rounded-full shrink-0 {{ notaStatusColor(nota.status) }}">{{ notaStatusLabel(nota.status) }}</span>
+              </div>
+              <div class="flex items-center justify-between text-sm">
+                <span class="text-muted-foreground text-xs">{{ formatDate(nota.dataEmissao) }}</span>
+                <span class="font-semibold text-foreground">{{ formatCurrency(nota.valorTotalNota) }}</span>
+              </div>
+              <div class="flex items-center gap-1.5 pt-1">
+                <button class="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-border text-xs hover:bg-muted" (click)="abrirPreview(nota)">
+                  <svg lucideEye [size]="14" /> Ver
+                </button>
+                @if (podeEditar(nota)) {
+                  <button class="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-border text-xs hover:bg-muted" (click)="editarNota(nota)" title="Editar">
+                    <svg lucidePencil [size]="14" />
+                  </button>
+                  <button class="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg border border-border text-xs text-destructive hover:bg-destructive/10" (click)="pedirExclusao(nota)" title="Excluir">
+                    <svg lucideTrash2 [size]="14" />
+                  </button>
+                }
+              </div>
+            </div>
+          }
+        </div>
+      }
+
+      @if (totalPaginas() > 1) {
+        <nav class="flex items-center justify-between gap-2 pt-1" aria-label="Paginação das notas fiscais">
+          <button
+            class="px-3 py-1.5 rounded-xl border border-border text-sm hover:bg-muted disabled:opacity-40"
+            [disabled]="pageIndex() === 0"
+            (click)="irParaPagina(pageIndex() - 1)">
+            ‹ Anterior
+          </button>
+          <span class="text-xs text-muted-foreground">
+            Página {{ pageIndex() + 1 }} de {{ totalPaginas() }} · {{ totalElements() }} notas
+          </span>
+          <button
+            class="px-3 py-1.5 rounded-xl border border-border text-sm hover:bg-muted disabled:opacity-40"
+            [disabled]="pageIndex() + 1 >= totalPaginas()"
+            (click)="irParaPagina(pageIndex() + 1)">
+            Próxima ›
+          </button>
+        </nav>
+      }
+    </div>
 
     <!-- ── SEÇÃO: Solicitações do Contador ── -->
     @if (solicitacoesFiltradas().length > 0) {
@@ -142,72 +171,6 @@
         </div>
       </div>
     }
-
-    <!-- ── SEÇÃO: Rascunhos NF-e ── -->
-    @if (rascunhosFiltrados().length > 0) {
-      <div class="space-y-3">
-        <div class="flex items-center gap-2">
-          <svg lucideFileText [size]="18" class="text-muted-foreground" />
-          <h2 class="text-base font-semibold text-foreground">Rascunhos Gerados</h2>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{{ rascunhosFiltrados().length }}</span>
-        </div>
-        <div class="grid gap-3 sm:grid-cols-2">
-          @for (r of rascunhosFiltrados(); track r.id) {
-            <div class="bg-card rounded-2xl border border-border p-4 space-y-3">
-              <div class="flex items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                  <p class="font-medium text-foreground leading-tight truncate">{{ r.titulo || r.naturezaOperacao || 'Rascunho NF-e' }}</p>
-                  <p class="text-xs text-muted-foreground mt-0.5">{{ r.tipo === 'entrada' ? 'Entrada' : 'Saída' }} · {{ formatDate(r.createdAt) }}</p>
-                </div>
-                <span class="text-[10px] px-1.5 py-0.5 rounded-full shrink-0 {{ rascunhoStatusColor(r.status) }}">{{ rascunhoStatusLabel(r.status) }}</span>
-              </div>
-              <div class="flex items-center justify-between text-sm">
-                <span class="text-xs text-muted-foreground">{{ r.uf }}/{{ r.municipio }}</span>
-                <span class="font-semibold text-foreground">{{ formatCurrency(r.valorTotal) }}</span>
-              </div>
-
-              <!-- Ações condicionais do rascunho -->
-              <div class="flex flex-wrap gap-2">
-                @if (r.status === 'aprovado') {
-                  <button class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:opacity-90" (click)="emitirRascunho.set(r)">
-                    <svg lucideFileOutput [size]="14" /> Emitir NF-e
-                  </button>
-                  <button class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs hover:bg-muted" (click)="viewRascunho.set(r)">
-                    <svg lucideEye [size]="14" /> Ver
-                  </button>
-                } @else if (r.status === 'rascunho') {
-                  <button class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs hover:bg-muted" (click)="viewRascunho.set(r)">
-                    <svg lucideEye [size]="14" /> Ver
-                  </button>
-                  <button class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium hover:opacity-90" (click)="enviarRascunhoContador(r.id)">
-                    <svg lucideSend [size]="14" /> Enviar ao contador
-                  </button>
-                } @else if (r.status === 'reprovado') {
-                  <button class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs hover:bg-muted" (click)="viewRascunho.set(r)">
-                    <svg lucideEye [size]="14" /> Ver
-                  </button>
-                  <button class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 text-destructive text-xs hover:bg-red-50" (click)="feedbackRascunho.set(r)">
-                    <svg lucideFileText [size]="14" /> Ver feedback
-                  </button>
-                } @else {
-                  <button class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-xs hover:bg-muted" (click)="viewRascunho.set(r)">
-                    <svg lucideEye [size]="14" /> Ver detalhes
-                  </button>
-                }
-              </div>
-            </div>
-          }
-        </div>
-      </div>
-    }
-
-    @if (notasFiltradas().length === 0 && rascunhosFiltrados().length === 0 && solicitacoesFiltradas().length === 0) {
-      <div class="flex flex-col items-center justify-center py-16 text-center bg-card rounded-2xl border border-border">
-        <svg lucideFile [size]="40" class="text-muted-foreground mb-3" />
-        <p class="font-medium text-foreground mb-1">Nenhum documento encontrado</p>
-        <p class="text-sm text-muted-foreground">Tente ajustar os filtros ou faça upload de uma NF-e.</p>
-      </div>
-    }
   }
 </div>
 
@@ -215,15 +178,15 @@
 <div class="fixed bottom-20 md:bottom-8 right-5 z-50 flex flex-col gap-3 items-end">
   <button
     class="h-12 px-4 rounded-full bg-secondary text-secondary-foreground shadow-lg flex items-center gap-2 hover:scale-105 transition-all text-sm font-medium"
-    (click)="abrirGerarRascunho()"
+    (click)="abrirNovaNota()"
   >
     <svg lucideFileText [size]="20" />
-    <span class="hidden sm:inline">Gerar rascunho NF-e</span>
+    <span class="hidden sm:inline">Nova NF-e</span>
   </button>
   <button
     class="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-105 hover:bg-primary/90 transition-all"
     (click)="showAnexar.set(true)"
-    aria-label="Adicionar documento"
+    aria-label="Anexar documento"
   >
     <svg lucidePlus [size]="28" />
   </button>
@@ -241,43 +204,45 @@
         </button>
       </div>
       <div class="px-6 py-5 space-y-4">
-        <div class="rounded-xl border border-border bg-muted/30 flex items-center justify-center min-h-[100px]">
-          <div class="flex flex-col items-center gap-2 py-5 text-muted-foreground">
-            <svg lucideFile [size]="36" />
-            <span class="text-sm font-medium">{{ previewNota()?.tipo === 'entrada' ? 'Nota de Entrada' : 'Nota de Saída' }}</span>
+        <!-- Stepper de ciclo de vida (#14) -->
+        <div class="rounded-xl border border-border bg-muted/20 p-4">
+          <div class="flex items-start">
+            @for (step of STEPPER_STEPS; track step; let i = $index; let last = $last) {
+              <div class="flex flex-col items-center gap-1 shrink-0 w-16">
+                <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-semibold {{ stepperClasse(stepperEstado(previewNota()?.status, i)) }}">{{ i + 1 }}</div>
+                <span class="text-[10px] text-muted-foreground text-center leading-tight">{{ step }}</span>
+              </div>
+              @if (!last) { <div class="flex-1 h-0.5 bg-border mt-4"></div> }
+            }
           </div>
+          <p class="text-center mt-3">
+            <span class="text-[11px] px-2 py-0.5 rounded-full {{ notaStatusColor(previewNota()?.status) }}">{{ notaStatusLabel(previewNota()?.status) }}</span>
+          </p>
         </div>
         <dl class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
           <div><dt class="text-muted-foreground text-xs">Número</dt><dd class="font-medium text-foreground">{{ previewNota()?.numero || '—' }}</dd></div>
           <div><dt class="text-muted-foreground text-xs">Série</dt><dd class="font-medium text-foreground">{{ previewNota()?.serie || '—' }}</dd></div>
           <div><dt class="text-muted-foreground text-xs">Data Emissão</dt><dd class="font-medium text-foreground">{{ formatDate(previewNota()?.dataEmissao) }}</dd></div>
-          <div><dt class="text-muted-foreground text-xs">Valor Total</dt><dd class="font-semibold text-primary text-lg">{{ formatCurrency(previewNota()?.valorTotal) }}</dd></div>
-          @if (previewNota()?.cfop) {
-            <div><dt class="text-muted-foreground text-xs">CFOP</dt><dd class="font-medium text-foreground">{{ previewNota()?.cfop }}</dd></div>
-          }
-          @if (previewNota()?.nomeEmitente) {
-            <div class="col-span-2"><dt class="text-muted-foreground text-xs">Emitente</dt><dd class="font-medium text-foreground">{{ previewNota()?.nomeEmitente }}</dd></div>
+          <div><dt class="text-muted-foreground text-xs">Valor Total</dt><dd class="font-semibold text-primary text-lg">{{ formatCurrency(previewNota()?.valorTotalNota) }}</dd></div>
+          <div class="col-span-2"><dt class="text-muted-foreground text-xs">Destinatário</dt><dd class="font-medium text-foreground">{{ previewNota()?.destinatarioNome }}</dd></div>
+          <div><dt class="text-muted-foreground text-xs">CPF/CNPJ</dt><dd class="font-medium text-foreground">{{ previewNota()?.destinatarioCpfCnpj }}</dd></div>
+          @if (previewNota()?.chaveAcesso) {
+            <div><dt class="text-muted-foreground text-xs">Chave</dt><dd class="font-medium text-foreground text-[11px] break-all">{{ previewNota()?.chaveAcesso }}</dd></div>
           }
           <div><dt class="text-muted-foreground text-xs">Status</dt><dd>
             <span class="text-[10px] px-2 py-0.5 rounded-full {{ notaStatusColor(previewNota()?.status) }}">{{ notaStatusLabel(previewNota()?.status) }}</span>
           </dd></div>
         </dl>
 
-        @if ((previewNota()?.valorCbs ?? 0) > 0 || (previewNota()?.valorIbs ?? 0) > 0 || (previewNota()?.valorFunrural ?? 0) > 0) {
+        @if ((previewNota()?.valorTotalCbs ?? 0) > 0 || (previewNota()?.valorTotalIbs ?? 0) > 0) {
           <div class="border-t border-border pt-4">
-            <h4 class="text-sm font-semibold text-foreground mb-3">Impostos</h4>
+            <h4 class="text-sm font-semibold text-foreground mb-3">Impostos (informativos — reforma 2026)</h4>
             <dl class="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
-              @if ((previewNota()?.valorCbs ?? 0) > 0) {
-                <dt class="text-muted-foreground">CBS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(previewNota()?.valorCbs) }}</dd>
+              @if ((previewNota()?.valorTotalCbs ?? 0) > 0) {
+                <dt class="text-muted-foreground">CBS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(previewNota()?.valorTotalCbs) }}</dd>
               }
-              @if ((previewNota()?.valorIbs ?? 0) > 0) {
-                <dt class="text-muted-foreground">IBS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(previewNota()?.valorIbs) }}</dd>
-              }
-              @if ((previewNota()?.valorFunrural ?? 0) > 0) {
-                <dt class="text-muted-foreground">FUNRURAL</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(previewNota()?.valorFunrural) }}</dd>
-              }
-              @if ((previewNota()?.valorIcms ?? 0) > 0) {
-                <dt class="text-muted-foreground">ICMS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(previewNota()?.valorIcms) }}</dd>
+              @if ((previewNota()?.valorTotalIbs ?? 0) > 0) {
+                <dt class="text-muted-foreground">IBS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(previewNota()?.valorTotalIbs) }}</dd>
               }
             </dl>
           </div>
@@ -287,14 +252,14 @@
           <div class="border-t border-border pt-4">
             <h4 class="text-sm font-semibold text-foreground mb-3">Itens da Nota</h4>
             <div class="space-y-2 max-h-48 overflow-y-auto">
-              @for (item of previewNota()!.itens; track item.id) {
+              @for (item of previewNota()!.itens; track item.numeroItem) {
                 <div class="bg-muted/40 rounded-xl p-3 text-xs">
                   <div class="flex justify-between mb-1">
                     <span class="font-medium text-foreground">{{ item.descricao }}</span>
                     <span class="font-semibold text-primary">{{ formatCurrency(item.valorTotal) }}</span>
                   </div>
                   <span class="text-muted-foreground">{{ item.quantidade }} {{ item.unidade }} × {{ formatCurrency(item.valorUnitario) }}</span>
-                  @if (item.ncm) { <span class="ml-2 text-muted-foreground">• NCM {{ item.ncm }}</span> }
+                  <span class="ml-2 text-muted-foreground">• NCM {{ item.ncm }} • CFOP {{ item.cfop }}</span>
                 </div>
               }
             </div>
@@ -309,151 +274,245 @@
               <li class="text-xs text-foreground">
                 <span class="font-medium">{{ erro.field }}</span>: {{ erro.message }}
                 @if (erro.suggestion) { <span class="block text-muted-foreground">{{ erro.suggestion }}</span> }
+                @if (erro.expectedValue || erro.rejectedValue) {
+                  <span class="block text-muted-foreground">Esperado: {{ erro.expectedValue || '—' }} · Informado: {{ erro.rejectedValue || '—' }}</span>
+                }
               </li>
             }
           </ul>
         </div>
       }
-      <div class="flex gap-3 px-6 pb-6 pt-2 border-t border-border">
-        <button class="flex-1 px-4 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharPreview()">Fechar</button>
-        <button
-          class="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-50"
-          [disabled]="baixandoXml()"
-          (click)="baixarXml(previewNota()!)"
-        >
-          @if (baixandoXml()) {
-            <svg lucideLoaderCircle [size]="16" class="animate-spin" />
-          } @else {
-            <svg lucideFileOutput [size]="16" />
-          }
-          XML
-        </button>
-        <button
-          class="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90"
-          (click)="baixarPdf(previewNota()!)"
-        >
-          <svg lucideDownload [size]="16" /> PDF
-        </button>
-      </div>
-    </div>
-  </div>
-}
 
-<!-- ======================== DIALOG: Ver Rascunho ======================== -->
-@if (viewRascunho()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="viewRascunho.set(null)">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-        <h3 class="font-heading text-lg font-semibold text-foreground">Detalhes do rascunho</h3>
-        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted" (click)="viewRascunho.set(null)"><svg lucideX [size]="18" /></button>
-      </div>
-      <div class="px-6 py-5 space-y-3 text-sm">
-        <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ rascunhoStatusColor(viewRascunho()!.status) }}">{{ rascunhoStatusLabel(viewRascunho()!.status) }}</span>
-        <div class="flex justify-between pt-1"><span class="text-muted-foreground">Tipo</span><span class="font-medium text-foreground">{{ viewRascunho()!.tipo === 'entrada' ? 'Entrada' : 'Saída' }}</span></div>
-        <div class="flex justify-between"><span class="text-muted-foreground">UF / Município</span><span class="font-medium text-foreground">{{ viewRascunho()!.uf }} / {{ viewRascunho()!.municipio }}</span></div>
-        <div class="flex justify-between"><span class="text-muted-foreground">CFOP</span><span class="font-medium text-foreground">{{ viewRascunho()!.cfop || '—' }}</span></div>
-        <div class="flex justify-between"><span class="text-muted-foreground">Valor total</span><span class="font-semibold text-primary">{{ formatCurrency(viewRascunho()!.valorTotal) }}</span></div>
-        @if (viewRascunho()!.itens.length) {
-          <div class="border-t border-border pt-3">
-            <p class="text-xs text-muted-foreground font-medium mb-2">Itens</p>
-            @for (item of viewRascunho()!.itens; track item.numeroItem) {
-              <p class="text-xs text-foreground">{{ item.quantidade }} {{ item.unidade }} — {{ item.descricao }} ({{ formatCurrency(item.valorTotal) }})</p>
+      <!-- Histórico de validações (COM_INCONSISTENCIAS / REJEITADA) -->
+      @if (validacoes().length) {
+        <div class="mx-6 mb-2 rounded-xl border border-amber-300/40 bg-amber-50 dark:bg-amber-950/30 p-3">
+          <p class="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-2">Motivo das inconsistências (última validação):</p>
+          <ul class="space-y-1.5">
+            @for (v of validacoes(); track v.loteValidacao + v.code + v.field) {
+              <li class="text-xs text-foreground">
+                @if (v.field) { <span class="font-medium">{{ v.field }}</span>: } {{ v.message }}
+              </li>
             }
-          </div>
+          </ul>
+        </div>
+      }
+      <!-- Retorno da SEFAZ (após enviar/consultar) -->
+      @if (sefazRetorno(); as r) {
+        <div class="mx-6 mb-2 rounded-xl border border-border bg-muted/30 p-3 text-xs space-y-1">
+          <p class="font-semibold text-foreground">Retorno da SEFAZ</p>
+          <div class="flex justify-between"><span class="text-muted-foreground">Situação</span><span class="font-medium text-foreground">{{ r.cStat }} — {{ r.xMotivo }}</span></div>
+          @if (r.protocolo) { <div class="flex justify-between"><span class="text-muted-foreground">Protocolo</span><span class="font-medium text-foreground">{{ r.protocolo }}</span></div> }
+          @if (r.dataAutorizacao) { <div class="flex justify-between"><span class="text-muted-foreground">Autorização</span><span class="font-medium text-foreground">{{ formatDate(r.dataAutorizacao) }}</span></div> }
+        </div>
+      }
+
+      <!-- Ações contextuais por status (#14): só aparecem as válidas para o status atual -->
+      <div class="flex flex-wrap gap-2 px-6 pb-6 pt-2 border-t border-border">
+        @if (podeEditar(previewNota())) {
+          <button class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="editarNota(previewNota()!)">
+            <svg lucidePencil [size]="15" /> Editar
+          </button>
+          <button class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm text-destructive hover:bg-destructive/10" (click)="pedirExclusao(previewNota()!)">
+            <svg lucideTrash2 [size]="15" /> Excluir
+          </button>
         }
-        @if (viewRascunho()!.feedbackContador) {
-          <div class="border-t border-border pt-3">
-            <p class="text-xs font-medium text-destructive mb-1">Feedback do contador</p>
-            <div class="bg-red-50 rounded-xl p-3 text-destructive text-xs">{{ viewRascunho()!.feedbackContador }}</div>
-          </div>
+        @if (podeGerarXml(previewNota())) {
+          <button
+            class="flex-1 min-w-[110px] flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            [disabled]="gerandoXml()"
+            (click)="gerarXml(previewNota()!)"
+          >
+            @if (gerandoXml()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Gerando... }
+            @else { <svg lucideFileOutput [size]="16" /> Gerar XML }
+          </button>
+          <button
+            class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted"
+            (click)="baixarPdf(previewNota()!)"
+            title="Pré-visualização sem valor fiscal (rascunho)"
+          >
+            <svg lucideDownload [size]="16" /> Prévia
+          </button>
         }
-      </div>
-      <div class="px-6 pb-6">
-        <button class="w-full px-4 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="viewRascunho.set(null)">Fechar</button>
+        @if (podeEnviarSefaz(previewNota())) {
+          <button
+            class="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            [disabled]="enviandoSefaz()"
+            (click)="enviarSefaz(previewNota()!)"
+          >
+            @if (enviandoSefaz()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Enviando... }
+            @else { <svg lucideSend [size]="16" /> Enviar à SEFAZ }
+          </button>
+        }
+        @if (temArquivos(previewNota())) {
+          <button
+            class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-50"
+            [disabled]="baixandoXml()"
+            (click)="baixarXml(previewNota()!)"
+          >
+            @if (baixandoXml()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
+            @else { <svg lucideFileOutput [size]="16" /> }
+            XML
+          </button>
+          <button
+            class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-50"
+            [disabled]="baixandoDanfe()"
+            (click)="baixarDanfe(previewNota()!)"
+          >
+            @if (baixandoDanfe()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
+            @else { <svg lucideDownload [size]="16" /> }
+            DANFE
+          </button>
+        }
+        @if (podeConsultarSefaz(previewNota())) {
+          <button
+            class="flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted disabled:opacity-50"
+            [disabled]="consultandoStatus()"
+            (click)="consultarStatus(previewNota()!)"
+          >
+            @if (consultandoStatus()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
+            @else { <svg lucideRefreshCw [size]="16" /> }
+            Consultar SEFAZ
+          </button>
+        }
+        @if (podeCancelar(previewNota())) {
+          <button class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm text-destructive hover:bg-destructive/10" (click)="pedirCancelamento(previewNota()!)">
+            <svg lucideTriangleAlert [size]="15" /> Cancelar
+          </button>
+        }
+        <button class="flex-1 min-w-[80px] px-4 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharPreview()">Fechar</button>
       </div>
     </div>
   </div>
 }
 
-<!-- ======================== DIALOG: Feedback do Contador ======================== -->
-@if (feedbackRascunho()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="feedbackRascunho.set(null)">
+<!-- ======================== DIALOG: Excluir nota (confirmação) ======================== -->
+@if (notaParaExcluir()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="cancelarExclusao()">
     <div class="absolute inset-0 bg-foreground/50"></div>
     <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6" (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="font-heading font-semibold text-lg text-foreground">Feedback do contador</h3>
-        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted" (click)="feedbackRascunho.set(null)"><svg lucideX [size]="18" /></button>
-      </div>
-      <p class="text-sm font-medium text-foreground mb-3">{{ feedbackRascunho()!.titulo || feedbackRascunho()!.naturezaOperacao }}</p>
-      <div class="bg-red-50 rounded-xl p-4 text-destructive text-sm">{{ feedbackRascunho()!.feedbackContador || 'Nenhum feedback registrado.' }}</div>
-      <button class="w-full mt-4 px-4 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="feedbackRascunho.set(null)">Fechar</button>
-    </div>
-  </div>
-}
-
-<!-- ======================== DIALOG: Emitir NF-e ======================== -->
-@if (emitirRascunho()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="emitirRascunho.set(null)">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-md p-6" (click)="$event.stopPropagation()">
-      <h3 class="font-heading font-semibold text-lg text-foreground mb-4">Emissão de NF-e</h3>
-
-      <div class="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-4 mb-4">
-        <svg lucideFileOutput [size]="24" class="text-primary shrink-0 mt-0.5" />
+      <div class="flex items-start gap-3 mb-4">
+        <div class="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10 text-destructive shrink-0">
+          <svg lucideTriangleAlert [size]="20" />
+        </div>
         <div>
-          <p class="text-sm font-medium text-foreground">{{ emitirRascunho()!.titulo || emitirRascunho()!.naturezaOperacao }}</p>
-          <p class="text-xs text-muted-foreground mt-0.5">{{ emitirRascunho()!.tipo === 'entrada' ? 'Entrada' : 'Saída' }} · {{ emitirRascunho()!.uf }}</p>
+          <h3 class="font-heading font-semibold text-base text-foreground">Excluir nota?</h3>
+          <p class="text-sm text-muted-foreground mt-1">
+            A nota Nº {{ notaParaExcluir()?.numero }} ({{ notaStatusLabel(notaParaExcluir()?.status) }}) será removida. Esta ação não pode ser desfeita.
+          </p>
         </div>
       </div>
-
-      <div class="rounded-xl border border-border bg-muted/30 p-4 space-y-2 text-sm mb-4">
-        <div class="flex justify-between"><span class="text-muted-foreground">Valor Total</span><span class="font-semibold text-foreground">{{ formatCurrency(emitirRascunho()!.valorTotal) }}</span></div>
-        <div class="flex justify-between"><span class="text-muted-foreground">Itens</span><span class="font-medium text-foreground">{{ emitirRascunho()!.itens.length }}</span></div>
-      </div>
-
-      <div class="flex items-start gap-2 rounded-xl bg-accent/10 p-3 text-sm text-accent mb-4">
-        <svg lucideTrendingUp [size]="16" class="shrink-0 mt-0.5" />
-        <p>Ao emitir, este rascunho será convertido em uma NF-e oficial e aparecerá nos documentos fiscais.</p>
-      </div>
-
       <div class="flex gap-3">
-        <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="emitirRascunho.set(null)">Cancelar</button>
-        <button class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="viewRascunho.set(emitirRascunho()); emitirRascunho.set(null)">
-          <svg lucideEye [size]="14" /> Ver detalhes
-        </button>
-        <button
-          class="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          [disabled]="salvando()"
-          (click)="confirmarEmitir(emitirRascunho()!)"
-        >
-          @if (salvando()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Emitindo... }
-          @else { <svg lucideFileOutput [size]="14" /> Emitir NF-e }
+        <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="cancelarExclusao()">Cancelar</button>
+        <button class="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-destructive text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          [disabled]="excluindo()"
+          (click)="confirmarExclusao()">
+          @if (excluindo()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Excluindo... }
+          @else { <svg lucideTrash2 [size]="14" /> Excluir }
         </button>
       </div>
     </div>
   </div>
 }
 
-<!-- ======================== DIALOG: Gerar Rascunho NF-e ======================== -->
-@if (showGerarRascunho()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharGerarRascunho()">
+<!-- ======================== DIALOG: Cancelar NF-e ======================== -->
+@if (cancelarAlvo()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharCancelamento()">
+    <div class="absolute inset-0 bg-foreground/50"></div>
+    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-md p-6" (click)="$event.stopPropagation()">
+      <div class="flex items-start gap-3 mb-4">
+        <div class="flex items-center justify-center w-10 h-10 rounded-full bg-destructive/10 text-destructive shrink-0">
+          <svg lucideTriangleAlert [size]="20" />
+        </div>
+        <div>
+          <h3 class="font-heading font-semibold text-base text-foreground">Cancelar NF-e Nº {{ cancelarAlvo()?.numero }}</h3>
+          <p class="text-sm text-muted-foreground mt-1">Cancelamento junto à SEFAZ (permitido em até 30 dias da emissão). Informe a justificativa.</p>
+        </div>
+      </div>
+      <label class="block text-sm font-medium text-foreground mb-1.5">Motivo do cancelamento *</label>
+      <textarea rows="3" placeholder="Justificativa (15 a 255 caracteres)"
+        class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+        [value]="motivoCancel()" (input)="motivoCancel.set($any($event.target).value)"></textarea>
+      <p class="text-[11px] mt-1 {{ motivoCancelValido() || !motivoCancel() ? 'text-muted-foreground' : 'text-destructive' }}">{{ motivoCancel().trim().length }}/255 — mínimo 15 caracteres</p>
+      <div class="flex gap-3 mt-4">
+        <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharCancelamento()">Voltar</button>
+        <button class="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-destructive text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+          [disabled]="!motivoCancelValido() || cancelando()"
+          (click)="confirmarCancelamento()">
+          @if (cancelando()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Cancelando... }
+          @else { Confirmar cancelamento }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ======================== DIALOG: Nova / Editar NF-e ======================== -->
+@if (showFormNota()) {
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharForm()">
     <div class="absolute inset-0 bg-foreground/50"></div>
     <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
       <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-        <h3 class="font-heading font-semibold text-lg text-foreground">Rascunho de NF-e</h3>
-        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted" (click)="fecharGerarRascunho()"><svg lucideX [size]="18" /></button>
+        <h3 class="font-heading font-semibold text-lg text-foreground">{{ formNotaId() ? 'Editar nota' : 'Nova NF-e' }}</h3>
+        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted" (click)="fecharForm()"><svg lucideX [size]="18" /></button>
       </div>
 
       <div class="px-6 py-5 space-y-4">
-        <!-- Tipo -->
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Tipo *</label>
-          <select class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            [value]="rascunhoTipo()" (change)="rascunhoTipo.set($any($event.target).value)">
-            <option value="saida">Saída</option>
-            <option value="entrada">Entrada</option>
-          </select>
+        <!-- Banner de erros do backend -->
+        @if (erroNota().length) {
+          <div class="rounded-xl border border-destructive/30 bg-destructive/5 p-3">
+            <p class="text-xs font-semibold text-destructive mb-2">O servidor recusou os dados. Corrija:</p>
+            <ul class="space-y-1.5">
+              @for (erro of erroNota(); track erro.code + erro.field) {
+                <li class="text-xs text-foreground">
+                  @if (erro.field) { <span class="font-medium">{{ erro.field }}</span>: } {{ erro.message }}
+                  @if (erro.suggestion) { <span class="block text-muted-foreground">{{ erro.suggestion }}</span> }
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        <!-- Número / Série / Tipo -->
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-foreground mb-1.5">Número *</label>
+            <input type="number" min="1" placeholder="1"
+              class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formNumero()" (input)="formNumero.set($any($event.target).value)" />
+            @if (erroDe('numero'); as e) { <p class="text-xs text-destructive mt-1">{{ e.message }}</p> }
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-foreground mb-1.5">Série</label>
+            <input type="number" min="1" placeholder="1"
+              class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formSerie()" (input)="formSerie.set($any($event.target).value)" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-foreground mb-1.5">Tipo</label>
+            <select class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formTipoDoc()" (change)="formTipoDoc.set($any($event.target).value)">
+              <option value="NFE">NF-e</option>
+              <option value="NFA">NFA</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Natureza / Data -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-sm font-medium text-foreground mb-1.5">Natureza da Operação *</label>
+            <input type="text" placeholder="Ex: Venda de produção rural"
+              class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formNatureza()" (input)="formNatureza.set($any($event.target).value)" />
+            @if (erroDe('naturezaOperacao'); as e) { <p class="text-xs text-destructive mt-1">{{ e.message }}</p> }
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-foreground mb-1.5">Data de Emissão *</label>
+            <input type="date"
+              class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formData()" (change)="formData.set($any($event.target).value)" />
+            @if (erroDe('dataEmissao'); as e) { <p class="text-xs text-destructive mt-1">{{ e.message }}</p> }
+          </div>
         </div>
 
         <!-- Destinatário -->
@@ -461,63 +520,59 @@
           <label class="block text-sm font-medium text-foreground mb-1.5">Nome/Razão Social do Destinatário *</label>
           <input type="text" placeholder="Ex: Cooperativa Agrícola ABC Ltda"
             class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            [value]="rascunhoDestinatario()" (input)="rascunhoDestinatario.set($any($event.target).value)" />
+            [value]="formDestNome()" (input)="formDestNome.set($any($event.target).value)" />
+          @if (erroDe('destinatarioNome'); as e) { <p class="text-xs text-destructive mt-1">{{ e.message }}</p> }
         </div>
 
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">CPF/CNPJ</label>
-            <input type="text" placeholder="Ex: 12.345.678/0001-00" maxlength="18"
+            <label class="block text-sm font-medium text-foreground mb-1.5">CPF/CNPJ *</label>
+            <input type="text" placeholder="Só números (11 ou 14 dígitos)" maxlength="18"
               class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="rascunhoCpfCnpj()" (input)="formatCpfCnpj($event)" />
+              [value]="formDestCpfCnpj()" (input)="formatCpfCnpj($event)" />
+            @if (erroDe('destinatarioCpfCnpj'); as e) { <p class="text-xs text-destructive mt-1">{{ e.message }}</p> }
           </div>
           <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">UF Destino</label>
-            <select class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="rascunhoUf()" (change)="rascunhoUf.set($any($event.target).value)">
-              <option value="">Selecione</option>
+            <label class="block text-sm font-medium text-foreground mb-1.5">Inscrição Estadual</label>
+            <input type="text" placeholder="Opcional" maxlength="20"
+              class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formDestIe()" (input)="formDestIe.set($any($event.target).value)" />
+          </div>
+        </div>
+
+        <!-- Endereço (opcional — obrigatório para emitir o XML) -->
+        <div class="border border-border rounded-xl p-3 space-y-3 bg-muted/20">
+          <p class="text-xs font-semibold text-foreground">Endereço do destinatário <span class="font-normal text-muted-foreground">(necessário para gerar o XML)</span></p>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="text" placeholder="Logradouro" class="col-span-2 px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formEndLogradouro()" (input)="formEndLogradouro.set($any($event.target).value)" />
+            <input type="text" placeholder="Número" class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formEndNumero()" (input)="formEndNumero.set($any($event.target).value)" />
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="text" placeholder="Município" class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formEndMunicipio()" (input)="formEndMunicipio.set($any($event.target).value)" />
+            <input type="text" placeholder="Cód. IBGE (7 díg)" maxlength="7" class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formEndIbge()" (input)="formEndIbge.set($any($event.target).value)" />
+            <select class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formEndUf()" (change)="formEndUf.set($any($event.target).value)">
+              <option value="">UF</option>
               @for (uf of ufs; track uf) { <option [value]="uf">{{ uf }}</option> }
             </select>
           </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">CFOP</label>
-            <input type="text" placeholder="Ex: 5102"
-              class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="rascunhoCfop()" (input)="rascunhoCfop.set($any($event.target).value)" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">Data de Emissão *</label>
-            <input type="date"
-              class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="rascunhoData()" (change)="rascunhoData.set($any($event.target).value)" />
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Natureza da Operação</label>
-          <input type="text" placeholder="Ex: Venda de produtos agrícolas"
-            class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            [value]="rascunhoNatureza()" (input)="rascunhoNatureza.set($any($event.target).value)" />
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Valor Total (R$) *</label>
-          <input type="number" step="0.01" placeholder="0,00"
-            class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-            [value]="rascunhoValor()" (input)="rascunhoValor.set($any($event.target).value)" />
+          <input type="text" placeholder="CEP (8 dígitos)" maxlength="9" class="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+            [value]="formEndCep()" (input)="formEndCep.set($any($event.target).value)" />
+          @if (erroDe('destinatarioEndereco'); as e) { <p class="text-xs text-destructive">{{ e.field }}: {{ e.message }}</p> }
         </div>
 
         <!-- Itens -->
         <div class="space-y-3">
-          <label class="block text-sm font-semibold text-foreground">Itens da Nota</label>
-          @for (item of rascunhoItens(); track $index; let idx = $index) {
+          <label class="block text-sm font-semibold text-foreground">Itens da Nota *</label>
+          @for (item of formItens(); track $index; let idx = $index) {
             <div class="border border-border rounded-xl p-3 space-y-2 bg-muted/30">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-medium text-muted-foreground">Item {{ idx + 1 }}</span>
-                @if (rascunhoItens().length > 1) {
+                @if (formItens().length > 1) {
                   <button class="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-destructive rounded" (click)="removeItem(idx)">
                     <svg lucideTrash2 [size]="14" />
                   </button>
@@ -526,30 +581,28 @@
               <input type="text" placeholder="Descrição do produto *"
                 class="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 [value]="item.descricao" (input)="updateItem(idx, 'descricao', $any($event.target).value)" />
-              <div class="grid grid-cols-2 gap-2">
-                <input type="text" placeholder="Código do produto"
+              <div class="grid grid-cols-3 gap-2">
+                <input type="text" placeholder="Código"
                   class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.codigoProduto" (input)="updateItem(idx, 'codigoProduto', $any($event.target).value)" />
-                <input type="text" placeholder="NCM"
+                <input type="text" placeholder="NCM (8 díg) *" maxlength="8"
                   class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.ncm" (input)="updateItem(idx, 'ncm', $any($event.target).value)" />
-              </div>
-              <div class="grid grid-cols-3 gap-2">
-                <input type="number" placeholder="Qtde *" step="0.01"
-                  class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  [value]="item.quantidade" (input)="updateItem(idx, 'quantidade', $any($event.target).value)" />
-                <input type="text" placeholder="Unidade"
-                  class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  [value]="item.unidade" (input)="updateItem(idx, 'unidade', $any($event.target).value)" />
-                <input type="text" placeholder="CFOP"
+                <input type="text" placeholder="CFOP (4 díg) *" maxlength="4"
                   class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.cfop" (input)="updateItem(idx, 'cfop', $any($event.target).value)" />
               </div>
-              <div class="grid grid-cols-2 gap-2">
-                <input type="number" placeholder="Valor unitário *" step="0.01"
+              <div class="grid grid-cols-4 gap-2">
+                <input type="text" placeholder="Un *"
+                  class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  [value]="item.unidade" (input)="updateItem(idx, 'unidade', $any($event.target).value)" />
+                <input type="number" placeholder="Qtde *" step="0.01"
+                  class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  [value]="item.quantidade" (input)="updateItem(idx, 'quantidade', $any($event.target).value)" />
+                <input type="number" placeholder="Vlr unit *" step="0.01"
                   class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.valorUnitario" (input)="updateItem(idx, 'valorUnitario', $any($event.target).value)" />
-                <input type="number" placeholder="Valor total" step="0.01" readonly
+                <input type="number" placeholder="Total" step="0.01" readonly
                   class="px-3 py-2 rounded-xl border border-border bg-muted text-sm focus:outline-none"
                   [value]="item.valorTotal" />
               </div>
@@ -558,29 +611,21 @@
           <button class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="addItem()">
             <svg lucidePlus [size]="14" /> Adicionar item
           </button>
-        </div>
-
-        <!-- Observações -->
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Observações</label>
-          <textarea rows="3" placeholder="Informações adicionais..."
-            class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-            [value]="rascunhoObs()" (input)="rascunhoObs.set($any($event.target).value)"></textarea>
+          <p class="text-xs text-muted-foreground">Os totais e os impostos IBS/CBS são calculados pelo servidor.</p>
         </div>
       </div>
 
-      <div class="flex gap-3 px-6 pb-6 border-t border-border pt-4">
-        <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted disabled:opacity-50"
-          [disabled]="!canSubmitRascunho() || salvando()"
-          (click)="salvarRascunho(false)">
-          @if (salvando()) { Salvando... } @else { Salvar rascunho }
-        </button>
-        <button class="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          [disabled]="!canSubmitRascunho() || salvando()"
-          (click)="salvarRascunho(true)">
-          @if (salvando()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Criando... }
-          @else { <svg lucideSend [size]="14" /> Enviar ao contador }
-        </button>
+      <div class="px-6 pb-6 border-t border-border pt-4">
+        <div class="flex gap-3">
+          <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharForm()">Cancelar</button>
+          <button class="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            [disabled]="!canSubmitNota() || salvando()"
+            (click)="salvarNota()">
+            @if (salvando()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Salvando... }
+            @else { {{ formNotaId() ? 'Salvar alterações' : 'Criar nota' }} }
+          </button>
+        </div>
+        <p class="text-[11px] text-muted-foreground text-center mt-2">Enviar ao contador — em breve</p>
       </div>
     </div>
   </div>

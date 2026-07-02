@@ -46,6 +46,8 @@ import {
   DistribuicaoImposto,
   mockNotas,
 } from '@services/dashboard/data-access/dashboard.service';
+import { NotasApi } from '@services/notas/data-access/notas.service';
+import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
@@ -88,6 +90,7 @@ interface DocItem {
 })
 export class DashboardPage implements OnInit {
   private readonly dashboardService = inject(DashboardApi);
+  private readonly notasApi = inject(NotasApi);
   private readonly notificacaoService = inject(NotificacaoApi);
   private readonly calendarioService = inject(CalendarioApi);
   private readonly toastService = inject(ToastService);
@@ -245,19 +248,15 @@ export class DashboardPage implements OnInit {
 
   readonly impostoBreakdown = computed(() => {
     const notas = this.notas();
-    const totalCbs = notas.reduce((s, n) => s + (n.valorCbs ?? 0), 0);
-    const totalIbs = notas.reduce((s, n) => s + (n.valorIbs ?? 0), 0);
-    const totalFunrural = notas.reduce((s, n) => s + (n.valorFunrural ?? 0), 0);
-    const totalIcms = notas.reduce((s, n) => s + (n.valorIcms ?? 0), 0);
-    const totalIpi = notas.reduce((s, n) => s + (n.valorIpi ?? 0), 0);
+    // O backend só calcula IBS/CBS (reforma 2026, LC 214/2025). FUNRURAL/ICMS/IPI
+    // não existem no NotaFiscalResponse — removidos do breakdown.
+    const totalCbs = notas.reduce((s, n) => s + (n.valorTotalCbs ?? 0), 0);
+    const totalIbs = notas.reduce((s, n) => s + (n.valorTotalIbs ?? 0), 0);
 
     return [
       { nome: 'CBS', aliquota: '3,5%', original: '8,8%', valor: totalCbs, reducao: true },
       { nome: 'IBS Estadual', aliquota: '5,1%', original: '12,7%', valor: totalIbs * 0.72, reducao: true },
       { nome: 'IBS Municipal', aliquota: '2,0%', original: '5,0%', valor: totalIbs * 0.28, reducao: true },
-      { nome: 'FUNRURAL', aliquota: '1,5%', original: null, valor: totalFunrural, reducao: false },
-      { nome: 'ICMS', aliquota: '—', original: null, valor: totalIcms, reducao: false },
-      { nome: 'IPI', aliquota: '—', original: null, valor: totalIpi, reducao: false },
     ].filter(item => item.valor > 0);
   });
 
@@ -309,11 +308,11 @@ export class DashboardPage implements OnInit {
       .map((nota, idx) => ({
         id: idx + 1,
         nome: nota.naturezaOperacao || `NF ${nota.numero}`,
-        tipo: nota.tipo === 'entrada' ? 'Nota de Entrada' : 'Nota de Saída',
+        tipo: nota.tipoDocumento === 'NFA' ? 'NFA (avulsa)' : 'NF-e (modelo 55)',
         data: nota.dataEmissao?.split('T')[0] || new Date().toISOString().split('T')[0],
         status: nota.status,
         notaId: nota.id,
-        valor: nota.valorTotal || 0,
+        valor: nota.valorTotalNota ?? nota.valorTotalProdutos ?? 0,
       }))
   );
 
@@ -329,8 +328,8 @@ export class DashboardPage implements OnInit {
     });
 
     this.loadingNotas.set(true);
-    this.dashboardService.getNotas(LOGGED_PRODUCER_ID).subscribe({
-      next: data => { this.notas.set(data); this.loadingNotas.set(false); },
+    this.notasApi.listar({ page: 0, size: 100, sort: 'dataEmissao,desc' }).subscribe({
+      next: page => { this.notas.set(page.content); this.loadingNotas.set(false); },
       error: () => { this.notas.set(mockNotas()); this.loadingNotas.set(false); },
     });
 
@@ -368,11 +367,8 @@ export class DashboardPage implements OnInit {
     this.previewDoc.set(doc);
     this.notaDetalhada.set(null);
     if (doc.notaId) {
-      this.loadingDetalhes.set(true);
-      this.dashboardService.getNota(doc.notaId).subscribe({
-        next: nota => { this.notaDetalhada.set(nota); this.loadingDetalhes.set(false); },
-        error: () => this.loadingDetalhes.set(false),
-      });
+      // A nota já está carregada na listagem — evita uma chamada HTTP extra.
+      this.notaDetalhada.set(this.notas().find(n => n.id === doc.notaId) ?? null);
     }
   }
 
@@ -408,12 +404,7 @@ export class DashboardPage implements OnInit {
   }
 
   getStatusStyle(status?: string): { label: string; color: string } {
-    switch (status) {
-      case 'validada': return { label: 'Validado', color: 'bg-emerald-100 text-emerald-800 border border-emerald-200' };
-      case 'pendente': return { label: 'Pendente', color: 'bg-yellow-100 text-yellow-800 border border-yellow-200' };
-      case 'erro': return { label: 'Erro', color: 'bg-red-100 text-red-800 border border-red-200' };
-      default: return { label: 'Encaminhado', color: 'bg-yellow-100 text-yellow-800 border border-yellow-200' };
-    }
+    return { label: statusNotaLabel(status), color: statusNotaBadge(status) };
   }
 
   private getMesAtual(): string {

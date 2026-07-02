@@ -1,4 +1,4 @@
-# CLAUDE.md — Frontend AgroPainel (Angular)
+# CLAUDE.md — Frontend AgroContábil (Angular)
 
 Mapa de referência rápida do `frontend/`. **Consulte este arquivo antes de explorar o código** — ele evita
 buscas caras. Mantenha-o atualizado quando criar features/services novos.
@@ -35,8 +35,9 @@ imposto, contador, rascunho).
 ## Backend / API
 
 - `environment.apiUrl = '/api'` (`src/environments/environment.ts`).
-- `proxy.conf.json` → `http://localhost:3001` (backend NestJS). **Backend ainda não está pronto** — onde faltar
-  endpoint, usar mock/estado no service e deixar a chamada `/api` pronta. Não bloquear o frontend.
+- `proxy.conf.json` → `http://localhost:8080` (backend **Spring Boot**, pacote `br.com.agrocontabil`; fonte de
+  verdade dos contratos). O módulo de notas fiscais (`/api/notas`) já existe; onde faltar endpoint (chat, calendário,
+  contador, fluxo de caixa), usar mock/estado no service e deixar a chamada `/api` pronta. Não bloquear o frontend.
 
 ## Estrutura
 
@@ -92,7 +93,8 @@ Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `
 
 | Classe | Import | Papel |
 |---|---|---|
-| `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | Notas, fluxo de caixa, rascunhos, impostos. Exporta também `mockNotas`, `ResumoMensalNotas`, `DistribuicaoImposto`. |
+| `NotasApi` | `@services/notas/data-access/notas.service` | **Notas fiscais reais** contra `/api/notas` do backend Spring: CRUD paginado (`Page<T>`), ciclo de emissão (gerar-xml, xml, enviar-sefaz, status-sefaz, pdf, cancelar) e `validacoes`. Model `NotaFiscal` alinhado ao `NotaFiscalResponse`; status em `@core/enums/status-nota-fiscal.enum`. |
+| `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | Fluxo de caixa, rascunhos, impostos (endpoints `/dashboard/*` ainda mock). Exporta `mockNotas` (fallback offline de Documentos), `ResumoMensalNotas`, `DistribuicaoImposto`. |
 | `CalendarioApi` | `@services/calendario/data-access/calendario.service` | Vencimentos/eventos fiscais (com fallback mock). |
 | `ChatApi` | `@services/chat/data-access/chat.service` | Chat com o assistente (POST /chat). |
 | `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. |

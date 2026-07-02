@@ -1,7 +1,8 @@
 /** Um erro fiscal individual do envelope padronizado da API (backend Spring). */
 export interface FiscalError {
   code: string;
-  field: string;
+  /** Campo relacionado ao erro. Ausente em erros de estado (ex.: 409 de conflito). */
+  field?: string;
   message: string;
   suggestion?: string;
   rejectedValue?: string;
