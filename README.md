@@ -2,7 +2,7 @@
 
 SPA educacional sobre a **reforma tributária 2026** (CBS/IBS/FUNRURAL) para produtores rurais: assistente
 fiscal com IA ("João"), calculadora de impostos, leitura/geração de nota fiscal e dashboard financeiro.
-Consome a API NestJS do diretório irmão `backend/` em `/api`.
+Consome a API **Spring Boot** (`SupersonicTeam/backend`, pacote `br.com.agrocontabil`) em `/api`.
 
 ## Stack
 
@@ -15,14 +15,14 @@ Consome a API NestJS do diretório irmão `backend/` em `/api`.
 
 | Ação | Comando |
 |---|---|
-| Dev server (porta 4200, proxy `/api` → `http://localhost:3001`) | `npm start` |
+| Dev server (porta 4200, proxy `/api` → `http://localhost:8080`) | `npm start` |
 | Build de produção (`dist/`) | `npm run build` |
 | Build dev (source-maps, watch) | `npm run watch` |
 | Testes unitários (Vitest) | `npm test` |
 | Lint | `npm run lint` |
 | Scaffold de página | `npx ng generate component pages/<nome>` |
 
-A app sobe em `http://localhost:4200/` e recarrega ao salvar. O backend (`backend/`, porta 3001) precisa estar
+A app sobe em `http://localhost:4200/` e recarrega ao salvar. O backend Spring (porta 8080) precisa estar
 no ar para os dados reais; onde o endpoint ainda não existe, os services usam mock/estado local.
 
 ## Estrutura de pastas

@@ -335,7 +335,7 @@ export class DashboardPage implements OnInit {
 
     this.dashboardService.getProdutor(LOGGED_PRODUCER_ID).subscribe({
       next: p => { if (p?.nome) this.nomeUsuario.set(p.nome); },
-      error: () => {},
+      error: () => undefined,
     });
 
     this.loadingGrafico.set(true);
@@ -346,7 +346,7 @@ export class DashboardPage implements OnInit {
 
     this.dashboardService.getDistribuicaoImpostos(LOGGED_PRODUCER_ID).subscribe({
       next: data => this.distribuicaoImpostos.set(data),
-      error: () => {},
+      error: () => undefined,
     });
 
     this.loadingAlertas.set(true);

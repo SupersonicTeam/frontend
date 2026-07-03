@@ -76,6 +76,43 @@ function soDigitos(v: string): string {
   return (v ?? '').replace(/\D/g, '');
 }
 
+/** Valida os dígitos verificadores de um CPF (11 dígitos). */
+function cpfValido(cpf: string): boolean {
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  const dv = (base: string, pesoInicial: number): number => {
+    let soma = 0;
+    for (let i = 0; i < base.length; i++) soma += Number(base[i]) * (pesoInicial - i);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+  const d1 = dv(cpf.slice(0, 9), 10);
+  const d2 = dv(cpf.slice(0, 10), 11);
+  return d1 === Number(cpf[9]) && d2 === Number(cpf[10]);
+}
+
+/** Valida os dígitos verificadores de um CNPJ (14 dígitos). */
+function cnpjValido(cnpj: string): boolean {
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const dv = (base: string): number => {
+    const pesos = base.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    let soma = 0;
+    for (let i = 0; i < base.length; i++) soma += Number(base[i]) * pesos[i];
+    const resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  };
+  const d1 = dv(cnpj.slice(0, 12));
+  const d2 = dv(cnpj.slice(0, 13));
+  return d1 === Number(cnpj[12]) && d2 === Number(cnpj[13]);
+}
+
+/** CPF/CNPJ válido por tamanho E dígitos verificadores (espelha o @ValidCpfCnpj do backend). */
+function cpfCnpjValido(v: string): boolean {
+  const d = soDigitos(v);
+  if (d.length === 11) return cpfValido(d);
+  if (d.length === 14) return cnpjValido(d);
+  return false;
+}
+
 @Component({
   selector: 'app-documentos',
   standalone: true,
@@ -259,14 +296,32 @@ export class DocumentosPage implements OnInit {
     );
   }
 
+  /** CEP: vazio (opcional) ou exatamente 8 dígitos (espelha o Bean Validation). */
+  readonly cepValido = computed(() => {
+    const c = soDigitos(this.formEndCep());
+    return c.length === 0 || c.length === 8;
+  });
+  /** Código IBGE: vazio (opcional) ou exatamente 7 dígitos. */
+  readonly ibgeValido = computed(() => {
+    const c = soDigitos(this.formEndIbge());
+    return c.length === 0 || c.length === 7;
+  });
+
+  /** CPF/CNPJ vazio (ainda digitando) ou com dígitos verificadores válidos. */
+  readonly cpfCnpjValido = computed(() => {
+    const d = soDigitos(this.formDestCpfCnpj());
+    return d.length === 0 || cpfCnpjValido(d);
+  });
+
   readonly canSubmitNota = computed(() => {
-    const cpfCnpjLen = soDigitos(this.formDestCpfCnpj()).length;
     return (
       Number(this.formNumero()) > 0 &&
       !!this.formNatureza().trim() &&
       !!this.formData() &&
       !!this.formDestNome().trim() &&
-      (cpfCnpjLen === 11 || cpfCnpjLen === 14) &&
+      cpfCnpjValido(this.formDestCpfCnpj()) &&
+      this.cepValido() &&
+      this.ibgeValido() &&
       this.formItens().some((i) => this.itemValido(i))
     );
   });
