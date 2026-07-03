@@ -259,6 +259,17 @@ export class DocumentosPage implements OnInit {
     );
   }
 
+  /** CEP: vazio (opcional) ou exatamente 8 dígitos (espelha o Bean Validation). */
+  readonly cepValido = computed(() => {
+    const c = soDigitos(this.formEndCep());
+    return c.length === 0 || c.length === 8;
+  });
+  /** Código IBGE: vazio (opcional) ou exatamente 7 dígitos. */
+  readonly ibgeValido = computed(() => {
+    const c = soDigitos(this.formEndIbge());
+    return c.length === 0 || c.length === 7;
+  });
+
   readonly canSubmitNota = computed(() => {
     const cpfCnpjLen = soDigitos(this.formDestCpfCnpj()).length;
     return (
@@ -267,6 +278,8 @@ export class DocumentosPage implements OnInit {
       !!this.formData() &&
       !!this.formDestNome().trim() &&
       (cpfCnpjLen === 11 || cpfCnpjLen === 14) &&
+      this.cepValido() &&
+      this.ibgeValido() &&
       this.formItens().some((i) => this.itemValido(i))
     );
   });
