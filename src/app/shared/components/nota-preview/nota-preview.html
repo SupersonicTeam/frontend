@@ -15,50 +15,113 @@
     </p>
   </div>
 
-  <dl class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
-    <div><dt class="text-muted-foreground text-xs">Número</dt><dd class="font-medium text-foreground">{{ nota().numero || '—' }}</dd></div>
-    <div><dt class="text-muted-foreground text-xs">Série</dt><dd class="font-medium text-foreground">{{ nota().serie || '—' }}</dd></div>
-    <div><dt class="text-muted-foreground text-xs">Data Emissão</dt><dd class="font-medium text-foreground">{{ formatDate(nota().dataEmissao) }}</dd></div>
-    <div><dt class="text-muted-foreground text-xs">Valor Total</dt><dd class="font-semibold text-primary text-lg">{{ formatCurrency(nota().valorTotalNota) }}</dd></div>
-    <div class="col-span-2"><dt class="text-muted-foreground text-xs">Destinatário</dt><dd class="font-medium text-foreground">{{ nota().destinatarioNome }}</dd></div>
-    <div><dt class="text-muted-foreground text-xs">CPF/CNPJ</dt><dd class="font-medium text-foreground">{{ nota().destinatarioCpfCnpj }}</dd></div>
-    @if (nota().chaveAcesso) {
-      <div><dt class="text-muted-foreground text-xs">Chave</dt><dd class="font-medium text-foreground text-[11px] break-all">{{ nota().chaveAcesso }}</dd></div>
-    }
-    <div><dt class="text-muted-foreground text-xs">Status</dt><dd>
-      <span class="text-[10px] px-2 py-0.5 rounded-full {{ statusBadge(nota().status) }}">{{ statusLabel(nota().status) }}</span>
-    </dd></div>
-  </dl>
-
-  @if ((nota().valorTotalCbs ?? 0) > 0 || (nota().valorTotalIbs ?? 0) > 0) {
-    <div class="border-t border-border pt-4">
-      <h4 class="text-sm font-semibold text-foreground mb-3">Impostos (informativos — reforma 2026)</h4>
-      <dl class="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
-        @if ((nota().valorTotalCbs ?? 0) > 0) {
-          <dt class="text-muted-foreground">CBS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(nota().valorTotalCbs) }}</dd>
-        }
-        @if ((nota().valorTotalIbs ?? 0) > 0) {
-          <dt class="text-muted-foreground">IBS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(nota().valorTotalIbs) }}</dd>
-        }
-      </dl>
+  <!-- DANFE — representação visual do documento (pré-visualização sem valor fiscal) -->
+  <div class="rounded-lg border-2 border-neutral-300 bg-white text-neutral-800 shadow-sm overflow-hidden">
+    <!-- Cabeçalho -->
+    <div class="flex items-start justify-between gap-3 p-3 border-b-2 border-neutral-300">
+      <div class="min-w-0">
+        <p class="font-heading text-xl font-bold tracking-tight leading-none">DANFE</p>
+        <p class="text-[9px] uppercase tracking-wide text-neutral-500 mt-0.5">
+          Documento Auxiliar da Nota Fiscal Eletrônica
+        </p>
+      </div>
+      <div class="text-right text-[11px] shrink-0">
+        <p class="font-bold">{{ nota().tipoDocumento === 'NFA' ? 'NFA' : 'NF-e' }} · mod. {{ nota().modelo || '55' }}</p>
+        <p class="text-neutral-600">Série {{ nota().serie || 1 }} · Nº {{ nota().numero }}</p>
+      </div>
     </div>
-  }
 
-  @if (nota().itens.length) {
-    <div class="border-t border-border pt-4">
-      <h4 class="text-sm font-semibold text-foreground mb-3">Itens da Nota</h4>
-      <div class="space-y-2 max-h-48 overflow-y-auto">
-        @for (item of nota().itens; track item.numeroItem) {
-          <div class="bg-muted/40 rounded-xl p-3 text-xs">
-            <div class="flex justify-between mb-1">
-              <span class="font-medium text-foreground">{{ item.descricao }}</span>
-              <span class="font-semibold text-primary">{{ formatCurrency(item.valorTotal) }}</span>
-            </div>
-            <span class="text-muted-foreground">{{ item.quantidade }} {{ item.unidade }} × {{ formatCurrency(item.valorUnitario) }}</span>
-            <span class="ml-2 text-muted-foreground">• NCM {{ item.ncm }} • CFOP {{ item.cfop }}</span>
-          </div>
+    <!-- Chave de acesso -->
+    <div class="px-3 py-2 border-b border-neutral-300 bg-neutral-50">
+      <p class="text-[9px] uppercase tracking-wide text-neutral-500">Chave de acesso</p>
+      <p class="font-mono text-[11px] break-all text-neutral-800">
+        {{ nota().chaveAcesso || '— gerada após a emissão do XML —' }}
+      </p>
+    </div>
+
+    <!-- Aviso de pré-visualização -->
+    <p class="px-3 py-1.5 text-[10px] text-amber-800 bg-amber-50 border-b border-neutral-300">
+      Pré-visualização — documento sem valor fiscal.
+    </p>
+
+    <!-- Emitente / Destinatário -->
+    <div class="grid grid-cols-2 divide-x divide-neutral-300 border-b border-neutral-300 text-[11px]">
+      <div class="p-3">
+        <p class="text-[9px] uppercase tracking-wide text-neutral-500 mb-1">Emitente</p>
+        <p class="font-semibold">Produtor rural</p>
+        <p class="text-neutral-600">Emissor da NF-e</p>
+      </div>
+      <div class="p-3">
+        <p class="text-[9px] uppercase tracking-wide text-neutral-500 mb-1">Destinatário</p>
+        <p class="font-semibold">{{ nota().destinatarioNome }}</p>
+        <p class="text-neutral-600">{{ formatCpfCnpj(nota().destinatarioCpfCnpj) }}</p>
+        @if (enderecoLinha()) {
+          <p class="text-neutral-600 mt-0.5">{{ enderecoLinha() }}</p>
         }
       </div>
     </div>
-  }
+
+    <!-- Dados da operação -->
+    <div class="grid grid-cols-3 divide-x divide-neutral-300 border-b border-neutral-300 text-[10px]">
+      <div class="p-2">
+        <p class="uppercase tracking-wide text-neutral-500">Natureza da operação</p>
+        <p class="font-medium">{{ nota().naturezaOperacao || '—' }}</p>
+      </div>
+      <div class="p-2">
+        <p class="uppercase tracking-wide text-neutral-500">Emissão</p>
+        <p class="font-medium">{{ formatDate(nota().dataEmissao) }}</p>
+      </div>
+      <div class="p-2">
+        <p class="uppercase tracking-wide text-neutral-500">Saída</p>
+        <p class="font-medium">{{ formatDate(nota().dataSaida) }}</p>
+      </div>
+    </div>
+
+    <!-- Itens -->
+    <div class="border-b border-neutral-300">
+      <p class="px-3 pt-2 text-[9px] uppercase tracking-wide text-neutral-500">Produtos / Serviços</p>
+      <div class="overflow-x-auto">
+        <table class="w-full text-[10px] border-collapse">
+          <thead>
+            <tr class="text-neutral-500 border-b border-neutral-200 text-left">
+              <th scope="col" class="font-medium px-3 py-1">Descrição</th>
+              <th scope="col" class="font-medium px-1 py-1">NCM</th>
+              <th scope="col" class="font-medium px-1 py-1">CFOP</th>
+              <th scope="col" class="font-medium px-1 py-1 text-right">Qtd</th>
+              <th scope="col" class="font-medium px-1 py-1">Un</th>
+              <th scope="col" class="font-medium px-1 py-1 text-right">Vl unit.</th>
+              <th scope="col" class="font-medium px-3 py-1 text-right">Vl total</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of nota().itens; track item.numeroItem) {
+              <tr class="border-b border-neutral-100">
+                <td class="px-3 py-1">{{ item.descricao }}</td>
+                <td class="px-1 py-1">{{ item.ncm }}</td>
+                <td class="px-1 py-1">{{ item.cfop }}</td>
+                <td class="px-1 py-1 text-right">{{ item.quantidade }}</td>
+                <td class="px-1 py-1">{{ item.unidade }}</td>
+                <td class="px-1 py-1 text-right">{{ formatCurrency(item.valorUnitario) }}</td>
+                <td class="px-3 py-1 text-right font-medium">{{ formatCurrency(item.valorTotal) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Totais / Tributos -->
+    <div class="grid grid-cols-2 divide-x divide-neutral-300 text-[11px]">
+      <div class="p-3 space-y-0.5">
+        <p class="text-[9px] uppercase tracking-wide text-neutral-500 mb-1">Totais</p>
+        <div class="flex justify-between"><span class="text-neutral-600">Produtos</span><span>{{ formatCurrency(nota().valorTotalProdutos) }}</span></div>
+        <div class="flex justify-between font-semibold"><span>Total da nota</span><span>{{ formatCurrency(nota().valorTotalNota) }}</span></div>
+      </div>
+      <div class="p-3 space-y-0.5">
+        <p class="text-[9px] uppercase tracking-wide text-neutral-500 mb-1">Tributos IBS/CBS (informativo — 2026)</p>
+        <div class="flex justify-between"><span class="text-neutral-600">CBS</span><span>{{ formatCurrency(nota().valorTotalCbs) }}</span></div>
+        <div class="flex justify-between"><span class="text-neutral-600">IBS</span><span>{{ formatCurrency(nota().valorTotalIbs) }}</span></div>
+      </div>
+    </div>
+  </div>
 </div>
