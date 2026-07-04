@@ -13,9 +13,11 @@ import {
   LucideFileText,
   LucideMessageSquare,
   LucideCalculator,
+  LucideLogOut,
 } from '@lucide/angular';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { NotificacoesService } from '@core/services/notificacoes.service';
+import { PerfilService } from '@core/services/perfil.service';
 import { ToastContainer } from '@shared/components/toast-container/toast-container';
 
 export interface NavItem {
@@ -46,15 +48,24 @@ export interface NavItem {
     LucideFileText,
     LucideMessageSquare,
     LucideCalculator,
+    LucideLogOut,
   ],
   templateUrl: './app-layout.html',
 })
 export class AppLayout {
   private readonly router = inject(Router);
   readonly notificacoesService = inject(NotificacoesService);
+  readonly perfilService = inject(PerfilService);
 
   mobileMenuOpen = signal(false);
   notificacoesOpen = signal(false);
+
+  /** Sai do perfil demonstrativo e volta ao /login (issue #23). */
+  sair(): void {
+    this.closeMobileMenu();
+    this.perfilService.sair();
+    this.router.navigateByUrl('/login');
+  }
 
   readonly navItems = [
     { title: 'Dashboard', path: '/dashboard' },

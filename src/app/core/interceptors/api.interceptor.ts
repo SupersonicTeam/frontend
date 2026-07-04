@@ -1,16 +1,46 @@
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
+import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { environment } from '@env/environment';
+import { ToastService } from '@core/services/toast.service';
+import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
+import { SKIP_ERROR_NOTIFY } from './error-notify.context';
+
+/**
+ * Prefixos cujas falhas NÃO viram toast global: endpoints tratados localmente
+ * (`/api/notas`, com painéis de erro/validação próprios) e módulos ainda sem
+ * backend real (banner "dados de exemplo / em breve"). Evita toast duplicado
+ * e ruído em endpoints que se sabe que ainda vão 500/404.
+ */
+const PREFIXOS_SEM_TOAST = [
+  '/api/notas',
+  '/api/dashboard',
+  '/api/calendario-fiscal',
+  '/api/contador',
+  '/api/notificacao',
+  '/api/chat',
+];
+
+/** Extrai uma mensagem amigável do envelope `ApiError` (ou fallback por status). */
+export function mensagemAmigavel(err: HttpErrorResponse): string {
+  if (err.status === 0) return 'Sem conexão com o servidor. Verifique sua rede.';
+  const env = err.error as ApiErrorEnvelope | undefined;
+  if (env?.errors?.length && env.errors[0]?.message) return env.errors[0].message;
+  if (env?.message) return env.message;
+  if (err.status >= 500) return 'Erro no servidor. Tente novamente em instantes.';
+  return `Não foi possível completar a operação (${err.status}).`;
+}
 
 /**
  * Interceptor da API: ponto único que
- *  - prefixa a baseURL (`environment.apiUrl`) nas chamadas relativas do backend;
+ *  - prefixa a baseURL (`environment.apiUrl`) nas chamadas relativas;
  *  - adiciona o header `Accept: application/json`;
- *  - centraliza o tratamento/log de erros HTTP (auth, rede, etc. no futuro).
- *
- * Com isso o `ApiService` só lida com endpoints relativos (ex.: `/dashboard/notas`).
+ *  - exibe um toast global amigável (derivado de `ApiError.errors[]`) para erros
+ *    HTTP não tratados localmente (issue #21). Suprime 404, chamadas que optam por
+ *    `skipErrorNotify()` e os prefixos tratados/mock em `PREFIXOS_SEM_TOAST`.
  */
 export const apiInterceptor: HttpInterceptorFn = (req, next) => {
+  const toast = inject(ToastService);
   const base = environment.apiUrl;
 
   // Prefixa a baseURL apenas em paths relativos que ainda não a tenham.
@@ -26,12 +56,21 @@ export const apiInterceptor: HttpInterceptorFn = (req, next) => {
   });
 
   return next(apiReq).pipe(
-    catchError(err => {
-      // 404 é esperado enquanto endpoints do backend não existem — não polui o log.
+    catchError((err: HttpErrorResponse) => {
       if (err.status !== 404) {
         console.error('API Error:', err);
       }
+
+      const suprimido =
+        apiReq.context.get(SKIP_ERROR_NOTIFY) ||
+        err.status === 404 ||
+        PREFIXOS_SEM_TOAST.some(p => apiReq.url.includes(p));
+
+      if (!suprimido) {
+        toast.error(mensagemAmigavel(err));
+      }
+
       return throwError(() => err);
-    })
+    }),
   );
 };
