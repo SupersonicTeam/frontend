@@ -203,68 +203,8 @@
           <svg lucideX [size]="18" />
         </button>
       </div>
-      <div class="px-6 py-5 space-y-4">
-        <!-- Stepper de ciclo de vida (#14) -->
-        <div class="rounded-xl border border-border bg-muted/20 p-4">
-          <div class="flex items-start">
-            @for (step of STEPPER_STEPS; track step; let i = $index; let last = $last) {
-              <div class="flex flex-col items-center gap-1 shrink-0 w-16">
-                <div class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-xs font-semibold {{ stepperClasse(stepperEstado(previewNota()?.status, i)) }}">{{ i + 1 }}</div>
-                <span class="text-[10px] text-muted-foreground text-center leading-tight">{{ step }}</span>
-              </div>
-              @if (!last) { <div class="flex-1 h-0.5 bg-border mt-4"></div> }
-            }
-          </div>
-          <p class="text-center mt-3">
-            <span class="text-[11px] px-2 py-0.5 rounded-full {{ notaStatusColor(previewNota()?.status) }}">{{ notaStatusLabel(previewNota()?.status) }}</span>
-          </p>
-        </div>
-        <dl class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
-          <div><dt class="text-muted-foreground text-xs">Número</dt><dd class="font-medium text-foreground">{{ previewNota()?.numero || '—' }}</dd></div>
-          <div><dt class="text-muted-foreground text-xs">Série</dt><dd class="font-medium text-foreground">{{ previewNota()?.serie || '—' }}</dd></div>
-          <div><dt class="text-muted-foreground text-xs">Data Emissão</dt><dd class="font-medium text-foreground">{{ formatDate(previewNota()?.dataEmissao) }}</dd></div>
-          <div><dt class="text-muted-foreground text-xs">Valor Total</dt><dd class="font-semibold text-primary text-lg">{{ formatCurrency(previewNota()?.valorTotalNota) }}</dd></div>
-          <div class="col-span-2"><dt class="text-muted-foreground text-xs">Destinatário</dt><dd class="font-medium text-foreground">{{ previewNota()?.destinatarioNome }}</dd></div>
-          <div><dt class="text-muted-foreground text-xs">CPF/CNPJ</dt><dd class="font-medium text-foreground">{{ previewNota()?.destinatarioCpfCnpj }}</dd></div>
-          @if (previewNota()?.chaveAcesso) {
-            <div><dt class="text-muted-foreground text-xs">Chave</dt><dd class="font-medium text-foreground text-[11px] break-all">{{ previewNota()?.chaveAcesso }}</dd></div>
-          }
-          <div><dt class="text-muted-foreground text-xs">Status</dt><dd>
-            <span class="text-[10px] px-2 py-0.5 rounded-full {{ notaStatusColor(previewNota()?.status) }}">{{ notaStatusLabel(previewNota()?.status) }}</span>
-          </dd></div>
-        </dl>
-
-        @if ((previewNota()?.valorTotalCbs ?? 0) > 0 || (previewNota()?.valorTotalIbs ?? 0) > 0) {
-          <div class="border-t border-border pt-4">
-            <h4 class="text-sm font-semibold text-foreground mb-3">Impostos (informativos — reforma 2026)</h4>
-            <dl class="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
-              @if ((previewNota()?.valorTotalCbs ?? 0) > 0) {
-                <dt class="text-muted-foreground">CBS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(previewNota()?.valorTotalCbs) }}</dd>
-              }
-              @if ((previewNota()?.valorTotalIbs ?? 0) > 0) {
-                <dt class="text-muted-foreground">IBS</dt><dd class="font-medium text-right text-foreground">{{ formatCurrency(previewNota()?.valorTotalIbs) }}</dd>
-              }
-            </dl>
-          </div>
-        }
-
-        @if (previewNota()?.itens?.length) {
-          <div class="border-t border-border pt-4">
-            <h4 class="text-sm font-semibold text-foreground mb-3">Itens da Nota</h4>
-            <div class="space-y-2 max-h-48 overflow-y-auto">
-              @for (item of previewNota()!.itens; track item.numeroItem) {
-                <div class="bg-muted/40 rounded-xl p-3 text-xs">
-                  <div class="flex justify-between mb-1">
-                    <span class="font-medium text-foreground">{{ item.descricao }}</span>
-                    <span class="font-semibold text-primary">{{ formatCurrency(item.valorTotal) }}</span>
-                  </div>
-                  <span class="text-muted-foreground">{{ item.quantidade }} {{ item.unidade }} × {{ formatCurrency(item.valorUnitario) }}</span>
-                  <span class="ml-2 text-muted-foreground">• NCM {{ item.ncm }} • CFOP {{ item.cfop }}</span>
-                </div>
-              }
-            </div>
-          </div>
-        }
+      <div class="px-6 py-5">
+        <app-nota-preview [nota]="previewNota()!" />
       </div>
       @if (errosFiscais().length) {
         <div class="mx-6 mb-2 rounded-xl border border-destructive/30 bg-destructive/5 p-3">

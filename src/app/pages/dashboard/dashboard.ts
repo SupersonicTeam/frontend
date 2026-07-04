@@ -48,6 +48,7 @@ import {
 } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
+import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
@@ -85,6 +86,7 @@ interface DocItem {
     LucideChevronUp,
     LucideBell,
     BaseChartDirective,
+    NotaPreview,
   ],
   templateUrl: './dashboard.html',
 })

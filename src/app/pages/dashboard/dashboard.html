@@ -446,33 +446,7 @@
             <p class="text-sm text-muted-foreground">Carregando detalhes...</p>
           </div>
         } @else if (notaDetalhada()) {
-          <div class="rounded-xl border border-border bg-muted/30 flex items-center justify-center min-h-[120px]">
-            <div class="flex flex-col items-center gap-2 py-5 text-muted-foreground">
-              <svg lucideFile [size]="36" />
-              <span class="text-sm font-medium">NF-e {{ notaDetalhada()?.numero }}</span>
-              <span class="text-xs">{{ notaDetalhada()?.tipoDocumento === 'NFA' ? 'NFA (avulsa)' : 'NF-e (modelo 55)' }}</span>
-            </div>
-          </div>
-          <dl class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
-            <div>
-              <dt class="text-muted-foreground">Número</dt>
-              <dd class="font-medium text-foreground">{{ notaDetalhada()?.numero || '—' }}</dd>
-            </div>
-            <div>
-              <dt class="text-muted-foreground">Série</dt>
-              <dd class="font-medium text-foreground">{{ notaDetalhada()?.serie || '—' }}</dd>
-            </div>
-            <div>
-              <dt class="text-muted-foreground">Valor Total</dt>
-              <dd class="font-semibold text-lg text-primary">{{ formatCurrency(notaDetalhada()?.valorTotalNota ?? 0) }}</dd>
-            </div>
-            <div>
-              <dt class="text-muted-foreground">Status</dt>
-              <dd><span class="text-[10px] px-2 py-0.5 rounded-full {{ getStatusStyle(notaDetalhada()?.status).color }}">
-                {{ getStatusStyle(notaDetalhada()?.status).label }}
-              </span></dd>
-            </div>
-          </dl>
+          <app-nota-preview [nota]="notaDetalhada()!" />
         } @else {
           <div class="rounded-xl border border-border bg-muted/30 flex items-center justify-center min-h-[100px]">
             <div class="flex flex-col items-center gap-2 py-5 text-muted-foreground">
