@@ -13,6 +13,7 @@ import {
   LucideFileText,
   LucideMessageSquare,
   LucideCalculator,
+  LucideReceipt,
   LucideLogOut,
 } from '@lucide/angular';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -48,6 +49,7 @@ export interface NavItem {
     LucideFileText,
     LucideMessageSquare,
     LucideCalculator,
+    LucideReceipt,
     LucideLogOut,
   ],
   templateUrl: './app-layout.html',
