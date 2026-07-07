@@ -12,7 +12,12 @@ import {
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { ToastService } from '@core/services/toast.service';
-import { SolicitacaoContador, DocumentoContador } from '@models/solicitacao-contador.model';
+import {
+  SolicitacaoContador,
+  DocumentoContador,
+  GuiaFiscal,
+  TipoGuia,
+} from '@models/solicitacao-contador.model';
 import { RascunhoNota } from '@models/rascunho-nota.model';
 import { ProdutorContador } from '@models/produtor.model';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
@@ -63,9 +68,12 @@ export class ContadorPage implements OnInit {
   rascunhos = signal<RascunhoNota[]>([]);
   documentosAnexados = signal<DocumentoContador[]>([]);
   loadingDocs = signal(false);
+  guias = signal<GuiaFiscal[]>([]);
+  enviandoGuia = signal(false);
 
   // Dialogs
   showNovaSolicitacao = signal(false);
+  showAnexarGuia = signal(false);
   editandoSolicitacao = signal<SolicitacaoContador | null>(null);
   cancelandoId = signal<string | null>(null);
   cancelMotivo = signal('');
@@ -79,9 +87,19 @@ export class ContadorPage implements OnInit {
   feedbackText = signal('');
   rascunhoTab = signal<'dados' | 'itens' | 'feedback'>('dados');
 
-  readonly categorias = ['Nota de venda', 'Nota de compra', 'Frete', 'Salário', 'DARF', 'FUNRURAL', 'GPS', 'Recibo', 'Contrato', 'Outro'];
+  readonly categorias = [
+    'Nota de venda', 'Nota de compra', 'Frete', 'Salário', 'DARF', 'FUNRURAL', 'GPS', 'Recibo', 'Contrato', 'Outro',
+    'Guia de imposto', 'Balancete', 'Balanço', 'Extrato bancário', 'Documento para IR',
+  ];
   readonly meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
   readonly prioridades = [{ value: 'baixa', label: 'Baixa' }, { value: 'media', label: 'Média' }, { value: 'alta', label: 'Alta' }, { value: 'urgente', label: 'Urgente' }];
+  readonly tiposGuia: { value: TipoGuia; label: string }[] = [
+    { value: 'ICMS', label: 'ICMS' },
+    { value: 'FUNRURAL', label: 'FUNRURAL' },
+    { value: 'DARF', label: 'DARF' },
+    { value: 'GPS', label: 'GPS' },
+    { value: 'OUTRO', label: 'Outro' },
+  ];
 
   readonly novaSolicitacaoForm = this.fb.group({
     titulo: ['', [Validators.required, Validators.minLength(3)]],
@@ -90,6 +108,13 @@ export class ContadorPage implements OnInit {
     mesReferencia: [''],
     prioridade: ['media' as string, Validators.required],
     prazo: [''],
+    observacoes: [''],
+  });
+
+  readonly novaGuiaForm = this.fb.group({
+    tipoGuia: ['ICMS' as TipoGuia, Validators.required],
+    dataVencimento: ['', Validators.required],
+    valor: ['', [Validators.required, Validators.min(0.01)]],
     observacoes: [''],
   });
 
@@ -113,6 +138,14 @@ export class ContadorPage implements OnInit {
     this.contadorService.getPendencias(LOGGED_PRODUCER_ID).subscribe({
       next: data => { this.solicitacoes.set(data); this.loading.set(false); },
       error: () => this.loading.set(false),
+    });
+    this.carregarGuias();
+  }
+
+  carregarGuias(): void {
+    this.contadorService.getGuias(LOGGED_PRODUCER_ID).subscribe({
+      next: data => this.guias.set(data),
+      error: () => {},
     });
   }
 
@@ -179,12 +212,50 @@ export class ContadorPage implements OnInit {
       }).subscribe({
         next: s => {
           this.enviando.set(false);
-          if (s) { this.solicitacoes.update(list => [s, ...list]); this.toastService.success('Solicitação criada!'); }
+          if (s) {
+            this.solicitacoes.update(list => [s, ...list]);
+            this.toastService.success('Solicitação criada!');
+            this.toastService.info('Envio por WhatsApp — em breve');
+          }
           this.fecharDialog();
         },
         error: () => { this.enviando.set(false); this.toastService.error('Erro ao criar.'); },
       });
     }
+  }
+
+  // === Anexar guia fiscal ===
+  abrirAnexarGuia(): void {
+    this.novaGuiaForm.reset({ tipoGuia: 'ICMS' });
+    this.showAnexarGuia.set(true);
+  }
+
+  fecharAnexarGuia(): void {
+    this.showAnexarGuia.set(false);
+  }
+
+  salvarGuia(): void {
+    if (this.novaGuiaForm.invalid) return;
+    const v = this.novaGuiaForm.value;
+    this.enviandoGuia.set(true);
+    this.contadorService.anexarGuia({
+      produtorId: LOGGED_PRODUCER_ID,
+      tipoGuia: v.tipoGuia as TipoGuia,
+      dataVencimento: v.dataVencimento!,
+      valor: Number(v.valor),
+      observacoes: v.observacoes || undefined,
+    }).subscribe({
+      next: guia => {
+        this.enviandoGuia.set(false);
+        if (guia) {
+          this.guias.update(list => [guia, ...list]);
+          this.toastService.success('Guia anexada!');
+          this.toastService.info('Envio por WhatsApp — em breve');
+        }
+        this.fecharAnexarGuia();
+      },
+      error: () => { this.enviandoGuia.set(false); this.toastService.error('Erro ao anexar guia.'); },
+    });
   }
 
   // === Cancelar ===
@@ -298,6 +369,8 @@ export class ContadorPage implements OnInit {
       reprovado: 'bg-red-100 text-red-700 border border-red-200',
       revisao: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
       finalizado: 'bg-purple-100 text-purple-700 border border-purple-200',
+      pago: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+      vencido: 'bg-red-100 text-red-700 border border-red-200',
     };
     return map[status] ?? 'bg-gray-100 text-gray-700';
   }
@@ -307,6 +380,7 @@ export class ContadorPage implements OnInit {
       pendente: 'Pendente', enviado: 'Enviado', concluido: 'Concluído',
       cancelado: 'Cancelado', rejeitado: 'Rejeitado', rascunho: 'Rascunho',
       aprovado: 'Aprovado', reprovado: 'Devolvido', revisao: 'Em Revisão', finalizado: 'Finalizado',
+      pago: 'Pago', vencido: 'Vencido',
     };
     return map[status] ?? status;
   }

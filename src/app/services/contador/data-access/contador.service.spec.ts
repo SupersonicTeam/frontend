@@ -191,6 +191,30 @@ describe('ContadorApi', () => {
     });
   });
 
+  describe('criarSolicitacao', () => {
+    it('SPEC_DEVIATION (necessário p/ CTD-24): em erro do backend, cria a solicitação localmente (mock) em vez de retornar null', () => {
+      let resultado: SolicitacaoContador | null | undefined;
+      service
+        .criarSolicitacao({
+          produtorId: 'produtor-1',
+          titulo: 'Notas de agosto',
+          descricao: 'Notas do mês',
+          categoria: 'Guia de imposto',
+          prioridade: 'media',
+        })
+        .subscribe(res => (resultado = res));
+
+      httpMock
+        .expectOne(r => r.url === '/contador/pendencias' && r.method === 'POST')
+        .flush('erro', { status: 500, statusText: 'Server Error' });
+
+      expect(resultado).toBeTruthy();
+      expect(resultado!.titulo).toBe('Notas de agosto');
+      expect(resultado!.categoria).toBe('Guia de imposto');
+      expect(resultado!.status).toBe('pendente');
+    });
+  });
+
   describe('anexarDocumento', () => {
     it('CTD-13/15: em erro do backend, retorna um documento de exemplo (nunca null)', () => {
       const file = new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' });

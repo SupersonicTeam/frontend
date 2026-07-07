@@ -247,6 +247,8 @@ export class ContadorApi {
   }
 
   // POST /contador/pendencias
+  // Sem backend real ainda: em erro, cria a solicitação localmente (mock) em vez de retornar
+  // null — necessário para o fluxo mão-dupla ficar demonstrável sem o endpoint real.
   criarSolicitacao(dto: CreateSolicitacaoDto): Observable<SolicitacaoContador | null> {
     const payload = {
       produtorId: dto.produtorId,
@@ -259,7 +261,22 @@ export class ContadorApi {
     };
     return this.api.post<PendenciaBackend>('/contador/pendencias', payload).pipe(
       map(p => this.mapPendencia(p)),
-      catchError(() => of(null))
+      catchError(() =>
+        of({
+          id: 'fx-pend-' + String(Math.random()).slice(2),
+          produtorId: dto.produtorId,
+          titulo: dto.titulo,
+          descricao: dto.descricao || dto.titulo,
+          categoria: dto.categoria,
+          mesReferencia: dto.mesReferencia,
+          prioridade: dto.prioridade,
+          status: 'pendente' as const,
+          prazo: dto.prazo || this.defaultPrazo(),
+          observacoes: dto.observacoes,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })
+      )
     );
   }
 
