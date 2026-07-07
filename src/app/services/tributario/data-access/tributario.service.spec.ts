@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TributarioApi } from './tributario.service';
 import { Apuracao, CreditoSaldo, RelatorioConformidade } from '@models/tributario.model';
@@ -124,9 +124,9 @@ describe('TributarioApi', () => {
     expect(resultado?.saldoAPagar).toBe(-60);
   });
 
-  it('AC-4: relatorioConformidadePdf(periodo) faz GET /relatorios/conformidade/pdf?periodo= com responseType blob e retorna um Blob', () => {
-    let resultado: Blob | undefined;
-    service.relatorioConformidadePdf('2026-07').subscribe(res => (resultado = res));
+  it('INT-13: relatorioConformidadePdf usa responseType blob + observe:response e expõe o Content-Disposition', () => {
+    let resp: HttpResponse<Blob> | undefined;
+    service.relatorioConformidadePdf('2026-07').subscribe(res => (resp = res));
 
     const req = httpMock.expectOne(r => r.url === '/relatorios/conformidade/pdf');
     expect(req.request.method).toBe('GET');
@@ -134,8 +134,9 @@ describe('TributarioApi', () => {
     expect(req.request.responseType).toBe('blob');
 
     const blob = new Blob(['%PDF-1.4'], { type: 'application/pdf' });
-    req.flush(blob);
+    req.flush(blob, { headers: { 'Content-Disposition': 'attachment; filename="conformidade-2026-07.pdf"' } });
 
-    expect(resultado).toBeInstanceOf(Blob);
+    expect(resp?.body).toBeInstanceOf(Blob);
+    expect(resp?.headers.get('Content-Disposition')).toBe('attachment; filename="conformidade-2026-07.pdf"');
   });
 });

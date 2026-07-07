@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiService } from '@core/services/api.service';
 import { NotaFiscal } from '@models/nota-fiscal.model';
@@ -60,9 +60,12 @@ export class NotasApi {
     return this.api.post<NotaFiscal>(`/notas/${id}/gerar-xml`);
   }
 
-  /** GET /api/notas/{id}/xml — XML assinado (application/xml). */
-  obterXml(id: string): Observable<string> {
-    return this.http.get(`/notas/${id}/xml`, { responseType: 'text' });
+  /**
+   * GET /api/notas/{id}/xml — XML assinado (application/xml). Resposta completa (`observe:'response'`)
+   * para o chamador ler o nome do arquivo em `Content-Disposition`.
+   */
+  obterXml(id: string): Observable<HttpResponse<string>> {
+    return this.http.get(`/notas/${id}/xml`, { responseType: 'text', observe: 'response' });
   }
 
   /** POST /api/notas/{id}/enviar-sefaz — transmite à SEFAZ. */
@@ -75,9 +78,12 @@ export class NotasApi {
     return this.api.get<SefazRetorno>(`/notas/${id}/status-sefaz`);
   }
 
-  /** GET /api/notas/{id}/pdf — DANFE (application/pdf, attachment). */
-  baixarPdf(id: string): Observable<Blob> {
-    return this.http.get(`/notas/${id}/pdf`, { responseType: 'blob' });
+  /**
+   * GET /api/notas/{id}/pdf — DANFE (application/pdf, attachment). Resposta completa
+   * (`observe:'response'`) para o chamador ler o nome do arquivo em `Content-Disposition`.
+   */
+  baixarPdf(id: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`/notas/${id}/pdf`, { responseType: 'blob', observe: 'response' });
   }
 
   /** POST /api/notas/{id}/cancelar — cancela nota AUTORIZADA (motivo 15–255 chars). */

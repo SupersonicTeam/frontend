@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { NotasApi } from './notas.service';
 import { NotaFiscalRequest } from '@dtos/notas/nota-fiscal.request';
@@ -55,5 +55,29 @@ describe('NotasApi', () => {
     const req = httpMock.expectOne('/notas/abc/gerar-xml');
     expect(req.request.method).toBe('POST');
     req.flush({});
+  });
+
+  it('INT-13: baixarPdf usa responseType blob + observe:response e expõe o Content-Disposition', () => {
+    let resp: HttpResponse<Blob> | undefined;
+    service.baixarPdf('abc').subscribe(r => (resp = r));
+    const req = httpMock.expectOne('/notas/abc/pdf');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('blob');
+    req.flush(new Blob(['%PDF-1.4'], { type: 'application/pdf' }), {
+      headers: { 'Content-Disposition': 'attachment; filename="danfe-abc.pdf"' },
+    });
+    expect(resp?.body).toBeInstanceOf(Blob);
+    expect(resp?.headers.get('Content-Disposition')).toBe('attachment; filename="danfe-abc.pdf"');
+  });
+
+  it('INT-13: obterXml usa responseType text + observe:response e expõe o Content-Disposition', () => {
+    let resp: HttpResponse<string> | undefined;
+    service.obterXml('abc').subscribe(r => (resp = r));
+    const req = httpMock.expectOne('/notas/abc/xml');
+    expect(req.request.method).toBe('GET');
+    expect(req.request.responseType).toBe('text');
+    req.flush('<nfe/>', { headers: { 'Content-Disposition': 'attachment; filename="nota-abc.xml"' } });
+    expect(resp?.body).toBe('<nfe/>');
+    expect(resp?.headers.get('Content-Disposition')).toBe('attachment; filename="nota-abc.xml"');
   });
 });
