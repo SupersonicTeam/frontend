@@ -1,7 +1,12 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import { Observable, of, catchError, map } from 'rxjs';
 import { ApiService } from '@core/services/api.service';
-import { SolicitacaoContador, DocumentoContador } from '@models/solicitacao-contador.model';
+import {
+  SolicitacaoContador,
+  DocumentoContador,
+  GuiaFiscal,
+  CreateGuiaDto,
+} from '@models/solicitacao-contador.model';
 import { RascunhoNota } from '@models/rascunho-nota.model';
 
 export interface CreateSolicitacaoDto {
@@ -101,9 +106,62 @@ const FIXTURE_DOCUMENTOS = (pendenciaId: string): DocumentoContador[] => [
   },
 ];
 
+// Seed inicial das guias (o status real é sempre recalculado na leitura, exceto quando 'pago').
+const FIXTURE_GUIAS = (produtorId: string): GuiaFiscal[] => [
+  {
+    id: 'fx-guia-1',
+    produtorId,
+    tipoGuia: 'ICMS',
+    dataVencimento: '2026-07-20',
+    valor: 850.5,
+    status: 'pendente',
+    createdAt: '2026-07-01T09:00:00',
+  },
+  {
+    id: 'fx-guia-2',
+    produtorId,
+    tipoGuia: 'FUNRURAL',
+    dataVencimento: '2026-06-10',
+    valor: 320,
+    status: 'pago',
+    createdAt: '2026-06-01T09:00:00',
+  },
+  {
+    id: 'fx-guia-3',
+    produtorId,
+    tipoGuia: 'DARF',
+    dataVencimento: '2026-06-25',
+    valor: 512.9,
+    status: 'pendente',
+    createdAt: '2026-06-15T09:00:00',
+  },
+];
+
 @Injectable({ providedIn: 'root' })
 export class ContadorApi {
   private readonly api = inject(ApiService);
+
+  // Fallback mock de guias fiscais (signal em memória, escopo de sessão) — usado só quando
+  // o backend real (POST/GET/PATCH /contador/guias, ver issue backend#74) ainda não responde.
+  private readonly guiasSignal = signal<GuiaFiscal[] | null>(null);
+
+  private getOrSeedGuias(produtorId: string): GuiaFiscal[] {
+    if (this.guiasSignal() === null) this.guiasSignal.set(FIXTURE_GUIAS(produtorId));
+    return this.guiasSignal()!;
+  }
+
+  // Recalcula o status a partir da data de vencimento — 'pago' é o único estado terminal
+  // definido pelo usuário; 'pendente'/'vencido' são sempre derivados da data atual.
+  private computeStatusGuia(
+    dataVencimento: string,
+    statusAtual?: GuiaFiscal['status']
+  ): GuiaFiscal['status'] {
+    if (statusAtual === 'pago') return 'pago';
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const venc = new Date(dataVencimento + 'T00:00:00');
+    return venc < hoje ? 'vencido' : 'pendente';
+  }
 
   // ── Helpers de codificação (igual ao React) ──
   private parseTipos(raw?: string): string[] {
@@ -274,6 +332,56 @@ export class ContadorApi {
     return this.api
       .post<DocumentoContador>('/contador/documentos/anexar', formData)
       .pipe(catchError(() => of(null)));
+  }
+
+  // GET /contador/guias?produtorId=:id (issue backend#74 — ainda não existe)
+  // Sem backend real: cai para o signal mock (seed lazy), recalculando o status pela data atual.
+  getGuias(produtorId?: string): Observable<GuiaFiscal[]> {
+    const params = produtorId ? { produtorId } : undefined;
+    return this.api.get<GuiaFiscal[]>('/contador/guias', params).pipe(
+      catchError(() => {
+        const guias = this.getOrSeedGuias(produtorId ?? 'produtor-mock');
+        return of(guias.map(g => ({ ...g, status: this.computeStatusGuia(g.dataVencimento, g.status) })));
+      })
+    );
+  }
+
+  // POST /contador/guias (issue backend#74 — ainda não existe)
+  // Sem backend real: cria a guia localmente no signal mock.
+  anexarGuia(dto: CreateGuiaDto): Observable<GuiaFiscal | null> {
+    return this.api.post<GuiaFiscal>('/contador/guias', dto).pipe(
+      catchError(() => {
+        const guias = this.getOrSeedGuias(dto.produtorId);
+        const nova: GuiaFiscal = {
+          id: 'guia-' + String(Math.random()).slice(2),
+          produtorId: dto.produtorId,
+          tipoGuia: dto.tipoGuia,
+          dataVencimento: dto.dataVencimento,
+          valor: dto.valor,
+          status: this.computeStatusGuia(dto.dataVencimento),
+          observacoes: dto.observacoes,
+          createdAt: new Date().toISOString(),
+        };
+        this.guiasSignal.set([nova, ...guias]);
+        return of(nova);
+      })
+    );
+  }
+
+  // PATCH /contador/guias/:id/pagar (issue backend#74 — ainda não existe)
+  // Sem backend real: marca a guia como paga no signal mock (no-op se o id não existir).
+  marcarGuiaPaga(id: string): Observable<void> {
+    return this.api.patch<void>(`/contador/guias/${id}/pagar`).pipe(
+      catchError(() => {
+        const guias = this.guiasSignal();
+        if (guias) {
+          this.guiasSignal.set(
+            guias.map(g => (g.id === id ? { ...g, status: 'pago' as const } : g))
+          );
+        }
+        return of(undefined);
+      })
+    );
   }
 
   private defaultPrazo(): string {
