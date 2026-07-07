@@ -22,12 +22,12 @@ export class CalendarioApi {
   private readonly api = inject(ApiService);
 
   // Backend: GET /calendario-fiscal/:produtorId/vencimentos
+  // Sem fallback mock: em falha, o erro propaga para a página tratar (erro + retry).
   getVencimentos(produtorId?: string): Observable<VencimentoFiscal[]> {
     const id = produtorId || 'default';
-    return this.api.get<CalendarioVencimento[]>(`/calendario-fiscal/${id}/vencimentos`).pipe(
-      map(items => items.map(item => this.mapToVencimento(item))),
-      catchError(() => of(this.getMockVencimentos()))
-    );
+    return this.api
+      .get<CalendarioVencimento[]>(`/calendario-fiscal/${id}/vencimentos`)
+      .pipe(map(items => items.map(item => this.mapToVencimento(item))));
   }
 
   // Backend: GET /calendario-fiscal/:produtorId/resumo
@@ -50,46 +50,5 @@ export class CalendarioApi {
       status: item.status === 'vencido' ? 'vencido' : 'pendente',
       valor: item.valor,
     };
-  }
-
-  private getMockVencimentos(): VencimentoFiscal[] {
-    const ano = new Date().getFullYear();
-    const mes = String(new Date().getMonth() + 1).padStart(2, '0');
-    return [
-      {
-        id: '1',
-        titulo: 'FUNRURAL - Folha de Pagamento',
-        descricao: 'Recolhimento mensal do FUNRURAL',
-        dataVencimento: `${ano}-${mes}-07`,
-        tipo: 'imposto',
-        status: 'pendente',
-        valor: 1250,
-      },
-      {
-        id: '2',
-        titulo: 'SPED Fiscal',
-        descricao: 'Entrega do SPED Fiscal',
-        dataVencimento: `${ano}-${mes}-15`,
-        tipo: 'obrigacao',
-        status: 'pendente',
-      },
-      {
-        id: '3',
-        titulo: 'DCTF',
-        descricao: 'Declaração de Débitos e Créditos Tributários Federais',
-        dataVencimento: `${ano}-${mes}-20`,
-        tipo: 'declaracao',
-        status: 'pendente',
-      },
-      {
-        id: '4',
-        titulo: 'CBS/IBS - Nota de Saída',
-        descricao: 'Recolhimento CBS e IBS ref. notas de saída',
-        dataVencimento: `${ano}-${mes}-25`,
-        tipo: 'imposto',
-        status: 'pendente',
-        valor: 3400,
-      },
-    ];
   }
 }
