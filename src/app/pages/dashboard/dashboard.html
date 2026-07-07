@@ -8,17 +8,26 @@
     <p class="text-muted-foreground text-base mt-1">{{ mesAtual }}</p>
   </div>
 
-  <div class="rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm text-accent">
-    Resumo financeiro, gráficos e notificações usam dados de exemplo — a integração desses endpoints com o backend chega em breve. As notas fiscais já são reais.
-  </div>
+  @if (erro()) {
+    <div class="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+      <span>Não foi possível carregar os dados do dashboard.</span>
+      <button
+        class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/40 text-destructive text-sm hover:bg-destructive/10 transition-colors"
+        (click)="tentarNovamente()"
+      >
+        <svg lucideRefreshCw [size]="14" />
+        Tentar novamente
+      </button>
+    </div>
+  }
 
-  <!-- Card: Resumo financeiro -->
+  <!-- Card: KPIs de IBS/CBS -->
   <div class="bg-card rounded-2xl shadow-sm border border-border">
     <div class="flex items-center justify-between px-5 pt-5 pb-3">
       <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
         <svg lucideDollarSign [size]="20" class="text-primary" />
-        Resumo rápido
-        @if (loadingFluxo()) {
+        KPIs do período (IBS/CBS)
+        @if (loading()) {
           <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
         }
       </h2>
@@ -36,69 +45,57 @@
       </button>
     </div>
 
-    <div class="px-5 pb-5 space-y-4">
-      <div class="grid grid-cols-3 gap-2 sm:gap-4">
-        <div class="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 sm:p-3 rounded-xl bg-muted/60 text-center sm:text-left">
-          <svg lucideTrendingDown [size]="20" class="text-destructive shrink-0 hidden sm:block" />
-          <div>
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Entradas</p>
-            @if (loadingFluxo()) {
-              <div class="h-5 w-20 bg-muted animate-pulse rounded mt-1"></div>
-            } @else {
-              <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-                {{ formatCurrency(fluxoCaixa()?.totalEntradas ?? 0) }}
-              </p>
-            }
+    <div class="px-5 pb-5 space-y-3">
+      @if (loading() && !dashboard()) {
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+          @for (i of [1,2,3,4,5,6]; track i) {
+            <div class="h-16 bg-muted/50 animate-pulse rounded-xl"></div>
+          }
+        </div>
+      } @else {
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Débito IBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
+              {{ formatCurrency(dashboard()?.kpis?.debitoIbs ?? 0) }}
+            </p>
+          </div>
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito IBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
+              {{ formatCurrency(dashboard()?.kpis?.creditoIbs ?? 0) }}
+            </p>
+          </div>
+          <div class="p-3 rounded-xl bg-primary/10">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo IBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-primary">
+              {{ formatCurrency(dashboard()?.kpis?.saldoIbs ?? 0) }}
+            </p>
+          </div>
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Débito CBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
+              {{ formatCurrency(dashboard()?.kpis?.debitoCbs ?? 0) }}
+            </p>
+          </div>
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito CBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
+              {{ formatCurrency(dashboard()?.kpis?.creditoCbs ?? 0) }}
+            </p>
+          </div>
+          <div class="p-3 rounded-xl bg-primary/10">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo CBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-primary">
+              {{ formatCurrency(dashboard()?.kpis?.saldoCbs ?? 0) }}
+            </p>
           </div>
         </div>
 
-        <div class="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 sm:p-3 rounded-xl bg-muted/60 text-center sm:text-left">
-          <svg lucideTrendingUp [size]="20" class="text-primary shrink-0 hidden sm:block" />
-          <div>
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Saídas</p>
-            @if (loadingFluxo()) {
-              <div class="h-5 w-20 bg-muted animate-pulse rounded mt-1"></div>
-            } @else {
-              <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-                {{ formatCurrency(fluxoCaixa()?.totalSaidas ?? 0) }}
-              </p>
-            }
-          </div>
-        </div>
-
-        <div class="flex flex-col items-center sm:flex-row sm:items-center gap-1 sm:gap-3 p-2 sm:p-3 rounded-xl bg-primary/10 text-center sm:text-left">
-          <svg lucideDollarSign [size]="20" class="text-primary shrink-0 hidden sm:block" />
-          <div>
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Lucro</p>
-            @if (loadingFluxo()) {
-              <div class="h-5 w-20 bg-muted animate-pulse rounded mt-1"></div>
-            } @else {
-              <p class="text-sm sm:text-lg font-heading font-bold text-primary">
-                {{ formatCurrency(fluxoCaixa()?.saldo ?? 0) }}
-              </p>
-            }
-          </div>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full bg-muted/80 text-xs sm:text-sm w-fit">
-        <svg lucideDollarSign [size]="12" class="text-destructive shrink-0" />
-        <span class="text-muted-foreground hidden sm:inline">Imposto:</span>
-        <span class="font-semibold text-foreground">
-          {{ loadingFluxo() ? '...' : formatCurrency(fluxoCaixa()?.totalImpostos ?? 0) }}
-        </span>
-      </div>
-
-      @if (!loadingFluxo() && fluxoCaixa()) {
-        <div class="pt-3 border-t border-border hidden sm:block">
-          <p class="text-xs text-muted-foreground leading-relaxed">
-            <span class="font-medium text-foreground">💡 De onde vem o imposto previsto?</span><br />
-            Este valor é a soma de todos os impostos cobrados nas suas notas (compras e vendas):
-            <span class="font-medium"> CBS, IBS, FUNRURAL, ICMS e IPI</span>.
-            No agronegócio, você tem <span class="font-medium text-primary">60% de redução</span> nas
-            alíquotas de CBS (8,8% → 3,5%) e IBS (17,7% → 7,1%), totalizando cerca de
-            <span class="font-medium text-primary">10,6%</span> ao invés dos 26,5% do regime comum.
-          </p>
+        <div class="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full bg-muted/80 text-xs sm:text-sm w-fit">
+          <svg lucideFileText [size]="12" class="text-muted-foreground shrink-0" />
+          <span class="text-muted-foreground">Total de notas no período:</span>
+          <span class="font-semibold text-foreground">{{ dashboard()?.kpis?.totalNotas ?? 0 }}</span>
         </div>
       }
     </div>
@@ -160,23 +157,23 @@
         <svg lucideTrendingUp [size]="20" class="text-primary" />
         Notas por mês
       </h2>
-      @if (loadingGrafico()) {
+      @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       } @else {
-        <span class="text-xs text-muted-foreground">Últimos 6 meses</span>
+        <span class="text-xs text-muted-foreground">Contagem de notas</span>
       }
     </div>
 
-    @if (loadingGrafico()) {
+    @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
-    } @else if (notasPorMes().length) {
+    } @else if ((dashboard()?.notasPorMes?.length ?? 0) > 0) {
       <div class="h-64">
         <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions"></canvas>
       </div>
     } @else {
       <div class="h-64 flex flex-col items-center justify-center text-center text-muted-foreground">
         <svg lucideFile [size]="32" class="mb-2 opacity-60" />
-        <p class="text-sm">Nenhuma nota para exibir no período.</p>
+        <p class="text-sm">Sem dados no período.</p>
       </div>
     }
   </div>
@@ -188,17 +185,17 @@
         <svg lucideDollarSign [size]="20" class="text-primary" />
         Distribuição de impostos
       </h2>
-      <span class="text-xs text-muted-foreground">CBS × IBS × FUNRURAL</span>
+      <span class="text-xs text-muted-foreground">CBS × IBS</span>
     </div>
-    @if (loadingGrafico()) {
+    @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
-    } @else if (distribuicaoImpostos().length) {
+    } @else if (((dashboard()?.distribuicaoImpostos?.ibs ?? 0) + (dashboard()?.distribuicaoImpostos?.cbs ?? 0)) > 0) {
       <div class="h-64">
         <canvas baseChart [type]="'pie'" [data]="pieChartData()" [options]="pieChartOptions"></canvas>
       </div>
     } @else {
       <div class="h-64 flex items-center justify-center text-muted-foreground text-sm">
-        Sem dados de impostos.
+        Sem dados no período.
       </div>
     }
   </div>
@@ -212,15 +209,15 @@
       </h2>
       <span class="text-xs text-muted-foreground">Entradas × Saídas</span>
     </div>
-    @if (loadingGrafico()) {
+    @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
-    } @else if (notasPorMes().length) {
+    } @else if ((dashboard()?.notasPorMes?.length ?? 0) > 0) {
       <div class="h-64">
         <canvas baseChart [type]="'line'" [data]="lineChartData()" [options]="lineChartOptions"></canvas>
       </div>
     } @else {
       <div class="h-64 flex items-center justify-center text-muted-foreground text-sm">
-        Sem dados.
+        Sem dados no período.
       </div>
     }
   </div>
@@ -232,7 +229,7 @@
         <svg lucideSprout [size]="20" class="text-primary" />
         Simulador Inteligente
       </h2>
-      @if (loadingNotas()) {
+      @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       } @else {
         <div class="flex gap-2">
@@ -273,11 +270,11 @@
     <!-- KPI principal -->
     <div class="p-4 rounded-xl bg-primary/5 border border-primary/10 mb-4">
       <p class="text-xs text-muted-foreground mb-1">Imposto estimado total</p>
-      @if (loadingNotas()) {
+      @if (loading() && !dashboard()) {
         <div class="h-8 w-32 bg-muted animate-pulse rounded mt-1"></div>
       } @else {
         <p class="text-2xl font-heading font-bold text-primary">
-          {{ formatCurrency(totalImpostoCalculado() || (fluxoCaixa()?.totalImpostos ?? 0)) }}
+          {{ formatCurrency(totalImpostoCalculado()) }}
         </p>
         <p class="text-xs text-muted-foreground mt-1">
           Regime: Pessoa Física Rural · Tributação efetiva: ~10,6%
@@ -286,7 +283,7 @@
     </div>
 
     <!-- Tabela breakdown -->
-    @if (!loadingNotas() && impostoBreakdown().length > 0) {
+    @if (!(loading() && !dashboard()) && impostoBreakdown().length > 0) {
       <div class="space-y-1 mb-4">
         <div class="grid grid-cols-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
           <span>Tributo</span>
@@ -316,30 +313,9 @@
           <span class="text-right font-bold text-primary">{{ formatCurrency(totalImpostoCalculado()) }}</span>
         </div>
       </div>
-    } @else if (!loadingNotas()) {
-      <!-- Sem notas — mostra tabela estimada -->
-      <div class="space-y-1 mb-4">
-        <div class="grid grid-cols-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
-          <span>Tributo</span><span class="text-center">Alíquota</span><span class="text-right">Economia</span>
-        </div>
-        @for (item of [
-          {nome: 'CBS', aliquota: '3,5%', original: '8,8%', economia: '-60%'},
-          {nome: 'IBS Estadual', aliquota: '5,1%', original: '12,7%', economia: '-60%'},
-          {nome: 'IBS Municipal', aliquota: '2,0%', original: '5,0%', economia: '-60%'},
-          {nome: 'FUNRURAL', aliquota: '1,5%', original: null, economia: null}
-        ]; track item.nome) {
-          <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-sm">
-            <div class="flex items-center gap-1.5">
-              <span class="font-medium text-foreground">{{ item.nome }}</span>
-              @if (item.economia) { <span class="text-[9px] bg-green-100 text-green-700 px-1 rounded">{{ item.economia }}</span> }
-            </div>
-            <div class="text-center">
-              <span class="text-foreground font-medium">{{ item.aliquota }}</span>
-              @if (item.original) { <span class="text-[10px] text-muted-foreground line-through ml-1">{{ item.original }}</span> }
-            </div>
-            <span class="text-right text-xs text-muted-foreground">Estimado</span>
-          </div>
-        }
+    } @else if (!(loading() && !dashboard())) {
+      <div class="text-center text-sm text-muted-foreground py-4 mb-4">
+        Sem impostos no período.
       </div>
     }
 
@@ -363,7 +339,6 @@
           <strong class="text-primary">60% de redução</strong> nas alíquotas de CBS (8,8% → 3,5%)
           e IBS (17,7% → 7,1%). A tributação efetiva total é de aproximadamente
           <strong class="text-primary">10,6%</strong> ao invés dos 26,5% do regime comum.
-          O FUNRURAL incide sobre a receita bruta à alíquota de 1,5%.
         </p>
       </div>
     }
@@ -374,12 +349,12 @@
     <div class="flex items-center gap-2 px-5 pt-5 pb-3">
       <svg lucideFileText [size]="20" class="text-primary" />
       <h2 class="text-base font-semibold text-foreground">Últimos documentos enviados</h2>
-      @if (loadingNotas()) {
+      @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       }
     </div>
     <div class="px-5 pb-5">
-      @if (loadingNotas()) {
+      @if (loading() && !dashboard()) {
         <div class="space-y-3">
           @for (i of [1,2,3]; track i) {
             <div class="h-12 bg-muted/60 animate-pulse rounded-lg"></div>
