@@ -65,4 +65,34 @@ describe('DocumentosPage', () => {
     });
     expect(cmp.notasErro()).toBe(false);
   });
+
+  it('CTD-13/14: salvarAnexo() chama ContadorApi.anexarDocumento() e muda o status da solicitação para enviado', () => {
+    const fixture = TestBed.createComponent(DocumentosPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    httpMock.expectOne(r => r.url === '/notas').flush({
+      content: [], totalElements: 0, totalPages: 0, number: 0, size: 12,
+      first: true, last: true, numberOfElements: 0, empty: true,
+    });
+    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([
+      {
+        id: 'sol-1', produtorId: 'p1', titulo: 'Balancete', descricao: 'Balancete',
+        dataLimite: '2026-08-01', prioridade: 'media', status: 'pendente',
+        tiposDocumentos: '["Balancete"]', createdAt: '2026-07-01T00:00:00', updatedAt: '2026-07-01T00:00:00',
+      },
+    ]);
+
+    cmp.solicitacaoSelecionada.set('sol-1');
+    cmp.arquivoSelecionado.set(new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }));
+    cmp.salvarAnexo();
+
+    httpMock.expectOne(r => r.url === '/contador/documentos/anexar').flush({
+      id: 'doc-1', solicitacaoId: 'sol-1', nomeArquivo: 'balancete.pdf', arquivoUrl: '', tipo: 'Balancete',
+      createdAt: '2026-07-07T00:00:00',
+    });
+
+    expect(cmp.solicitacoes().find(s => s.id === 'sol-1')?.status).toBe('enviado');
+    expect(cmp.showAnexar()).toBe(false);
+  });
 });

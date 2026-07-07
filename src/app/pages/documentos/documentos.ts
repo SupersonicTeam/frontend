@@ -194,7 +194,8 @@ export class DocumentosPage implements OnInit {
   // Upload/Anexar dialog
   showAnexar = signal(false);
   solicitacaoSelecionada = signal('');
-  arquivoSelecionado = signal<string | null>(null);
+  arquivoSelecionado = signal<File | null>(null);
+  enviandoAnexo = signal(false);
 
   // ── Formulário de nota (criar/editar) — alinhado ao NotaFiscalRequest ──
   showFormNota = signal(false);
@@ -779,12 +780,30 @@ export class DocumentosPage implements OnInit {
   }
   handleFileSelect(event: Event): void {
     const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) this.arquivoSelecionado.set(file.name);
+    if (file) this.arquivoSelecionado.set(file);
   }
   salvarAnexo(): void {
-    if (!this.solicitacaoSelecionada()) return;
-    this.toastService.success('Documento anexado com sucesso!');
-    this.fecharAnexar();
+    const solicitacaoId = this.solicitacaoSelecionada();
+    const file = this.arquivoSelecionado();
+    if (!solicitacaoId || !file) return;
+    const categoria = this.solicitacaoInfo()?.categoria ?? 'Documento';
+    this.enviandoAnexo.set(true);
+    this.contadorService.anexarDocumento(solicitacaoId, file, categoria).subscribe({
+      next: doc => {
+        this.enviandoAnexo.set(false);
+        if (doc) {
+          this.solicitacoes.update(list =>
+            list.map(s => (s.id === solicitacaoId ? { ...s, status: 'enviado' as const } : s))
+          );
+          this.toastService.success('Documento anexado com sucesso!');
+          this.fecharAnexar();
+        }
+      },
+      error: () => {
+        this.enviandoAnexo.set(false);
+        this.toastService.error('Erro ao anexar documento.');
+      },
+    });
   }
 
   // === Preview + Download de nota (PDF/XML) ===
