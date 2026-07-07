@@ -619,7 +619,7 @@
             <p class="block text-sm font-medium text-foreground mb-1.5">Arquivo</p>
             <label class="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-muted-foreground/30 py-8 cursor-pointer hover:border-primary/50 transition-colors">
               <svg lucideUpload [size]="28" class="text-muted-foreground" />
-              <span class="text-sm text-muted-foreground text-center px-2">{{ arquivoSelecionado() || 'Clique para enviar arquivo' }}</span>
+              <span class="text-sm text-muted-foreground text-center px-2">{{ arquivoSelecionado()?.name || 'Clique para enviar arquivo' }}</span>
               <p class="text-xs text-muted-foreground/60">XML ou PDF da NF-e</p>
               <input type="file" class="hidden" (change)="handleFileSelect($event)" />
             </label>
@@ -630,9 +630,10 @@
       <div class="flex gap-3 px-6 pb-6 border-t border-border pt-4">
         <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharAnexar()">Cancelar</button>
         @if (solicitacoesPendentes().length > 0) {
-          <button class="flex-1 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
-            [disabled]="!solicitacaoSelecionada()"
+          <button class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            [disabled]="!solicitacaoSelecionada() || !arquivoSelecionado() || enviandoAnexo()"
             (click)="salvarAnexo()">
+            @if (enviandoAnexo()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
             Salvar
           </button>
         }

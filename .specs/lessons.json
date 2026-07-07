@@ -1,0 +1,81 @@
+{
+  "schema": 1,
+  "promote_threshold": 2,
+  "window_days": 45,
+  "quarantine_threshold": 2,
+  "next_id": 5,
+  "lessons": [
+    {
+      "id": "L-001",
+      "key": "ac_gap::when an ac requires triggering a side effect service e g a notification service on success verify the service is actually injected and called not just that the data presence part of the ac is satisfied",
+      "text": "When an AC requires triggering a side-effect service (e.g. a notification service) on success, verify the service is actually injected and called, not just that the data-presence part of the AC is satisfied.",
+      "signal": "ac_gap",
+      "scope": "contador",
+      "status": "candidate",
+      "features": [
+        "contador-fluxo-documentos"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md CTD-17; contador.ts salvarSolicitacao() (contador)"
+      ],
+      "created": "2026-07-07T18:44:55Z",
+      "last_seen": "2026-07-07T18:44:55Z"
+    },
+    {
+      "id": "L-002",
+      "key": "ac_gap::when an edge case specifies an empty state message for a filtered selected view confirm the underlying data source can actually produce zero items for that view before considering the ac satisfied by a different empty state e g no selection vs empty selection are different states",
+      "text": "When an edge case specifies an empty-state message for a filtered/selected view, confirm the underlying data source can actually produce zero items for that view before considering the AC satisfied by a different empty state (e.g. no-selection vs. empty-selection are different states).",
+      "signal": "ac_gap",
+      "scope": "contador",
+      "status": "candidate",
+      "features": [
+        "contador-fluxo-documentos"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "spec.md CTD-22; contador.ts checklistCategorias (contador)"
+      ],
+      "created": "2026-07-07T18:44:59Z",
+      "last_seen": "2026-07-07T18:44:59Z"
+    },
+    {
+      "id": "L-003",
+      "key": "surviving_mutant::when testing that two independently erroring async sources are decoupled write at least one test where the erroring source resolves after the successful source not only before an accidental re coupling in the error handler can be masked by whichever source completes last",
+      "text": "When testing that two independently-erroring async sources are decoupled, write at least one test where the erroring source resolves AFTER the successful source, not only before — an accidental re-coupling in the error handler can be masked by whichever source completes last.",
+      "signal": "surviving_mutant",
+      "scope": "calendario",
+      "status": "candidate",
+      "features": [
+        "contador-fluxo-documentos"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "calendario.ts:136-140; calendario.spec.ts:39-71 (calendario)"
+      ],
+      "created": "2026-07-07T18:45:04Z",
+      "last_seen": "2026-07-07T18:45:04Z"
+    },
+    {
+      "id": "L-004",
+      "key": "spec_deviation::when a ui success toast side effect is gated behind a service call returning non null extend the same error to mock fallback convention already used elsewhere in the same service to that call too instead of leaving it as the one method that returns null on error",
+      "text": "When a UI success-toast/side-effect is gated behind a service call returning non-null, extend the same error-to-mock-fallback convention already used elsewhere in the same service to that call too, instead of leaving it as the one method that returns null on error.",
+      "signal": "spec_deviation",
+      "scope": "contador",
+      "status": "candidate",
+      "features": [
+        "contador-fluxo-documentos"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "contador.service.spec.ts:195 SPEC_DEVIATION marker (contador)"
+      ],
+      "created": "2026-07-07T18:45:10Z",
+      "last_seen": "2026-07-07T18:45:10Z"
+    }
+  ]
+}

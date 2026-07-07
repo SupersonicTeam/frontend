@@ -18,26 +18,44 @@ Persistent memory for spec-driven work. Read on resume.
 | AD-008 | #21 zera mock apenas no **núcleo + calendário**: remove `getMockVencimentos()`. `contador`/`chat`/`notificacao` (fallbacks neutros `of([])`/`of(null)`, sem dado falso) ficam para issues próprias. | Escopo atômico; único dado falso restante é o do calendário. | 2026-07-07 |
 | AD-009 | `TributarioApi`: `periodo` **obrigatório e explícito** por método (`YYYY-MM`); service não infere mês corrente. | Coerente com AD-004 (sem seletor); mantém service puro. | 2026-07-07 |
 | AD-010 | Tributário: **response == model, sem DTO intermediário** (records do backend já em PT, mapeamento 1:1). Tipos em `@models/tributario.model.ts` (BigDecimal→number, OffsetDateTime→string\|null). | Evita cerimônia/duplicação; único ponto de verdade. | 2026-07-07 |
+| AD-011 | #28: `ContadorApi` (getPendencias/getRecebidos/getDocumentos/anexarDocumento/criarSolicitacao) e o novo CRUD de guias (getGuias/anexarGuia/marcarGuiaPaga) tentam a rota real primeiro e caem para **fixtures/signal em memória** em erro — reintroduz mock no domínio contador, especificamente autorizado pelo escopo próprio anunciado em AD-008. | Backend real não existe (endpoints `/contador/*`); backend#74 aberto para a persistência real de guias; produto precisa do painel demonstrável enquanto isso. | 2026-07-07 |
+| AD-012 | `calendario.ts` **desacopla** a leitura de `/calendario-fiscal` (real, zero-mock) da leitura do `ContadorApi` (mock): falha isolada em um não esconde o outro. | Necessário para a guia (mock) aparecer no calendário mesmo com o backend de vencimentos fora do ar; sem isso o DoD da #28 não seria demonstrável. | 2026-07-07 |
 
 ---
 
 ## Handoff Snapshot
 
-**Current feature:** `tributario-service-zero-mock` (issue #21) — ✅ **Done** (T1..T5 implementadas, testadas e commitadas; Verifier PASS).
-**Branch:** `claude/relaxed-khorana-e3ac1e` (worktree). Commits: `71f7b10`, `fcceb5f`, `08e455b`, `33dbd34`.
-**Verifier:** PASS — 10/10 ACs com evidência file:line, sensor de mutação 3/3 mortos (revertidos), gates
-(lint/build/test) reconfirmados de forma independente. Relatório: `.specs/features/tributario-service-zero-mock/validation.md`.
-**Entregue:** `TributarioApi` (`/api/apuracao`, `/api/creditos`, `/api/relatorios/conformidade` + PDF,
-`reabrirApuracao`) com models/enum em `@models/tributario.model` e `@core/enums/status-apuracao.enum`;
-remoção do `getMockVencimentos()` do calendário (erro propaga) + estado de erro/retry na página
-(`vencimentosErro`/`retry()`); banner "dados de exemplo" obsoleto removido do `calendario.html`.
-**Gaps não-bloqueantes (ver validation.md):** REQ-M3 satisfeito via `PREFIXOS_SEM_TOAST` pré-existente no
-interceptor (não via `skipErrorNotify` explícito, mas sem toast duplicado); sem teste dedicado disso.
-**Nota de ambiente:** `node_modules` deste worktree precisou de `npm install` (faltava `@angular/material`)
-antes do primeiro gate — refletir isso em novos worktrees clonados sem instalação.
-**Next step:** issue #21 pronta para PR/merge (ainda não commitado no repo remoto — decisão de push cabe
-ao usuário). Sem tela `/tributario` (fora de escopo — AD-007); UI consumidora fica para outra sprint.
+**Current feature:** `contador-fluxo-documentos` (issue #28) — ✅ **Done** (T1..T7,T9 implementadas — T8
+foi dobrado em T6 —, testadas e commitadas; 1 rodada de fix→re-verify; Verifier PASS na 2ª iteração).
+**Branch:** `claude/lucid-swartz-a13e3d` (worktree). Commits: `6f4af77`, `63d61f2`, `4d94cdb`, `f8d8167`,
+`c6fcc7e`, `6047f39`, `8dde054`, `bd3612e`, `edef908`.
+**Backend follow-up aberto:** SupersonicTeam/backend#74 (persistência real de guias fiscais —
+`POST/GET /contador/guias`, `PATCH /contador/guias/:id/pagar`).
+**Verifier:** 1ª rodada FAIL (3 gaps: notificação ausente em CTD-17, AC CTD-22 arquiteturalmente
+inatingível, teste de resiliência do calendário dependente de ordem de flush). Todos os 3 corrigidos no
+commit `edef908`; 2ª rodada PASS — 24 ACs (19 limpos + 3 spec-precision gaps documentados como aceitáveis
++ 2 corrigidos), sensor de mutação 3/3 mortos após a correção, gates (build/lint/test) reconfirmados de
+forma independente (68/68 testes). Relatório completo: `.specs/features/contador-fluxo-documentos/validation.md`.
+**Entregue:** `GuiaFiscal`/`TipoGuia`/`CreateGuiaDto` (model); `ContadorApi` com fallback de fixtures em
+`getPendencias`/`getRecebidos`/`getDocumentos`/`anexarDocumento`/`criarSolicitacao` + CRUD de guias
+(`getGuias`/`anexarGuia`/`marcarGuiaPaga`, signal em memória, seed lazy); `calendario.ts` desacoplado
+(falha em `/calendario-fiscal` não esconde mais itens do `ContadorApi`) + guias no calendário;
+`contador.ts`/`.html`: 5 novas categorias, dialog "Anexar guia", toast "WhatsApp — em breve" (guia +
+nova solicitação, zero HTTP), notificação via `NotificacoesService.adicionar()` (novo método) ao criar
+solicitação, guias populadas em "Docs Oficiais" com ação "Marcar como paga", checklist de fechamento
+mensal por período; `documentos.ts`: `salvarAnexo()` ligado de fato a `anexarDocumento()`.
+**Gaps não-bloqueantes (ver validation.md):** CTD-04 (banner estático, pré-existente, não testado nesta
+feature), CTD-15 (branch de erro defensivo em `anexarDocumento` tecnicamente inatingível — o fallback
+sempre sucede), CTD-16 (cobertura das 3 abas via fixture, sem assertion dedicada).
+**Lições candidatas registradas:** L-001..L-004 em `.specs/lessons.json` (notificação como side-effect
+de AC, estado vazio "sem seleção" vs. "seleção vazia", teste de decoupling precisa de ordem de flush
+invertida, estender fallback mock a métodos irmãos no mesmo service).
+**Next step:** issue #28 pronta para PR/merge (ainda não pushado para o remoto — decisão de push cabe ao
+usuário). Bundle inicial em 696.97 kB, ainda dentro do budget de erro (1 MB) mas acima do warn (500 kB) —
+crescimento cumulativo de várias features recentes, não investigado a fundo nesta sessão (fora de escopo
+da #28); vale revisar/otimizar em uma issue própria se continuar crescendo.
 
-**Feature anterior:** `dashboard-api-real` — ✅ Done. Verifier PASS 16/16 ACs. Issue #20 pronta para PR/merge.
-**Backend follow-up aberto:** SupersonicTeam/backend#71 (KPIs financeiros em R$).
-**Deferred:** seletor de período com refetch (`?periodo=YYYY-MM`) — P3 (AD-004).
+**Feature anterior:** `tributario-service-zero-mock` (issue #21) — ✅ Done. Verifier PASS 10/10 ACs.
+**Feature anterior a essa:** `dashboard-api-real` — ✅ Done. Verifier PASS 16/16 ACs. Issue #20 pronta para PR/merge.
+**Deferred:** seletor de período com refetch (`?periodo=YYYY-MM`) — P3 (AD-004). Upload de arquivo (PDF)
+para a guia fiscal — extensão natural do backend#74, fora do escopo da #28.
