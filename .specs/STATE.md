@@ -25,7 +25,21 @@ Persistent memory for spec-driven work. Read on resume.
 
 ## Handoff Snapshot
 
-**Current feature:** `contador-fluxo-documentos` (issue #28) — ✅ **Done** (T1..T7,T9 implementadas — T8
+**Current feature:** `integracao-contrato-backend` (issue #27) — 📝 **Specs prontas, aguardando aprovação
+para executar.** Worktree: `claude/issue-27-specs-planning-6b73f6`. Escopo confirmado pelo usuário:
+**inclui as telas** (não só integração). 4 frentes / 22 requisitos (`INT-01..13`, `TRIB-01..09`), 15 tasks
+em 4 fases: (1) bloco `financeiro` (fluxo de caixa R$) no dashboard — v1.1/backend#71 reverte AD-002, atenção
+à semântica invertida vs. `notasPorMes`; (2) `authInterceptor` inócuo (Sprint 8-ready) + `TokenService`;
+(3) downloads robustos (`Content-Disposition` + erro-como-blob), chamadores = `documentos.ts`; (4) **tela
+`/tributario` NOVA** (Apuração+reabrir/Créditos/Relatório JSON+PDF, seletor de período, erros por `code`),
+depende da Fase 3. **Descoberta:** a jornada de emissão de NF-e já existe em `documentos.ts` (#12/#14) — não
+reconstruir. **OQ-1/A-7:** `ApuracaoResponse` não tem `id` mas `reabrir` é por `{id}` — abrir follow-up no
+backend; UI degrada até lá. **Next step:** aprovação → oferecer delegação por sub-agentes (>3 fases) →
+executar. Specs em `.specs/features/integracao-contrato-backend/`.
+
+---
+
+**Feature anterior:** `contador-fluxo-documentos` (issue #28) — ✅ **Done** (T1..T7,T9 implementadas — T8
 foi dobrado em T6 —, testadas e commitadas; 1 rodada de fix→re-verify; Verifier PASS na 2ª iteração).
 **Branch:** `claude/lucid-swartz-a13e3d` (worktree). Commits: `6f4af77`, `63d61f2`, `4d94cdb`, `f8d8167`,
 `c6fcc7e`, `6047f39`, `8dde054`, `bd3612e`, `edef908`.
