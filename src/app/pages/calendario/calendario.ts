@@ -19,7 +19,7 @@ import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { ToastService } from '@core/services/toast.service';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
-import { SolicitacaoContador } from '@models/solicitacao-contador.model';
+import { SolicitacaoContador, GuiaFiscal } from '@models/solicitacao-contador.model';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 
 @Component({
@@ -47,7 +47,12 @@ export class CalendarioPage implements OnInit {
   private readonly notificacaoService = inject(NotificacaoApi);
   private readonly toastService = inject(ToastService);
 
-  vencimentos = signal<VencimentoFiscal[]>([]);
+  // Vencimentos reais (/calendario-fiscal) e itens do ContadorApi (solicitações + guias, com
+  // fallback mock) são carregados de forma desacoplada — uma falha isolada em um deles não
+  // esconde o outro (ver design.md: "Resiliência do calendário").
+  private readonly vencimentosReais = signal<VencimentoFiscal[]>([]);
+  private readonly vencimentosContador = signal<VencimentoFiscal[]>([]);
+  readonly vencimentos = computed(() => [...this.vencimentosReais(), ...this.vencimentosContador()]);
   loading = signal(false);
   vencimentosErro = signal(false);
   enviandoNotificacao = signal(false);
@@ -109,28 +114,45 @@ export class CalendarioPage implements OnInit {
   }
 
   /**
-   * Busca vencimentos fiscais E solicitações do contador, mesclando no calendário.
-   * Em falha (ex.: backend offline) exibe o banner de erro com "Tentar novamente"
-   * (`vencimentosErro`), sem dados mockados.
+   * Busca vencimentos fiscais reais E itens do ContadorApi (solicitações + guias) de forma
+   * desacoplada: uma falha em `/calendario-fiscal` zera só os vencimentos reais e mostra o
+   * banner de erro (`vencimentosErro`), mas NÃO esconde solicitações/guias do ContadorApi
+   * (que têm fallback mock e praticamente nunca falham) — ver design.md.
    */
   carregar(): void {
     this.loading.set(true);
     this.vencimentosErro.set(false);
-    forkJoin({
-      vencimentos: this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID),
-      pendencias: this.contadorService.getPendencias(LOGGED_PRODUCER_ID),
-    }).subscribe({
-      next: ({ vencimentos, pendencias }) => {
-        const solicitacoes = this.mapPendenciasParaEventos(pendencias);
-        this.vencimentos.set([...vencimentos, ...solicitacoes]);
+    this.carregarVencimentosReais();
+    this.carregarVencimentosContador();
+  }
+
+  private carregarVencimentosReais(): void {
+    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID).subscribe({
+      next: (vencimentos) => {
+        this.vencimentosReais.set(vencimentos);
         this.vencimentosErro.set(false);
         this.loading.set(false);
       },
       error: () => {
-        this.vencimentos.set([]);
+        this.vencimentosReais.set([]);
         this.vencimentosErro.set(true);
         this.loading.set(false);
       },
+    });
+  }
+
+  private carregarVencimentosContador(): void {
+    forkJoin({
+      pendencias: this.contadorService.getPendencias(LOGGED_PRODUCER_ID),
+      guias: this.contadorService.getGuias(LOGGED_PRODUCER_ID),
+    }).subscribe({
+      next: ({ pendencias, guias }) => {
+        this.vencimentosContador.set([
+          ...this.mapPendenciasParaEventos(pendencias),
+          ...this.mapGuiasParaEventos(guias),
+        ]);
+      },
+      error: () => this.vencimentosContador.set([]),
     });
   }
 
@@ -154,6 +176,18 @@ export class CalendarioPage implements OnInit {
         status: 'pendente' as const,
         prioridade: p.prioridade,
       }));
+  }
+
+  // Converte guias fiscais anexadas pelo contador em eventos do calendário (tipo imposto)
+  private mapGuiasParaEventos(guias: GuiaFiscal[]): VencimentoFiscal[] {
+    return guias.map((g) => ({
+      id: 'guia-' + g.id,
+      titulo: `Guia ${g.tipoGuia}`,
+      dataVencimento: g.dataVencimento,
+      tipo: 'imposto' as const,
+      status: g.status,
+      valor: g.valor,
+    }));
   }
 
   mesAnterior(): void {
