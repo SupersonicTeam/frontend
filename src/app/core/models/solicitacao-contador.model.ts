@@ -23,3 +23,24 @@ export interface DocumentoContador {
   tipo: string;
   createdAt: string;
 }
+
+export type TipoGuia = 'ICMS' | 'FUNRURAL' | 'DARF' | 'GPS' | 'OUTRO';
+
+export interface GuiaFiscal {
+  id: string;
+  produtorId: string;
+  tipoGuia: TipoGuia;
+  dataVencimento: string;
+  valor: number;
+  status: 'pendente' | 'pago' | 'vencido';
+  observacoes?: string;
+  createdAt: string;
+}
+
+export interface CreateGuiaDto {
+  produtorId: string;
+  tipoGuia: TipoGuia;
+  dataVencimento: string;
+  valor: number;
+  observacoes?: string;
+}
