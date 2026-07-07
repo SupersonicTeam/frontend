@@ -1,6 +1,135 @@
 <div class="p-4 sm:p-6 space-y-4">
-  <header class="flex items-center gap-2">
-    <svg lucideReceipt [size]="24" class="text-primary" />
-    <h1 class="text-xl font-heading font-bold text-foreground">Tributário</h1>
+  <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <svg lucideReceipt [size]="24" class="text-primary" />
+      <h1 class="text-xl font-heading font-bold text-foreground">Tributário</h1>
+    </div>
+    <!-- Seletor de período (mês/ano) — os endpoints exigem periodo YYYY-MM -->
+    <div class="flex items-center gap-2">
+      <select
+        class="px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground"
+        [ngModel]="mes()"
+        (ngModelChange)="mudarMes($event)"
+        aria-label="Mês"
+      >
+        @for (m of meses; track m.v) {
+          <option [value]="m.v">{{ m.l }}</option>
+        }
+      </select>
+      <select
+        class="px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground"
+        [ngModel]="ano()"
+        (ngModelChange)="mudarAno($event)"
+        aria-label="Ano"
+      >
+        @for (a of anos(); track a) {
+          <option [value]="a">{{ a }}</option>
+        }
+      </select>
+    </div>
   </header>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- Card: Apuração mensal de IBS/CBS -->
+    <section class="bg-card rounded-2xl shadow-sm border border-border p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-semibold text-foreground">Apuração mensal (IBS/CBS)</h2>
+        @if (loadingApuracao()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+        } @else if (statusApuracao(); as st) {
+          <span class="text-xs px-2 py-1 rounded-full font-medium" [class]="st.classe">{{ st.label }}</span>
+        }
+      </div>
+
+      @if (erroApuracao()) {
+        <div class="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+          <span>Não foi possível carregar a apuração.</span>
+          <button
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
+            (click)="carregarApuracao()"
+          >
+            <svg lucideRefreshCw [size]="14" /> Tentar novamente
+          </button>
+        </div>
+      } @else if (apuracao(); as ap) {
+        <div class="grid grid-cols-2 gap-2 sm:gap-3">
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Débito IBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(ap.debitoIbs) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Débito CBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(ap.debitoCbs) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito IBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(ap.creditoIbs) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito CBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(ap.creditoCbs) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-primary/10">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo IBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-primary">{{ formatCurrency(ap.saldoIbs) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-primary/10">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo CBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-primary">{{ formatCurrency(ap.saldoCbs) }}</p>
+          </div>
+        </div>
+        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+          <span>Notas no período: <span class="font-semibold text-foreground">{{ ap.totalNotas }}</span></span>
+          @if (ap.dataFechamento) {
+            <span>Fechada em: <span class="font-semibold text-foreground">{{ ap.dataFechamento }}</span></span>
+          }
+        </div>
+      } @else if (!loadingApuracao()) {
+        <p class="text-sm text-muted-foreground">Sem apuração para o período.</p>
+      }
+    </section>
+
+    <!-- Card: Saldo de créditos -->
+    <section class="bg-card rounded-2xl shadow-sm border border-border p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-base font-semibold text-foreground">Saldo de créditos</h2>
+        @if (loadingCreditos()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+        }
+      </div>
+
+      @if (erroCreditos()) {
+        <div class="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+          <span>Não foi possível carregar os créditos.</span>
+          <button
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
+            (click)="carregarCreditos()"
+          >
+            <svg lucideRefreshCw [size]="14" /> Tentar novamente
+          </button>
+        </div>
+      } @else if (creditos(); as cr) {
+        <div class="grid grid-cols-2 gap-2 sm:gap-3">
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito IBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(cr.creditoIbs) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito CBS</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(cr.creditoCbs) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-primary/10">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito total</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-primary">{{ formatCurrency(cr.creditoTotal) }}</p>
+          </div>
+          <div class="p-3 rounded-xl bg-muted/60">
+            <p class="text-[10px] sm:text-xs text-muted-foreground">Notas de entrada</p>
+            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ cr.quantidadeNotas }}</p>
+          </div>
+        </div>
+      } @else if (!loadingCreditos()) {
+        <p class="text-sm text-muted-foreground">Sem créditos no período.</p>
+      }
+    </section>
+  </div>
 </div>
