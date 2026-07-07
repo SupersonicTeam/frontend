@@ -1,8 +1,17 @@
 <div class="space-y-6 max-w-4xl mx-auto">
 
-  <div class="rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm text-accent">
-    Prévia com dados de exemplo — a integração do calendário fiscal com o backend chega em breve.
-  </div>
+  <!-- ── ERRO AO CARREGAR ── -->
+  @if (vencimentosErro()) {
+    <div class="flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+      <div class="flex-1 text-sm">
+        <p class="font-medium text-destructive">Não foi possível carregar os vencimentos.</p>
+        <p class="text-muted-foreground text-xs">Verifique a conexão e tente novamente.</p>
+      </div>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border text-sm hover:bg-muted shrink-0" (click)="retry()">
+        <svg lucideRefreshCw [size]="14" /> Tentar novamente
+      </button>
+    </div>
+  }
 
   <!-- Header -->
   <div class="flex items-center justify-between">

@@ -11,6 +11,7 @@ import {
   LucideClipboardList,
   LucideFileText,
   LucideMail,
+  LucideRefreshCw,
 } from '@lucide/angular';
 import { forkJoin } from 'rxjs';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
@@ -36,6 +37,7 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
     LucideClipboardList,
     LucideFileText,
     LucideMail,
+    LucideRefreshCw,
   ],
   templateUrl: './calendario.html',
 })
@@ -47,6 +49,7 @@ export class CalendarioPage implements OnInit {
 
   vencimentos = signal<VencimentoFiscal[]>([]);
   loading = signal(false);
+  vencimentosErro = signal(false);
   enviandoNotificacao = signal(false);
   dataSelecionada = signal(new Date());
   mesAtual = signal(new Date());
@@ -102,8 +105,17 @@ export class CalendarioPage implements OnInit {
   });
 
   ngOnInit(): void {
+    this.carregar();
+  }
+
+  /**
+   * Busca vencimentos fiscais E solicitações do contador, mesclando no calendário.
+   * Em falha (ex.: backend offline) exibe o banner de erro com "Tentar novamente"
+   * (`vencimentosErro`), sem dados mockados.
+   */
+  carregar(): void {
     this.loading.set(true);
-    // Busca vencimentos fiscais E solicitações do contador, mesclando no calendário
+    this.vencimentosErro.set(false);
     forkJoin({
       vencimentos: this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID),
       pendencias: this.contadorService.getPendencias(LOGGED_PRODUCER_ID),
@@ -111,10 +123,19 @@ export class CalendarioPage implements OnInit {
       next: ({ vencimentos, pendencias }) => {
         const solicitacoes = this.mapPendenciasParaEventos(pendencias);
         this.vencimentos.set([...vencimentos, ...solicitacoes]);
+        this.vencimentosErro.set(false);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.vencimentos.set([]);
+        this.vencimentosErro.set(true);
+        this.loading.set(false);
+      },
     });
+  }
+
+  retry(): void {
+    this.carregar();
   }
 
   // Converte solicitações do contador (com prazo) em eventos do calendário
