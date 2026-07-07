@@ -94,7 +94,7 @@ Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `
 | Classe | Import | Papel |
 |---|---|---|
 | `NotasApi` | `@services/notas/data-access/notas.service` | **Notas fiscais reais** contra `/api/notas` do backend Spring: CRUD paginado (`Page<T>`), ciclo de emissão (gerar-xml, xml, enviar-sefaz, status-sefaz, pdf, cancelar) e `validacoes`. Model `NotaFiscal` alinhado ao `NotaFiscalResponse`; status em `@core/enums/status-nota-fiscal.enum`. |
-| `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | Fluxo de caixa, rascunhos, impostos (endpoints `/dashboard/*` ainda mock). Exporta `mockNotas` (fallback offline de Documentos), `ResumoMensalNotas`, `DistribuicaoImposto`. |
+| `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | **Dashboard real** contra `GET /api/dashboard` (KPIs IBS/CBS, notas por mês, distribuição de impostos, últimas notas), com cache local em Signal (`dashboard`). Sem fallback mock — erro propaga para a página tratar (estado de erro + retry). Rascunhos (`/dashboard/rascunhos/*`) ainda com fallback silencioso. |
 | `CalendarioApi` | `@services/calendario/data-access/calendario.service` | Vencimentos/eventos fiscais (com fallback mock). |
 | `ChatApi` | `@services/chat/data-access/chat.service` | Chat com o assistente (POST /chat). |
 | `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. |

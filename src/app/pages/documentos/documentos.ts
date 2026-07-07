@@ -22,7 +22,6 @@ import {
   LucideSend,
 } from '@lucide/angular';
 import { NotasApi } from '@services/notas/data-access/notas.service';
-import { mockNotas } from '@services/dashboard/data-access/dashboard.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
@@ -340,11 +339,12 @@ export class DocumentosPage implements OnInit {
 
   /**
    * Recarrega as notas do produtor a partir do backend real (`GET /api/notas`).
-   * Em falha (ex.: backend offline) exibe `mockNotas()` com o banner "dados de
-   * exemplo" (`notasErro`), mantendo a tela utilizável.
+   * Em falha (ex.: backend offline) exibe o banner de erro com "Tentar novamente"
+   * (`notasErro`), sem dados mockados.
    */
   recarregarNotas(): void {
     this.loading.set(true);
+    this.notasErro.set(false);
     this.notasApi
       .listar({ page: this.pageIndex(), size: this.pageSize(), sort: 'dataEmissao,desc' })
       .subscribe({
@@ -355,9 +355,8 @@ export class DocumentosPage implements OnInit {
           this.loading.set(false);
         },
         error: () => {
-          const mock = mockNotas();
-          this.notas.set(mock);
-          this.totalElements.set(mock.length);
+          this.notas.set([]);
+          this.totalElements.set(0);
           this.notasErro.set(true);
           this.loading.set(false);
         },
