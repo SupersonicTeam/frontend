@@ -190,4 +190,37 @@ describe('ContadorApi', () => {
       expect(completou).toBe(true);
     });
   });
+
+  describe('anexarDocumento', () => {
+    it('CTD-13/15: em erro do backend, retorna um documento de exemplo (nunca null)', () => {
+      const file = new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' });
+      let resultado: DocumentoContador | null | undefined;
+      service.anexarDocumento('fx-pend-2', file, 'Balancete').subscribe(res => (resultado = res));
+
+      flushErro(httpMock, '/contador/documentos/anexar');
+
+      expect(resultado).toBeTruthy();
+      expect(resultado!.solicitacaoId).toBe('fx-pend-2');
+      expect(resultado!.nomeArquivo).toBe('balancete.pdf');
+      expect(resultado!.tipo).toBe('Balancete');
+    });
+
+    it('CTD-13: em sucesso do backend real, retorna o documento tal como veio (sem fixture)', () => {
+      const file = new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' });
+      const docBackend: DocumentoContador = {
+        id: 'real-doc-1',
+        solicitacaoId: 'fx-pend-2',
+        nomeArquivo: 'balancete.pdf',
+        arquivoUrl: '/files/real-doc-1',
+        tipo: 'Balancete',
+        createdAt: '2026-07-07T00:00:00',
+      };
+      let resultado: DocumentoContador | null | undefined;
+      service.anexarDocumento('fx-pend-2', file, 'Balancete').subscribe(res => (resultado = res));
+
+      httpMock.expectOne(r => r.url === '/contador/documentos/anexar').flush(docBackend);
+
+      expect(resultado).toEqual(docBackend);
+    });
+  });
 });

@@ -318,6 +318,8 @@ export class ContadorApi {
   }
 
   // POST /contador/documentos/anexar (multipart)
+  // Sem backend real ainda: em erro, cai para um documento de exemplo (nunca null), para o
+  // loop mão-dupla (produtor envia → contador recebe) ficar demonstrável sem backend.
   anexarDocumento(
     pendenciaId: string,
     file: File,
@@ -329,9 +331,18 @@ export class ContadorApi {
     formData.append('nomeArquivo', file.name);
     formData.append('tipoDocumento', tipoDocumento);
     formData.append('tamanho', String(file.size));
-    return this.api
-      .post<DocumentoContador>('/contador/documentos/anexar', formData)
-      .pipe(catchError(() => of(null)));
+    return this.api.post<DocumentoContador>('/contador/documentos/anexar', formData).pipe(
+      catchError(() =>
+        of({
+          id: 'fx-doc-' + String(Math.random()).slice(2),
+          solicitacaoId: pendenciaId,
+          nomeArquivo: file.name,
+          arquivoUrl: '',
+          tipo: tipoDocumento,
+          createdAt: new Date().toISOString(),
+        })
+      )
+    );
   }
 
   // GET /contador/guias?produtorId=:id (issue backend#74 — ainda não existe)
