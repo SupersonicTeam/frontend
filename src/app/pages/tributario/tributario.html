@@ -151,4 +151,67 @@
       }
     </section>
   </div>
+
+  <!-- Card: Relatório de conformidade (débitos × créditos) -->
+  <section class="bg-card rounded-2xl shadow-sm border border-border p-5">
+    <div class="flex items-center justify-between mb-4 gap-3">
+      <h2 class="text-base font-semibold text-foreground">Relatório de conformidade</h2>
+      <div class="flex items-center gap-2">
+        @if (loadingRelatorio()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+        }
+        <button
+          type="button"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-sm text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          [disabled]="baixandoPdf() || loadingRelatorio() || erroRelatorio()"
+          (click)="baixarPdf()"
+        >
+          @if (baixandoPdf()) {
+            <svg lucideLoaderCircle [size]="14" class="animate-spin" />
+          } @else {
+            <svg lucideDownload [size]="14" />
+          }
+          Baixar PDF
+        </button>
+      </div>
+    </div>
+
+    @if (erroRelatorio()) {
+      <div class="flex items-center justify-between gap-3 text-sm text-muted-foreground">
+        <span>Não foi possível carregar o relatório.</span>
+        <button
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
+          (click)="carregarRelatorio()"
+        >
+          <svg lucideRefreshCw [size]="14" /> Tentar novamente
+        </button>
+      </div>
+    } @else if (relatorio(); as rel) {
+      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
+        <div class="p-3 rounded-xl bg-muted/60">
+          <p class="text-[10px] sm:text-xs text-muted-foreground">Débitos ({{ rel.quantidadeSaidas }} saídas)</p>
+          <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.debitoTotal) }}</p>
+        </div>
+        <div class="p-3 rounded-xl bg-muted/60">
+          <p class="text-[10px] sm:text-xs text-muted-foreground">Créditos ({{ rel.quantidadeEntradas }} entradas)</p>
+          <p class="text-sm sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.creditoTotal) }}</p>
+        </div>
+        <div class="p-3 rounded-xl" [class]="saldoCredor() ? 'bg-emerald-100 dark:bg-emerald-950' : 'bg-primary/10'">
+          <p class="text-[10px] sm:text-xs text-muted-foreground">
+            {{ saldoCredor() ? 'Saldo credor' : 'Saldo a pagar' }}
+          </p>
+          <p
+            class="text-sm sm:text-lg font-heading font-bold"
+            [class.text-emerald-700]="saldoCredor()"
+            [class.dark:text-emerald-300]="saldoCredor()"
+            [class.text-primary]="!saldoCredor()"
+          >
+            {{ formatCurrency(rel.saldoAPagar) }}
+          </p>
+        </div>
+      </div>
+    } @else if (!loadingRelatorio()) {
+      <p class="text-sm text-muted-foreground">Sem relatório para o período.</p>
+    }
+  </section>
 </div>

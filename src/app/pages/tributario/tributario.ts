@@ -1,13 +1,16 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen } from '@lucide/angular';
+import {
+  LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
+} from '@lucide/angular';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
-import { Apuracao, CreditoSaldo } from '@models/tributario.model';
+import { Apuracao, CreditoSaldo, RelatorioConformidade } from '@models/tributario.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
 import { ToastService } from '@core/services/toast.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
+import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 
 /** Rótulo + classe de badge por status de apuração (RN004/RN005). */
 const STATUS_APURACAO: Record<StatusApuracao, { label: string; classe: string }> = {
@@ -40,7 +43,9 @@ const MESES = [
 @Component({
   selector: 'app-tributario',
   standalone: true,
-  imports: [FormsModule, LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen],
+  imports: [
+    FormsModule, LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
+  ],
   templateUrl: './tributario.html',
 })
 export class TributarioPage implements OnInit {
@@ -76,6 +81,14 @@ export class TributarioPage implements OnInit {
   readonly loadingCreditos = signal(false);
   readonly erroCreditos = signal(false);
 
+  // ── Relatório de conformidade ──
+  readonly relatorio = signal<RelatorioConformidade | null>(null);
+  readonly loadingRelatorio = signal(false);
+  readonly erroRelatorio = signal(false);
+  readonly baixandoPdf = signal(false);
+  /** `saldoAPagar` negativo = saldo credor (contrato 8.8) — muda apenas o rótulo, não o valor. */
+  readonly saldoCredor = computed(() => (this.relatorio()?.saldoAPagar ?? 0) < 0);
+
   ngOnInit(): void {
     this.carregar();
   }
@@ -84,6 +97,7 @@ export class TributarioPage implements OnInit {
   carregar(): void {
     this.carregarApuracao();
     this.carregarCreditos();
+    this.carregarRelatorio();
   }
 
   carregarApuracao(): void {
@@ -114,6 +128,46 @@ export class TributarioPage implements OnInit {
         this.creditos.set(null);
         this.erroCreditos.set(true);
         this.loadingCreditos.set(false);
+      },
+    });
+  }
+
+  carregarRelatorio(): void {
+    this.loadingRelatorio.set(true);
+    this.erroRelatorio.set(false);
+    this.api.relatorioConformidade(this.periodo()).subscribe({
+      next: (r) => {
+        this.relatorio.set(r);
+        this.loadingRelatorio.set(false);
+      },
+      error: () => {
+        this.relatorio.set(null);
+        this.erroRelatorio.set(true);
+        this.loadingRelatorio.set(false);
+      },
+    });
+  }
+
+  /**
+   * Baixa o PDF do relatório de conformidade (blob), lendo o nome do arquivo de `Content-Disposition`
+   * (fallback `conformidade-{periodo}.pdf`). Em erro-como-blob, deriva a mensagem via `errors[].code`.
+   */
+  baixarPdf(): void {
+    this.baixandoPdf.set(true);
+    const periodo = this.periodo();
+    this.api.relatorioConformidadePdf(periodo).subscribe({
+      next: (resp) => {
+        this.baixandoPdf.set(false);
+        const nome = filenameDeContentDisposition(
+          resp.headers.get('Content-Disposition'),
+          `conformidade-${periodo}.pdf`,
+        );
+        salvarBlob(resp.body!, nome);
+      },
+      error: async (err: HttpErrorResponse) => {
+        this.baixandoPdf.set(false);
+        const env = err?.error instanceof Blob ? await apiErrorDeBlob(err.error) : null;
+        this.toast.error(env ? mensagemDeEnvelope(env, err?.status ?? 0) : 'Não foi possível baixar o PDF.');
       },
     });
   }
