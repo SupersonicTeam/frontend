@@ -32,6 +32,15 @@ export class NotificacoesService {
 
   readonly naoLidas = computed(() => this.notificacoes().filter(n => !n.lida).length);
 
+  /** Adiciona uma notificação nova (não lida) no topo da lista. */
+  adicionar(titulo: string, tipo: Notificacao['tipo'], rota: string): void {
+    const proximoId = Math.max(0, ...this.notificacoes().map(n => n.id)) + 1;
+    const dataHora = new Date().toLocaleString('pt-BR', {
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    this.notificacoes.update(list => [{ id: proximoId, titulo, tipo, rota, dataHora, lida: false }, ...list]);
+  }
+
   marcarLida(id: number): void {
     this.notificacoes.update(list =>
       list.map(n => n.id === id ? { ...n, lida: true } : n)

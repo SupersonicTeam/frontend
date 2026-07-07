@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ContadorPage } from './contador';
 import { ToastService } from '@core/services/toast.service';
+import { NotificacoesService } from '@core/services/notificacoes.service';
 
 describe('ContadorPage', () => {
   let httpMock: HttpTestingController;
@@ -165,5 +166,30 @@ describe('ContadorPage', () => {
 
     const toasts = TestBed.inject(ToastService).toasts();
     expect(toasts.some(t => t.message === 'Envio por WhatsApp — em breve')).toBe(true);
+  });
+
+  it('CTD-17: ao criar uma nova solicitação, gera uma notificação via NotificacoesService', () => {
+    const fixture = TestBed.createComponent(ContadorPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    flushInit();
+
+    const notificacoesAntes = TestBed.inject(NotificacoesService).notificacoes().length;
+
+    cmp.abrirNova();
+    cmp.novaSolicitacaoForm.setValue({
+      titulo: 'Notas de agosto', descricao: 'Notas do mês', categoria: 'Guia de imposto',
+      mesReferencia: '', prioridade: 'media', prazo: '', observacoes: '',
+    });
+    cmp.salvarSolicitacao();
+    httpMock
+      .expectOne(r => r.url === '/contador/pendencias' && r.method === 'POST')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
+
+    const notificacoes = TestBed.inject(NotificacoesService).notificacoes();
+    expect(notificacoes.length).toBe(notificacoesAntes + 1);
+    expect(notificacoes[0].titulo).toContain('Notas de agosto');
+    expect(notificacoes[0].tipo).toBe('Solicitação');
+    expect(notificacoes[0].lida).toBe(false);
   });
 });

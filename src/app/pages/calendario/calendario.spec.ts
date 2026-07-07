@@ -70,6 +70,42 @@ describe('CalendarioPage', () => {
     ]);
   });
 
+  it('CTD-11: quando o ContadorApi resolve ANTES da falha de /calendario-fiscal, a guia continua visível (a fonte real não pode zerar a do ContadorApi)', () => {
+    const fixture = TestBed.createComponent(CalendarioPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    // Ordem invertida da AC-9/CTD-11 original: ContadorApi resolve primeiro, /calendario-fiscal falha depois.
+    // Isso garante que a resiliência não dependa de qual fonte resolve por último.
+    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([]);
+    httpMock.expectOne(r => r.url === '/contador/guias').flush([
+      {
+        id: 'g3',
+        produtorId: 'p1',
+        tipoGuia: 'GPS',
+        dataVencimento: '2026-08-20',
+        valor: 250,
+        status: 'pendente',
+        createdAt: '2026-07-01T00:00:00',
+      },
+    ]);
+    httpMock
+      .expectOne(r => r.url.includes('/calendario-fiscal'))
+      .flush('erro', { status: 500, statusText: 'Server Error' });
+
+    expect(cmp.vencimentosErro()).toBe(true);
+    expect(cmp.vencimentos()).toEqual([
+      {
+        id: 'guia-g3',
+        titulo: 'Guia GPS',
+        dataVencimento: '2026-08-20',
+        tipo: 'imposto',
+        status: 'pendente',
+        valor: 250,
+      },
+    ]);
+  });
+
   it('CTD-07: uma guia paga aparece no calendário como imposto com status pago e o valor correto', () => {
     const fixture = TestBed.createComponent(CalendarioPage);
     const cmp = fixture.componentInstance;

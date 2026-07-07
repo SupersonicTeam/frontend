@@ -12,6 +12,7 @@ import {
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { ToastService } from '@core/services/toast.service';
+import { NotificacoesService } from '@core/services/notificacoes.service';
 import {
   SolicitacaoContador,
   DocumentoContador,
@@ -57,6 +58,7 @@ export class ContadorPage implements OnInit {
   private readonly contadorService = inject(ContadorApi);
   private readonly dashboardService = inject(DashboardApi);
   private readonly toastService = inject(ToastService);
+  private readonly notificacoesService = inject(NotificacoesService);
   private readonly fb = inject(FormBuilder);
 
   // State
@@ -221,6 +223,7 @@ export class ContadorPage implements OnInit {
             this.solicitacoes.update(list => [s, ...list]);
             this.toastService.success('Solicitação criada!');
             this.toastService.info('Envio por WhatsApp — em breve');
+            this.notificacoesService.adicionar(`Nova solicitação do contador: ${s.titulo}`, 'Solicitação', '/documentos');
           }
           this.fecharDialog();
         },
