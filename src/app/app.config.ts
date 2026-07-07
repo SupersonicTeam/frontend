@@ -4,13 +4,16 @@ import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 
 import { routes } from './app.routes';
+import { authInterceptor } from '@core/interceptors/auth.interceptor';
 import { apiInterceptor } from '@core/interceptors/api.interceptor';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    provideHttpClient(withFetch(), withInterceptors([apiInterceptor])),
+    // authInterceptor antes do apiInterceptor: anexa Authorization (inócuo hoje) na req relativa,
+    // depois o apiInterceptor prefixa a baseURL, adiciona Accept e trata erro.
+    provideHttpClient(withFetch(), withInterceptors([authInterceptor, apiInterceptor])),
     provideAnimationsAsync(),
   ]
 };
