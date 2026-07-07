@@ -126,6 +126,27 @@ describe('ContadorApi', () => {
       expect(lista!.some(g => g.id === criada!.id)).toBe(true);
     });
 
+    it('bugfix (Copilot review): guias de um produtor não vazam para outro produtor no fallback mock', () => {
+      let criadaP1: GuiaFiscal | null | undefined;
+      service
+        .anexarGuia({ produtorId: 'produtor-1', tipoGuia: 'ICMS', dataVencimento: isoData(10), valor: 500 })
+        .subscribe(res => (criadaP1 = res));
+      flushErro(httpMock, '/contador/guias');
+
+      let listaP2: GuiaFiscal[] | undefined;
+      service.getGuias('produtor-2').subscribe(res => (listaP2 = res));
+      flushErro(httpMock, '/contador/guias');
+
+      expect(listaP2!.some(g => g.id === criadaP1!.id)).toBe(false);
+      expect(listaP2!.every(g => g.produtorId === 'produtor-2')).toBe(true);
+
+      let listaP1: GuiaFiscal[] | undefined;
+      service.getGuias('produtor-1').subscribe(res => (listaP1 = res));
+      flushErro(httpMock, '/contador/guias');
+
+      expect(listaP1!.some(g => g.id === criadaP1!.id)).toBe(true);
+    });
+
     it('CTD-08: guia com data de vencimento no passado e não paga aparece com status vencido', () => {
       let criada: GuiaFiscal | null | undefined;
       service

@@ -106,7 +106,8 @@ const FIXTURE_DOCUMENTOS = (pendenciaId: string): DocumentoContador[] => [
   },
 ];
 
-// Seed inicial das guias (o status real é sempre recalculado na leitura, exceto quando 'pago').
+// Seed inicial das guias por produtor. O status é recalculado apenas no fallback mock
+// (getGuias/catchError); em sucesso real do backend, o array retorna como veio, sem recálculo.
 const FIXTURE_GUIAS = (produtorId: string): GuiaFiscal[] => [
   {
     id: 'fx-guia-1',
@@ -141,13 +142,19 @@ const FIXTURE_GUIAS = (produtorId: string): GuiaFiscal[] => [
 export class ContadorApi {
   private readonly api = inject(ApiService);
 
-  // Fallback mock de guias fiscais (signal em memória, escopo de sessão) — usado só quando
-  // o backend real (POST/GET/PATCH /contador/guias, ver issue backend#74) ainda não responde.
-  private readonly guiasSignal = signal<GuiaFiscal[] | null>(null);
+  // Fallback mock de guias fiscais (signal em memória, escopo de sessão, uma lista por
+  // produtorId) — usado só quando o backend real (POST/GET/PATCH /contador/guias, ver issue
+  // backend#74) ainda não responde.
+  private readonly guiasPorProdutor = signal<Record<string, GuiaFiscal[]>>({});
 
   private getOrSeedGuias(produtorId: string): GuiaFiscal[] {
-    if (this.guiasSignal() === null) this.guiasSignal.set(FIXTURE_GUIAS(produtorId));
-    return this.guiasSignal()!;
+    const mapa = this.guiasPorProdutor();
+    if (!mapa[produtorId]) {
+      const seed = { ...mapa, [produtorId]: FIXTURE_GUIAS(produtorId) };
+      this.guiasPorProdutor.set(seed);
+      return seed[produtorId];
+    }
+    return mapa[produtorId];
   }
 
   // Recalcula o status a partir da data de vencimento — 'pago' é o único estado terminal
@@ -390,7 +397,7 @@ export class ContadorApi {
           observacoes: dto.observacoes,
           createdAt: new Date().toISOString(),
         };
-        this.guiasSignal.set([nova, ...guias]);
+        this.guiasPorProdutor.update(mapa => ({ ...mapa, [dto.produtorId]: [nova, ...guias] }));
         return of(nova);
       })
     );
@@ -401,11 +408,13 @@ export class ContadorApi {
   marcarGuiaPaga(id: string): Observable<void> {
     return this.api.patch<void>(`/contador/guias/${id}/pagar`).pipe(
       catchError(() => {
-        const guias = this.guiasSignal();
-        if (guias) {
-          this.guiasSignal.set(
-            guias.map(g => (g.id === id ? { ...g, status: 'pago' as const } : g))
-          );
+        const mapa = this.guiasPorProdutor();
+        const produtorId = Object.keys(mapa).find(pid => mapa[pid].some(g => g.id === id));
+        if (produtorId) {
+          this.guiasPorProdutor.set({
+            ...mapa,
+            [produtorId]: mapa[produtorId].map(g => (g.id === id ? { ...g, status: 'pago' as const } : g)),
+          });
         }
         return of(undefined);
       })

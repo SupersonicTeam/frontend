@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DocumentosPage } from './documentos';
+import { ToastService } from '@core/services/toast.service';
 
 describe('DocumentosPage', () => {
   let httpMock: HttpTestingController;
@@ -94,5 +95,35 @@ describe('DocumentosPage', () => {
 
     expect(cmp.solicitacoes().find(s => s.id === 'sol-1')?.status).toBe('enviado');
     expect(cmp.showAnexar()).toBe(false);
+  });
+
+  it('bugfix (Copilot review): quando anexarDocumento() sucede mas retorna doc falsy, mostra erro e mantém o status/dialog', () => {
+    const fixture = TestBed.createComponent(DocumentosPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    httpMock.expectOne(r => r.url === '/notas').flush({
+      content: [], totalElements: 0, totalPages: 0, number: 0, size: 12,
+      first: true, last: true, numberOfElements: 0, empty: true,
+    });
+    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([
+      {
+        id: 'sol-1', produtorId: 'p1', titulo: 'Balancete', descricao: 'Balancete',
+        dataLimite: '2026-08-01', prioridade: 'media', status: 'pendente',
+        tiposDocumentos: '["Balancete"]', createdAt: '2026-07-01T00:00:00', updatedAt: '2026-07-01T00:00:00',
+      },
+    ]);
+
+    cmp.showAnexar.set(true);
+    cmp.solicitacaoSelecionada.set('sol-1');
+    cmp.arquivoSelecionado.set(new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }));
+    cmp.salvarAnexo();
+
+    httpMock.expectOne(r => r.url === '/contador/documentos/anexar').flush(null as unknown as object);
+
+    expect(cmp.solicitacoes().find(s => s.id === 'sol-1')?.status).toBe('pendente');
+    expect(cmp.showAnexar()).toBe(true);
+    const toasts = TestBed.inject(ToastService).toasts();
+    expect(toasts.some(t => t.type === 'error')).toBe(true);
   });
 });

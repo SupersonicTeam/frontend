@@ -797,6 +797,8 @@ export class DocumentosPage implements OnInit {
           );
           this.toastService.success('Documento anexado com sucesso!');
           this.fecharAnexar();
+        } else {
+          this.toastService.error('Não foi possível anexar o documento.');
         }
       },
       error: () => {
