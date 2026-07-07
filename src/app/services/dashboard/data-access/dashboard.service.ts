@@ -1,70 +1,8 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { Observable, of, catchError, map, tap } from 'rxjs';
 import { ApiService } from '@core/services/api.service';
-import { NotaFiscal } from '@models/nota-fiscal.model';
 import { RascunhoNota } from '@models/rascunho-nota.model';
 import { DashboardResponse } from '@dtos/dashboard/dashboard.response';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
-
-/**
- * Notas de exemplo usadas como fallback de demonstração quando `GET /api/notas`
- * falha (backend offline). Espelham o `NotaFiscalResponse` do backend Spring: uma
- * nota AUTORIZADA e uma COM_INCONSISTENCIAS (exercita o badge de desvio e o painel
- * de validações). Exibidas junto ao banner "dados de exemplo" (issue #11/#15).
- */
-export function mockNotas(): NotaFiscal[] {
-  return [
-    {
-      id: 'mock-nota-1',
-      produtorId: LOGGED_PRODUCER_ID,
-      chaveAcesso: '35260612345678000190550010000010231000000017',
-      numero: 1023,
-      serie: 1,
-      modelo: '55',
-      naturezaOperacao: 'Venda de produção do estabelecimento',
-      status: 'AUTORIZADA',
-      tipoDocumento: 'NFE',
-      dataEmissao: '2026-05-20T10:00:00-03:00',
-      destinatarioNome: 'Cerealista Boa Safra LTDA',
-      destinatarioCpfCnpj: '12345678000190',
-      valorTotalProdutos: 12000,
-      valorTotalNota: 12000,
-      valorTotalIbs: 860,
-      valorTotalCbs: 420,
-      createdAt: '2026-05-20T10:00:00-03:00',
-      itens: [
-        {
-          id: 'mi1', numeroItem: 1, descricao: 'Soja em grão', codigoProduto: 'SOJA01',
-          ncm: '12019000', cfop: '5101', unidade: 'KG', quantidade: 1000,
-          valorUnitario: 12, valorTotal: 12000,
-        },
-      ],
-    },
-    {
-      id: 'mock-nota-2',
-      produtorId: LOGGED_PRODUCER_ID,
-      numero: 1024,
-      serie: 1,
-      modelo: '55',
-      naturezaOperacao: 'Venda de milho',
-      status: 'COM_INCONSISTENCIAS',
-      tipoDocumento: 'NFE',
-      dataEmissao: '2026-05-28T10:00:00-03:00',
-      destinatarioNome: 'José Comprador',
-      destinatarioCpfCnpj: '11144477735',
-      valorTotalProdutos: 8000,
-      valorTotalNota: 8000,
-      createdAt: '2026-05-28T10:00:00-03:00',
-      itens: [
-        {
-          id: 'mi2', numeroItem: 1, descricao: 'Milho em grão', codigoProduto: 'MILHO01',
-          ncm: '10059010', cfop: '6101', unidade: 'KG', quantidade: 800,
-          valorUnitario: 10, valorTotal: 8000,
-        },
-      ],
-    },
-  ];
-}
 
 @Injectable({ providedIn: 'root' })
 export class DashboardApi {

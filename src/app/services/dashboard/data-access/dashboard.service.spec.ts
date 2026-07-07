@@ -1,24 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { DashboardApi, mockNotas } from './dashboard.service';
+import { DashboardApi } from './dashboard.service';
 import { DashboardResponse } from '@dtos/dashboard/dashboard.response';
-
-describe('mockNotas', () => {
-  it('devolve notas alinhadas ao NotaFiscalResponse (status/destinatario/totais)', () => {
-    const notas = mockNotas();
-    expect(notas.length).toBeGreaterThan(0);
-    const n = notas[0];
-    expect(n.status).toBe('AUTORIZADA');
-    expect(n.destinatarioNome).toBeTruthy();
-    expect(typeof n.numero).toBe('number');
-    expect(n.itens[0].ncm).toMatch(/^\d{8}$/);
-  });
-
-  it('inclui uma nota COM_INCONSISTENCIAS para exercitar o badge de desvio', () => {
-    expect(mockNotas().some(n => n.status === 'COM_INCONSISTENCIAS')).toBe(true);
-  });
-});
 
 function buildResponse(overrides: Partial<DashboardResponse> = {}): DashboardResponse {
   return {
