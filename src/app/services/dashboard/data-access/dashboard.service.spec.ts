@@ -81,4 +81,15 @@ describe('DashboardApi', () => {
     expect(erro).toBeTruthy();
     expect(service.dashboard()).toBeNull();
   });
+
+  it('DASH-12: ao revisitar, o signal exibe o cache da 1ª carga e depois atualiza com a 2ª (revalidação em background)', () => {
+    service.carregar().subscribe();
+    httpMock.expectOne('/dashboard').flush(buildResponse({ periodo: '2026-06' }));
+    expect(service.dashboard()?.periodo).toBe('2026-06');
+
+    service.carregar().subscribe();
+    expect(service.dashboard()?.periodo).toBe('2026-06');
+    httpMock.expectOne('/dashboard').flush(buildResponse({ periodo: '2026-07' }));
+    expect(service.dashboard()?.periodo).toBe('2026-07');
+  });
 });
