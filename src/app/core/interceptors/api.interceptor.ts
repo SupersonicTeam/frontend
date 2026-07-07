@@ -21,14 +21,22 @@ const PREFIXOS_SEM_TOAST = [
   '/api/chat',
 ];
 
-/** Extrai uma mensagem amigável do envelope `ApiError` (ou fallback por status). */
-export function mensagemAmigavel(err: HttpErrorResponse): string {
-  if (err.status === 0) return 'Sem conexão com o servidor. Verifique sua rede.';
-  const env = err.error as ApiErrorEnvelope | undefined;
+/**
+ * Deriva uma mensagem amigável de um envelope `ApiError` (ou fallback por status). Independente de
+ * `HttpErrorResponse` — reusável no fluxo de download por blob, onde o erro chega como `Blob` de
+ * JSON e é desserializado por `apiErrorDeBlob` antes de passar por aqui. Ramifica por `errors[]`.
+ */
+export function mensagemDeEnvelope(env: ApiErrorEnvelope | null | undefined, status: number): string {
   if (env?.errors?.length && env.errors[0]?.message) return env.errors[0].message;
   if (env?.message) return env.message;
-  if (err.status >= 500) return 'Erro no servidor. Tente novamente em instantes.';
-  return `Não foi possível completar a operação (${err.status}).`;
+  if (status >= 500) return 'Erro no servidor. Tente novamente em instantes.';
+  return `Não foi possível completar a operação (${status}).`;
+}
+
+/** Extrai uma mensagem amigável do envelope `ApiError` de um `HttpErrorResponse`. */
+export function mensagemAmigavel(err: HttpErrorResponse): string {
+  if (err.status === 0) return 'Sem conexão com o servidor. Verifique sua rede.';
+  return mensagemDeEnvelope(err.error as ApiErrorEnvelope | undefined, err.status);
 }
 
 /**

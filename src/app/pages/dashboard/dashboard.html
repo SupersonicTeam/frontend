@@ -101,6 +101,52 @@
     </div>
   </div>
 
+  <!-- Card: Resumo financeiro (fluxo de caixa em R$ — backend#71) -->
+  @if (temFinanceiro()) {
+    <div class="bg-card rounded-2xl shadow-sm border border-border">
+      <div class="flex items-center gap-2 px-5 pt-5 pb-3">
+        <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+          <svg lucideTrendingUp [size]="20" class="text-primary" />
+          Resumo financeiro (R$)
+        </h2>
+      </div>
+      <!--
+        Semântica invertida vs. notasPorMes: totalEntradas = vendas (PROPRIA, dinheiro entra),
+        totalSaidas = compras (IMPORTADA, dinheiro sai). O backend já aplica — NÃO re-inverter.
+      -->
+      <div class="px-5 pb-5 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+        <div class="p-3 rounded-xl bg-muted/60">
+          <p class="text-[10px] sm:text-xs text-muted-foreground">Entradas</p>
+          <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
+            {{ formatCurrency(financeiro()!.totalEntradas) }}
+          </p>
+        </div>
+        <div class="p-3 rounded-xl bg-muted/60">
+          <p class="text-[10px] sm:text-xs text-muted-foreground">Saídas</p>
+          <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
+            {{ formatCurrency(financeiro()!.totalSaidas) }}
+          </p>
+        </div>
+        <div class="p-3 rounded-xl bg-primary/10">
+          <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo</p>
+          <p class="text-sm sm:text-lg font-heading font-bold text-primary">
+            {{ formatCurrency(financeiro()!.saldo) }}
+          </p>
+        </div>
+        <div class="p-3 rounded-xl bg-muted/60">
+          <p class="text-[10px] sm:text-xs text-muted-foreground">Lucro estimado</p>
+          <p
+            class="text-sm sm:text-lg font-heading font-bold"
+            [class.text-destructive]="financeiro()!.lucroEstimado < 0"
+            [class.text-foreground]="financeiro()!.lucroEstimado >= 0"
+          >
+            {{ formatCurrency(financeiro()!.lucroEstimado) }}
+          </p>
+        </div>
+      </div>
+    </div>
+  }
+
   <!-- Card: Alertas e pendências -->
   <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
     <div class="flex items-center justify-between mb-4">

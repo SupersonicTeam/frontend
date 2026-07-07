@@ -20,12 +20,34 @@ Persistent memory for spec-driven work. Read on resume.
 | AD-010 | Tributário: **response == model, sem DTO intermediário** (records do backend já em PT, mapeamento 1:1). Tipos em `@models/tributario.model.ts` (BigDecimal→number, OffsetDateTime→string\|null). | Evita cerimônia/duplicação; único ponto de verdade. | 2026-07-07 |
 | AD-011 | #28: `ContadorApi` (getPendencias/getRecebidos/getDocumentos/anexarDocumento/criarSolicitacao) e o novo CRUD de guias (getGuias/anexarGuia/marcarGuiaPaga) tentam a rota real primeiro e caem para **fixtures/signal em memória** em erro — reintroduz mock no domínio contador, especificamente autorizado pelo escopo próprio anunciado em AD-008. | Backend real não existe (endpoints `/contador/*`); backend#74 aberto para a persistência real de guias; produto precisa do painel demonstrável enquanto isso. | 2026-07-07 |
 | AD-012 | `calendario.ts` **desacopla** a leitura de `/calendario-fiscal` (real, zero-mock) da leitura do `ContadorApi` (mock): falha isolada em um não esconde o outro. | Necessário para a guia (mock) aparecer no calendário mesmo com o backend de vencimentos fora do ar; sem isso o DoD da #28 não seria demonstrável. | 2026-07-07 |
+| AD-013 | #27: o **calendário fiscal permanece client-side** — não há endpoint dedicado no backend (confirmado na API real: só `/calendario-fiscal` de vencimentos). Ratifica o último item do checklist da Sprint 5. | Contrato #27 não define endpoint de calendário; frontend já resolve client-side. Ratificação, não código. | 2026-07-07 |
+| AD-014 | #27: escopo **inclui a tela `/tributario`** (Apuração/Créditos/Relatório), além das 3 frentes de integração (financeiro, authInterceptor, downloads). A jornada de NF-e **já existe** em `documentos.ts` (#12/#14) e não foi reconstruída. | Decisão do usuário na aprovação. `TributarioApi` (#21) não tinha tela — era a lacuna de UI real. | 2026-07-07 |
+| AD-015 | #27: reabrir apuração entregue **preparado mas desabilitado com aviso** — `POST /apuracao/{id}/reabrir` exige um `id` que nenhum endpoint/DTO expõe (confirmado na fonte). Ramificação 409/422 por `code` implementada e testada com mocks. | Gap real do backend (OQ-1); não inventar id. Ativa quando o backend expuser o `id` (ou aceitar reabrir por `periodo`). Follow-up de backend recomendado. | 2026-07-07 |
 
 ---
 
 ## Handoff Snapshot
 
-**Current feature:** `contador-fluxo-documentos` (issue #28) — ✅ **Done** (T1..T7,T9 implementadas — T8
+**Current feature:** `integracao-contrato-backend` (issue #27) — ✅ **Done.** 15 tasks / 4 fases
+implementadas, testadas e commitadas no worktree `claude/issue-27-specs-planning-6b73f6` (commits
+`a51be24`→`cc08de8`; specs `086c7b7`). **Validação independente PASS** (fresh-eyes standalone — usuário
+optou por execução inline sem sub-agentes): 22/22 ACs com evidência, 4/4 mutantes mortos, gates
+reconfirmados (build 509.67 kB, lint 0 erros, **97 testes**). Relatório:
+`.specs/features/integracao-contrato-backend/validation.md`.
+**Entregue:** (1) bloco `financeiro` (fluxo de caixa R$) no dashboard — DTO + card, semântica invertida
+respeitada (INT-01..05); (2) `authInterceptor` + `TokenService` inócuos, Sprint 8-ready (INT-06..09);
+(3) downloads robustos — util `download.ts` (`Content-Disposition` + `apiErrorDeBlob`), services em
+`observe:'response'`, `documentos.ts` migrado (INT-10..13); (4) tela `/tributario` NOVA — Apuração/Créditos/
+Relatório(JSON+PDF), seletor de período, erros por `code`, reabrir desabilitado com aviso (TRIB-01..09).
+**Follow-up de backend (OQ-1/AD-015):** expor `id` em `ApuracaoResponse` **ou** aceitar `POST
+/apuracao/reabrir?periodo=` — enquanto isso a UI de reabrir fica desabilitada. **Notado:** `navItems`
+(`app-layout.ts:72`) é código morto pré-existente (não tocado). **Descoberta:** a jornada de emissão de
+NF-e já existe em `documentos.ts` (#12/#14) — não reconstruída. **Next step:** issue #27 pronta para
+PR/merge (não pushado; decisão do usuário). Bundle inicial de produção 509.67 kB (< 1 MB de erro).
+
+---
+
+**Feature anterior:** `contador-fluxo-documentos` (issue #28) — ✅ **Done** (T1..T7,T9 implementadas — T8
 foi dobrado em T6 —, testadas e commitadas; 1 rodada de fix→re-verify; Verifier PASS na 2ª iteração).
 **Branch:** `claude/lucid-swartz-a13e3d` (worktree). Commits: `6f4af77`, `63d61f2`, `4d94cdb`, `f8d8167`,
 `c6fcc7e`, `6047f39`, `8dde054`, `bd3612e`, `edef908`.

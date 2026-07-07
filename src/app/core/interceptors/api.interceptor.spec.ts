@@ -1,9 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { apiInterceptor } from './api.interceptor';
+import { apiInterceptor, mensagemDeEnvelope } from './api.interceptor';
 import { skipErrorNotify } from './error-notify.context';
 import { ToastService } from '@core/services/toast.service';
+import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 
 describe('apiInterceptor (toast global de erro)', () => {
   let http: HttpClient;
@@ -53,5 +54,24 @@ describe('apiInterceptor (toast global de erro)', () => {
     http.get('/relatorios/conformidade').subscribe({ next: () => undefined, error: () => undefined });
     httpMock.expectOne('/api/relatorios/conformidade').flush({}, { status: 404, statusText: 'Not Found' });
     expect(toast.toasts().length).toBe(0);
+  });
+});
+
+describe('mensagemDeEnvelope (INT-12 — reusável no fluxo de blob)', () => {
+  it('prioriza errors[0].message quando presente', () => {
+    const env = {
+      errors: [{ code: 'DANFE_INDISPONIVEL', message: 'Gere o XML primeiro.' }],
+      message: 'Conflito',
+    } as ApiErrorEnvelope;
+    expect(mensagemDeEnvelope(env, 409)).toBe('Gere o XML primeiro.');
+  });
+
+  it('cai para env.message quando não há errors[]', () => {
+    const env = { message: 'Período inválido', errors: [] } as unknown as ApiErrorEnvelope;
+    expect(mensagemDeEnvelope(env, 400)).toBe('Período inválido');
+  });
+
+  it('envelope nulo com status 5xx → mensagem genérica de servidor', () => {
+    expect(mensagemDeEnvelope(null, 500)).toBe('Erro no servidor. Tente novamente em instantes.');
   });
 });

@@ -32,6 +32,8 @@ import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response'
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
 import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
+import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
+import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 
 /** Item do formulário (strings, convertidas para número ao montar o request). */
@@ -543,20 +545,20 @@ export class DocumentosPage implements OnInit {
   baixarDanfe(nota: NotaFiscal): void {
     this.baixandoDanfe.set(true);
     this.notasApi.baixarPdf(nota.id).subscribe({
-      next: (blob) => {
+      next: (resp) => {
         this.baixandoDanfe.set(false);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `danfe-${nota.numero ?? nota.id}.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
+        const nome = filenameDeContentDisposition(
+          resp.headers.get('Content-Disposition'),
+          `danfe-${nota.numero ?? nota.id}.pdf`,
+        );
+        salvarBlob(resp.body!, nome);
         this.toastService.success('DANFE baixada.');
       },
-      error: (err: HttpErrorResponse) => {
+      error: async (err: HttpErrorResponse) => {
         this.baixandoDanfe.set(false);
-        const env = err?.error as ApiErrorEnvelope | undefined;
-        this.toastService.error(env?.message ?? 'DANFE indisponível (gere o XML primeiro).');
+        this.toastService.error(
+          await this.mensagemErroDownload(err, 'DANFE indisponível (gere o XML primeiro).'),
+        );
       },
     });
   }
@@ -857,16 +859,42 @@ export class DocumentosPage implements OnInit {
 
   private baixarXmlGerado(nota: NotaFiscal): void {
     this.notasApi.obterXml(nota.id).subscribe({
-      next: (xml) => {
+      next: (resp) => {
         this.baixandoXml.set(false);
-        this.triggerDownload(`nota-${nota.numero ?? nota.id}.xml`, xml, 'application/xml');
+        const nome = filenameDeContentDisposition(
+          resp.headers.get('Content-Disposition'),
+          `nota-${nota.numero ?? nota.id}.xml`,
+        );
+        salvarBlob(new Blob([resp.body ?? ''], { type: 'application/xml' }), nome);
         this.toastService.success('XML assinado baixado com sucesso!');
       },
-      error: () => {
+      error: async (err: HttpErrorResponse) => {
         this.baixandoXml.set(false);
-        this.toastService.error('Erro ao baixar o XML.');
+        this.toastService.error(await this.mensagemErroDownload(err, 'Erro ao baixar o XML.'));
       },
     });
+  }
+
+  /**
+   * Deriva a mensagem de erro de um download por blob/text: o corpo do erro chega como `Blob`
+   * (responseType blob) ou string (responseType text) de `ApiError` JSON — desserializa e ramifica
+   * por `errors[].code` (via `mensagemDeEnvelope`); usa o `fallback` quando não é um envelope.
+   */
+  private async mensagemErroDownload(err: HttpErrorResponse, fallback: string): Promise<string> {
+    const body: unknown = err?.error;
+    let env: ApiErrorEnvelope | null = null;
+    if (body instanceof Blob) {
+      env = await apiErrorDeBlob(body);
+    } else if (typeof body === 'string') {
+      try {
+        env = JSON.parse(body) as ApiErrorEnvelope;
+      } catch {
+        env = null;
+      }
+    } else if (body && typeof body === 'object') {
+      env = body as ApiErrorEnvelope;
+    }
+    return env ? mensagemDeEnvelope(env, err?.status ?? 0) : fallback;
   }
 
   async baixarPdf(nota: NotaFiscal): Promise<void> {
@@ -875,16 +903,6 @@ export class DocumentosPage implements OnInit {
     } catch {
       this.toastService.error('Erro ao gerar o PDF.');
     }
-  }
-
-  private triggerDownload(filename: string, content: string, mime: string): void {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   // === Importar nota (XML, drag-and-drop) ===

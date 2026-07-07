@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiService } from '@core/services/api.service';
 import { Apuracao, CreditoSaldo, RelatorioConformidade } from '@models/tributario.model';
@@ -36,11 +36,15 @@ export class TributarioApi {
     return this.api.get<RelatorioConformidade>('/relatorios/conformidade', { periodo });
   }
 
-  /** GET /api/relatorios/conformidade/pdf?periodo=YYYY-MM — binário (application/pdf). */
-  relatorioConformidadePdf(periodo: string): Observable<Blob> {
+  /**
+   * GET /api/relatorios/conformidade/pdf?periodo=YYYY-MM — binário (application/pdf). Resposta
+   * completa (`observe:'response'`) para o chamador ler o nome do arquivo em `Content-Disposition`.
+   */
+  relatorioConformidadePdf(periodo: string): Observable<HttpResponse<Blob>> {
     return this.http.get('/relatorios/conformidade/pdf', {
       params: { periodo },
       responseType: 'blob',
+      observe: 'response',
     });
   }
 }

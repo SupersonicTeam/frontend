@@ -111,6 +111,14 @@ export class DashboardPage implements OnInit {
 
   readonly nomeUsuario = computed(() => this.dashboard()?.produtor.nome ?? 'Produtor');
 
+  /**
+   * Fluxo de caixa em R$ do período (bloco `financeiro`, backend#71). Pode ser `null` quando o
+   * backend não envia o bloco. **Não re-inverter** entradas/saídas: o backend já entrega
+   * `totalEntradas` = vendas (PROPRIA) e `totalSaidas` = compras (IMPORTADA).
+   */
+  readonly financeiro = computed(() => this.dashboard()?.financeiro ?? null);
+  readonly temFinanceiro = computed(() => this.financeiro() !== null);
+
   readonly notaDetalhada = signal<NotaFiscal | null>(null);
   readonly previewDoc = signal<DocItem | null>(null);
 

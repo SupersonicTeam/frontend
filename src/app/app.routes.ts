@@ -26,6 +26,10 @@ export const routes: Routes = [
         loadComponent: () => import('@pages/documentos/documentos').then((m) => m.DocumentosPage),
       },
       {
+        path: 'tributario',
+        loadComponent: () => import('@pages/tributario/tributario').then((m) => m.TributarioPage),
+      },
+      {
         path: 'chat',
         loadComponent: () => import('@pages/chat/chat').then((m) => m.ChatPage),
       },

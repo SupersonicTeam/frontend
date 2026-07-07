@@ -32,6 +32,21 @@ export interface DashboardDistribuicaoImpostos {
   cbs: number;
 }
 
+/**
+ * Fluxo de caixa em R$ do período (backend#71 — bloco `financeiro`). **Atenção à semântica
+ * invertida** em relação a `notasPorMes`: `totalEntradas` = notas PROPRIA (vendas → dinheiro entra),
+ * `totalSaidas` = notas IMPORTADA (compras → dinheiro sai). O backend já aplica essa inversão — o
+ * frontend só exibe os campos, **sem re-inverter**. Valores em R$ (BigDecimal → number).
+ */
+export interface DashboardFinanceiro {
+  totalEntradas: number;
+  totalSaidas: number;
+  /** Fluxo de caixa bruto: totalEntradas − totalSaidas. */
+  saldo: number;
+  /** saldo − (saldoIbs + saldoCbs); pode ser negativo. */
+  lucroEstimado: number;
+}
+
 export interface DashboardUltimaNota {
   id: string;
   numero: number;
@@ -50,6 +65,11 @@ export interface DashboardResponse {
   produtor: DashboardProdutorResumo;
   periodo: string;
   kpis: DashboardKpis;
+  /**
+   * Fluxo de caixa em R$ do período (backend#71). Opcional por robustez: uma instância antiga/mock
+   * do backend pode omitir. O backend atual (v1.1) sempre envia.
+   */
+  financeiro?: DashboardFinanceiro;
   notasPorMes: DashboardNotasPorMes[];
   distribuicaoImpostos: DashboardDistribuicaoImpostos;
   ultimasNotas: DashboardUltimaNota[];
