@@ -23,6 +23,7 @@ function buildResponse(overrides: Partial<DashboardResponse> = {}): DashboardRes
       { periodo: '2026-07', entradas: 3, saidas: 5 },
     ],
     distribuicaoImpostos: { ibs: 860, cbs: 420 },
+    financeiro: { totalEntradas: 12500, totalSaidas: 3200, saldo: 9300, lucroEstimado: 8100 },
     ultimasNotas: [
       {
         id: 'n1',
@@ -217,5 +218,42 @@ describe('DashboardPage', () => {
     expect(breakdown.find(b => b.nome === 'CBS')?.valor).toBe(420);
     expect(breakdown.find(b => b.nome === 'IBS Estadual')?.valor).toBeCloseTo(860 * 0.72);
     expect(cmp.totalImpostoCalculado()).toBeCloseTo(420 + 860 * 0.72 + 860 * 0.28);
+  });
+
+  it('INT-02/03: financeiro() expõe o bloco sem re-inverter entradas/saídas', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    flushDashboard(); // financeiro: entradas 12500, saidas 3200 (distintos, pegam troca)
+    flushVencimentos();
+    expect(cmp.temFinanceiro()).toBe(true);
+    expect(cmp.financeiro()?.totalEntradas).toBe(12500);
+    expect(cmp.financeiro()?.totalSaidas).toBe(3200);
+    expect(cmp.financeiro()?.saldo).toBe(9300);
+  });
+
+  it('INT-04: lucroEstimado negativo é preservado (não zerado nem suprimido)', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    flushDashboard({
+      financeiro: { totalEntradas: 1000, totalSaidas: 3000, saldo: -2000, lucroEstimado: -2500 },
+    });
+    flushVencimentos();
+    expect(cmp.financeiro()?.lucroEstimado).toBe(-2500);
+    expect(cmp.financeiro()?.saldo).toBe(-2000);
+  });
+
+  it('INT-05: financeiro ausente → financeiro()=null, temFinanceiro()=false, resto do dashboard segue', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    flushDashboard({ financeiro: undefined });
+    flushVencimentos();
+    expect(cmp.financeiro()).toBeNull();
+    expect(cmp.temFinanceiro()).toBe(false);
+    // resto do dashboard não quebra:
+    expect(cmp.nomeUsuario()).toBe('Maria Souza');
+    expect(cmp.dashboard()?.kpis.saldoIbs).toBe(760);
   });
 });
