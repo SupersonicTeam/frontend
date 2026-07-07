@@ -7,7 +7,7 @@ import {
   LucideLoaderCircle, LucideRefreshCw, LucideSend, LucideEye,
   LucideCircleX, LucideRotateCcw, LucideMapPin,
   LucideUsers, LucideAlertTriangle, LucidePencil, LucideCircleCheck,
-  LucideDownload, LucideBan, LucideSparkles, LucideSave,
+  LucideDownload, LucideBan, LucideSparkles, LucideSave, LucideClipboardCheck,
 } from '@lucide/angular';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
@@ -49,7 +49,7 @@ const PRODUTOR_MOCK: ProdutorContador = {
     LucideLoaderCircle, LucideRefreshCw, LucideSend, LucideEye,
     LucideCircleX, LucideRotateCcw, LucideMapPin,
     LucideUsers, LucideAlertTriangle, LucidePencil, LucideCircleCheck,
-    LucideDownload, LucideBan, LucideSparkles, LucideSave,
+    LucideDownload, LucideBan, LucideSparkles, LucideSave, LucideClipboardCheck,
   ],
   templateUrl: './contador.html',
 })
@@ -70,6 +70,11 @@ export class ContadorPage implements OnInit {
   loadingDocs = signal(false);
   guias = signal<GuiaFiscal[]>([]);
   enviandoGuia = signal(false);
+
+  // Checklist de fechamento mensal (mock, estado local por período)
+  periodoChecklist = signal('');
+  checklistState = signal<Record<string, boolean>>({});
+  readonly checklistCategorias = ['Balancete', 'Balanço', 'Extrato bancário', 'Guia de imposto', 'Documento para IR'];
 
   // Dialogs
   showNovaSolicitacao = signal(false);
@@ -256,6 +261,30 @@ export class ContadorPage implements OnInit {
       },
       error: () => { this.enviandoGuia.set(false); this.toastService.error('Erro ao anexar guia.'); },
     });
+  }
+
+  marcarPaga(id: string): void {
+    this.contadorService.marcarGuiaPaga(id).subscribe({
+      next: () => {
+        this.guias.update(list => list.map(g => g.id === id ? { ...g, status: 'pago' as const } : g));
+        this.toastService.success('Guia marcada como paga!');
+      },
+      error: () => this.toastService.error('Erro ao marcar guia como paga.'),
+    });
+  }
+
+  // === Checklist de fechamento mensal ===
+  setPeriodoChecklist(periodo: string): void {
+    this.periodoChecklist.set(periodo);
+  }
+
+  isChecklistItemRecebido(categoria: string): boolean {
+    return !!this.checklistState()[`${this.periodoChecklist()}:${categoria}`];
+  }
+
+  toggleChecklistItem(categoria: string): void {
+    const key = `${this.periodoChecklist()}:${categoria}`;
+    this.checklistState.update(state => ({ ...state, [key]: !state[key] }));
   }
 
   // === Cancelar ===

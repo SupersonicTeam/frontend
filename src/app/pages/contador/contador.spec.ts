@@ -94,6 +94,59 @@ describe('ContadorPage', () => {
     expect(httpMock.match(() => true).length).toBe(0);
   });
 
+  it('CTD-09: marcarPaga() atualiza o status da guia para pago em guias()', () => {
+    const fixture = TestBed.createComponent(ContadorPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([]);
+    httpMock.expectOne(r => r.url === '/contador/guias').flush([
+      {
+        id: 'g1', produtorId: 'p1', tipoGuia: 'ICMS', dataVencimento: '2026-08-10',
+        valor: 500, status: 'pendente', createdAt: '2026-07-01T00:00:00',
+      },
+    ]);
+
+    cmp.marcarPaga('g1');
+    httpMock
+      .expectOne(r => r.url === '/contador/guias/g1/pagar')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
+
+    expect(cmp.guias().find(g => g.id === 'g1')?.status).toBe('pago');
+  });
+
+  it('CTD-20/21: checklist de fechamento — sem período selecionado mostra estado vazio explícito; ao selecionar, marcar recebido persiste no signal', () => {
+    const fixture = TestBed.createComponent(ContadorPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    flushInit();
+
+    expect(cmp.periodoChecklist()).toBe('');
+    cmp.setTab('documentos');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Selecione um período');
+
+    cmp.setPeriodoChecklist('2026-07');
+    expect(cmp.isChecklistItemRecebido('Balancete')).toBe(false);
+
+    cmp.toggleChecklistItem('Balancete');
+    expect(cmp.isChecklistItemRecebido('Balancete')).toBe(true);
+
+    cmp.toggleChecklistItem('Balancete');
+    expect(cmp.isChecklistItemRecebido('Balancete')).toBe(false);
+  });
+
+  it('CTD-19: aba Docs Oficiais exibe as guias de exemplo em vez do placeholder vazio', () => {
+    const fixture = TestBed.createComponent(ContadorPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([]);
+    httpMock
+      .expectOne(r => r.url === '/contador/guias')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
+
+    expect(cmp.guias().length).toBeGreaterThan(0);
+  });
+
   it('CTD-24: ao criar uma nova solicitação, mostra o mesmo toast "WhatsApp — em breve"', () => {
     const fixture = TestBed.createComponent(ContadorPage);
     const cmp = fixture.componentInstance;
