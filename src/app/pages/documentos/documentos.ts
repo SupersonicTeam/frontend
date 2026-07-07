@@ -344,6 +344,7 @@ export class DocumentosPage implements OnInit {
    */
   recarregarNotas(): void {
     this.loading.set(true);
+    this.notasErro.set(false);
     this.notasApi
       .listar({ page: this.pageIndex(), size: this.pageSize(), sort: 'dataEmissao,desc' })
       .subscribe({

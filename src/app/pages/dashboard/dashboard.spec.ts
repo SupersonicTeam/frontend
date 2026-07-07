@@ -58,6 +58,8 @@ describe('DashboardPage', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
+  afterEach(() => httpMock.verify());
+
   function flushDashboard(overrides: Partial<DashboardResponse> = {}) {
     const req = httpMock.expectOne(r => r.url === '/dashboard');
     req.flush(buildResponse(overrides));
@@ -73,7 +75,6 @@ describe('DashboardPage', () => {
     flushDashboard();
     flushVencimentos();
     expect(fixture.componentInstance.nomeUsuario()).toBe('Maria Souza');
-    httpMock.verify();
   });
 
   it('DASH-07: loading fica true durante a requisição e false ao concluir', () => {

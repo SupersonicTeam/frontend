@@ -14,6 +14,8 @@ describe('DocumentosPage', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
+  afterEach(() => httpMock.verify());
+
   function flushPendencias() {
     httpMock.match(r => r.url.includes('/contador')).forEach(r => r.flush([]));
   }
@@ -42,6 +44,25 @@ describe('DocumentosPage', () => {
     });
     flushPendencias();
 
+    expect(cmp.notasErro()).toBe(false);
+  });
+
+  it('DASH-11: ao tentar novamente após um erro, notasErro é limpo assim que a recarga começa', () => {
+    const fixture = TestBed.createComponent(DocumentosPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    httpMock.expectOne(r => r.url === '/notas').flush('erro', { status: 500, statusText: 'Server Error' });
+    flushPendencias();
+    expect(cmp.notasErro()).toBe(true);
+
+    cmp.recarregarNotas();
+    expect(cmp.notasErro()).toBe(false);
+
+    httpMock.expectOne(r => r.url === '/notas').flush({
+      content: [], totalElements: 0, totalPages: 0, number: 0, size: 12,
+      first: true, last: true, numberOfElements: 0, empty: true,
+    });
     expect(cmp.notasErro()).toBe(false);
   });
 });
