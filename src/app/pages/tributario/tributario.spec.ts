@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TributarioPage } from './tributario';
 import { Apuracao, CreditoSaldo } from '@models/tributario.model';
+import { ToastService } from '@core/services/toast.service';
 
 function buildApuracao(o: Partial<Apuracao> = {}): Apuracao {
   return {
@@ -109,5 +110,42 @@ describe('TributarioPage', () => {
     expect(cmp.apuracao()).toBeNull();
     expect(cmp.erroCreditos()).toBe(false);
     expect(cmp.creditos()?.creditoTotal).toBe(125);
+  });
+
+  it('TRIB-04: podeReabrir só quando status FECHADO', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushApuracao({ status: 'ABERTO', dataFechamento: null });
+    flushCreditos();
+    expect(cmp.podeReabrir()).toBe(false);
+
+    cmp.apuracao.set(buildApuracao({ status: 'FECHADO' }));
+    expect(cmp.podeReabrir()).toBe(true);
+  });
+
+  it('TRIB-05: reabrir ramifica 409 APURACAO_NAO_REABRIVEL vs 422 REABERTURA_FORA_PRAZO por code', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    const toast = TestBed.inject(ToastService);
+    f.detectChanges();
+    flushApuracao();
+    flushCreditos();
+
+    // 409 → mensagem "não está fechada"
+    cmp.reabrir('ap-1');
+    httpMock.expectOne(r => r.url === '/apuracao/ap-1/reabrir').flush(
+      { errors: [{ code: 'APURACAO_NAO_REABRIVEL', message: 'x' }] },
+      { status: 409, statusText: 'Conflict' },
+    );
+    expect(toast.toasts().at(-1)?.message).toBe('A apuração não está fechada.');
+
+    // 422 → mensagem "fora do prazo"
+    cmp.reabrir('ap-1');
+    httpMock.expectOne(r => r.url === '/apuracao/ap-1/reabrir').flush(
+      { errors: [{ code: 'REABERTURA_FORA_PRAZO', message: 'x' }] },
+      { status: 422, statusText: 'Unprocessable Entity' },
+    );
+    expect(toast.toasts().at(-1)?.message).toBe('Reabertura fora do prazo de 3 meses (RN005).');
   });
 });

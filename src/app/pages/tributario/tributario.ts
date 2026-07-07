@@ -1,9 +1,13 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { LucideReceipt, LucideLoaderCircle, LucideRefreshCw } from '@lucide/angular';
+import { HttpErrorResponse } from '@angular/common/http';
+import { LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen } from '@lucide/angular';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
 import { Apuracao, CreditoSaldo } from '@models/tributario.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
+import { ToastService } from '@core/services/toast.service';
+import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
+import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 
 /** Rótulo + classe de badge por status de apuração (RN004/RN005). */
 const STATUS_APURACAO: Record<StatusApuracao, { label: string; classe: string }> = {
@@ -36,11 +40,12 @@ const MESES = [
 @Component({
   selector: 'app-tributario',
   standalone: true,
-  imports: [FormsModule, LucideReceipt, LucideLoaderCircle, LucideRefreshCw],
+  imports: [FormsModule, LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen],
   templateUrl: './tributario.html',
 })
 export class TributarioPage implements OnInit {
   private readonly api = inject(TributarioApi);
+  private readonly toast = inject(ToastService);
 
   // ── Período (mês/ano) — default mês corrente (America/Sao_Paulo assumido pelo ambiente) ──
   readonly mes = signal(new Date().getMonth() + 1);
@@ -62,6 +67,9 @@ export class TributarioPage implements OnInit {
     const s = this.apuracao()?.status;
     return s ? STATUS_APURACAO[s] : null;
   });
+  /** A reabertura só faz sentido quando a apuração está FECHADA (RN005). */
+  readonly podeReabrir = computed(() => this.apuracao()?.status === 'FECHADO');
+  readonly reabrindo = signal(false);
 
   // ── Créditos ──
   readonly creditos = signal<CreditoSaldo | null>(null);
@@ -106,6 +114,37 @@ export class TributarioPage implements OnInit {
         this.creditos.set(null);
         this.erroCreditos.set(true);
         this.loadingCreditos.set(false);
+      },
+    });
+  }
+
+  /**
+   * Reabre uma apuração FECHADA (RN005), ramificando o erro por `errors[].code` (não por texto):
+   * 409 `APURACAO_NAO_REABRIVEL` e 422 `REABERTURA_FORA_PRAZO` têm mensagens específicas.
+   *
+   * ⚠️ **Não conectável hoje (A-7/OQ-1):** `ApuracaoResponse` não expõe `id` e o endpoint é
+   * `POST /apuracao/{id}/reabrir` — a UI mantém o botão desabilitado com aviso. Este método fica
+   * pronto (e testado com mocks) para ativar quando o backend expuser o `id`.
+   */
+  reabrir(id: string): void {
+    this.reabrindo.set(true);
+    this.api.reabrirApuracao(id).subscribe({
+      next: (a) => {
+        this.apuracao.set(a);
+        this.reabrindo.set(false);
+        this.toast.success('Apuração reaberta.');
+      },
+      error: (err: HttpErrorResponse) => {
+        this.reabrindo.set(false);
+        const env = err?.error as ApiErrorEnvelope | undefined;
+        const code = env?.errors?.[0]?.code;
+        if (code === 'APURACAO_NAO_REABRIVEL') {
+          this.toast.error('A apuração não está fechada.');
+        } else if (code === 'REABERTURA_FORA_PRAZO') {
+          this.toast.error('Reabertura fora do prazo de 3 meses (RN005).');
+        } else {
+          this.toast.error(mensagemDeEnvelope(env, err?.status ?? 0));
+        }
       },
     });
   }
