@@ -1,7 +1,6 @@
 import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import {
-  LucideSprout,
   LucideMenu,
   LucideX,
   LucideBell,
@@ -37,7 +36,6 @@ export interface NavItem {
     RouterLinkActive,
     ToastContainer,
     MatTooltipModule,
-    LucideSprout,
     LucideMenu,
     LucideX,
     LucideBell,

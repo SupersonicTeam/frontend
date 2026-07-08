@@ -1,7 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
-import { LucideSprout, LucideUser, LucideCalculator, LucideArrowRight } from '@lucide/angular';
+import { LucideUser, LucideCalculator, LucideArrowRight } from '@lucide/angular';
 import { PerfilService, Perfil } from '@core/services/perfil.service';
 
 /**
@@ -11,7 +11,7 @@ import { PerfilService, Perfil } from '@core/services/perfil.service';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, LucideSprout, LucideUser, LucideCalculator, LucideArrowRight],
+  imports: [FormsModule, LucideUser, LucideCalculator, LucideArrowRight],
   templateUrl: './login.html',
 })
 export class LoginPage {
