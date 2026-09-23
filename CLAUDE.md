@@ -137,6 +137,32 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
     Não usar `text-[10px]` / `text-xs` em conteúdo.
   - Breakpoint extra **`3xl:`** (120rem) para monitores grandes e 4K. `sm`–`2xl` vêm do Tailwind.
   - `:focus-visible` e `prefers-reduced-motion` são **globais** — não precisa repetir por componente.
+- **Design system v2 (#45)** — a remodelação (#35) acrescentou:
+  - **Acento do assistente**: `assistente`, `assistente-soft`, `assistente-ink`, `assistente-borda`.
+    Violeta, usado **só** onde o sistema interpreta, sugere ou explica algo. Nunca decoração — é o que
+    dá presença visual à IA, que era a crítica da banca.
+  - **Cores semânticas** com par `soft`/`ink`: `sucesso`, `aviso`, `info`, `perigo`. Usar no lugar de
+    `bg-green-50`, `text-amber-800` e afins — há 257 dessas hardcoded no projeto, 135 sem variante `dark:`.
+  - **Superfícies** `surface` e `surface-2` (neutros com viés verde), **sombras** `shadow-suave|media|alta|assistente`
+    e **raios** `rounded-controle|card|destaque`.
+
+## Primitivos de UI (`shared/ui/`, #45)
+
+Antes de escrever markup novo, veja se um destes resolve:
+
+| Componente | Para quê |
+|---|---|
+| `<ui-modal>` | Diálogo acessível sobre CDK: foco preso, Esc, foco devolvido ao gatilho, rolagem travada. **Use sempre** — havia 14 modais à mão sem nada disso. Conteúdo por projeção, ações no slot `[rodape]`. |
+| `<ui-stat>` | KPI. Rótulo em linguagem de produtor grande, termo fiscal como `apoio`. Nunca o contrário. |
+| `<ui-insight>` | Superfície do assistente. **Só com conteúdo derivado de dado real** (ex.: `/notas/{id}/validacoes`). |
+| `<ui-badge-status>` | Os 7 status da NF-e, sobre tokens semânticos. Rótulo vem de `STATUS_NOTA_META`. |
+| `<ui-empty-state>` | Estado vazio com saída (slot `[acao]`), no lugar de texto solto. |
+| `<ui-skeleton>` | Carregamento com a forma do conteúdo, no lugar de spinner. |
+| `<ui-table>` | Moldura de tabela: rolagem na moldura, cabeçalho fixo, densidade por contexto. |
+| `<ui-card>` / `<ui-button>` | Variantes `padrao/destaque/assistente/plano` e `primary/ghost/perigo/assistente/sutil`. O botão já garante 44×44 e rótulo ≥14px. |
+
+**Medição:** `docs/ux-audit.js` — cole no console e rode `uxAudit()`. Devolve alvos abaixo de 44px, textos
+abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o critério de aceite numérico das fases.
 
 ## Convenções (TypeScript strict)
 
