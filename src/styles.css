@@ -1,6 +1,15 @@
 /* As fontes sao carregadas no index.html com preconnect (#36) - o @import aqui bloqueia a renderizacao. */
 @import "tailwindcss";
 
+/* O `dark:` do Tailwind v4 segue `prefers-color-scheme` por padrao - ou seja, o
+   SISTEMA OPERACIONAL. Mas quem manda no tema aqui e o ThemeService, que alterna
+   a classe `.dark` no <html>. Sem esta linha os dois discordam: o app vai pro
+   escuro (as cores sao variaveis sob `.dark`) enquanto as 122 utilities `dark:`
+   das telas - badges de status, chips do calendario - ficam no valor claro, e o
+   contraste quebra. Verificado no CSS de saida: `dark:hidden` estava compilando
+   para @media(prefers-color-scheme:dark). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-primary: hsl(142 44% 32%);
   --color-primary-foreground: hsl(80 20% 90%);
@@ -17,12 +26,16 @@
   --color-card-foreground: hsl(142 30% 12%);
   --color-background: hsl(40 25% 97%);
   --color-foreground: hsl(142 30% 12%);
-  --color-sidebar: hsl(142 30% 22%);
-  --color-sidebar-foreground: hsl(80 20% 90%);
-  --color-sidebar-accent: hsl(142 25% 28%);
-  --color-sidebar-primary: hsl(80 60% 65%);
-  --color-topbar: hsl(142 30% 22%);
-  --color-topbar-foreground: hsl(80 20% 90%);
+  /* Shell claro (#46). Antes header e sidebar eram a MESMA faixa verde-escura,
+     formando um "L" macico que emoldurava e encolhia o conteudo. Agora o verde
+     fica reservado a marca e ao item ativo; o shell some e a tela e do conteudo.
+     Os nomes dos tokens continuam iguais - quem troca no escuro e o bloco `.dark`. */
+  --color-sidebar: hsl(140 16% 98%);
+  --color-sidebar-foreground: hsl(150 16% 30%);
+  --color-sidebar-accent: hsl(142 22% 92%);
+  --color-sidebar-primary: hsl(142 44% 32%);
+  --color-topbar: hsl(0 0% 100%);
+  --color-topbar-foreground: hsl(150 20% 16%);
   --color-bottomnav: hsl(0 0% 100%);
   --color-bottomnav-foreground: hsl(142 10% 50%);
   --color-bottomnav-active: hsl(142 44% 32%);
@@ -221,6 +234,14 @@ html {
 
   --color-surface: hsl(150 16% 11%);
   --color-surface-2: hsl(150 14% 16%);
+
+  /* Shell no escuro (#46): superficie profunda, com o verde claro marcando o ativo. */
+  --color-sidebar: hsl(150 16% 11%);
+  --color-sidebar-foreground: hsl(80 10% 80%);
+  --color-sidebar-accent: hsl(150 14% 18%);
+  --color-sidebar-primary: hsl(142 46% 64%);
+  --color-topbar: hsl(150 16% 11%);
+  --color-topbar-foreground: hsl(80 12% 90%);
 
   --sombra-fraca: hsl(0 0% 0% / 0.40);
   --sombra-forte: hsl(0 0% 0% / 0.70);

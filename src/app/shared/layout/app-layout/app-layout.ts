@@ -14,6 +14,7 @@ import {
   LucideCalculator,
   LucideReceipt,
   LucideLogOut,
+  LucideSparkles,
 } from '@lucide/angular';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { NotificacoesService } from '@core/services/notificacoes.service';
@@ -31,6 +32,7 @@ export interface NavItem {
   selector: 'app-layout',
   standalone: true,
   imports: [
+    LucideSparkles,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
