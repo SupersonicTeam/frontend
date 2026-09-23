@@ -299,6 +299,34 @@ export class DocumentosPage implements OnInit {
     );
   }
 
+  /** Item ainda no estado inicial (usuário não digitou nada) — não mostrar erro ainda. */
+  private itemIntocado(i: ItemForm): boolean {
+    return (
+      !i.descricao.trim() &&
+      !i.ncm.trim() &&
+      !i.cfop.trim() &&
+      !i.quantidade.trim() &&
+      !i.valorUnitario.trim()
+    );
+  }
+
+  /**
+   * Mensagem do primeiro campo inválido do item, ou null se válido/intocado.
+   * Sem isto o botão "Criar nota" ficava desabilitado sem nenhuma pista visual
+   * quando o NCM/CFOP não batiam o formato exigido — mesmo padrão de feedback
+   * já usado no CPF/CNPJ e no CEP/IBGE do destinatário.
+   */
+  itemErro(i: ItemForm): string | null {
+    if (this.itemIntocado(i)) return null;
+    if (!i.descricao.trim()) return 'Descrição é obrigatória.';
+    if (!/^\d{8}$/.test(i.ncm.trim())) return 'NCM deve ter exatamente 8 dígitos numéricos.';
+    if (!/^\d{4}$/.test(i.cfop.trim())) return 'CFOP deve ter exatamente 4 dígitos numéricos.';
+    if (!i.unidade.trim()) return 'Unidade é obrigatória.';
+    if (!(Number(i.quantidade) > 0)) return 'Quantidade deve ser maior que zero.';
+    if (!(Number(i.valorUnitario) > 0)) return 'Valor unitário deve ser maior que zero.';
+    return null;
+  }
+
   /** CEP: vazio (opcional) ou exatamente 8 dígitos (espelha o Bean Validation). */
   readonly cepValido = computed(() => {
     const c = soDigitos(this.formEndCep());
@@ -314,6 +342,26 @@ export class DocumentosPage implements OnInit {
   readonly cpfCnpjValido = computed(() => {
     const d = soDigitos(this.formDestCpfCnpj());
     return d.length === 0 || cpfCnpjValido(d);
+  });
+
+  /**
+   * O que falta preencher para habilitar "Criar nota", em ordem. Espelha exatamente as
+   * condições de `canSubmitNota` — sem isto o botão ficava cinza sem nenhuma pista de
+   * qual campo do topo do formulário (Número, Natureza, Data, destinatário) estava
+   * faltando, já que `erroDe(...)` só mostra erro depois de uma tentativa de envio ao
+   * servidor, e o botão desabilitado nunca deixa essa tentativa acontecer.
+   */
+  readonly camposPendentes = computed(() => {
+    const faltando: string[] = [];
+    if (!(Number(this.formNumero()) > 0)) faltando.push('Número');
+    if (!this.formNatureza().trim()) faltando.push('Natureza da operação');
+    if (!this.formData()) faltando.push('Data de emissão');
+    if (!this.formDestNome().trim()) faltando.push('Nome do destinatário');
+    if (!cpfCnpjValido(this.formDestCpfCnpj())) faltando.push('CPF/CNPJ do destinatário (válido)');
+    if (!this.cepValido()) faltando.push('CEP do destinatário (8 dígitos)');
+    if (!this.ibgeValido()) faltando.push('Código IBGE do destinatário (7 dígitos)');
+    if (!this.formItens().some((i) => this.itemValido(i))) faltando.push('Ao menos um item válido');
+    return faltando;
   });
 
   readonly canSubmitNota = computed(() => {
@@ -593,6 +641,23 @@ export class DocumentosPage implements OnInit {
   abrirNovaNota(): void {
     this.resetForm();
     this.showFormNota.set(true);
+    this.sugerirProximoNumero();
+  }
+
+  /**
+   * Sugere o próximo número de nota (maior número já emitido pelo produtor + 1),
+   * continuando a sequência em vez de deixar o usuário adivinhar/repetir um número
+   * já usado — campo continua editável, é só um ponto de partida.
+   */
+  private sugerirProximoNumero(): void {
+    this.notasApi.listar({ size: 1, sort: 'numero,desc' }).subscribe({
+      next: (pagina) => {
+        if (this.formNotaId() !== null) return; // form já mudou p/ edição enquanto a chamada corria
+        const maiorNumero = pagina.content[0]?.numero ?? 0;
+        this.formNumero.set(String(maiorNumero + 1));
+      },
+      error: () => undefined, // sem sugestão automática — usuário preenche manualmente
+    });
   }
 
   /** Abre o formulário pré-preenchido para editar uma nota em RASCUNHO/COM_INCONSISTENCIAS. */

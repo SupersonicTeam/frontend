@@ -549,6 +549,7 @@
                   class="px-3 py-2 rounded-xl border border-border bg-muted text-sm focus:outline-none"
                   [value]="item.valorTotal" />
               </div>
+              @if (itemErro(item); as msgErro) { <p class="text-xs text-destructive">{{ msgErro }}</p> }
             </div>
           }
           <button class="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="addItem()">
@@ -559,6 +560,11 @@
       </div>
 
       <div class="px-6 pb-6 border-t border-border pt-4">
+        @if (!canSubmitNota() && !salvando()) {
+          <p class="text-xs text-destructive mb-2">
+            Preencha para habilitar: {{ camposPendentes().join(', ') }}.
+          </p>
+        }
         <div class="flex gap-3">
           <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharForm()">Cancelar</button>
           <button class="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
