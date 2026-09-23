@@ -45,11 +45,70 @@
      produtor. Aplicadas nas telas pela issue #37. */
   --text-apoio: clamp(0.875rem, 0.84rem + 0.18vw, 0.9375rem);
   --text-valor: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+
+  /* --- Camada do assistente / IA (#45) -----------------------------------------
+     Violeta, deliberadamente longe do verde da marca e do laranja de acao. Usar
+     SOMENTE onde o sistema interpreta, sugere ou explica algo - e o que da
+     presenca visual a inteligencia da solucao. Nunca como decoracao. */
+  --color-assistente: hsl(262 52% 52%);
+  --color-assistente-foreground: hsl(0 0% 100%);
+  --color-assistente-soft: hsl(262 60% 96%);
+  --color-assistente-ink: hsl(262 45% 36%);
+  --color-assistente-borda: hsl(262 38% 87%);
+
+  /* --- Cores semanticas (#45) ---------------------------------------------------
+     Substituem as 257 cores hardcoded da paleta Tailwind espalhadas pelas telas,
+     das quais 135 nao tinham variante dark. Cada uma tem o par soft (fundo) e
+     ink (texto sobre o soft), para badge e destaque legiveis nos dois temas. */
+  --color-sucesso: hsl(152 52% 34%);
+  --color-sucesso-soft: hsl(152 44% 94%);
+  --color-sucesso-ink: hsl(152 58% 24%);
+  --color-aviso: hsl(38 74% 44%);
+  --color-aviso-soft: hsl(40 84% 94%);
+  --color-aviso-ink: hsl(30 66% 29%);
+  --color-info: hsl(210 66% 45%);
+  --color-info-soft: hsl(210 70% 95%);
+  --color-info-ink: hsl(210 62% 31%);
+  --color-perigo: hsl(0 66% 48%);
+  --color-perigo-soft: hsl(0 72% 96%);
+  --color-perigo-ink: hsl(0 58% 35%);
+
+  /* --- Superficies (#45) --------------------------------------------------------
+     Neutros com vies verde, em vez de cinza puro: a interface inteira fica no
+     mesmo clima da marca sem depender de cor saturada. */
+  --color-surface: hsl(120 20% 99%);
+  --color-surface-2: hsl(140 16% 96%);
+
+  /* --- Elevacao e raio (#45) ----------------------------------------------------
+     Sombra tingida de verde-escuro em vez de preto puro, que achata o visual. */
+  /* ATENCAO: a cor tem que sair de uma var(), nao de um literal. O Tailwind v4
+     EMBUTE o valor do token na utility (`.shadow-suave{--tw-shadow: 0 1px 2px <cor>}`),
+     entao redefinir `--shadow-*` no `.dark` nao teria efeito nenhum - a utility ja
+     carrega o valor do tema claro. Referenciando `var(--sombra-*)`, quem troca no
+     escuro e a variavel de cor, que a utility resolve em tempo de renderizacao. */
+  --shadow-suave: 0 1px 2px var(--sombra-fraca);
+  --shadow-media: 0 2px 4px var(--sombra-fraca), 0 8px 24px -12px var(--sombra-forte);
+  --shadow-alta: 0 4px 8px var(--sombra-media-cor), 0 24px 48px -20px var(--sombra-densa);
+  --shadow-assistente: 0 2px 4px var(--sombra-fraca), 0 10px 28px -14px var(--sombra-assistente-cor);
+
+  --radius-controle: 0.75rem;
+  --radius-card: 1rem;
+  --radius-destaque: 1.25rem;
 }
 
 *, *::before, *::after {
   font-family: var(--font-family-body);
   box-sizing: border-box;
+}
+
+/* Cores das sombras (#45) - trocadas no `.dark` mais abaixo. Ficam fora do @theme
+   de proposito: sao insumo das sombras, nao tokens de uso direto nas telas. */
+:root {
+  --sombra-fraca: hsl(150 20% 12% / 0.05);
+  --sombra-forte: hsl(150 20% 12% / 0.18);
+  --sombra-media-cor: hsl(150 20% 12% / 0.07);
+  --sombra-densa: hsl(150 20% 12% / 0.35);
+  --sombra-assistente-cor: hsl(262 52% 40% / 0.30);
 }
 
 body {
@@ -138,6 +197,36 @@ html {
   --color-muted-foreground: hsl(80 6% 60%);
   --color-secondary: hsl(150 12% 20%);
   --color-secondary-foreground: hsl(80 12% 90%);
+
+  /* Equivalentes escuros dos tokens da #45. Os `soft` viram fundos profundos e os
+     `ink` clareiam, mantendo o contraste do texto sobre eles nos dois temas. */
+  --color-assistente: hsl(262 68% 72%);
+  --color-assistente-foreground: hsl(262 40% 14%);
+  --color-assistente-soft: hsl(262 32% 18%);
+  --color-assistente-ink: hsl(262 70% 84%);
+  --color-assistente-borda: hsl(262 26% 32%);
+
+  --color-sucesso: hsl(152 48% 56%);
+  --color-sucesso-soft: hsl(152 30% 15%);
+  --color-sucesso-ink: hsl(152 52% 74%);
+  --color-aviso: hsl(38 72% 60%);
+  --color-aviso-soft: hsl(36 32% 16%);
+  --color-aviso-ink: hsl(38 78% 76%);
+  --color-info: hsl(210 66% 64%);
+  --color-info-soft: hsl(210 34% 17%);
+  --color-info-ink: hsl(210 72% 80%);
+  --color-perigo: hsl(0 68% 66%);
+  --color-perigo-soft: hsl(0 30% 17%);
+  --color-perigo-ink: hsl(0 72% 80%);
+
+  --color-surface: hsl(150 16% 11%);
+  --color-surface-2: hsl(150 14% 16%);
+
+  --sombra-fraca: hsl(0 0% 0% / 0.40);
+  --sombra-forte: hsl(0 0% 0% / 0.70);
+  --sombra-media-cor: hsl(0 0% 0% / 0.50);
+  --sombra-densa: hsl(0 0% 0% / 0.90);
+  --sombra-assistente-cor: hsl(262 60% 50% / 0.45);
 }
 
 /* Dark mode (#26): thumb com mais contraste sobre o fundo escuro do que o --color-border.
@@ -202,4 +291,36 @@ html {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* --- Densidade e cabecalho da moldura de tabela (#45) -------------------------
+   Regras globais porque alcancam o <table> projetado dentro do <ui-table>, que o
+   encapsulamento de estilo do componente nao atinge. */
+.ui-table-confortavel :is(th, td) {
+  padding: 0.875rem 1rem;
+}
+.ui-table-compacta :is(th, td) {
+  padding: 0.5rem 0.75rem;
+}
+.ui-table-confortavel th,
+.ui-table-compacta th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--color-muted-foreground);
+  background-color: var(--color-surface-2);
+  white-space: nowrap;
+}
+.ui-table-confortavel :is(th, td),
+.ui-table-compacta :is(th, td) {
+  border-bottom: 1px solid var(--color-border);
+}
+.ui-table-confortavel tbody tr:last-child :is(th, td),
+.ui-table-compacta tbody tr:last-child :is(th, td) {
+  border-bottom: 0;
+}
+/* Cabecalho que acompanha a rolagem em listas longas (uso do contador). */
+.ui-table-fixa thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
