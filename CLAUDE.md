@@ -125,9 +125,18 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
 - **Cores** (HSL): `--color-primary` verde-agro `hsl(142 44% 32%)`; `--color-accent` laranja `hsl(33 55% 52%)`;
   `--color-sidebar`/`--color-topbar` verde-escuro `hsl(142 30% 22%)`; `--color-background` off-white;
   `--color-destructive` vermelho. Usar via classes Tailwind: `text-primary`, `bg-card`, `border-border`...
-- **Fontes**: `Sora` (headings, classe `.font-heading`) + `Inter` (corpo). Importadas via Google Fonts no topo.
+- **Fontes**: `Sora` (headings, classe `.font-heading`) + `Inter` (corpo). Carregadas no `src/index.html` com
+  `preconnect` (#36) — **não** por `@import` no CSS, que bloqueia a renderização.
 - **Utilities**: `.font-heading`, `.scrollbar-none`.
 - **Reusar estes tokens** ao criar gráficos/novos componentes — não hardcodar cores.
+- **Fundação de layout e legibilidade (#36)** — use estes em vez de inventar valor por tela:
+  - `.page-container` — largura total até `--page-max` (90rem/1440px) e centraliza acima disso.
+    **Substitui os `max-w-*` na raiz das páginas**; funciona com variantes (`lg:page-container`).
+  - `.tap-target` — garante 44×44 mínimo (WCAG 2.5.5). Todo alvo tocável deve ter.
+  - `text-apoio` (mín. **14px**) e `text-valor` (mín. **16px**) — escala fluida com `clamp()`.
+    Não usar `text-[10px]` / `text-xs` em conteúdo.
+  - Breakpoint extra **`3xl:`** (120rem) para monitores grandes e 4K. `sm`–`2xl` vêm do Tailwind.
+  - `:focus-visible` e `prefers-reduced-motion` são **globais** — não precisa repetir por componente.
 
 ## Convenções (TypeScript strict)
 
