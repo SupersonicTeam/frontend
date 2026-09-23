@@ -1,12 +1,23 @@
-<div class="space-y-6 max-w-2xl mx-auto">
+<div class="page-container flex flex-col gap-5">
 
-  <!-- Header -->
-  <div>
-    <h1 class="text-2xl md:text-3xl font-heading font-bold text-foreground">
-      Olá, {{ nomeUsuario() }} 👋
-    </h1>
-    <p class="text-muted-foreground text-base mt-1">{{ mesAtual }}</p>
-  </div>
+  <!-- Cabeçalho -->
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+        Olá, {{ nomeUsuario() }}
+      </h1>
+      <p class="mt-1 text-apoio text-muted-foreground">{{ mesAtual }}</p>
+    </div>
+    <button
+      type="button"
+      class="tap-target inline-flex items-center gap-2 rounded-controle border border-border px-4 text-apoio font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+      [disabled]="enviandoNotificacao()"
+      (click)="handleNotificarWhatsApp()"
+    >
+      <svg lucideBell [size]="16" />
+      {{ enviandoNotificacao() ? 'Enviando...' : 'Avisar no WhatsApp' }}
+    </button>
+  </header>
 
   @if (erro()) {
     <div class="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
@@ -21,86 +32,109 @@
     </div>
   }
 
-  <!-- Card: KPIs de IBS/CBS -->
-  <div class="bg-card rounded-2xl shadow-sm border border-border">
-    <div class="flex items-center justify-between px-5 pt-5 pb-3">
-      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
-        <svg lucideDollarSign [size]="20" class="text-primary" />
-        KPIs do período (IBS/CBS)
-        @if (loading()) {
-          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-        }
-      </h2>
-      <button
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-sm hover:bg-green-50 transition-colors disabled:opacity-50"
-        (click)="handleNotificarWhatsApp()"
-        [disabled]="enviandoNotificacao()"
-      >
-        @if (enviandoNotificacao()) {
-          <svg lucideLoaderCircle [size]="16" class="animate-spin" />
-        } @else {
-          <svg lucideMessageCircle [size]="16" />
-        }
-        <span class="hidden sm:inline">Notificar</span>
-      </button>
-    </div>
+  <!-- Assistente: so aparece quando ha algo real a dizer (#47) -->
+  @if (temInsight()) {
+    <ui-insight
+      [natureza]="notasComProblema().length ? 'atencao' : 'sugestao'"
+      [titulo]="
+        notasComProblema().length
+          ? notasComProblema().length + ' nota(s) precisam da sua correção'
+          : 'Você tem um vencimento chegando'
+      "
+    >
+      <svg icone lucideSparkles [size]="18" />
 
-    <div class="px-5 pb-5 space-y-3">
-      @if (loading() && !dashboard()) {
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-          @for (i of [1,2,3,4,5,6]; track i) {
-            <div class="h-16 bg-muted/50 animate-pulse rounded-xl"></div>
+      @if (notasComProblema().length) {
+        <p>
+          A nota <strong>{{ notasComProblema()[0].numero }}</strong>, para
+          {{ notasComProblema()[0].contraparte }}, não pode ser emitida como está.
+          @if (motivoPendencia()) {
+            <br />O que o fisco aponta: <em>{{ motivoPendencia() }}</em>
           }
-        </div>
-      } @else {
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-          <div class="p-3 rounded-xl bg-muted/60">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Débito IBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-              {{ formatCurrency(dashboard()?.kpis?.debitoIbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-muted/60">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito IBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-              {{ formatCurrency(dashboard()?.kpis?.creditoIbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-primary/10">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo IBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-primary">
-              {{ formatCurrency(dashboard()?.kpis?.saldoIbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-muted/60">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Débito CBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-              {{ formatCurrency(dashboard()?.kpis?.debitoCbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-muted/60">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito CBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-              {{ formatCurrency(dashboard()?.kpis?.creditoCbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-primary/10">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo CBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-primary">
-              {{ formatCurrency(dashboard()?.kpis?.saldoCbs ?? 0) }}
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full bg-muted/80 text-xs sm:text-sm w-fit">
-          <svg lucideFileText [size]="12" class="text-muted-foreground shrink-0" />
-          <span class="text-muted-foreground">Total de notas no período:</span>
-          <span class="font-semibold text-foreground">{{ dashboard()?.kpis?.totalNotas ?? 0 }}</span>
-        </div>
+        </p>
+      } @else if (proximoVencimento(); as venc) {
+        <p>
+          {{ venc.descricao }} vence em {{ formatDate(venc.dataVencimento) }}.
+        </p>
       }
-    </div>
+
+      <div acoes>
+        <a
+          routerLink="/documentos"
+          class="tap-target inline-flex items-center gap-2 rounded-controle bg-assistente px-4 text-apoio font-medium text-assistente-foreground transition-colors hover:bg-assistente/90"
+        >
+          Corrigir agora
+        </a>
+      </div>
+    </ui-insight>
+  }
+
+  <!-- O que importa para o produtor: quanto pagar, quanto ja tem de credito -->
+  <section class="grid gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+    @if (loading() && !dashboard()) {
+      @for (i of [1, 2, 3, 4]; track i) {
+        <ui-skeleton formato="bloco" [linhas]="1" altura="7rem" />
+      }
+    } @else {
+      <ui-stat
+        rotulo="Você tem a pagar"
+        [valor]="formatCurrency(saldoAPagar())"
+        apoio="saldo de IBS + CBS no período"
+        [tom]="saldoAPagar() > 0 ? 'negativo' : 'neutro'"
+      />
+      <ui-stat
+        rotulo="Crédito acumulado"
+        [valor]="formatCurrency(creditoAcumulado())"
+        apoio="abate do próximo pagamento"
+        [tom]="creditoAcumulado() > 0 ? 'positivo' : 'neutro'"
+      />
+      @if (financeiro(); as f) {
+        <ui-stat rotulo="Entrou no período" [valor]="formatCurrency(f.totalEntradas)" apoio="vendas" />
+        <ui-stat rotulo="Saiu no período" [valor]="formatCurrency(f.totalSaidas)" apoio="compras" />
+      }
+    }
+  </section>
+
+  <!-- Detalhamento tecnico: existe, mas nao ocupa a atencao de quem nao e contador -->
+  <div>
+    <button
+      type="button"
+      class="tap-target inline-flex items-center gap-2 rounded-controle px-3 text-apoio font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      [attr.aria-expanded]="mostrarDetalheTributos()"
+      (click)="mostrarDetalheTributos.set(!mostrarDetalheTributos())"
+    >
+      <svg lucideFileText [size]="15" />
+      {{ mostrarDetalheTributos() ? 'Ocultar' : 'Ver' }} o detalhe por imposto (IBS e CBS)
+    </button>
+
+    @if (mostrarDetalheTributos()) {
+      <ui-card variant="plano" class="mt-2 block">
+        <dl class="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+          @for (item of detalheTributos(); track item.rotulo) {
+            <div>
+              <dt class="text-apoio text-muted-foreground">{{ item.rotulo }}</dt>
+              <dd class="text-valor font-semibold tabular-nums text-foreground">
+                {{ formatCurrency(item.valor) }}
+              </dd>
+            </div>
+          }
+        </dl>
+        <p class="mt-4 text-apoio text-muted-foreground">
+          <strong>IBS</strong> e <strong>CBS</strong> são os impostos que substituem ICMS, ISS, PIS e
+          Cofins na reforma tributária de 2026. <strong>Débito</strong> é o que você deve pelas
+          vendas, <strong>crédito</strong> é o que abate pelas compras, e o <strong>saldo</strong> é
+          a diferença — o que sobra para pagar.
+        </p>
+      </ui-card>
+    }
+
+    <p class="mt-2 text-apoio text-muted-foreground">
+      {{ dashboard()?.kpis?.totalNotas ?? 0 }} nota(s) no período.
+    </p>
   </div>
 
+  <!-- Daqui para baixo, grade que cresce com a tela (#47) -->
+  <div class="grid items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
   <!-- Card: Resumo financeiro (fluxo de caixa em R$ — backend#71) -->
   @if (temFinanceiro()) {
     <div class="bg-card rounded-2xl shadow-sm border border-border">
@@ -438,6 +472,7 @@
         </ul>
       }
     </div>
+  </div>
   </div>
 </div>
 

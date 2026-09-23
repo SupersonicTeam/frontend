@@ -14,7 +14,9 @@ import {
   LucideChevronUp,
   LucideBell,
   LucideRefreshCw,
+  LucideSparkles,
 } from '@lucide/angular';
+import { RouterLink } from '@angular/router';
 import { BaseChartDirective } from 'ng2-charts';
 import {
   Chart,
@@ -44,6 +46,10 @@ import { DashboardApi } from '@services/dashboard/data-access/dashboard.service'
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
+import { UiCard } from '@shared/ui/ui-card';
+import { UiInsight } from '@shared/ui/ui-insight';
+import { UiSkeleton } from '@shared/ui/ui-skeleton';
+import { UiStat } from '@shared/ui/ui-stat';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
@@ -88,8 +94,14 @@ function mesLabelFromPeriodo(periodo: string): string {
     LucideChevronUp,
     LucideBell,
     LucideRefreshCw,
+    LucideSparkles,
+    RouterLink,
     BaseChartDirective,
     NotaPreview,
+    UiCard,
+    UiInsight,
+    UiSkeleton,
+    UiStat,
   ],
   templateUrl: './dashboard.html',
 })
@@ -313,6 +325,90 @@ export class DashboardPage implements OnInit {
       }))
   );
 
+  /**
+   * O numero que o produtor quer ver primeiro: quanto ele tem a pagar no periodo.
+   * E a soma dos saldos de IBS e CBS - no backend sao duas linhas, na cabeca dele
+   * e uma conta so. O detalhamento tecnico fica no bloco "ver detalhe".
+   */
+  readonly saldoAPagar = computed(() => {
+    const k = this.dashboard()?.kpis;
+    return (k?.saldoIbs ?? 0) + (k?.saldoCbs ?? 0);
+  });
+
+  /** Credito acumulado (IBS + CBS) - o que abate do proximo pagamento. */
+  readonly creditoAcumulado = computed(() => {
+    const k = this.dashboard()?.kpis;
+    return (k?.creditoIbs ?? 0) + (k?.creditoCbs ?? 0);
+  });
+
+  /** Detalhamento tecnico, escondido atras do "ver detalhe" em vez de ocupar a tela. */
+  readonly detalheTributos = computed(() => {
+    const k = this.dashboard()?.kpis;
+    if (!k) return [];
+    return [
+      { rotulo: 'Débito IBS', valor: k.debitoIbs },
+      { rotulo: 'Crédito IBS', valor: k.creditoIbs },
+      { rotulo: 'Saldo IBS', valor: k.saldoIbs },
+      { rotulo: 'Débito CBS', valor: k.debitoCbs },
+      { rotulo: 'Crédito CBS', valor: k.creditoCbs },
+      { rotulo: 'Saldo CBS', valor: k.saldoCbs },
+    ];
+  });
+
+  readonly mostrarDetalheTributos = signal(false);
+
+  // ---------------------------------------------------------------------------
+  // Camada do assistente (#47)
+  //
+  // A banca apontou que o design nao comunica que existe IA na solucao. Estes
+  // computeds alimentam o <ui-insight>, e valem a regra combinada na #45: **so
+  // entra com dado real**. Nada aqui e texto gerado para parecer inteligente -
+  // a lista de notas vem do payload do dashboard e o motivo da pendencia vem do
+  // endpoint /notas/{id}/validacoes, escrito pelo proprio backend.
+  // ---------------------------------------------------------------------------
+
+  /** Notas que exigem acao do produtor, extraidas do payload do dashboard. */
+  readonly notasComProblema = computed(() =>
+    (this.dashboard()?.ultimasNotas ?? []).filter(
+      (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+    ),
+  );
+
+  /** Motivo textual da primeira pendencia, como o backend descreve. */
+  readonly motivoPendencia = signal<string | null>(null);
+
+  /** Vencimento mais proximo ainda em aberto, para o assistente antecipar o prazo. */
+  readonly proximoVencimento = computed(() => this.alertas()[0] ?? null);
+
+  /** Ha algo que o assistente precise dizer? Evita renderizar bloco vazio. */
+  readonly temInsight = computed(
+    () => this.notasComProblema().length > 0 || this.proximoVencimento() !== null,
+  );
+
+  /**
+   * Busca o motivo real da primeira nota pendente. Falha em silencio de proposito:
+   * o insight ja se sustenta sem o detalhe ("2 notas precisam de correcao"), e um
+   * toast de erro aqui seria ruido sobre informacao acessoria.
+   */
+  private carregarMotivoDaPendencia(): void {
+    const nota = this.notasComProblema()[0];
+    if (!nota) {
+      this.motivoPendencia.set(null);
+      return;
+    }
+    this.notasApi.listarValidacoes(nota.id).subscribe({
+      next: (validacoes) => this.motivoPendencia.set(validacoes[0]?.message ?? null),
+      error: () => this.motivoPendencia.set(null),
+    });
+  }
+
+  /** Abre o glossario de um termo fiscal (IBS, CBS, credito). */
+  readonly termoExplicado = signal<string | null>(null);
+
+  explicar(termo: string): void {
+    this.termoExplicado.set(this.termoExplicado() === termo ? null : termo);
+  }
+
   ngOnInit(): void {
     this.carregarDashboard();
 
@@ -335,7 +431,10 @@ export class DashboardPage implements OnInit {
     this.loading.set(true);
     this.erro.set(false);
     this.dashboardService.carregar().subscribe({
-      next: () => this.loading.set(false),
+      next: () => {
+        this.loading.set(false);
+        this.carregarMotivoDaPendencia();
+      },
       error: () => {
         this.loading.set(false);
         this.erro.set(true);
