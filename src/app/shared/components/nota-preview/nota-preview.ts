@@ -73,12 +73,30 @@ export class NotaPreview {
     return (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  formatDate(iso?: string): string {
+  formatDate(iso?: string | null): string {
     if (!iso) return '—';
     return new Date(iso.split('T')[0] + 'T12:00:00').toLocaleDateString('pt-BR', {
       day: '2-digit',
       month: 'short',
       year: 'numeric',
     });
+  }
+
+  /** Máscara de CPF (11) / CNPJ (14) para exibição no documento. */
+  formatCpfCnpj(doc?: string | null): string {
+    const n = (doc ?? '').replace(/\D/g, '');
+    if (n.length === 11) return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    if (n.length === 14) return n.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    return doc || '—';
+  }
+
+  /** Endereço do destinatário em uma linha (vazio se não informado). */
+  enderecoLinha(): string {
+    const e = this.nota().destinatarioEndereco;
+    if (!e) return '';
+    const rua = [e.logradouro, e.numero].filter(Boolean).join(', ');
+    const cidade = [e.municipio, e.uf].filter(Boolean).join(' / ');
+    const cep = e.cep ? `CEP ${e.cep}` : '';
+    return [rua, cidade, cep].filter(Boolean).join(' · ');
   }
 }
