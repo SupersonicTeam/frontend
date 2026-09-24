@@ -39,6 +39,9 @@ Chart.register(
   PieController, ArcElement,
   CategoryScale, LinearScale, Legend, Tooltip,
 );
+import { ThemeService } from '@core/services/theme.service';
+import { coresDeEixo, corDeSuperficie, limparCacheDeCores, paletaDeSeries }
+  from '@core/utils/chart-tokens';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
@@ -142,22 +145,44 @@ export class DashboardPage implements OnInit {
   readonly alertas = signal<VencimentoFiscal[]>([]);
 
   // Grafico: notas por mes (contagens; ultimos meses do periodo retornado pelo backend)
+  private readonly themeService = inject(ThemeService);
+
+  /**
+   * Cores dos graficos, derivadas dos tokens do tema.
+   *
+   * Dependem de `themeService.tema()` de proposito: e o que faz o Chart.js
+   * receber uma configuracao nova ao alternar claro/escuro. O `<canvas>` nao
+   * herda cor do CSS, entao sem isto a linha de grade continuaria clara sobre
+   * fundo escuro depois da troca de tema.
+   */
+  private readonly paleta = computed(() => {
+    this.themeService.tema();
+    limparCacheDeCores();
+    return paletaDeSeries();
+  });
+
+  private readonly eixo = computed(() => {
+    this.themeService.tema();
+    return coresDeEixo();
+  });
+
   readonly barChartData = computed<ChartData<'bar'>>(() => {
     const dados = this.dashboard()?.notasPorMes ?? [];
+    const [entradas, saidas] = this.paleta();
     return {
       labels: dados.map(d => mesLabelFromPeriodo(d.periodo)),
       datasets: [
         {
           label: 'Entradas',
           data: dados.map(d => d.entradas),
-          backgroundColor: 'hsl(33, 55%, 52%)',
+          backgroundColor: entradas,
           borderRadius: 6,
           maxBarThickness: 28,
         },
         {
           label: 'Saídas',
           data: dados.map(d => d.saidas),
-          backgroundColor: 'hsl(142, 44%, 32%)',
+          backgroundColor: saidas,
           borderRadius: 6,
           maxBarThickness: 28,
         },
@@ -175,25 +200,33 @@ export class DashboardPage implements OnInit {
     return dados.length > 0 && dados.every(d => d.entradas === 0);
   });
 
-  readonly barChartOptions: ChartConfiguration<'bar'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 700 },
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } },
+  readonly barChartOptions = computed<ChartConfiguration<'bar'>['options']>(() => {
+    const { grade, texto } = this.eixo();
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 700 },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            usePointStyle: true, boxWidth: 8, font: { family: 'Inter' }, color: texto,
+          },
+        },
       },
-    },
-    scales: {
-      x: { grid: { display: false }, ticks: { font: { family: 'Inter' } } },
-      y: {
-        beginAtZero: true,
-        ticks: { precision: 0, font: { family: 'Inter' } },
-        grid: { color: 'hsl(142, 15%, 88%)' },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { font: { family: 'Inter' }, color: texto },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { precision: 0, font: { family: 'Inter' }, color: texto },
+          grid: { color: grade },
+        },
       },
-    },
-  };
+    };
+  });
 
   // Grafico: distribuicao de impostos (pizza) — so IBS x CBS (LC 214/2025)
   readonly pieChartData = computed<ChartData<'pie'>>(() => {
@@ -203,30 +236,35 @@ export class DashboardPage implements OnInit {
       datasets: [
         {
           data: [d?.cbs ?? 0, d?.ibs ?? 0],
-          backgroundColor: ['hsl(33, 55%, 52%)', 'hsl(142, 44%, 32%)'],
-          borderColor: 'hsl(0, 0%, 100%)',
+          backgroundColor: this.paleta(),
+          borderColor: corDeSuperficie(),
           borderWidth: 2,
         },
       ],
     };
   });
 
-  readonly pieChartOptions: ChartConfiguration<'pie'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 700 },
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } },
-      },
-      tooltip: {
-        callbacks: {
-          label: ctx => ` ${ctx.label}: ${this.formatCurrency(ctx.parsed as number)}`,
+  readonly pieChartOptions = computed<ChartConfiguration<'pie'>['options']>(() => {
+    const { texto } = this.eixo();
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 700 },
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            usePointStyle: true, boxWidth: 8, font: { family: 'Inter' }, color: texto,
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${this.formatCurrency(ctx.parsed as number)}`,
+          },
         },
       },
-    },
-  };
+    };
+  });
 
   // Simulador — breakdown de impostos derivado dos KPIs do periodo (nao soma notas)
   showSimuladorDetalhe = signal(false);

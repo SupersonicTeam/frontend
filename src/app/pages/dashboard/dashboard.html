@@ -240,7 +240,7 @@
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
     } @else if ((dashboard()?.notasPorMes?.length ?? 0) > 0) {
       <div class="h-64">
-        <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions"></canvas>
+        <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions()"></canvas>
       </div>
       <!-- Sem isto o grafico parece quebrado: a serie laranja fica invisivel e
            quem olha nao sabe se e falta de dado ou falta de nota. -->
@@ -271,7 +271,7 @@
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
     } @else if (((dashboard()?.distribuicaoImpostos?.ibs ?? 0) + (dashboard()?.distribuicaoImpostos?.cbs ?? 0)) > 0) {
       <div class="h-64">
-        <canvas baseChart [type]="'pie'" [data]="pieChartData()" [options]="pieChartOptions"></canvas>
+        <canvas baseChart [type]="'pie'" [data]="pieChartData()" [options]="pieChartOptions()"></canvas>
       </div>
     } @else {
       <div class="h-64 flex items-center justify-center text-muted-foreground text-apoio">
