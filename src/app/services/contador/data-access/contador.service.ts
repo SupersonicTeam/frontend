@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { Observable, of, catchError, map } from 'rxjs';
 import { ApiService } from '@core/services/api.service';
 import {
@@ -42,35 +42,6 @@ interface PendenciaBackend {
 
 // Seed inicial das guias por produtor. O status é recalculado apenas no fallback mock
 // (getGuias/catchError); em sucesso real do backend, o array retorna como veio, sem recálculo.
-const FIXTURE_GUIAS = (produtorId: string): GuiaFiscal[] => [
-  {
-    id: 'fx-guia-1',
-    produtorId,
-    tipoGuia: 'ICMS',
-    dataVencimento: '2026-07-20',
-    valor: 850.5,
-    status: 'pendente',
-    createdAt: '2026-07-01T09:00:00',
-  },
-  {
-    id: 'fx-guia-2',
-    produtorId,
-    tipoGuia: 'FUNRURAL',
-    dataVencimento: '2026-06-10',
-    valor: 320,
-    status: 'pago',
-    createdAt: '2026-06-01T09:00:00',
-  },
-  {
-    id: 'fx-guia-3',
-    produtorId,
-    tipoGuia: 'DARF',
-    dataVencimento: '2026-06-25',
-    valor: 512.9,
-    status: 'pendente',
-    createdAt: '2026-06-15T09:00:00',
-  },
-];
 
 @Injectable({ providedIn: 'root' })
 export class ContadorApi {
@@ -79,30 +50,10 @@ export class ContadorApi {
   // Fallback mock de guias fiscais (signal em memória, escopo de sessão, uma lista por
   // produtorId) — usado só quando o backend real (POST/GET/PATCH /contador/guias, ver issue
   // backend#74) ainda não responde.
-  private readonly guiasPorProdutor = signal<Record<string, GuiaFiscal[]>>({});
 
-  private getOrSeedGuias(produtorId: string): GuiaFiscal[] {
-    const mapa = this.guiasPorProdutor();
-    if (!mapa[produtorId]) {
-      const seed = { ...mapa, [produtorId]: FIXTURE_GUIAS(produtorId) };
-      this.guiasPorProdutor.set(seed);
-      return seed[produtorId];
-    }
-    return mapa[produtorId];
-  }
 
   // Recalcula o status a partir da data de vencimento — 'pago' é o único estado terminal
   // definido pelo usuário; 'pendente'/'vencido' são sempre derivados da data atual.
-  private computeStatusGuia(
-    dataVencimento: string,
-    statusAtual?: GuiaFiscal['status']
-  ): GuiaFiscal['status'] {
-    if (statusAtual === 'pago') return 'pago';
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const venc = new Date(dataVencimento + 'T00:00:00');
-    return venc < hoje ? 'vencido' : 'pendente';
-  }
 
   // ── Helpers de codificação (igual ao React) ──
   private parseTipos(raw?: string): string[] {
@@ -303,56 +254,24 @@ export class ContadorApi {
     );
   }
 
-  // GET /contador/guias?produtorId=:id (issue backend#74 — ainda não existe)
-  // Sem backend real: cai para o signal mock (seed lazy), recalculando o status pela data atual.
+  // GET /contador/guias?produtorId=:id — endpoint REAL (responde 200).
+  // Em erro devolve vazio: antes caia para um estado mock local, e a tela exibia
+  // guias que nao existem no banco (#50).
   getGuias(produtorId?: string): Observable<GuiaFiscal[]> {
     const params = produtorId ? { produtorId } : undefined;
-    return this.api.get<GuiaFiscal[]>('/contador/guias', params).pipe(
-      catchError(() => {
-        const guias = this.getOrSeedGuias(produtorId ?? 'produtor-mock');
-        return of(guias.map(g => ({ ...g, status: this.computeStatusGuia(g.dataVencimento, g.status) })));
-      })
-    );
+    return this.api.get<GuiaFiscal[]>('/contador/guias', params).pipe(catchError(() => of([])));
   }
 
-  // POST /contador/guias (issue backend#74 — ainda não existe)
-  // Sem backend real: cria a guia localmente no signal mock.
+  // POST /contador/guias — endpoint REAL. Em erro devolve null para a pagina
+  // avisar a falha, em vez de criar a guia so na memoria e fingir que salvou (#50).
   anexarGuia(dto: CreateGuiaDto): Observable<GuiaFiscal | null> {
-    return this.api.post<GuiaFiscal>('/contador/guias', dto).pipe(
-      catchError(() => {
-        const guias = this.getOrSeedGuias(dto.produtorId);
-        const nova: GuiaFiscal = {
-          id: 'guia-' + String(Math.random()).slice(2),
-          produtorId: dto.produtorId,
-          tipoGuia: dto.tipoGuia,
-          dataVencimento: dto.dataVencimento,
-          valor: dto.valor,
-          status: this.computeStatusGuia(dto.dataVencimento),
-          observacoes: dto.observacoes,
-          createdAt: new Date().toISOString(),
-        };
-        this.guiasPorProdutor.update(mapa => ({ ...mapa, [dto.produtorId]: [nova, ...guias] }));
-        return of(nova);
-      })
-    );
+    return this.api.post<GuiaFiscal>('/contador/guias', dto).pipe(catchError(() => of(null)));
   }
 
-  // PATCH /contador/guias/:id/pagar (issue backend#74 — ainda não existe)
-  // Sem backend real: marca a guia como paga no signal mock (no-op se o id não existir).
+  // PATCH /contador/guias/:id/pagar — endpoint REAL. Sem catchError: a falha tem
+  // que chegar em quem chamou, senao a tela diz "paga" sem nada ter sido pago (#50).
   marcarGuiaPaga(id: string): Observable<void> {
-    return this.api.patch<void>(`/contador/guias/${id}/pagar`).pipe(
-      catchError(() => {
-        const mapa = this.guiasPorProdutor();
-        const produtorId = Object.keys(mapa).find(pid => mapa[pid].some(g => g.id === id));
-        if (produtorId) {
-          this.guiasPorProdutor.set({
-            ...mapa,
-            [produtorId]: mapa[produtorId].map(g => (g.id === id ? { ...g, status: 'pago' as const } : g)),
-          });
-        }
-        return of(undefined);
-      })
-    );
+    return this.api.patch<void>(`/contador/guias/${id}/pagar`);
   }
 
   private defaultPrazo(): string {

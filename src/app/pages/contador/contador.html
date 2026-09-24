@@ -1,703 +1,228 @@
-<div class="space-y-5 max-w-3xl mx-auto">
-
-  <div class="rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm text-accent">
-    Prévia com dados de exemplo — a integração do módulo do contador com o backend chega em breve.
-  </div>
-
-  <!-- Header -->
-  <div class="flex items-center justify-between">
-    <div class="flex items-center gap-3">
-      <svg lucideCalculator [size]="28" class="text-primary" />
-      <div>
-        <h1 class="text-2xl md:text-3xl font-heading font-bold text-foreground">Contador</h1>
-        <p class="text-xs text-muted-foreground">Gestão de solicitações e documentos</p>
-      </div>
-    </div>
-    <button class="flex items-center justify-center w-9 h-9 rounded-xl border border-border hover:bg-muted transition-colors" (click)="carregarDados()" title="Recarregar">
-      <svg lucideRefreshCw [size]="16" />
-    </button>
-  </div>
-
-  <!-- Produtor card -->
-  <div class="bg-card rounded-2xl border border-border p-4 flex items-center gap-3">
-    <div class="w-10 h-10 rounded-full bg-primary/15 text-primary flex items-center justify-center font-heading font-bold text-lg select-none">
-      {{ produtor().nome.charAt(0) }}
-    </div>
+<div class="page-container flex flex-col gap-5">
+  <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <p class="font-semibold text-foreground text-sm">{{ produtor().nome }}</p>
-      <p class="text-xs text-muted-foreground">{{ produtor().propriedade }} — {{ produtor().cidade }}/{{ produtor().uf }}</p>
+      <h1 class="flex items-center gap-2 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+        <svg lucideCalculator [size]="26" class="text-primary" />
+        Acompanhamento
+      </h1>
+      <p class="mt-1 text-apoio text-muted-foreground">{{ produtorNome() }}</p>
     </div>
-  </div>
 
-  <!-- 6-Tab Navigation -->
-  <div class="overflow-x-auto scrollbar-none">
-    <div class="flex gap-1 p-1 bg-muted rounded-xl min-w-max">
-      @for (tab of [
-        {key:'contatos', label:'Contatos'},
-        {key:'solicitacoes', label:'Solic.'},
-        {key:'recebidos', label:'Recebidos'},
-        {key:'rascunhos', label:'Rascunhos'},
-        {key:'concluidos', label:'Concluídos'},
-        {key:'documentos', label:'Docs Oficiais'}
-      ]; track tab.key) {
+    <div class="flex flex-wrap gap-2">
+      <ui-button variant="ghost" [carregando]="baixandoRelatorio()" (click)="baixarRelatorio()">
+        <svg lucideDownload [size]="16" />
+        Relatório de conformidade
+      </ui-button>
+      <ui-button (click)="abrirNovaGuia()">
+        <svg lucidePlus [size]="16" />
+        Nova guia
+      </ui-button>
+    </div>
+  </header>
+
+  <!-- O que o contador precisa saber antes de qualquer lista -->
+  <section class="grid gap-3 sm:grid-cols-3">
+    <ui-stat
+      compacto
+      rotulo="A pagar em guias"
+      [valor]="formatCurrency(totalAPagar())"
+      [apoio]="guiasPendentes().length + ' guia(s) em aberto'"
+      [tom]="totalAPagar() > 0 ? 'negativo' : 'neutro'"
+    />
+    <ui-stat
+      compacto
+      rotulo="Guias vencidas"
+      [valor]="guiasVencidas().length"
+      apoio="passaram do prazo"
+      [tom]="guiasVencidas().length ? 'negativo' : 'positivo'"
+    />
+    <ui-stat
+      compacto
+      rotulo="Notas a corrigir"
+      [valor]="notasComProblema().length"
+      apoio="com inconsistência ou rejeitadas"
+      [tom]="notasComProblema().length ? 'negativo' : 'positivo'"
+    />
+  </section>
+
+  <!-- Notas que exigem acao: dado real de /api/notas, nao lista inventada -->
+  @if (notasComProblema().length) {
+    <section class="flex flex-col gap-2">
+      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+        <svg lucideTriangleAlert [size]="18" class="text-aviso" />
+        Notas que precisam de correção
+      </h2>
+      <ui-table compacto>
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th scope="col">Nota</th>
+              <th scope="col">Destinatário</th>
+              <th scope="col">Emissão</th>
+              <th scope="col">Situação</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (nota of notasComProblema(); track nota.id) {
+              <tr>
+                <td class="font-medium text-foreground">{{ nota.numero }}</td>
+                <td>{{ nota.destinatarioNome }}</td>
+                <td class="tabular-nums">{{ formatDate(nota.dataEmissao) }}</td>
+                <td><ui-badge-status [status]="nota.status" /></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </ui-table>
+      <p class="text-apoio text-muted-foreground">
+        A correção é feita em
+        <a routerLink="/documentos" class="font-medium text-primary underline">Minhas notas</a>.
+      </p>
+    </section>
+  }
+
+  <!-- Guias fiscais: listar, criar e dar baixa. Tudo em endpoint real. -->
+  <section class="flex flex-col gap-2">
+    <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+      <svg lucideFileText [size]="18" class="text-primary" />
+      Guias fiscais
+    </h2>
+
+    @if (carregandoGuias()) {
+      <ui-skeleton [linhas]="3" formato="bloco" altura="3.5rem" />
+    } @else if (guias().length === 0) {
+      <ui-empty-state
+        titulo="Nenhuma guia lançada"
+        descricao="Lance as guias de ICMS, FUNRURAL, DARF ou GPS para acompanhar prazos e pagamentos por aqui."
+      >
+        <svg icone lucideFileText [size]="22" />
         <button
-          class="px-3 py-2 rounded-lg text-xs font-medium transition-colors whitespace-nowrap relative {{ activeTab() === tab.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground' }}"
-          (click)="setTab($any(tab.key))"
+          acao
+          class="tap-target inline-flex items-center gap-1.5 rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          (click)="abrirNovaGuia()"
         >
-          {{ tab.label }}
-          @if (tab.key === 'solicitacoes' && pendentes().length > 0) {
-            <span class="ml-1 inline-flex items-center justify-center h-4 w-4 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">{{ pendentes().length }}</span>
-          }
-          @if (tab.key === 'recebidos' && recebidos().length > 0) {
-            <span class="ml-1 inline-flex items-center justify-center h-4 w-4 rounded-full bg-blue-500 text-white text-[10px] font-bold">{{ recebidos().length }}</span>
-          }
+          <svg lucidePlus [size]="15" /> Lançar primeira guia
         </button>
-      }
-    </div>
-  </div>
-
-  <!-- ===================== TAB: CONTATOS ===================== -->
-  @if (activeTab() === 'contatos') {
-    <div class="space-y-4">
-      <div class="bg-card rounded-2xl border border-border p-5">
-        <h2 class="font-heading font-semibold text-sm text-foreground mb-3 flex items-center gap-2">
-          <svg lucideUsers [size]="16" class="text-primary" /> Dados do Produtor
-        </h2>
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-          <div>
-            <span class="text-xs text-muted-foreground">Fazenda / Propriedade</span>
-            <p class="font-medium text-foreground">{{ produtor().propriedade || produtor().nome }}</p>
-          </div>
-          <div>
-            <span class="text-xs text-muted-foreground flex items-center gap-1"><svg lucideMapPin [size]="11" /> Cidade/UF</span>
-            <p class="font-medium text-foreground">{{ produtor().cidade }}/{{ produtor().uf }}</p>
-          </div>
-          <div>
-            <span class="text-xs text-muted-foreground">ID do Produtor</span>
-            <p class="font-medium text-foreground font-mono text-xs truncate">{{ produtor().id }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="space-y-2">
-        <h2 class="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-          <svg lucideUsers [size]="13" /> Contatos / Colaboradores
-        </h2>
-        @for (c of produtor().contatos; track c.nome) {
-          <div class="bg-card rounded-2xl border border-border p-4 flex flex-col sm:flex-row sm:items-center gap-3">
-            <div class="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shrink-0">
-              <svg lucideUser [size]="20" class="text-secondary-foreground" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="font-medium text-foreground text-sm">{{ c.nome }}</p>
-              <p class="text-xs text-muted-foreground">{{ c.funcao }}</p>
-            </div>
-            <div class="flex flex-wrap items-center gap-3 text-xs">
-              <a [href]="'tel:' + c.telefone" class="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                <svg lucidePhone [size]="13" /> {{ c.telefone }}
-              </a>
-              <a [href]="'https://wa.me/' + c.whatsapp" target="_blank" class="flex items-center gap-1.5 text-emerald-600 hover:opacity-80">
-                <svg lucideMessageCircle [size]="13" /> WhatsApp
-              </a>
-              <a [href]="'mailto:' + c.email" class="flex items-center gap-1.5 text-muted-foreground hover:text-foreground">
-                <svg lucideMail [size]="13" /> {{ c.email }}
-              </a>
-            </div>
-          </div>
-        }
-      </div>
-    </div>
-  }
-
-  <!-- ===================== TAB: SOLICITAÇÕES ===================== -->
-  @if (activeTab() === 'solicitacoes') {
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <p class="text-sm text-muted-foreground">{{ pendentes().length }} solicitação(ões)</p>
-        <button class="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90" (click)="abrirNova()">
-          <svg lucidePlus [size]="16" /> Nova solicitação
-        </button>
-      </div>
-
-      @if (loading()) {
-        <div class="space-y-3">
-          @for (i of [1,2,3]; track i) { <div class="h-20 bg-muted/60 animate-pulse rounded-2xl"></div> }
-        </div>
-      } @else if (pendentes().length === 0) {
-        <div class="flex flex-col items-center justify-center py-14 text-center bg-card rounded-2xl border border-border">
-          <svg lucideCircleCheck [size]="36" class="text-emerald-500 mb-2" />
-          <p class="font-medium text-foreground">Tudo em dia!</p>
-          <p class="text-sm text-muted-foreground">Nenhuma solicitação pendente.</p>
-        </div>
-      } @else {
-        <div class="space-y-2">
-          @for (s of pendentes(); track s.id) {
-            <div class="bg-card rounded-2xl border border-border p-4 space-y-3">
-              <div class="flex items-start justify-between gap-3">
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-semibold text-foreground">{{ s.titulo }}</p>
-                  <p class="text-xs text-muted-foreground mt-0.5 truncate">{{ s.descricao }}</p>
-                  <div class="flex flex-wrap items-center gap-2 mt-1.5">
-                    <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ statusColor(s.status) }}">{{ statusLabel(s.status) }}</span>
-                    @if (s.prioridade) {
-                      <span class="text-xs {{ prioridadeColor(s.prioridade) }}">{{ s.prioridade | titlecase }}</span>
-                    }
-                    @if (s.categoria) { <span class="text-xs text-muted-foreground">{{ s.categoria }}</span> }
-                    @if (s.mesReferencia) { <span class="text-xs text-muted-foreground">• {{ s.mesReferencia }}</span> }
-                  </div>
-                  @if (s.status === 'enviado') {
-                    <p class="text-xs text-blue-600 flex items-center gap-1 mt-1"><svg lucideSend [size]="11" /> Documento enviado pelo produtor</p>
+      </ui-empty-state>
+    } @else {
+      <ui-table compacto>
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th scope="col">Tipo</th>
+              <th scope="col">Vencimento</th>
+              <th scope="col">Valor</th>
+              <th scope="col">Situação</th>
+              <th scope="col"><span class="sr-only">Ações</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (guia of guias(); track guia.id) {
+              <tr>
+                <td class="font-medium text-foreground">{{ guia.tipoGuia }}</td>
+                <td class="tabular-nums">{{ formatDate(guia.dataVencimento) }}</td>
+                <td class="tabular-nums">{{ formatCurrency(guia.valor) }}</td>
+                <td>
+                  <span [class]="classeStatusGuia(guia.status)">{{ rotuloStatusGuia(guia.status) }}</span>
+                </td>
+                <td class="text-right">
+                  @if (guia.status !== 'pago') {
+                    <button
+                      class="tap-target inline-flex items-center gap-1.5 rounded-controle border border-border px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
+                      (click)="marcarPaga(guia)"
+                    >
+                      <svg lucideCheck [size]="15" /> Dar baixa
+                    </button>
                   }
-                  @if (s.motivoRejeicao) {
-                    <p class="text-xs text-destructive flex items-center gap-1 mt-1"><svg lucideAlertTriangle [size]="11" /> Rejeitado: {{ s.motivoRejeicao }}</p>
-                  }
-                </div>
-                <div class="text-right text-xs text-muted-foreground shrink-0">
-                  @if (s.prazo) { <p>Prazo: {{ formatDate(s.prazo) }}</p> }
-                </div>
-              </div>
-
-              @if (s.status === 'pendente') {
-                <div class="flex gap-2">
-                  <button class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted transition-colors" (click)="abrirEditar(s)">
-                    <svg lucidePencil [size]="14" /> Editar
-                  </button>
-                  <button class="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm text-destructive hover:bg-red-50 transition-colors" (click)="abrirCancelar(s.id)">
-                    <svg lucideBan [size]="14" /> Cancelar
-                  </button>
-                </div>
-              }
-              @if (s.status === 'cancelado') {
-                <button class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="reabrir(s.id)">
-                  <svg lucideRotateCcw [size]="14" /> Reabrir
-                </button>
-              }
-            </div>
-          }
-        </div>
-      }
-    </div>
-  }
-
-  <!-- ===================== TAB: RECEBIDOS ===================== -->
-  @if (activeTab() === 'recebidos') {
-    <div class="space-y-3">
-      @if (recebidos().length === 0) {
-        <div class="flex flex-col items-center justify-center py-14 text-center bg-card rounded-2xl border border-border">
-          <svg lucideFileText [size]="36" class="text-muted-foreground mb-2" />
-          <p class="font-medium text-foreground">Nenhum documento recebido</p>
-          <p class="text-sm text-muted-foreground">Documentos enviados pelo produtor aparecerão aqui.</p>
-        </div>
-      } @else {
-        @for (s of recebidos(); track s.id) {
-          <div class="bg-card rounded-2xl border border-border p-4 space-y-3">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-semibold text-foreground">{{ s.titulo }}</p>
-                <p class="text-xs text-muted-foreground mt-0.5">{{ s.descricao }}</p>
-                <div class="flex items-center gap-2 mt-1.5">
-                  <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ statusColor(s.status) }}">{{ statusLabel(s.status) }}</span>
-                  @if (s.prioridade) { <span class="text-xs {{ prioridadeColor(s.prioridade) }}">{{ s.prioridade | titlecase }}</span> }
-                </div>
-              </div>
-              <span class="text-xs text-muted-foreground shrink-0">{{ formatDate(s.createdAt) }}</span>
-            </div>
-            <div class="grid grid-cols-3 gap-2">
-              <button class="flex items-center justify-center gap-1 px-2 py-2 rounded-xl border border-border text-xs hover:bg-muted transition-colors" (click)="verDocumentos(s.id)">
-                <svg lucideEye [size]="14" /> Ver anexo
-              </button>
-              <button class="flex items-center justify-center gap-1 px-2 py-2 rounded-xl border border-border text-xs hover:bg-muted transition-colors" (click)="concluir(s.id)">
-                <svg lucideCircleCheck [size]="14" class="text-emerald-600" /> Aprovar
-              </button>
-              <button class="flex items-center justify-center gap-1 px-2 py-2 rounded-xl border border-border text-xs text-destructive hover:bg-red-50 transition-colors" (click)="abrirRejeitar(s.id)">
-                <svg lucideCircleX [size]="14" /> Rejeitar
-              </button>
-            </div>
-          </div>
-        }
-      }
-    </div>
-  }
-
-  <!-- ===================== TAB: RASCUNHOS NF-e ===================== -->
-  @if (activeTab() === 'rascunhos') {
-    <div class="space-y-3">
-      @if (rascunhos().length === 0) {
-        <div class="flex flex-col items-center justify-center py-14 text-center bg-card rounded-2xl border border-border">
-          <svg lucideFileText [size]="36" class="text-muted-foreground mb-2" />
-          <p class="font-medium text-foreground">Nenhum rascunho para revisar</p>
-          <p class="text-sm text-muted-foreground">Rascunhos enviados pelo produtor aparecerão aqui.</p>
-        </div>
-      } @else {
-        @for (r of rascunhos(); track r.id) {
-          <div class="bg-card rounded-2xl border border-border p-4 flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-              <svg lucideFileText [size]="20" class="text-primary" />
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-sm font-medium text-foreground truncate">{{ r.titulo || r.naturezaOperacao || 'Rascunho NF-e' }}</p>
-              <div class="flex items-center gap-2 mt-1">
-                <span class="text-xs text-muted-foreground">{{ r.tipo === 'entrada' ? 'Entrada' : 'Saída' }}</span>
-                <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ statusColor(r.status) }}">{{ statusLabel(r.status) }}</span>
-              </div>
-            </div>
-            <div class="text-right shrink-0">
-              <p class="text-sm font-semibold text-primary">{{ formatCurrency(r.valorTotal) }}</p>
-              <button class="mt-1 flex items-center gap-1 text-xs text-primary hover:underline" (click)="abrirRascunho(r.id)">
-                <svg lucideEye [size]="13" /> Revisar
-              </button>
-            </div>
-          </div>
-        }
-      }
-    </div>
-  }
-
-  <!-- ===================== TAB: CONCLUÍDOS ===================== -->
-  @if (activeTab() === 'concluidos') {
-    <div class="space-y-3">
-      @if (concluidos().length === 0) {
-        <div class="flex flex-col items-center justify-center py-14 text-center bg-card rounded-2xl border border-border">
-          <svg lucideFileText [size]="36" class="text-muted-foreground mb-2" />
-          <p class="font-medium text-foreground">Nenhum histórico</p>
-          <p class="text-sm text-muted-foreground">Solicitações concluídas aparecerão aqui.</p>
-        </div>
-      } @else {
-        @for (s of concluidos(); track s.id) {
-          <div class="bg-card rounded-2xl border border-border p-4 space-y-3">
-            <div class="flex items-start justify-between gap-3">
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-foreground">{{ s.titulo }}</p>
-                <p class="text-xs text-muted-foreground mt-0.5 truncate">{{ s.descricao }}</p>
-                <div class="flex items-center gap-2 mt-2">
-                  <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ statusColor(s.status) }}">{{ statusLabel(s.status) }}</span>
-                  @if (s.motivoRejeicao) { <span class="text-xs text-destructive italic truncate">"{{ s.motivoRejeicao }}"</span> }
-                  @if (s.motivoCancelamento) { <span class="text-xs text-muted-foreground italic truncate">"{{ s.motivoCancelamento }}"</span> }
-                </div>
-              </div>
-              <p class="text-xs text-muted-foreground shrink-0">{{ formatDate(s.updatedAt) }}</p>
-            </div>
-            @if (s.status === 'concluido') {
-              <button class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="resumoId.set(s.id)">
-                <svg lucideFileText [size]="14" /> Visualizar resumo
-              </button>
+                </td>
+              </tr>
             }
-            @if (s.status === 'cancelado' || s.status === 'rejeitado') {
-              <button class="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-border text-sm hover:bg-muted" (click)="reabrir(s.id)">
-                <svg lucideRotateCcw [size]="14" /> Reabrir
-              </button>
-            }
-          </div>
-        }
-      }
-    </div>
-  }
+          </tbody>
+        </table>
+      </ui-table>
+    }
+  </section>
 
-  <!-- ===================== TAB: DOCUMENTOS OFICIAIS ===================== -->
-  @if (activeTab() === 'documentos') {
-    <div class="space-y-4">
-      <div class="flex items-center justify-between">
-        <p class="text-sm text-muted-foreground">Guias e obrigações fiscais</p>
-        <button class="flex items-center gap-2 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90" (click)="abrirAnexarGuia()">
-          <svg lucidePlus [size]="16" /> Anexar guia
-        </button>
-      </div>
-      @if (guias().length === 0) {
-        <div class="flex flex-col items-center justify-center py-14 text-center bg-card rounded-2xl border border-border">
-          <svg lucideFileText [size]="36" class="text-muted-foreground mb-2" />
-          <p class="font-medium text-foreground">Nenhum documento oficial</p>
-          <p class="text-sm text-muted-foreground">DARF, FUNRURAL, GPS e outros documentos aparecerão aqui.</p>
-        </div>
-      } @else {
-        <div class="space-y-2">
-          @for (g of guias(); track g.id) {
-            <div class="bg-card rounded-2xl border border-border p-4 flex items-center justify-between gap-3">
-              <div class="flex-1 min-w-0">
-                <p class="text-sm font-semibold text-foreground">Guia {{ g.tipoGuia }}</p>
-                <p class="text-xs text-muted-foreground mt-0.5">Vencimento: {{ formatDate(g.dataVencimento) }}</p>
-              </div>
-              <div class="text-right shrink-0 space-y-1">
-                <p class="text-sm font-semibold text-primary">{{ formatCurrency(g.valor) }}</p>
-                <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ statusColor(g.status) }}">{{ statusLabel(g.status) }}</span>
-                @if (g.status !== 'pago') {
-                  <button class="block text-xs text-primary hover:underline" (click)="marcarPaga(g.id)">Marcar como paga</button>
-                }
-              </div>
-            </div>
-          }
-        </div>
-      }
-
-      <!-- Checklist de fechamento mensal / IR -->
-      <div class="bg-card rounded-2xl border border-border p-4 space-y-3">
-        <h3 class="text-sm font-semibold text-foreground flex items-center gap-2">
-          <svg lucideClipboardCheck [size]="16" class="text-primary" /> Checklist de fechamento mensal
-        </h3>
-        <div>
-          <label for="checklist-periodo" class="block text-xs font-medium text-muted-foreground mb-1">Período</label>
-          <input id="checklist-periodo" type="month" [value]="periodoChecklist()"
-            (change)="setPeriodoChecklist($any($event.target).value)"
-            class="px-3 py-2 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-        </div>
-        @if (!periodoChecklist()) {
-          <p class="text-sm text-muted-foreground text-center py-4">Selecione um período para ver o checklist.</p>
-        } @else {
-          <div class="space-y-2">
-            @for (cat of checklistCategorias; track cat) {
-              <label class="flex items-center gap-2 text-sm text-foreground">
-                <input type="checkbox" [checked]="isChecklistItemRecebido(cat)" (change)="toggleChecklistItem(cat)" class="rounded border-border" />
-                {{ cat }}
-              </label>
-            }
-          </div>
-        }
-      </div>
-    </div>
-  }
-
+  <!-- O que saiu da tela, dito com todas as letras (#50) -->
+  <p class="rounded-card border border-border bg-surface p-4 text-apoio text-muted-foreground">
+    Solicitações de documentos ao produtor, anexos e o checklist de fechamento
+    <strong class="text-foreground">ainda não existem no backend</strong> e por isso saíram desta tela. Antes
+    eles apareciam preenchidos com dados de exemplo, o que dava a impressão de haver pendências reais.
+  </p>
 </div>
 
-<!-- ===================== DIALOG: Nova / Editar Solicitação ===================== -->
-@if (showNovaSolicitacao()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharDialog()">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-        <h3 class="font-heading font-semibold text-lg text-foreground">
-          {{ editandoSolicitacao() ? 'Editar solicitação' : 'Nova solicitação' }}
-        </h3>
-        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors" (click)="fecharDialog()">
-          <svg lucideX [size]="18" />
-        </button>
-      </div>
-
-      <form [formGroup]="novaSolicitacaoForm" (ngSubmit)="salvarSolicitacao()" class="px-6 py-5 space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Título *</label>
-          <input formControlName="titulo" type="text" placeholder="Ex: Notas de venda – Março"
-            class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary" />
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Descrição *</label>
-          <textarea formControlName="descricao" rows="2" placeholder="Descreva o que precisa..."
-            class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"></textarea>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">Categoria *</label>
-            <select formControlName="categoria" class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-              <option value="">Selecione</option>
-              @for (c of categorias; track c) { <option [value]="c">{{ c }}</option> }
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">Mês de referência</label>
-            <select formControlName="mesReferencia" class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-              <option value="">Selecione</option>
-              @for (m of meses; track m) { <option [value]="m">{{ m }}</option> }
-            </select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">Prioridade *</label>
-            <select formControlName="prioridade" class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-              @for (p of prioridades; track p.value) { <option [value]="p.value">{{ p.label }}</option> }
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">Data limite</label>
-            <input formControlName="prazo" type="date" class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Observação (opcional)</label>
-          <textarea formControlName="observacoes" rows="2" placeholder="Informações adicionais..."
-            class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"></textarea>
-        </div>
-
-        <div class="flex gap-3 pt-1">
-          <button type="button" class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharDialog()">Cancelar</button>
-          <button type="submit" class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50" [disabled]="novaSolicitacaoForm.invalid || enviando()">
-            @if (enviando()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
-            {{ editandoSolicitacao() ? 'Salvar alterações' : 'Criar solicitação' }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-}
-
-<!-- ===================== DIALOG: Anexar Guia ===================== -->
-@if (showAnexarGuia()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharAnexarGuia()">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-        <h3 class="font-heading font-semibold text-lg text-foreground">Anexar guia</h3>
-        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors" (click)="fecharAnexarGuia()">
-          <svg lucideX [size]="18" />
-        </button>
-      </div>
-
-      <form [formGroup]="novaGuiaForm" (ngSubmit)="salvarGuia()" class="px-6 py-5 space-y-4">
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Tipo de guia *</label>
-          <select formControlName="tipoGuia" class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30">
-            @for (t of tiposGuia; track t.value) { <option [value]="t.value">{{ t.label }}</option> }
-          </select>
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">Vencimento *</label>
-            <input formControlName="dataVencimento" type="date" class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-          <div>
-            <label class="block text-sm font-medium text-foreground mb-1.5">Valor (R$) *</label>
-            <input formControlName="valor" type="number" min="0.01" step="0.01" placeholder="0,00"
-              class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-sm font-medium text-foreground mb-1.5">Observação (opcional)</label>
-          <textarea formControlName="observacoes" rows="2" placeholder="Informações adicionais..."
-            class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"></textarea>
-        </div>
-
-        <div class="flex gap-3 pt-1">
-          <button type="button" class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharAnexarGuia()">Cancelar</button>
-          <button type="submit" class="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50" [disabled]="novaGuiaForm.invalid || enviandoGuia()">
-            @if (enviandoGuia()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
-            Anexar guia
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-}
-
-<!-- ===================== DIALOG: Cancelar ===================== -->
-@if (cancelandoId()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharCancelar()">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6" (click)="$event.stopPropagation()">
-      <h3 class="font-heading font-semibold text-lg text-foreground mb-1">Cancelar solicitação</h3>
-      <p class="text-sm text-muted-foreground mb-4">A solicitação voltará para pendente e poderá ser reaberta.</p>
-      <label class="block text-sm font-medium text-foreground mb-1.5">Motivo *</label>
-      <textarea rows="3" placeholder="Informe o motivo do cancelamento..."
-        class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none mb-4"
-        [value]="cancelMotivo()"
-        (input)="cancelMotivo.set($any($event.target).value)"></textarea>
-      <div class="flex gap-3">
-        <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharCancelar()">Voltar</button>
-        <button class="flex-1 px-4 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          [disabled]="!cancelMotivo().trim()"
-          (click)="confirmarCancelar()">Confirmar</button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- ===================== DIALOG: Rejeitar ===================== -->
-@if (rejeitandoId()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharRejeitar()">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6" (click)="$event.stopPropagation()">
-      <h3 class="font-heading font-semibold text-lg text-foreground mb-1">Rejeitar documento</h3>
-      <p class="text-sm text-muted-foreground mb-4">O documento será rejeitado e a solicitação voltará ao status pendente para reenvio.</p>
-      <label class="block text-sm font-medium text-foreground mb-1.5">Motivo da rejeição *</label>
-      <textarea rows="3" placeholder="Informe o motivo da rejeição..."
-        class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none mb-4"
-        [value]="rejeitarMotivo()"
-        (input)="rejeitarMotivo.set($any($event.target).value)"></textarea>
-      <div class="flex gap-3">
-        <button class="flex-1 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharRejeitar()">Voltar</button>
-        <button class="flex-1 px-4 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
-          [disabled]="!rejeitarMotivo().trim()"
-          (click)="confirmarRejeitar()">Rejeitar</button>
-      </div>
-    </div>
-  </div>
-}
-
-<!-- ===================== DIALOG: Ver documentos recebidos ===================== -->
-@if (viewDocId()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharViewDoc()">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-        <h3 class="font-heading font-semibold text-lg text-foreground">Documento enviado</h3>
-        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted" (click)="fecharViewDoc()">
-          <svg lucideX [size]="18" />
-        </button>
-      </div>
-      <div class="px-6 py-5 space-y-4">
-        <div class="text-sm">
-          <span class="text-muted-foreground">Solicitação: </span>
-          <span class="font-medium text-foreground">{{ getSolicitacaoNome(viewDocId()!) }}</span>
-        </div>
-
-        @if (loadingDocs()) {
-          <div class="flex items-center justify-center py-10">
-            <svg lucideLoaderCircle [size]="32" class="animate-spin text-primary" />
-          </div>
-        } @else if (documentosAnexados().length === 0) {
-          <div class="flex flex-col items-center justify-center py-10 text-center">
-            <svg lucideFileText [size]="36" class="text-muted-foreground mb-2" />
-            <p class="text-sm text-muted-foreground">Nenhum documento anexado ainda.</p>
-          </div>
-        } @else {
-          <div class="space-y-4">
-            <h4 class="text-sm font-semibold text-foreground">Documentos Anexados:</h4>
-            @for (doc of documentosAnexados(); track doc.id) {
-              <div class="space-y-2">
-                <p class="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <svg lucideFileText [size]="14" /> {{ doc.nomeArquivo }}
-                </p>
-                @if (isExtensaoImagem(doc.nomeArquivo)) {
-                  <div class="rounded-xl border border-border overflow-hidden bg-muted/20">
-                    <img [src]="getDownloadUrl(doc.id)" [alt]="doc.nomeArquivo" class="w-full h-auto max-h-[400px] object-contain" />
-                  </div>
-                } @else {
-                  <div class="rounded-xl border border-border p-8 text-center bg-muted/20">
-                    <svg lucideFileText [size]="40" class="text-muted-foreground mx-auto mb-2" />
-                    <p class="text-sm text-muted-foreground mb-3">Preview de PDF não disponível</p>
-                    <a [href]="getDownloadUrl(doc.id)" target="_blank"
-                      class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-border text-sm hover:bg-muted">
-                      <svg lucideDownload [size]="14" /> Baixar documento
-                    </a>
-                  </div>
-                }
-              </div>
-            }
-          </div>
+<ui-modal
+  [aberto]="showNovaGuia()"
+  titulo="Nova guia fiscal"
+  descricao="Lance a guia para acompanhar o prazo e dar baixa quando for paga."
+  tamanho="sm"
+  [travado]="salvandoGuia()"
+  (fechar)="showNovaGuia.set(false)"
+>
+  <div class="flex flex-col gap-3">
+    <div>
+      <label for="guia-tipo" class="mb-1.5 block text-apoio font-medium text-foreground">Tipo</label>
+      <select
+        id="guia-tipo"
+        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+        [value]="formTipo()"
+        (change)="formTipo.set($any($event.target).value)"
+      >
+        @for (tipo of tiposGuia; track tipo) {
+          <option [value]="tipo">{{ tipo }}</option>
         }
-      </div>
+      </select>
+    </div>
+
+    <div>
+      <label for="guia-venc" class="mb-1.5 block text-apoio font-medium text-foreground">
+        Vence em
+      </label>
+      <input
+        id="guia-venc"
+        type="date"
+        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+        [value]="formVencimento()"
+        (input)="formVencimento.set($any($event.target).value)"
+      />
+    </div>
+
+    <div>
+      <label for="guia-valor" class="mb-1.5 block text-apoio font-medium text-foreground">
+        Valor (R$)
+      </label>
+      <input
+        id="guia-valor"
+        type="number"
+        min="0"
+        step="0.01"
+        placeholder="0,00"
+        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+        [value]="formValor()"
+        (input)="formValor.set($any($event.target).value)"
+      />
+    </div>
+
+    <div>
+      <label for="guia-obs" class="mb-1.5 block text-apoio font-medium text-foreground">
+        Observação (opcional)
+      </label>
+      <textarea
+        id="guia-obs"
+        rows="2"
+        class="w-full resize-none rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground"
+        [value]="formObs()"
+        (input)="formObs.set($any($event.target).value)"
+      ></textarea>
     </div>
   </div>
-}
 
-<!-- ===================== DIALOG: Revisar Rascunho NF-e ===================== -->
-@if (rascunhoReviewId() && rascunhoSelecionado()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="fecharRascunho()">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-        <div>
-          <h3 class="font-heading font-semibold text-lg text-foreground">Revisar Rascunho NF-e</h3>
-          <p class="text-xs text-muted-foreground">{{ rascunhoSelecionado()?.titulo || rascunhoSelecionado()?.naturezaOperacao }}</p>
-        </div>
-        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted" (click)="fecharRascunho()">
-          <svg lucideX [size]="18" />
-        </button>
-      </div>
-
-      <!-- Sub-tabs do rascunho -->
-      <div class="flex gap-1 p-1 mx-6 mt-5 bg-muted rounded-xl w-fit">
-        @for (t of [{key:'dados',label:'Dados'},{key:'itens',label:'Itens'},{key:'feedback',label:'Feedback'}]; track t.key) {
-          <button
-            class="px-4 py-1.5 rounded-lg text-xs font-medium transition-colors {{ rascunhoTab() === t.key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground' }}"
-            (click)="rascunhoTab.set($any(t.key))"
-          >{{ t.label }}</button>
-        }
-      </div>
-
-      <div class="px-6 py-5">
-        @if (rascunhoTab() === 'dados') {
-          <dl class="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
-            <div><dt class="text-muted-foreground text-xs">Tipo</dt><dd class="font-medium text-foreground">{{ rascunhoSelecionado()?.tipo === 'entrada' ? 'Entrada' : 'Saída' }}</dd></div>
-            <div><dt class="text-muted-foreground text-xs">Valor Total</dt><dd class="font-semibold text-primary">{{ formatCurrency(rascunhoSelecionado()?.valorTotal) }}</dd></div>
-            <div><dt class="text-muted-foreground text-xs">Natureza da Operação</dt><dd class="font-medium text-foreground">{{ rascunhoSelecionado()?.naturezaOperacao || '—' }}</dd></div>
-            <div><dt class="text-muted-foreground text-xs">CFOP</dt><dd class="font-medium text-foreground">{{ rascunhoSelecionado()?.cfop || '—' }}</dd></div>
-            <div><dt class="text-muted-foreground text-xs">UF Destino</dt><dd class="font-medium text-foreground">{{ rascunhoSelecionado()?.uf || '—' }}</dd></div>
-            <div><dt class="text-muted-foreground text-xs">Município</dt><dd class="font-medium text-foreground">{{ rascunhoSelecionado()?.municipio || '—' }}</dd></div>
-            <div><dt class="text-muted-foreground text-xs">Destinatário</dt><dd class="font-medium text-foreground">{{ rascunhoSelecionado()?.destinatarioNome || '—' }}</dd></div>
-            <div><dt class="text-muted-foreground text-xs">Status</dt>
-              <dd><span class="text-[10px] px-1.5 py-0.5 rounded-full {{ statusColor(rascunhoSelecionado()?.status ?? '') }}">{{ statusLabel(rascunhoSelecionado()?.status ?? '') }}</span></dd>
-            </div>
-          </dl>
-        }
-
-        @if (rascunhoTab() === 'itens') {
-          @if (!rascunhoSelecionado()?.itens?.length) {
-            <p class="text-sm text-muted-foreground text-center py-8">Nenhum item cadastrado.</p>
-          } @else {
-            <div class="space-y-2">
-              @for (item of rascunhoSelecionado()!.itens; track item.numeroItem) {
-                <div class="bg-muted/40 rounded-xl p-3 text-xs">
-                  <div class="flex justify-between mb-1">
-                    <span class="font-medium text-foreground">{{ item.descricao }}</span>
-                    <span class="font-semibold text-primary">{{ formatCurrency(item.valorTotal) }}</span>
-                  </div>
-                  <span class="text-muted-foreground">{{ item.quantidade }} {{ item.unidade || 'un' }} × {{ formatCurrency(item.valorUnitario) }}</span>
-                  @if (item.ncm) { <span class="ml-2 text-muted-foreground">• NCM {{ item.ncm }}</span> }
-                </div>
-              }
-            </div>
-          }
-        }
-
-        @if (rascunhoTab() === 'feedback') {
-          <div class="space-y-4">
-            <div class="bg-primary/5 border border-primary/15 rounded-xl p-3 flex items-start gap-2">
-              <svg lucideSparkles [size]="16" class="text-primary shrink-0 mt-0.5" />
-              <p class="text-xs text-foreground">Revise os dados e deixe um feedback para o produtor. Você pode aprovar para emissão ou devolver para correções.</p>
-            </div>
-            <div>
-              <label class="block text-sm font-medium text-foreground mb-1.5">Feedback / Observações</label>
-              <textarea rows="4" placeholder="Ex: O CFOP informado está incorreto. Por favor, corrija para 6101..."
-                class="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
-                [value]="feedbackText()"
-                (input)="feedbackText.set($any($event.target).value)"></textarea>
-            </div>
-          </div>
-        }
-      </div>
-
-      <div class="flex flex-wrap gap-2 px-6 pb-6 border-t border-border pt-4">
-        <button class="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-destructive text-destructive-foreground text-sm font-medium hover:opacity-90" (click)="enviarFeedback('reprovado')">
-          <svg lucideCircleX [size]="16" /> Devolver c/ feedback
-        </button>
-        <button class="flex-1 min-w-[140px] flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90" (click)="enviarFeedback('aprovado')">
-          <svg lucideCircleCheck [size]="16" /> Aprovar para emitir
-        </button>
-        <button class="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="enviarFeedback('revisao')">
-          <svg lucideSave [size]="16" /> Salvar
-        </button>
-        <button class="flex items-center justify-center px-4 py-2.5 rounded-xl border border-border text-sm hover:bg-muted" (click)="fecharRascunho()">
-          Fechar
-        </button>
-      </div>
-    </div>
+  <div rodape>
+    <ui-button variant="ghost" [disabled]="salvandoGuia()" (click)="showNovaGuia.set(false)">
+      Cancelar
+    </ui-button>
+    <ui-button [disabled]="!formValido()" [carregando]="salvandoGuia()" (click)="salvarGuia()">
+      Lançar guia
+    </ui-button>
   </div>
-}
-
-<!-- ===================== DIALOG: Resumo concluído ===================== -->
-@if (resumoId()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="resumoId.set(null)">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-md p-6" (click)="$event.stopPropagation()">
-      <div class="flex items-center justify-between mb-4">
-        <h3 class="font-heading font-semibold text-lg text-foreground">Resumo da Solicitação</h3>
-        <button class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted" (click)="resumoId.set(null)">
-          <svg lucideX [size]="18" />
-        </button>
-      </div>
-      <div class="space-y-3 text-sm">
-        <div class="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
-          <div class="flex items-center gap-2 text-emerald-700">
-            <svg lucideCircleCheck [size]="20" /> <span class="font-semibold">Solicitação concluída com sucesso</span>
-          </div>
-        </div>
-        <p class="text-xs text-muted-foreground text-center pt-2">Consulte o Documentos Oficiais para acessar os documentos gerados.</p>
-      </div>
-      <button class="w-full mt-4 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90" (click)="resumoId.set(null)">Fechar</button>
-    </div>
-  </div>
-}
+</ui-modal>

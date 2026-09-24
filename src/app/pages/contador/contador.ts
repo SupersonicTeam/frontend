@@ -1,435 +1,225 @@
-import { Component, inject, signal, computed, OnInit } from '@angular/core';
-import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
-import { TitleCasePipe } from '@angular/common';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import {
-  LucideCalculator, LucidePlus, LucideX, LucideUser, LucidePhone,
-  LucideMail, LucideMessageCircle, LucideFileText,
-  LucideLoaderCircle, LucideRefreshCw, LucideSend, LucideEye,
-  LucideCircleX, LucideRotateCcw, LucideMapPin,
-  LucideUsers, LucideAlertTriangle, LucidePencil, LucideCircleCheck,
-  LucideDownload, LucideBan, LucideSparkles, LucideSave, LucideClipboardCheck,
+  LucideCalculator,
+  LucideCheck,
+  LucideDownload,
+  LucideFileText,
+  LucidePlus,
+  LucideTriangleAlert,
 } from '@lucide/angular';
+import { RouterLink } from '@angular/router';
+import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
+import { ToastService } from '@core/services/toast.service';
+import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
+import type { NotaFiscal } from '@models/nota-fiscal.model';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
-import { ToastService } from '@core/services/toast.service';
-import { NotificacoesService } from '@core/services/notificacoes.service';
-import {
-  SolicitacaoContador,
-  DocumentoContador,
-  GuiaFiscal,
-  TipoGuia,
-} from '@models/solicitacao-contador.model';
-import { RascunhoNota } from '@models/rascunho-nota.model';
-import { ProdutorContador } from '@models/produtor.model';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { NotasApi } from '@services/notas/data-access/notas.service';
+import { TributarioApi } from '@services/tributario/data-access/tributario.service';
+import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
+import { UiButton } from '@shared/ui/ui-button';
+import { UiEmptyState } from '@shared/ui/ui-empty-state';
+import { UiModal } from '@shared/ui/ui-modal';
+import { UiSkeleton } from '@shared/ui/ui-skeleton';
+import { UiStat } from '@shared/ui/ui-stat';
+import { UiTable } from '@shared/ui/ui-table';
 
-type ActiveTab = 'contatos' | 'solicitacoes' | 'recebidos' | 'rascunhos' | 'concluidos' | 'documentos';
+const TIPOS_GUIA: TipoGuia[] = ['ICMS', 'FUNRURAL', 'DARF', 'GPS', 'OUTRO'];
 
-const PRODUTOR_MOCK: ProdutorContador = {
-  id: LOGGED_PRODUCER_ID,
-  nome: 'João Silva',
-  cidade: 'Cascavel',
-  uf: 'PR',
-  propriedade: 'Fazenda Boa Vista',
-  contatos: [{
-    nome: 'João Silva',
-    funcao: 'Proprietário',
-    telefone: '(44) 99999-8888',
-    whatsapp: '5544999998888',
-    email: 'joao.silva@fazenda.com',
-  }],
-};
-
+/**
+ * Acompanhamento do contador (#50).
+ *
+ * **O que mudou e por quê.** A versão anterior tinha 703 linhas e seis abas
+ * (contatos, solicitações, recebidos, rascunhos, concluídos, documentos), quase
+ * todas alimentadas por dados de exemplo: o backend não tem `ContadorController`,
+ * e o service devolvia fixtures quando a chamada falhava. A tela avisava "prévia
+ * com dados de exemplo", mas na prática mostrava solicitações inventadas como se
+ * fossem do produtor.
+ *
+ * Esta versão fica só com o que existe de verdade:
+ *
+ * - **guias fiscais** — `GET/POST /contador/guias` e `PATCH /contador/guias/{id}/pagar`;
+ * - **relatório de conformidade** — `GET /relatorios/conformidade` e o PDF;
+ * - **notas que exigem atenção** — derivadas de `GET /notas`.
+ *
+ * Solicitações, documentos anexados e o checklist saíram da tela e viraram
+ * pendência do backend. É preferível uma tela menor e verdadeira a uma tela
+ * cheia que engana o contador.
+ *
+ * A densidade aqui é de desktop, ao contrário do dashboard do produtor: o
+ * contador trabalha em tela grande e com muitos registros de uma vez.
+ */
 @Component({
   selector: 'app-contador',
   standalone: true,
   imports: [
-    FormsModule, ReactiveFormsModule, TitleCasePipe,
-    LucideCalculator, LucidePlus, LucideX, LucideUser, LucidePhone,
-    LucideMail, LucideMessageCircle, LucideFileText,
-    LucideLoaderCircle, LucideRefreshCw, LucideSend, LucideEye,
-    LucideCircleX, LucideRotateCcw, LucideMapPin,
-    LucideUsers, LucideAlertTriangle, LucidePencil, LucideCircleCheck,
-    LucideDownload, LucideBan, LucideSparkles, LucideSave, LucideClipboardCheck,
+    LucideCalculator,
+    LucideCheck,
+    LucideDownload,
+    LucideFileText,
+    LucidePlus,
+    LucideTriangleAlert,
+    RouterLink,
+    UiBadgeStatus,
+    UiButton,
+    UiEmptyState,
+    UiModal,
+    UiSkeleton,
+    UiStat,
+    UiTable,
   ],
   templateUrl: './contador.html',
 })
 export class ContadorPage implements OnInit {
-  private readonly contadorService = inject(ContadorApi);
-  private readonly dashboardService = inject(DashboardApi);
-  private readonly toastService = inject(ToastService);
-  private readonly notificacoesService = inject(NotificacoesService);
-  private readonly fb = inject(FormBuilder);
+  private readonly contadorApi = inject(ContadorApi);
+  private readonly dashboardApi = inject(DashboardApi);
+  private readonly notasApi = inject(NotasApi);
+  private readonly tributarioApi = inject(TributarioApi);
+  private readonly toast = inject(ToastService);
 
-  // State
-  activeTab = signal<ActiveTab>('solicitacoes');
-  loading = signal(false);
-  enviando = signal(false);
-  produtor = signal<ProdutorContador>(PRODUTOR_MOCK);
-  solicitacoes = signal<SolicitacaoContador[]>([]);
-  rascunhos = signal<RascunhoNota[]>([]);
-  documentosAnexados = signal<DocumentoContador[]>([]);
-  loadingDocs = signal(false);
-  guias = signal<GuiaFiscal[]>([]);
-  enviandoGuia = signal(false);
+  readonly carregandoGuias = signal(false);
+  readonly guias = signal<GuiaFiscal[]>([]);
+  readonly notasComProblema = signal<NotaFiscal[]>([]);
+  readonly baixandoRelatorio = signal(false);
 
-  // Checklist de fechamento mensal (mock, estado local por período)
-  periodoChecklist = signal('');
-  checklistState = signal<Record<string, boolean>>({});
-  readonly checklistCategorias = ['Balancete', 'Balanço', 'Extrato bancário', 'Guia de imposto', 'Documento para IR'];
+  /** Nome do produtor vem do payload real do dashboard, não de constante no código. */
+  readonly produtorNome = computed(() => this.dashboardApi.dashboard()?.produtor.nome ?? 'Produtor');
 
-  // Dialogs
-  showNovaSolicitacao = signal(false);
-  showAnexarGuia = signal(false);
-  editandoSolicitacao = signal<SolicitacaoContador | null>(null);
-  cancelandoId = signal<string | null>(null);
-  cancelMotivo = signal('');
-  rejeitandoId = signal<string | null>(null);
-  rejeitarMotivo = signal('');
-  viewDocId = signal<string | null>(null);
-  rascunhoReviewId = signal<string | null>(null);
-  resumoId = signal<string | null>(null);
+  readonly guiasPendentes = computed(() => this.guias().filter((g) => g.status !== 'pago'));
+  readonly totalAPagar = computed(() =>
+    this.guiasPendentes().reduce((soma, g) => soma + (g.valor ?? 0), 0),
+  );
+  readonly guiasVencidas = computed(() => this.guias().filter((g) => g.status === 'vencido'));
 
-  // Rascunho review state
-  feedbackText = signal('');
-  rascunhoTab = signal<'dados' | 'itens' | 'feedback'>('dados');
+  // ── Nova guia ──
+  readonly tiposGuia = TIPOS_GUIA;
+  readonly showNovaGuia = signal(false);
+  readonly salvandoGuia = signal(false);
+  readonly formTipo = signal<TipoGuia>('ICMS');
+  readonly formVencimento = signal('');
+  readonly formValor = signal('');
+  readonly formObs = signal('');
 
-  readonly categorias = [
-    'Nota de venda', 'Nota de compra', 'Frete', 'Salário', 'DARF', 'FUNRURAL', 'GPS', 'Recibo', 'Contrato', 'Outro',
-    'Guia de imposto', 'Balancete', 'Balanço', 'Extrato bancário', 'Documento para IR',
-  ];
-  readonly meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-  readonly prioridades = [{ value: 'baixa', label: 'Baixa' }, { value: 'media', label: 'Média' }, { value: 'alta', label: 'Alta' }, { value: 'urgente', label: 'Urgente' }];
-  readonly tiposGuia: { value: TipoGuia; label: string }[] = [
-    { value: 'ICMS', label: 'ICMS' },
-    { value: 'FUNRURAL', label: 'FUNRURAL' },
-    { value: 'DARF', label: 'DARF' },
-    { value: 'GPS', label: 'GPS' },
-    { value: 'OUTRO', label: 'Outro' },
-  ];
+  readonly formValido = computed(
+    () => !!this.formVencimento() && Number(this.formValor()) > 0,
+  );
 
-  readonly novaSolicitacaoForm = this.fb.group({
-    titulo: ['', [Validators.required, Validators.minLength(3)]],
-    descricao: ['', Validators.required],
-    categoria: ['', Validators.required],
-    mesReferencia: [''],
-    prioridade: ['media' as string, Validators.required],
-    prazo: [''],
-    observacoes: [''],
-  });
-
-  readonly novaGuiaForm = this.fb.group({
-    tipoGuia: ['ICMS' as TipoGuia, Validators.required],
-    dataVencimento: ['', Validators.required],
-    valor: ['', [Validators.required, Validators.min(0.01)]],
-    observacoes: [''],
-  });
-
-  // Computed lists
-  readonly pendentes = computed(() => this.solicitacoes().filter(s => s.status === 'pendente' || s.status === 'enviado'));
-  readonly recebidos = computed(() => this.solicitacoes().filter(s => s.status === 'enviado'));
-  readonly concluidos = computed(() => this.solicitacoes().filter(s => ['concluido', 'cancelado', 'rejeitado'].includes(s.status)));
-  readonly rascunhoSelecionado = computed(() => this.rascunhos().find(r => r.id === this.rascunhoReviewId()) ?? null);
+  readonly periodoAtual = new Date().toISOString().slice(0, 7);
 
   ngOnInit(): void {
-    this.carregarDados();
-  }
-
-  setTab(tab: ActiveTab): void {
-    this.activeTab.set(tab);
-    if (tab === 'rascunhos' && this.rascunhos().length === 0) this.carregarRascunhos();
-  }
-
-  carregarDados(): void {
-    this.loading.set(true);
-    this.contadorService.getPendencias(LOGGED_PRODUCER_ID).subscribe({
-      next: data => { this.solicitacoes.set(data); this.loading.set(false); },
-      error: () => this.loading.set(false),
-    });
     this.carregarGuias();
+    this.dashboardApi.carregar().subscribe({ error: () => undefined });
+    this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
+      next: (pagina) =>
+        this.notasComProblema.set(
+          pagina.content.filter(
+            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+          ),
+        ),
+      error: () => this.notasComProblema.set([]),
+    });
   }
 
   carregarGuias(): void {
-    this.contadorService.getGuias(LOGGED_PRODUCER_ID).subscribe({
-      next: data => this.guias.set(data),
-      error: () => {},
+    this.carregandoGuias.set(true);
+    this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
+      next: (lista) => {
+        this.guias.set(lista);
+        this.carregandoGuias.set(false);
+      },
+      error: () => {
+        this.guias.set([]);
+        this.carregandoGuias.set(false);
+      },
     });
   }
 
-  carregarRascunhos(): void {
-    this.dashboardService.getRascunhos(LOGGED_PRODUCER_ID).subscribe({
-      next: data => this.rascunhos.set(data),
-      error: () => {},
-    });
-  }
-
-  // === CRUD Solicitações ===
-  abrirNova(): void {
-    this.editandoSolicitacao.set(null);
-    this.novaSolicitacaoForm.reset({ prioridade: 'media' });
-    this.showNovaSolicitacao.set(true);
-  }
-
-  abrirEditar(s: SolicitacaoContador): void {
-    this.editandoSolicitacao.set(s);
-    this.novaSolicitacaoForm.patchValue({
-      titulo: s.titulo,
-      descricao: s.descricao,
-      categoria: s.categoria,
-      mesReferencia: s.mesReferencia,
-      prioridade: s.prioridade,
-      prazo: s.prazo?.split('T')[0] ?? '',
-      observacoes: s.observacoes ?? '',
-    });
-    this.showNovaSolicitacao.set(true);
-  }
-
-  fecharDialog(): void {
-    this.showNovaSolicitacao.set(false);
-    this.editandoSolicitacao.set(null);
-  }
-
-  salvarSolicitacao(): void {
-    if (this.novaSolicitacaoForm.invalid) return;
-    const v = this.novaSolicitacaoForm.value;
-    this.enviando.set(true);
-
-    const editando = this.editandoSolicitacao();
-    if (editando) {
-      this.contadorService.atualizarSolicitacao(editando.id, {
-        titulo: v.titulo!, descricao: v.descricao!, categoria: v.categoria!,
-        mesReferencia: v.mesReferencia || undefined, prioridade: v.prioridade as any,
-        prazo: v.prazo || undefined, observacoes: v.observacoes || undefined,
-      }).subscribe({
-        next: s => {
-          this.enviando.set(false);
-          if (s) {
-            this.solicitacoes.update(list => list.map(x => x.id === s.id ? s : x));
-            this.toastService.success('Solicitação atualizada!');
-          }
-          this.fecharDialog();
-        },
-        error: () => { this.enviando.set(false); this.toastService.error('Erro ao atualizar.'); },
-      });
-    } else {
-      this.contadorService.criarSolicitacao({
-        produtorId: LOGGED_PRODUCER_ID, titulo: v.titulo!, descricao: v.descricao!,
-        categoria: v.categoria!, mesReferencia: v.mesReferencia || undefined,
-        prioridade: v.prioridade as any, prazo: v.prazo || undefined, observacoes: v.observacoes || undefined,
-      }).subscribe({
-        next: s => {
-          this.enviando.set(false);
-          if (s) {
-            this.solicitacoes.update(list => [s, ...list]);
-            this.toastService.success('Solicitação criada!');
-            this.toastService.info('Envio por WhatsApp — em breve');
-            this.notificacoesService.adicionar(`Nova solicitação do contador: ${s.titulo}`, 'Solicitação', '/documentos');
-          }
-          this.fecharDialog();
-        },
-        error: () => { this.enviando.set(false); this.toastService.error('Erro ao criar.'); },
-      });
-    }
-  }
-
-  // === Anexar guia fiscal ===
-  abrirAnexarGuia(): void {
-    this.novaGuiaForm.reset({ tipoGuia: 'ICMS' });
-    this.showAnexarGuia.set(true);
-  }
-
-  fecharAnexarGuia(): void {
-    this.showAnexarGuia.set(false);
+  abrirNovaGuia(): void {
+    this.formTipo.set('ICMS');
+    this.formVencimento.set('');
+    this.formValor.set('');
+    this.formObs.set('');
+    this.showNovaGuia.set(true);
   }
 
   salvarGuia(): void {
-    if (this.novaGuiaForm.invalid) return;
-    const v = this.novaGuiaForm.value;
-    this.enviandoGuia.set(true);
-    this.contadorService.anexarGuia({
-      produtorId: LOGGED_PRODUCER_ID,
-      tipoGuia: v.tipoGuia as TipoGuia,
-      dataVencimento: v.dataVencimento!,
-      valor: Number(v.valor),
-      observacoes: v.observacoes || undefined,
-    }).subscribe({
-      next: guia => {
-        this.enviandoGuia.set(false);
-        if (guia) {
-          this.guias.update(list => [guia, ...list]);
-          this.toastService.success('Guia anexada!');
-          this.toastService.info('Envio por WhatsApp — em breve');
-        }
-        this.fecharAnexarGuia();
-      },
-      error: () => { this.enviandoGuia.set(false); this.toastService.error('Erro ao anexar guia.'); },
-    });
+    if (!this.formValido()) return;
+    this.salvandoGuia.set(true);
+    this.contadorApi
+      .anexarGuia({
+        produtorId: LOGGED_PRODUCER_ID,
+        tipoGuia: this.formTipo(),
+        dataVencimento: this.formVencimento(),
+        valor: Number(this.formValor()),
+        observacoes: this.formObs().trim() || undefined,
+      })
+      .subscribe({
+        next: (guia) => {
+          this.salvandoGuia.set(false);
+          if (!guia) {
+            this.toast.error('Não foi possível criar a guia. Tente novamente.');
+            return;
+          }
+          this.showNovaGuia.set(false);
+          this.toast.success('Guia criada.');
+          this.carregarGuias();
+        },
+        error: () => {
+          this.salvandoGuia.set(false);
+          this.toast.error('Não foi possível criar a guia. Tente novamente.');
+        },
+      });
   }
 
-  marcarPaga(id: string): void {
-    this.contadorService.marcarGuiaPaga(id).subscribe({
+  marcarPaga(guia: GuiaFiscal): void {
+    this.contadorApi.marcarGuiaPaga(guia.id).subscribe({
       next: () => {
-        this.guias.update(list => list.map(g => g.id === id ? { ...g, status: 'pago' as const } : g));
-        this.toastService.success('Guia marcada como paga!');
+        this.toast.success(`Guia de ${guia.tipoGuia} marcada como paga.`);
+        this.carregarGuias();
       },
-      error: () => this.toastService.error('Erro ao marcar guia como paga.'),
+      error: () => this.toast.error('Não foi possível marcar a guia como paga.'),
     });
   }
 
-  // === Checklist de fechamento mensal ===
-  setPeriodoChecklist(periodo: string): void {
-    this.periodoChecklist.set(periodo);
-  }
-
-  isChecklistItemRecebido(categoria: string): boolean {
-    return !!this.checklistState()[`${this.periodoChecklist()}:${categoria}`];
-  }
-
-  toggleChecklistItem(categoria: string): void {
-    const key = `${this.periodoChecklist()}:${categoria}`;
-    this.checklistState.update(state => ({ ...state, [key]: !state[key] }));
-  }
-
-  // === Cancelar ===
-  abrirCancelar(id: string): void { this.cancelandoId.set(id); this.cancelMotivo.set(''); }
-  fecharCancelar(): void { this.cancelandoId.set(null); this.cancelMotivo.set(''); }
-
-  confirmarCancelar(): void {
-    const id = this.cancelandoId();
-    if (!id || !this.cancelMotivo().trim()) return;
-    this.contadorService.cancelarSolicitacao(id, this.cancelMotivo()).subscribe({
-      next: () => {
-        this.solicitacoes.update(list => list.map(s => s.id === id ? { ...s, status: 'cancelado' as any, motivoCancelamento: this.cancelMotivo() } : s));
-        this.toastService.success('Solicitação cancelada.');
-        this.fecharCancelar();
+  baixarRelatorio(): void {
+    this.baixandoRelatorio.set(true);
+    this.tributarioApi.relatorioConformidadePdf(this.periodoAtual).subscribe({
+      next: (resposta) => {
+        this.baixandoRelatorio.set(false);
+        const nome = filenameDeContentDisposition(
+          resposta.headers.get('Content-Disposition'),
+          `conformidade-${this.periodoAtual}.pdf`,
+        );
+        if (resposta.body) salvarBlob(resposta.body, nome);
       },
-      error: () => this.toastService.error('Erro ao cancelar.'),
-    });
-  }
-
-  reabrir(id: string): void {
-    this.contadorService.reabrirSolicitacao(id).subscribe({
-      next: () => {
-        this.solicitacoes.update(list => list.map(s => s.id === id ? { ...s, status: 'pendente' as any } : s));
-        this.toastService.success('Solicitação reaberta.');
+      error: () => {
+        this.baixandoRelatorio.set(false);
+        this.toast.error('Não foi possível baixar o relatório.');
       },
-      error: () => this.toastService.error('Erro ao reabrir.'),
     });
   }
 
-  // === Rejeitar ===
-  abrirRejeitar(id: string): void { this.rejeitandoId.set(id); this.rejeitarMotivo.set(''); }
-  fecharRejeitar(): void { this.rejeitandoId.set(null); this.rejeitarMotivo.set(''); }
-
-  confirmarRejeitar(): void {
-    const id = this.rejeitandoId();
-    if (!id || !this.rejeitarMotivo().trim()) return;
-    this.contadorService.rejeitarSolicitacao(id, this.rejeitarMotivo()).subscribe({
-      next: () => {
-        this.solicitacoes.update(list => list.map(s => s.id === id ? { ...s, status: 'rejeitado' as any, motivoRejeicao: this.rejeitarMotivo() } : s));
-        this.toastService.success('Documento rejeitado.');
-        this.fecharRejeitar();
-      },
-      error: () => this.toastService.error('Erro ao rejeitar.'),
-    });
+  /** Guia nao e NF-e: tem status proprio (pendente/pago/vencido), sobre os mesmos tokens. */
+  rotuloStatusGuia(status: GuiaFiscal['status']): string {
+    return { pendente: 'Em aberto', pago: 'Paga', vencido: 'Vencida' }[status] ?? status;
   }
 
-  // === Ver documentos ===
-  verDocumentos(id: string): void {
-    this.viewDocId.set(id);
-    this.loadingDocs.set(true);
-    this.contadorService.getDocumentos(id).subscribe({
-      next: docs => { this.documentosAnexados.set(docs); this.loadingDocs.set(false); },
-      error: () => { this.documentosAnexados.set([]); this.loadingDocs.set(false); },
-    });
-  }
-  fecharViewDoc(): void { this.viewDocId.set(null); this.documentosAnexados.set([]); }
-
-  // === Concluir ===
-  concluir(id: string): void {
-    this.contadorService.concluirSolicitacao(id).subscribe({
-      next: () => {
-        this.solicitacoes.update(list => list.map(s => s.id === id ? { ...s, status: 'concluido' as any } : s));
-        this.toastService.success('Solicitação concluída!');
-        this.fecharViewDoc();
-      },
-      error: () => this.toastService.error('Erro ao concluir.'),
-    });
+  classeStatusGuia(status: GuiaFiscal['status']): string {
+    const tons: Record<GuiaFiscal['status'], string> = {
+      pendente: 'bg-aviso-soft text-aviso-ink border-aviso/30',
+      pago: 'bg-sucesso-soft text-sucesso-ink border-sucesso/30',
+      vencido: 'bg-perigo-soft text-perigo-ink border-perigo/30',
+    };
+    return `inline-flex items-center rounded-full border px-2.5 py-1 text-apoio font-medium ${tons[status]}`;
   }
 
-  // === Rascunho review ===
-  abrirRascunho(id: string): void {
-    this.rascunhoReviewId.set(id);
-    this.rascunhoTab.set('dados');
-    const r = this.rascunhos().find(x => x.id === id);
-    this.feedbackText.set(r?.feedbackContador ?? '');
-  }
-  fecharRascunho(): void { this.rascunhoReviewId.set(null); }
-
-  enviarFeedback(status: 'aprovado' | 'revisao' | 'reprovado'): void {
-    const id = this.rascunhoReviewId();
-    if (!id) return;
-    this.dashboardService.feedbackRascunho(id, { status, feedback: this.feedbackText() }).subscribe({
-      next: r => {
-        if (r) this.rascunhos.update(list => list.map(x => x.id === id ? r : x));
-        this.toastService.success(status === 'aprovado' ? 'Rascunho aprovado!' : status === 'reprovado' ? 'Devolvido com feedback.' : 'Em revisão.');
-        this.fecharRascunho();
-      },
-      error: () => this.toastService.error('Erro ao enviar feedback.'),
-    });
+  formatCurrency(valor: number): string {
+    return (valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  // === Helpers ===
   formatDate(iso?: string): string {
     if (!iso) return '—';
-    return new Date(iso.split('T')[0] + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
-  }
-
-  formatCurrency(v?: number): string {
-    return (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  }
-
-  statusColor(status: string): string {
-    const map: Record<string, string> = {
-      pendente: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-      enviado: 'bg-blue-100 text-blue-700 border border-blue-200',
-      concluido: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-      cancelado: 'bg-gray-100 text-gray-700 border border-gray-200',
-      rejeitado: 'bg-red-100 text-red-700 border border-red-200',
-      rascunho: 'bg-gray-100 text-gray-700 border border-gray-200',
-      aprovado: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-      reprovado: 'bg-red-100 text-red-700 border border-red-200',
-      revisao: 'bg-yellow-100 text-yellow-700 border border-yellow-200',
-      finalizado: 'bg-purple-100 text-purple-700 border border-purple-200',
-      pago: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-      vencido: 'bg-red-100 text-red-700 border border-red-200',
-    };
-    return map[status] ?? 'bg-gray-100 text-gray-700';
-  }
-
-  statusLabel(status: string): string {
-    const map: Record<string, string> = {
-      pendente: 'Pendente', enviado: 'Enviado', concluido: 'Concluído',
-      cancelado: 'Cancelado', rejeitado: 'Rejeitado', rascunho: 'Rascunho',
-      aprovado: 'Aprovado', reprovado: 'Devolvido', revisao: 'Em Revisão', finalizado: 'Finalizado',
-      pago: 'Pago', vencido: 'Vencido',
-    };
-    return map[status] ?? status;
-  }
-
-  prioridadeColor(p: string): string {
-    return { urgente: 'text-red-600 font-semibold', alta: 'text-orange-600', media: 'text-yellow-600', baixa: 'text-green-600' }[p] ?? 'text-muted-foreground';
-  }
-
-  isExtensaoImagem(nome: string): boolean {
-    return /\.(jpg|jpeg|png|gif|webp)$/i.test(nome);
-  }
-
-  getDownloadUrl(docId: string): string {
-    return `/api/contador/documentos/${docId}/download`;
-  }
-
-  getSolicitacaoNome(id: string): string {
-    return this.solicitacoes().find(s => s.id === id)?.titulo ?? '';
+    return new Date(iso.split('T')[0] + 'T12:00:00').toLocaleDateString('pt-BR');
   }
 }
