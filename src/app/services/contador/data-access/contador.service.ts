@@ -38,73 +38,7 @@ interface PendenciaBackend {
 }
 
 // ── Fixtures de exemplo (fallback quando /contador/* ainda não existe no backend) ──
-const FIXTURE_PENDENCIAS = (produtorId: string): SolicitacaoContador[] => [
-  {
-    id: 'fx-pend-1',
-    produtorId,
-    titulo: 'Notas de venda – Julho',
-    descricao: 'Notas fiscais de venda do mês corrente',
-    categoria: 'Nota de venda',
-    mesReferencia: 'Julho',
-    prioridade: 'media',
-    status: 'pendente',
-    prazo: '2026-07-15',
-    createdAt: '2026-07-01T09:00:00',
-    updatedAt: '2026-07-01T09:00:00',
-  },
-  {
-    id: 'fx-pend-2',
-    produtorId,
-    titulo: 'Extrato bancário – Junho',
-    descricao: 'Extrato da conta corrente para conciliação',
-    categoria: 'Extrato bancário',
-    mesReferencia: 'Junho',
-    prioridade: 'alta',
-    status: 'enviado',
-    prazo: '2026-07-05',
-    createdAt: '2026-06-25T09:00:00',
-    updatedAt: '2026-07-03T14:00:00',
-  },
-  {
-    id: 'fx-pend-3',
-    produtorId,
-    titulo: 'Balancete – 1º semestre',
-    descricao: 'Balancete contábil do semestre para fechamento',
-    categoria: 'Balancete',
-    prioridade: 'media',
-    status: 'concluido',
-    prazo: '2026-06-30',
-    createdAt: '2026-06-01T09:00:00',
-    updatedAt: '2026-06-28T09:00:00',
-  },
-  {
-    id: 'fx-pend-4',
-    produtorId,
-    titulo: 'Guia de imposto – FUNRURAL',
-    descricao: 'Comprovante da guia FUNRURAL do mês anterior',
-    categoria: 'Guia de imposto',
-    prioridade: 'baixa',
-    status: 'cancelado',
-    prazo: '2026-06-20',
-    motivoCancelamento: 'Produtor já havia enviado por e-mail',
-    createdAt: '2026-06-05T09:00:00',
-    updatedAt: '2026-06-18T09:00:00',
-  },
-];
 
-const FIXTURE_RECEBIDOS = (produtorId: string): SolicitacaoContador[] =>
-  FIXTURE_PENDENCIAS(produtorId).filter(p => p.status === 'enviado');
-
-const FIXTURE_DOCUMENTOS = (pendenciaId: string): DocumentoContador[] => [
-  {
-    id: `fx-doc-${pendenciaId}-1`,
-    solicitacaoId: pendenciaId,
-    nomeArquivo: 'extrato-junho.pdf',
-    arquivoUrl: '',
-    tipo: 'application/pdf',
-    createdAt: '2026-07-03T14:00:00',
-  },
-];
 
 // Seed inicial das guias por produtor. O status é recalculado apenas no fallback mock
 // (getGuias/catchError); em sucesso real do backend, o array retorna como veio, sem recálculo.
@@ -226,22 +160,26 @@ export class ContadorApi {
   // ── Endpoints ──
 
   // GET /contador/pendencias?produtorId=:id
-  // Sem backend real ainda: em erro, cai para dados de exemplo (nunca sobrepõe sucesso, mesmo vazio).
+  // Sem backend real ainda (nao ha ContadorController): em erro devolve vazio.
+  // NAO cair para dados de exemplo - a tela precisa mostrar que nao ha dado,
+  // e nao inventar solicitacoes que nao existem (#49).
   getPendencias(produtorId?: string): Observable<SolicitacaoContador[]> {
     const params = produtorId ? { produtorId } : undefined;
     return this.api.get<PendenciaBackend[]>('/contador/pendencias', params).pipe(
       map(list => (list ?? []).map(p => this.mapPendencia(p))),
-      catchError(() => of(FIXTURE_PENDENCIAS(produtorId ?? 'produtor-mock')))
+      catchError(() => of([]))
     );
   }
 
   // GET /contador/pendencias-recebidos
-  // Sem backend real ainda: em erro, cai para dados de exemplo (nunca sobrepõe sucesso, mesmo vazio).
+  // Sem backend real ainda (nao ha ContadorController): em erro devolve vazio.
+  // NAO cair para dados de exemplo - a tela precisa mostrar que nao ha dado,
+  // e nao inventar solicitacoes que nao existem (#49).
   getRecebidos(produtorId?: string): Observable<SolicitacaoContador[]> {
     const params = produtorId ? { produtorId } : undefined;
     return this.api.get<PendenciaBackend[]>('/contador/pendencias-recebidos', params).pipe(
       map(list => (list ?? []).map(p => this.mapPendencia(p))),
-      catchError(() => of(FIXTURE_RECEBIDOS(produtorId ?? 'produtor-mock')))
+      catchError(() => of([]))
     );
   }
 
@@ -334,11 +272,13 @@ export class ContadorApi {
   }
 
   // GET /contador/pendencias/:id/documentos
-  // Sem backend real ainda: em erro, cai para dados de exemplo (nunca sobrepõe sucesso, mesmo vazio).
+  // Sem backend real ainda (nao ha ContadorController): em erro devolve vazio.
+  // NAO cair para dados de exemplo - a tela precisa mostrar que nao ha dado,
+  // e nao inventar solicitacoes que nao existem (#49).
   getDocumentos(pendenciaId: string): Observable<DocumentoContador[]> {
     return this.api
       .get<DocumentoContador[]>(`/contador/pendencias/${pendenciaId}/documentos`)
-      .pipe(catchError(() => of(FIXTURE_DOCUMENTOS(pendenciaId))));
+      .pipe(catchError(() => of([])));
   }
 
   // POST /contador/documentos/anexar (multipart)
@@ -356,16 +296,10 @@ export class ContadorApi {
     formData.append('tipoDocumento', tipoDocumento);
     formData.append('tamanho', String(file.size));
     return this.api.post<DocumentoContador>('/contador/documentos/anexar', formData).pipe(
-      catchError(() =>
-        of({
-          id: 'fx-doc-' + String(Math.random()).slice(2),
-          solicitacaoId: pendenciaId,
-          nomeArquivo: file.name,
-          arquivoUrl: '',
-          tipo: tipoDocumento,
-          createdAt: new Date().toISOString(),
-        })
-      )
+      // Antes isto fabricava um documento como se o upload tivesse dado certo -
+      // pior que mock: mentia sobre o resultado de uma acao. Agora devolve null
+      // e quem chamou mostra a falha (#49).
+      catchError(() => of(null))
     );
   }
 
