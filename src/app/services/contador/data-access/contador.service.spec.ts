@@ -36,7 +36,10 @@ describe('ContadorApi', () => {
   afterEach(() => httpMock.verify());
 
   describe('getPendencias', () => {
-    it('CTD-01: em erro do backend, retorna pendências de exemplo (fixture), não uma lista vazia', () => {
+    it('CTD-01 (#49): em erro do backend, retorna lista VAZIA — nunca dados de exemplo', () => {
+      // Comportamento invertido de proposito. Antes caia para fixture, e como
+      // /contador/pendencias responde 404 (nao existe ContadorController), as telas
+      // exibiam solicitacoes inventadas como se fossem do produtor.
       let resultado: SolicitacaoContador[] | undefined;
       service.getPendencias('produtor-1').subscribe(res => (resultado = res));
 
@@ -44,9 +47,7 @@ describe('ContadorApi', () => {
         .expectOne(r => r.url === '/contador/pendencias')
         .flush('erro', { status: 500, statusText: 'Server Error' });
 
-      expect(resultado).toBeDefined();
-      expect(resultado!.length).toBeGreaterThan(0);
-      expect(resultado!.every(s => s.produtorId === 'produtor-1')).toBe(true);
+      expect(resultado).toEqual([]);
     });
 
     it('CTD-05: em sucesso do backend (mesmo vazio), retorna a resposta real sem sobrepor com fixture', () => {
@@ -60,7 +61,7 @@ describe('ContadorApi', () => {
   });
 
   describe('getRecebidos', () => {
-    it('CTD-02: em erro do backend, retorna documentos recebidos de exemplo, não uma lista vazia', () => {
+    it('CTD-02 (#49): em erro do backend, retorna lista VAZIA — nunca dados de exemplo', () => {
       let resultado: SolicitacaoContador[] | undefined;
       service.getRecebidos('produtor-1').subscribe(res => (resultado = res));
 
@@ -68,9 +69,7 @@ describe('ContadorApi', () => {
         .expectOne(r => r.url === '/contador/pendencias-recebidos')
         .flush('erro', { status: 500, statusText: 'Server Error' });
 
-      expect(resultado).toBeDefined();
-      expect(resultado!.length).toBeGreaterThan(0);
-      expect(resultado!.every(s => s.status === 'enviado')).toBe(true);
+      expect(resultado).toEqual([]);
     });
 
     it('CTD-05: em sucesso do backend (mesmo vazio), retorna a resposta real sem sobrepor com fixture', () => {
@@ -84,7 +83,7 @@ describe('ContadorApi', () => {
   });
 
   describe('getDocumentos', () => {
-    it('CTD-03: em erro do backend, retorna anexos de exemplo coerentes com a pendência', () => {
+    it('CTD-03 (#49): em erro do backend, retorna lista VAZIA — nunca anexos de exemplo', () => {
       let resultado: DocumentoContador[] | undefined;
       service.getDocumentos('fx-pend-2').subscribe(res => (resultado = res));
 
@@ -92,9 +91,7 @@ describe('ContadorApi', () => {
         .expectOne(r => r.url === '/contador/pendencias/fx-pend-2/documentos')
         .flush('erro', { status: 500, statusText: 'Server Error' });
 
-      expect(resultado).toBeDefined();
-      expect(resultado!.length).toBeGreaterThan(0);
-      expect(resultado!.every(d => d.solicitacaoId === 'fx-pend-2')).toBe(true);
+      expect(resultado).toEqual([]);
     });
 
     it('CTD-05: em sucesso do backend (mesmo vazio), retorna a resposta real sem sobrepor com fixture', () => {
@@ -237,17 +234,16 @@ describe('ContadorApi', () => {
   });
 
   describe('anexarDocumento', () => {
-    it('CTD-13/15: em erro do backend, retorna um documento de exemplo (nunca null)', () => {
+    it('CTD-13/15 (#49): em erro no upload, devolve null — nunca finge que anexou', () => {
       const file = new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' });
       let resultado: DocumentoContador | null | undefined;
       service.anexarDocumento('fx-pend-2', file, 'Balancete').subscribe(res => (resultado = res));
 
       flushErro(httpMock, '/contador/documentos/anexar');
 
-      expect(resultado).toBeTruthy();
-      expect(resultado!.solicitacaoId).toBe('fx-pend-2');
-      expect(resultado!.nomeArquivo).toBe('balancete.pdf');
-      expect(resultado!.tipo).toBe('Balancete');
+      // Fingir sucesso num upload que falhou e pior que mock: mente sobre o
+      // resultado de uma acao do usuario.
+      expect(resultado).toBeNull();
     });
 
     it('CTD-13: em sucesso do backend real, retorna o documento tal como veio (sem fixture)', () => {

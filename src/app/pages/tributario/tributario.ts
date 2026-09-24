@@ -11,6 +11,7 @@ import { ToastService } from '@core/services/toast.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
+import { UiStat } from '@shared/ui/ui-stat';
 
 /** Rótulo + classe de badge por status de apuração (RN004/RN005). */
 const STATUS_APURACAO: Record<StatusApuracao, { label: string; classe: string }> = {
@@ -44,6 +45,7 @@ const MESES = [
   selector: 'app-tributario',
   standalone: true,
   imports: [
+    UiStat,
     FormsModule, LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
   ],
   templateUrl: './tributario.html',
