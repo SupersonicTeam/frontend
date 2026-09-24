@@ -5,7 +5,6 @@ import {
   LucideFileText,
   LucideSearch,
   LucideUpload,
-  LucideX,
   LucideEye,
   LucideDownload,
   LucideFile,
@@ -30,11 +29,16 @@ import { SolicitacaoContador } from '@models/solicitacao-contador.model';
 import { NotaFiscalRequest, NotaFiscalItemRequest } from '@dtos/notas/nota-fiscal.request';
 import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
-import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
+import { statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
+import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
+import { UiButton } from '@shared/ui/ui-button';
+import { UiEmptyState } from '@shared/ui/ui-empty-state';
+import { UiModal } from '@shared/ui/ui-modal';
+import { UiSkeleton } from '@shared/ui/ui-skeleton';
 
 /** Item do formulário (strings, convertidas para número ao montar o request). */
 export interface ItemForm {
@@ -118,11 +122,15 @@ function cpfCnpjValido(v: string): boolean {
   selector: 'app-documentos',
   standalone: true,
   imports: [
+    UiBadgeStatus,
+    UiButton,
+    UiEmptyState,
+    UiModal,
+    UiSkeleton,
     FormsModule,
     LucideFileText,
     LucideSearch,
     LucideUpload,
-    LucideX,
     LucideEye,
     LucideDownload,
     LucideFile,
@@ -1052,10 +1060,6 @@ export class DocumentosPage implements OnInit {
 
   notaStatusLabel(status?: string): string {
     return statusNotaLabel(status);
-  }
-
-  notaStatusColor(status?: string): string {
-    return statusNotaBadge(status);
   }
 
   solicitacaoStatusLabel(status: string): string {
