@@ -23,6 +23,9 @@ imposto, contador, rascunho).
   `@angular/cdk` continua em `node_modules` só como dependência transitiva do `ng2-charts`; nada em `src/` o importa.
 - **ng2-charts + chart.js** — gráficos. Registro **enxuto por componente** (`Chart.register(...)` no componente, não
   `provideCharts` no `app.config`) para o Chart.js ficar no **chunk lazy**, não no bundle inicial. Ex.: dashboard.
+  **Cores vêm de `@core/utils/chart-tokens`**, nunca cravadas: o `<canvas>` não enxerga classe do Tailwind, então
+  as cores são lidas das custom properties do tema. `options` e `data` são `computed()` que dependem de
+  `themeService.tema()` — é isso que faz o gráfico acompanhar claro/escuro.
 - RxJS 7.8, testes em **Vitest** (jsdom). TypeScript strict.
 
 ## Comandos (rodar dentro de `frontend/`)
