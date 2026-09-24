@@ -42,8 +42,8 @@ Chart.register(
 );
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
-import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
+import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiCard } from '@shared/ui/ui-card';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
@@ -97,6 +97,7 @@ function mesLabelFromPeriodo(periodo: string): string {
     RouterLink,
     BaseChartDirective,
     NotaPreview,
+    UiBadgeStatus,
     UiButton,
     UiCard,
     UiEmptyState,
@@ -370,11 +371,29 @@ export class DashboardPage implements OnInit {
   // ---------------------------------------------------------------------------
 
   /** Notas que exigem acao do produtor, extraidas do payload do dashboard. */
-  readonly notasComProblema = computed(() =>
-    (this.dashboard()?.ultimasNotas ?? []).filter(
-      (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
-    ),
-  );
+  /**
+   * Notas que exigem acao, buscadas em TODAS as notas do produtor.
+   *
+   * A primeira versao lia `dashboard().ultimasNotas`, que traz so as 3 mais
+   * recentes - e o assistente sumia da tela assim que as tres ultimas estavam em
+   * ordem, mesmo havendo pendencia antiga em aberto. Pendencia fiscal nao
+   * envelhece: enquanto a nota nao for corrigida, o produtor precisa saber.
+   */
+  readonly notasComProblema = signal<NotaFiscal[]>([]);
+
+  private carregarNotasComProblema(): void {
+    this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
+      next: (pagina) => {
+        this.notasComProblema.set(
+          pagina.content.filter(
+            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+          ),
+        );
+        this.carregarMotivoDaPendencia();
+      },
+      error: () => this.notasComProblema.set([]),
+    });
+  }
 
   /** Motivo textual da primeira pendencia, como o backend descreve. */
   readonly motivoPendencia = signal<string | null>(null);
@@ -435,7 +454,7 @@ export class DashboardPage implements OnInit {
     this.dashboardService.carregar().subscribe({
       next: () => {
         this.loading.set(false);
-        this.carregarMotivoDaPendencia();
+        this.carregarNotasComProblema();
       },
       error: () => {
         this.loading.set(false);
@@ -494,10 +513,6 @@ export class DashboardPage implements OnInit {
 
   formatDate(iso: string): string {
     return new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-  }
-
-  getStatusStyle(status?: string): { label: string; color: string } {
-    return { label: statusNotaLabel(status), color: statusNotaBadge(status) };
   }
 
   private getMesAtual(): string {

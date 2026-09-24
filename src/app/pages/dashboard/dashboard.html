@@ -47,7 +47,7 @@
       @if (notasComProblema().length) {
         <p>
           A nota <strong>{{ notasComProblema()[0].numero }}</strong>, para
-          {{ notasComProblema()[0].contraparte }}, não pode ser emitida como está.
+          {{ notasComProblema()[0].destinatarioNome }}, não pode ser emitida como está.
           @if (motivoPendencia()) {
             <br />O que o fisco aponta: <em>{{ motivoPendencia() }}</em>
           }
@@ -173,7 +173,7 @@
   <!-- Card: Alertas e pendências -->
   <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideBell [size]="20" class="text-primary" />
         Alertas e pendências
       </h2>
@@ -187,10 +187,7 @@
     </div>
 
     @if (loadingAlertas()) {
-      <div class="space-y-2">
-        <div class="h-14 bg-muted/50 animate-pulse rounded-xl"></div>
-        <div class="h-14 bg-muted/50 animate-pulse rounded-xl"></div>
-      </div>
+      <ui-skeleton [linhas]="2" formato="bloco" altura="3.5rem" />
     } @else if (alertas().length) {
       <ul class="space-y-2">
         @for (a of alertas(); track a.id) {
@@ -222,7 +219,7 @@
   <!-- Card: Notas por mês (gráfico) -->
   <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideTrendingUp [size]="20" class="text-primary" />
         Notas por mês
       </h2>
@@ -250,7 +247,7 @@
   <!-- Card: Distribuição de impostos (pizza) -->
   <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideDollarSign [size]="20" class="text-primary" />
         Distribuição de impostos
       </h2>
@@ -272,7 +269,7 @@
   <!-- Card: Tendência mensal (linha) -->
   <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideTrendingUp [size]="20" class="text-primary" />
         Tendência mensal
       </h2>
@@ -294,7 +291,7 @@
   <!-- Card: Simulador Inteligente de Impostos -->
   <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
-      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
+      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideSprout [size]="20" class="text-primary" />
         Simulador Inteligente
       </h2>
@@ -417,20 +414,24 @@
   <div class="bg-card rounded-card border border-border shadow-suave">
     <div class="flex items-center gap-2 px-5 pt-5 pb-3">
       <svg lucideFileText [size]="20" class="text-primary" />
-      <h2 class="text-base font-semibold text-foreground">Últimos documentos enviados</h2>
+      <h2 class="font-heading text-lg font-semibold text-foreground">Últimos documentos enviados</h2>
       @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       }
     </div>
     <div class="px-5 pb-5">
       @if (loading() && !dashboard()) {
-        <div class="space-y-3">
-          @for (i of [1,2,3]; track i) {
-            <div class="h-12 bg-muted/60 animate-pulse rounded-lg"></div>
-          }
-        </div>
+        <ui-skeleton [linhas]="3" formato="bloco" altura="3rem" />
       } @else if (documentos().length === 0) {
-        <p class="text-apoio text-muted-foreground text-center py-6">Nenhum documento encontrado.</p>
+        <ui-empty-state
+          titulo="Nenhuma nota ainda"
+          descricao="Quando você emitir ou importar uma nota, ela aparece aqui."
+        >
+          <svg icone lucideFile [size]="22" />
+          <a acao routerLink="/documentos" class="tap-target inline-flex items-center rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+            Criar primeira nota
+          </a>
+        </ui-empty-state>
       } @else {
         <ul class="divide-y divide-border">
           @for (doc of documentos(); track doc.id) {
@@ -439,9 +440,7 @@
                 <p class="text-apoio font-medium text-foreground truncate">{{ doc.nome }}</p>
                 <div class="flex items-center gap-2 mt-1">
                   <span class="text-apoio text-muted-foreground">{{ doc.tipo }}</span>
-                  <span class="text-apoio px-1.5 py-0.5 rounded-full {{ getStatusStyle(doc.status).color }}">
-                    {{ getStatusStyle(doc.status).label }}
-                  </span>
+                  <ui-badge-status [status]="doc.status" />
                   @if (doc.valor > 0) {
                     <span class="text-apoio font-medium text-primary">{{ formatCurrency(doc.valor) }}</span>
                   }
