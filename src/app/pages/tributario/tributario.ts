@@ -178,7 +178,7 @@ export class TributarioPage implements OnInit {
    * Reabre uma apuração FECHADA (RN005), ramificando o erro por `errors[].code` (não por texto):
    * 409 `APURACAO_NAO_REABRIVEL` e 422 `REABERTURA_FORA_PRAZO` têm mensagens específicas.
    *
-   * ⚠️ **Não conectável hoje (A-7/OQ-1):** `ApuracaoResponse` não expõe `id` e o endpoint é
+   * **Não conectável hoje (A-7/OQ-1):** `ApuracaoResponse` não expõe `id` e o endpoint é
    * `POST /apuracao/{id}/reabrir` — a UI mantém o botão desabilitado com aviso. Este método fica
    * pronto (e testado com mocks) para ativar quando o backend expuser o `id`.
    */

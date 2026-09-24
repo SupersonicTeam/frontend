@@ -234,7 +234,7 @@ export class CalendarioPage implements OnInit {
       next: (res) => {
         this.enviandoNotificacao.set(false);
         if (res.enviados > 0) {
-          this.toastService.success(`✅ ${res.enviados} notificação(ões) enviada(s) via WhatsApp!`);
+          this.toastService.success(`${res.enviados} notificação(ões) enviada(s) via WhatsApp.`);
         } else {
           this.toastService.info('Nenhuma obrigação pendente para notificar.');
         }

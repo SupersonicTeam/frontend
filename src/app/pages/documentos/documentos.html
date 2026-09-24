@@ -113,6 +113,16 @@
                 <button class="tap-target flex flex-1 items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio transition-colors hover:bg-muted" (click)="abrirPreview(nota)">
                   <svg lucideEye [size]="14" /> Ver
                 </button>
+                <!-- Abre o assistente com esta nota do lado. Quando ela tem pendencia,
+                     a gaveta ja traz o que o fisco apontou em /notas/{id}/validacoes. -->
+                <button
+                  class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-assistente-borda bg-assistente-soft px-3 text-apoio text-assistente-ink transition-colors hover:bg-assistente/15"
+                  [attr.aria-label]="'Perguntar ao assistente sobre a nota ' + nota.numero"
+                  title="Perguntar ao assistente"
+                  (click)="perguntarSobre(nota)"
+                >
+                  <svg lucideSparkles [size]="14" />
+                </button>
                 @if (podeEditar(nota)) {
                   <button class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio transition-colors hover:bg-muted" (click)="editarNota(nota)" title="Editar">
                     <svg lucidePencil [size]="14" />

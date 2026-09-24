@@ -13,6 +13,8 @@ import {
   LucideBell,
   LucideRefreshCw,
   LucideSparkles,
+  LucideLightbulb,
+  LucideCalendar,
 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { BaseChartDirective } from 'ng2-charts';
@@ -22,9 +24,6 @@ import {
   BarElement,
   PieController,
   ArcElement,
-  LineController,
-  PointElement,
-  LineElement,
   CategoryScale,
   LinearScale,
   Legend,
@@ -33,11 +32,11 @@ import {
   type ChartData,
 } from 'chart.js';
 
-// Registro enxuto: so barras/pizza/linha (mantem Chart.js no chunk lazy do dashboard).
+// Registro enxuto: so barras e pizza (mantem Chart.js no chunk lazy do dashboard).
+// O controlador de linha saiu junto com o card "Tendencia mensal".
 Chart.register(
   BarController, BarElement,
   PieController, ArcElement,
-  LineController, PointElement, LineElement,
   CategoryScale, LinearScale, Legend, Tooltip,
 );
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
@@ -105,6 +104,8 @@ function mesLabelFromPeriodo(periodo: string): string {
     UiModal,
     UiSkeleton,
     UiStat,
+    LucideLightbulb,
+    LucideCalendar,
   ],
   templateUrl: './dashboard.html',
 })
@@ -164,6 +165,16 @@ export class DashboardPage implements OnInit {
     };
   });
 
+  /**
+   * O produtor nao tem nenhuma nota de entrada: `notasPorMes` devolve
+   * `entradas: 0` em todos os meses. Sem dizer isso, o grafico parece quebrado —
+   * a serie laranja simplesmente nao aparece.
+   */
+  readonly semNotasDeEntrada = computed(() => {
+    const dados = this.dashboard()?.notasPorMes ?? [];
+    return dados.length > 0 && dados.every(d => d.entradas === 0);
+  });
+
   readonly barChartOptions: ChartConfiguration<'bar'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
@@ -213,52 +224,6 @@ export class DashboardPage implements OnInit {
         callbacks: {
           label: ctx => ` ${ctx.label}: ${this.formatCurrency(ctx.parsed as number)}`,
         },
-      },
-    },
-  };
-
-  // Grafico: tendencia mensal (linha) — reusa notasPorMes (contagens)
-  readonly lineChartData = computed<ChartData<'line'>>(() => {
-    const dados = this.dashboard()?.notasPorMes ?? [];
-    return {
-      labels: dados.map(d => mesLabelFromPeriodo(d.periodo)),
-      datasets: [
-        {
-          label: 'Entradas',
-          data: dados.map(d => d.entradas),
-          borderColor: 'hsl(33, 55%, 52%)',
-          backgroundColor: 'hsl(33, 55%, 52%)',
-          tension: 0.35,
-          pointRadius: 3,
-        },
-        {
-          label: 'Saídas',
-          data: dados.map(d => d.saidas),
-          borderColor: 'hsl(142, 44%, 32%)',
-          backgroundColor: 'hsl(142, 44%, 32%)',
-          tension: 0.35,
-          pointRadius: 3,
-        },
-      ],
-    };
-  });
-
-  readonly lineChartOptions: ChartConfiguration<'line'>['options'] = {
-    responsive: true,
-    maintainAspectRatio: false,
-    animation: { duration: 700 },
-    plugins: {
-      legend: {
-        position: 'bottom',
-        labels: { usePointStyle: true, boxWidth: 8, font: { family: 'Inter' } },
-      },
-    },
-    scales: {
-      x: { grid: { display: false }, ticks: { font: { family: 'Inter' } } },
-      y: {
-        beginAtZero: true,
-        ticks: { precision: 0, font: { family: 'Inter' } },
-        grid: { color: 'hsl(142, 15%, 88%)' },
       },
     },
   };
@@ -495,7 +460,7 @@ export class DashboardPage implements OnInit {
       next: res => {
         this.enviandoNotificacao.set(false);
         if (res.enviados > 0) {
-          this.toastService.success(`✅ ${res.enviados} notificação(ões) enviada(s) via WhatsApp!`);
+          this.toastService.success(`${res.enviados} notificação(ões) enviada(s) via WhatsApp.`);
         } else {
           this.toastService.info('Nenhuma obrigação pendente para notificar.');
         }

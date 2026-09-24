@@ -1,0 +1,140 @@
+@if (store.aberto()) {
+  <!-- Fundo. Clicar fora fecha, como em qualquer gaveta. -->
+  <div
+    class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
+    (click)="store.fechar()"
+    aria-hidden="true"
+  ></div>
+
+  <section
+    #painel
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="assistente-titulo"
+    class="fixed inset-x-0 bottom-0 z-[61] flex h-[85vh] flex-col overflow-hidden rounded-t-destaque border border-assistente-borda bg-background shadow-alta sm:inset-y-4 sm:right-4 sm:left-auto sm:h-auto sm:w-[min(58rem,calc(100vw-2rem))] sm:rounded-destaque"
+  >
+    <!-- Cabeçalho -->
+    <header
+      class="flex items-center gap-2 border-b border-border bg-assistente-soft px-4 py-3"
+    >
+      <span
+        class="flex size-9 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground"
+      >
+        <svg lucideSparkles [size]="18" />
+      </span>
+      <div class="min-w-0 flex-1">
+        <h2 id="assistente-titulo" class="font-heading font-semibold text-foreground">
+          Assistente fiscal
+        </h2>
+        <p class="truncate text-apoio text-muted-foreground">
+          @if (store.notaEmFoco(); as nota) {
+            Falando sobre a nota {{ nota.numero }}
+          } @else {
+            {{ store.contexto().nome ?? 'Sua operação' }} · {{ store.contexto().uf ?? '—' }}
+          }
+        </p>
+      </div>
+
+      <a
+        routerLink="/chat"
+        class="tap-target hidden items-center gap-1.5 rounded-controle px-3 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente/15 sm:inline-flex"
+        (click)="store.fechar()"
+      >
+        <svg lucideExternalLink [size]="15" />
+        Abrir em tela cheia
+      </a>
+      <button
+        type="button"
+        class="tap-target flex items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted"
+        aria-label="Fechar o assistente"
+        (click)="store.fechar()"
+      >
+        <svg lucideX [size]="20" />
+      </button>
+    </header>
+
+    <!-- Corpo: conversa + nota -->
+    <div class="flex min-h-0 flex-1">
+      <div class="flex min-h-0 flex-1 flex-col gap-3 p-4">
+        <app-assistente-conversa compacto />
+      </div>
+
+      @if (store.notaEmFoco(); as nota) {
+        <aside
+          class="hidden w-[19rem] shrink-0 flex-col gap-3 overflow-y-auto border-l border-border bg-surface p-4 lg:flex"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="flex items-center gap-1.5 font-heading font-semibold text-foreground">
+              <svg lucideFileText [size]="16" class="text-primary" />
+              Nota {{ nota.numero }}
+            </h3>
+            <ui-badge-status [status]="nota.status" />
+          </div>
+
+          <dl class="flex flex-col gap-2">
+            <div class="flex justify-between gap-2">
+              <dt class="text-apoio text-muted-foreground">Destinatário</dt>
+              <dd class="text-right text-apoio font-medium text-foreground">
+                {{ nota.destinatarioNome }}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-apoio text-muted-foreground">Emissão</dt>
+              <dd class="text-apoio font-medium tabular-nums text-foreground">
+                {{ formatDate(nota.dataEmissao) }}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-apoio text-muted-foreground">Total</dt>
+              <dd class="text-apoio font-medium tabular-nums text-foreground">
+                {{ formatCurrency(nota.valorTotalNota) }}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-apoio text-muted-foreground">IBS</dt>
+              <dd class="text-apoio font-medium tabular-nums text-foreground">
+                {{ formatCurrency(nota.valorTotalIbs) }}
+              </dd>
+            </div>
+            <div class="flex justify-between gap-2">
+              <dt class="text-apoio text-muted-foreground">CBS</dt>
+              <dd class="text-apoio font-medium tabular-nums text-foreground">
+                {{ formatCurrency(nota.valorTotalCbs) }}
+              </dd>
+            </div>
+          </dl>
+
+          <!-- O que o fisco apontou. Dado real de /notas/{id}/validacoes. -->
+          @if (store.validacoesDaNota().length) {
+            <div class="rounded-card border border-aviso/30 bg-aviso-soft p-3">
+              <p class="flex items-center gap-1.5 text-apoio font-medium text-aviso-ink">
+                <svg lucideTriangleAlert [size]="15" />
+                O que impede a emissão
+              </p>
+              <ul class="mt-2 flex list-disc flex-col gap-1.5 pl-4">
+                @for (v of store.validacoesDaNota(); track v.code) {
+                  <li class="text-apoio leading-relaxed text-muted-foreground">
+                    {{ v.message }}
+                    <!-- O backend as vezes repete a mensagem em `suggestion`; so
+                         mostramos quando ela acrescenta algo. -->
+                    @if (v.suggestion && v.suggestion !== v.message) {
+                      <span class="block text-foreground">{{ v.suggestion }}</span>
+                    }
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+
+          <a
+            routerLink="/documentos"
+            class="tap-target inline-flex items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
+            (click)="store.fechar()"
+          >
+            Abrir em Minhas notas
+          </a>
+        </aside>
+      }
+    </div>
+  </section>
+}

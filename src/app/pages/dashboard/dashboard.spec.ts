@@ -151,7 +151,7 @@ describe('DashboardPage', () => {
     expect(fixture.componentInstance.formatCurrency(0)).toContain('0,00');
   });
 
-  it('DASH-04: barChartData/lineChartData plotam contagens de notasPorMes com rótulo de mês derivado de periodo', () => {
+  it('DASH-04: barChartData plota contagens de notasPorMes com rótulo de mês derivado de periodo', () => {
     const fixture = TestBed.createComponent(DashboardPage);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
@@ -160,7 +160,22 @@ describe('DashboardPage', () => {
     expect(cmp.barChartData().labels).toEqual(['Fev/26', 'Jul/26']);
     expect(cmp.barChartData().datasets[0].data).toEqual([4, 3]);
     expect(cmp.barChartData().datasets[1].data).toEqual([6, 5]);
-    expect(cmp.lineChartData().labels).toEqual(['Fev/26', 'Jul/26']);
+  });
+
+  /**
+   * O card "Tendência mensal" desenhava a **mesma** `notasPorMes` do gráfico de
+   * barras, só que em linha. Com o dado real (2 saídas e 0 entradas todo mês) viravam
+   * duas retas, e parecia defeito. O card saiu; o `lineChartData` foi junto.
+   */
+  it('DASH-04b: avisa quando não há notas de entrada, em vez de deixar a série sumir', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    flushDashboard();
+    flushVencimentos();
+
+    // O fixture tem entradas > 0, entao o aviso fica quieto.
+    expect(cmp.semNotasDeEntrada()).toBe(false);
   });
 
   it('DASH-05: pieChartData plota [cbs, ibs] com legenda CBS × IBS (sem FUNRURAL)', () => {
