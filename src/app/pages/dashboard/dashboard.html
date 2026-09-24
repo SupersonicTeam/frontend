@@ -242,6 +242,14 @@
       <div class="h-64">
         <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions"></canvas>
       </div>
+      <!-- Sem isto o grafico parece quebrado: a serie laranja fica invisivel e
+           quem olha nao sabe se e falta de dado ou falta de nota. -->
+      @if (semNotasDeEntrada()) {
+        <p class="mt-3 text-apoio text-muted-foreground">
+          Você não registrou notas de entrada (compras) no período — por isso só aparecem
+          as saídas.
+        </p>
+      }
     } @else {
       <div class="h-64 flex flex-col items-center justify-center text-center text-muted-foreground">
         <svg lucideFile [size]="32" class="mb-2 opacity-60" />
@@ -272,31 +280,12 @@
     }
   </div>
 
-  <!-- Card: Tendência mensal (linha) -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideTrendingUp [size]="20" class="text-primary" />
-        Tendência mensal
-      </h2>
-      <span class="text-apoio text-muted-foreground">Entradas × Saídas</span>
-    </div>
-    @if (loading() && !dashboard()) {
-      <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
-    } @else if ((dashboard()?.notasPorMes?.length ?? 0) > 0) {
-      <div class="h-64">
-        <canvas baseChart [type]="'line'" [data]="lineChartData()" [options]="lineChartOptions"></canvas>
-      </div>
-    } @else {
-      <div class="h-64 flex items-center justify-center text-muted-foreground text-apoio">
-        Sem dados no período.
-      </div>
-    }
-  </div>
-
   <!-- Card: Simulador Inteligente de Impostos -->
   <div class="bg-card rounded-card border border-border shadow-suave p-5">
-    <div class="flex items-center justify-between mb-4">
+    <!-- Os dois selos usavam `bg-green-100 text-green-700` (fora dos tokens, quebra
+         no tema escuro) e `py-1`, que apertava o descendente do "p" de
+         Agropecuaria. Agora sao tokens semanticos, sem quebra de linha. -->
+    <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
       <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideSprout [size]="20" class="text-primary" />
         Simulador Inteligente
@@ -304,9 +293,13 @@
       @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       } @else {
-        <div class="flex gap-2">
-          <span class="text-apoio bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">Agropecuária</span>
-          <span class="text-apoio bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">-60% CBS/IBS</span>
+        <div class="flex flex-wrap gap-2">
+          <span class="rounded-full bg-primary/10 px-2.5 py-1.5 text-apoio leading-none font-medium whitespace-nowrap text-primary">
+            Agropecuária
+          </span>
+          <span class="rounded-full bg-sucesso-soft px-2.5 py-1.5 text-apoio leading-none font-medium whitespace-nowrap text-sucesso-ink">
+            -60% CBS/IBS
+          </span>
         </div>
       }
     </div>
