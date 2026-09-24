@@ -422,6 +422,10 @@
       <h2 class="font-heading text-lg font-semibold text-foreground">Últimos documentos enviados</h2>
       @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+      } @else if (documentos().length) {
+        <span class="ml-auto text-apoio text-muted-foreground">
+          {{ documentos().length }} mais recentes
+        </span>
       }
     </div>
     <div class="px-5 pb-5">
@@ -463,6 +467,19 @@
             </li>
           }
         </ul>
+
+        <!-- O backend devolve no maximo 5 (findTop5...), entao rolagem aqui nao
+             levaria a lugar nenhum. A saida e a lista completa, que tem
+             paginacao e filtros. -->
+        @if (totalDeNotas() > documentos().length) {
+          <a
+            routerLink="/documentos"
+            class="tap-target mt-3 flex items-center justify-center gap-1.5 rounded-controle border border-border text-apoio font-medium text-primary transition-colors hover:bg-muted"
+          >
+            Ver todas as {{ totalDeNotas() }} notas
+            <svg lucideArrowRight [size]="15" />
+          </a>
+        }
       }
     </div>
   </div>

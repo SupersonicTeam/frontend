@@ -178,6 +178,33 @@ describe('DashboardPage', () => {
     expect(cmp.semNotasDeEntrada()).toBe(false);
   });
 
+  /**
+   * O card "Ultimos documentos" mostra no maximo 5 -- o backend devolve
+   * `findTop5ByProdutorIdOrderByDataEmissaoDesc`. Sem saber o total, ele virava
+   * beco sem saida: quem tem 15 notas via 5 e nao chegava nas outras.
+   */
+  it('DASH-04c: guarda o total de notas do totalElements, nao do tamanho da pagina', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    httpMock.expectOne(r => r.url === '/dashboard').flush(buildResponse());
+    // A pagina traz 2 notas, mas o produtor tem 15: e o total que decide se o
+    // card mostra a saida "Ver todas as N notas".
+    httpMock.match(r => r.url === '/notas').forEach(r =>
+      r.flush({
+        content: [
+          { id: 'a', numero: 1, status: 'AUTORIZADA' },
+          { id: 'b', numero: 2, status: 'AUTORIZADA' },
+        ],
+        totalElements: 15,
+      }),
+    );
+    flushVencimentos();
+
+    expect(cmp.totalDeNotas()).toBe(15);
+  });
+
   it('DASH-05: pieChartData plota [cbs, ibs] com legenda CBS × IBS (sem FUNRURAL)', () => {
     const fixture = TestBed.createComponent(DashboardPage);
     const cmp = fixture.componentInstance;
