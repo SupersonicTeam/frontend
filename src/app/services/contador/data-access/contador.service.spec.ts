@@ -15,11 +15,6 @@ function flushErro(httpMock: HttpTestingController, urlPart: string): void {
   });
 }
 
-function isoData(diasOffset: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + diasOffset);
-  return d.toISOString().split('T')[0];
-}
 
 describe('ContadorApi', () => {
   let service: ContadorApi;
@@ -104,108 +99,59 @@ describe('ContadorApi', () => {
     });
   });
 
-  describe('guias fiscais (fallback mock)', () => {
-    it('CTD-06/07: anexarGuia (fallback mock) cria a guia e ela passa a aparecer em getGuias()', () => {
-      let criada: GuiaFiscal | null | undefined;
-      service
-        .anexarGuia({ produtorId: 'produtor-1', tipoGuia: 'ICMS', dataVencimento: isoData(10), valor: 500 })
-        .subscribe(res => (criada = res));
-      flushErro(httpMock, '/contador/guias');
+  describe('guias fiscais (#50 — endpoints reais, sem estado mock)', () => {
+    // Os tres endpoints de guia existem e respondem (GET/POST /contador/guias e
+    // PATCH /contador/guias/:id/pagar). O service mantinha um estado mock local que
+    // entrava em cena quando a chamada falhava: a tela exibia guias inexistentes e
+    // dava "baixa" em pagamento que nunca aconteceu. Esse estado foi removido.
 
-      expect(criada).toBeTruthy();
-      expect(criada!.status).toBe('pendente');
-      expect(criada!.valor).toBe(500);
-
-      let lista: GuiaFiscal[] | undefined;
-      service.getGuias('produtor-1').subscribe(res => (lista = res));
-      flushErro(httpMock, '/contador/guias');
-
-      expect(lista!.some(g => g.id === criada!.id)).toBe(true);
-    });
-
-    it('bugfix (Copilot review): guias de um produtor não vazam para outro produtor no fallback mock', () => {
-      let criadaP1: GuiaFiscal | null | undefined;
-      service
-        .anexarGuia({ produtorId: 'produtor-1', tipoGuia: 'ICMS', dataVencimento: isoData(10), valor: 500 })
-        .subscribe(res => (criadaP1 = res));
-      flushErro(httpMock, '/contador/guias');
-
-      let listaP2: GuiaFiscal[] | undefined;
-      service.getGuias('produtor-2').subscribe(res => (listaP2 = res));
-      flushErro(httpMock, '/contador/guias');
-
-      expect(listaP2!.some(g => g.id === criadaP1!.id)).toBe(false);
-      expect(listaP2!.every(g => g.produtorId === 'produtor-2')).toBe(true);
-
-      let listaP1: GuiaFiscal[] | undefined;
-      service.getGuias('produtor-1').subscribe(res => (listaP1 = res));
-      flushErro(httpMock, '/contador/guias');
-
-      expect(listaP1!.some(g => g.id === criadaP1!.id)).toBe(true);
-    });
-
-    it('CTD-08: guia com data de vencimento no passado e não paga aparece com status vencido', () => {
-      let criada: GuiaFiscal | null | undefined;
-      service
-        .anexarGuia({ produtorId: 'produtor-1', tipoGuia: 'DARF', dataVencimento: isoData(-5), valor: 200 })
-        .subscribe(res => (criada = res));
-      flushErro(httpMock, '/contador/guias');
-
-      expect(criada!.status).toBe('vencido');
-    });
-
-    it('CTD-09: marcarGuiaPaga (fallback mock) reflete status pago na leitura seguinte de getGuias()', () => {
-      let criada: GuiaFiscal | null | undefined;
-      service
-        .anexarGuia({ produtorId: 'produtor-1', tipoGuia: 'GPS', dataVencimento: isoData(10), valor: 150 })
-        .subscribe(res => (criada = res));
-      flushErro(httpMock, '/contador/guias');
-
-      service.marcarGuiaPaga(criada!.id).subscribe();
-      flushErro(httpMock, `/contador/guias/${criada!.id}/pagar`);
-
-      let lista: GuiaFiscal[] | undefined;
-      service.getGuias('produtor-1').subscribe(res => (lista = res));
-      flushErro(httpMock, '/contador/guias');
-
-      expect(lista!.find(g => g.id === criada!.id)?.status).toBe('pago');
-    });
-
-    it('CTD-10: getGuias em sucesso do backend real retorna a resposta tal como veio (sem fixture)', () => {
+    it('CTD-10: getGuias devolve a resposta do backend tal como veio', () => {
+      const doBackend = [
+        {
+          id: 'real-1',
+          produtorId: 'p1',
+          tipoGuia: 'ICMS',
+          dataVencimento: '2026-10-20',
+          valor: 990,
+          status: 'pendente',
+          createdAt: '2026-09-01T10:00:00Z',
+        },
+      ];
       let resultado: GuiaFiscal[] | undefined;
-      service.getGuias('produtor-1').subscribe(res => (resultado = res));
+      service.getGuias('p1').subscribe(res => (resultado = res));
 
-      httpMock.expectOne(r => r.url === '/contador/guias').flush([]);
+      httpMock.expectOne(r => r.url === '/contador/guias').flush(doBackend);
+
+      expect(resultado).toEqual(doBackend);
+    });
+
+    it('CTD-06 (#50): em erro, getGuias devolve VAZIO — nunca guias de exemplo', () => {
+      let resultado: GuiaFiscal[] | undefined;
+      service.getGuias('p1').subscribe(res => (resultado = res));
+
+      flushErro(httpMock, '/contador/guias');
 
       expect(resultado).toEqual([]);
     });
 
-    it('CTD-10: anexarGuia em sucesso do backend real retorna a guia criada pelo backend (não a mock)', () => {
-      const guiaBackend: GuiaFiscal = {
-        id: 'real-1',
-        produtorId: 'produtor-1',
-        tipoGuia: 'ICMS',
-        dataVencimento: isoData(10),
-        valor: 999,
-        status: 'pendente',
-        createdAt: '2026-07-07T00:00:00',
-      };
+    it('CTD-07 (#50): em erro, anexarGuia devolve null — nunca finge que criou', () => {
       let resultado: GuiaFiscal | null | undefined;
       service
-        .anexarGuia({ produtorId: 'produtor-1', tipoGuia: 'ICMS', dataVencimento: isoData(10), valor: 999 })
+        .anexarGuia({ produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2026-10-30', valor: 120 })
         .subscribe(res => (resultado = res));
 
-      httpMock.expectOne(r => r.url === '/contador/guias').flush(guiaBackend);
+      flushErro(httpMock, '/contador/guias');
 
-      expect(resultado).toEqual(guiaBackend);
+      expect(resultado).toBeNull();
     });
 
-    it('edge case: marcarGuiaPaga com id inexistente não quebra a chamada (no-op)', () => {
-      let completou = false;
-      service.marcarGuiaPaga('id-que-nao-existe').subscribe({ complete: () => (completou = true) });
-      flushErro(httpMock, '/contador/guias/id-que-nao-existe/pagar');
+    it('CTD-09 (#50): em erro, marcarGuiaPaga propaga a falha em vez de engolir', () => {
+      let deuErro = false;
+      service.marcarGuiaPaga('g1').subscribe({ error: () => (deuErro = true) });
 
-      expect(completou).toBe(true);
+      flushErro(httpMock, '/contador/guias/g1/pagar');
+
+      expect(deuErro).toBe(true);
     });
   });
 

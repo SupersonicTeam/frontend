@@ -1,12 +1,30 @@
-import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
 import { ContadorPage } from './contador';
-import { ToastService } from '@core/services/toast.service';
-import { NotificacoesService } from '@core/services/notificacoes.service';
+import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 
-describe('ContadorPage', () => {
+/**
+ * Cobertura da tela do contador **depois** da #50.
+ *
+ * O spec anterior exercitava solicitações, anexos e checklist — funcionalidades que
+ * saíram da tela porque o backend não as tem (`/contador/pendencias` responde 404) e
+ * só existiam à custa de dados de exemplo. Estes testes cobrem o que sobrou, que é
+ * real: guias fiscais e as notas que exigem correção.
+ */
+describe('ContadorPage (#50)', () => {
   let httpMock: HttpTestingController;
+
+  const guia = (over: Partial<GuiaFiscal> = {}): GuiaFiscal => ({
+    id: 'g1',
+    produtorId: 'p1',
+    tipoGuia: 'ICMS',
+    dataVencimento: '2026-09-20',
+    valor: 1250.5,
+    status: 'pendente',
+    createdAt: '2026-09-01T10:00:00Z',
+    ...over,
+  });
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
@@ -18,178 +36,106 @@ describe('ContadorPage', () => {
 
   afterEach(() => httpMock.verify());
 
-  /** Flush das duas leituras disparadas no ngOnInit (pendências + guias), ambas vazias. */
-  function flushInit() {
-    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([]);
-    httpMock.expectOne(r => r.url === '/contador/guias').flush([]);
+  /** Drena as três leituras do ngOnInit: guias, dashboard e notas. */
+  function flushInit(guias: GuiaFiscal[] = [], notas: unknown[] = []) {
+    httpMock.match(r => r.url === '/contador/guias').forEach(r => r.flush(guias));
+    httpMock.match(r => r.url === '/dashboard').forEach(r => r.flush({}, { status: 500, statusText: 'x' }));
+    httpMock
+      .match(r => r.url === '/notas')
+      .forEach(r => r.flush({ content: notas, totalElements: notas.length }));
   }
 
-  it('CTD-12: categorias incluem as novas categorias contábeis (guia, balancete, balanço, extrato, IR)', () => {
+  it('não busca mais /contador/pendencias — o endpoint não existe no backend', () => {
     const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
     fixture.detectChanges();
     flushInit();
 
-    for (const categoria of [
-      'Guia de imposto', 'Balancete', 'Balanço', 'Extrato bancário', 'Documento para IR',
-    ]) {
-      expect(cmp.categorias).toContain(categoria);
-    }
+    expect(httpMock.match(r => r.url === '/contador/pendencias').length).toBe(0);
   });
 
-  it('CTD-06: salvarGuia() cria a guia (fallback mock) e ela passa a aparecer em guias()', () => {
+  it('soma o total a pagar apenas das guias em aberto, ignorando as pagas', () => {
     const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
     fixture.detectChanges();
-    flushInit();
-
-    cmp.abrirAnexarGuia();
-    cmp.novaGuiaForm.setValue({
-      tipoGuia: 'ICMS', dataVencimento: '2026-08-10', valor: '500', observacoes: '',
-    });
-    cmp.salvarGuia();
-    httpMock
-      .expectOne(r => r.url === '/contador/guias')
-      .flush('erro', { status: 500, statusText: 'Server Error' });
-
-    expect(cmp.guias().length).toBe(1);
-    expect(cmp.guias()[0].valor).toBe(500);
-    expect(cmp.guias()[0].tipoGuia).toBe('ICMS');
-    expect(cmp.showAnexarGuia()).toBe(false);
-  });
-
-  it('edge case: valor <= 0 bloqueia o envio do form de guia, sem nenhuma chamada HTTP', () => {
-    const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
-    flushInit();
-
-    cmp.abrirAnexarGuia();
-    cmp.novaGuiaForm.setValue({
-      tipoGuia: 'ICMS', dataVencimento: '2026-08-10', valor: '0', observacoes: '',
-    });
-    expect(cmp.novaGuiaForm.invalid).toBe(true);
-
-    cmp.salvarGuia();
-
-    expect(httpMock.match(() => true).length).toBe(0);
-  });
-
-  it('CTD-23: ao anexar uma guia, mostra o toast "WhatsApp — em breve" sem nenhuma chamada HTTP adicional', () => {
-    const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
-    flushInit();
-
-    cmp.abrirAnexarGuia();
-    cmp.novaGuiaForm.setValue({
-      tipoGuia: 'ICMS', dataVencimento: '2026-08-10', valor: '500', observacoes: '',
-    });
-    cmp.salvarGuia();
-    httpMock
-      .expectOne(r => r.url === '/contador/guias')
-      .flush('erro', { status: 500, statusText: 'Server Error' });
-
-    const toasts = TestBed.inject(ToastService).toasts();
-    expect(toasts.some(t => t.message === 'Envio por WhatsApp — em breve')).toBe(true);
-    expect(httpMock.match(() => true).length).toBe(0);
-  });
-
-  it('CTD-09: marcarPaga() atualiza o status da guia para pago em guias()', () => {
-    const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([]);
-    httpMock.expectOne(r => r.url === '/contador/guias').flush([
-      {
-        id: 'g1', produtorId: 'p1', tipoGuia: 'ICMS', dataVencimento: '2026-08-10',
-        valor: 500, status: 'pendente', createdAt: '2026-07-01T00:00:00',
-      },
+    flushInit([
+      guia({ id: 'a', valor: 1000, status: 'pendente' }),
+      guia({ id: 'b', valor: 500, status: 'vencido' }),
+      guia({ id: 'c', valor: 9999, status: 'pago' }),
     ]);
 
-    cmp.marcarPaga('g1');
-    httpMock
-      .expectOne(r => r.url === '/contador/guias/g1/pagar')
-      .flush('erro', { status: 500, statusText: 'Server Error' });
-
-    expect(cmp.guias().find(g => g.id === 'g1')?.status).toBe('pago');
+    const cmp = fixture.componentInstance;
+    expect(cmp.totalAPagar()).toBe(1500);
+    expect(cmp.guiasPendentes().length).toBe(2);
+    expect(cmp.guiasVencidas().length).toBe(1);
   });
 
-  it('CTD-20/21: checklist de fechamento — sem período selecionado mostra estado vazio explícito; ao selecionar, marcar recebido persiste no signal', () => {
+  it('em erro ao listar guias, mostra lista vazia — nunca dados de exemplo', () => {
     const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
     fixture.detectChanges();
-    flushInit();
-
-    expect(cmp.periodoChecklist()).toBe('');
-    cmp.setTab('documentos');
-    fixture.detectChanges();
-    expect(fixture.nativeElement.textContent).toContain('Selecione um período');
-
-    cmp.setPeriodoChecklist('2026-07');
-    expect(cmp.isChecklistItemRecebido('Balancete')).toBe(false);
-
-    cmp.toggleChecklistItem('Balancete');
-    expect(cmp.isChecklistItemRecebido('Balancete')).toBe(true);
-
-    cmp.toggleChecklistItem('Balancete');
-    expect(cmp.isChecklistItemRecebido('Balancete')).toBe(false);
-  });
-
-  it('CTD-19: aba Docs Oficiais exibe as guias de exemplo em vez do placeholder vazio', () => {
-    const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([]);
     httpMock
       .expectOne(r => r.url === '/contador/guias')
       .flush('erro', { status: 500, statusText: 'Server Error' });
-
-    expect(cmp.guias().length).toBeGreaterThan(0);
-  });
-
-  it('CTD-24: ao criar uma nova solicitação, mostra o mesmo toast "WhatsApp — em breve"', () => {
-    const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
     flushInit();
 
-    cmp.abrirNova();
-    cmp.novaSolicitacaoForm.setValue({
-      titulo: 'Notas de agosto', descricao: 'Notas do mês', categoria: 'Guia de imposto',
-      mesReferencia: '', prioridade: 'media', prazo: '', observacoes: '',
-    });
-    cmp.salvarSolicitacao();
-    httpMock
-      .expectOne(r => r.url === '/contador/pendencias' && r.method === 'POST')
-      .flush('erro', { status: 500, statusText: 'Server Error' });
-
-    const toasts = TestBed.inject(ToastService).toasts();
-    expect(toasts.some(t => t.message === 'Envio por WhatsApp — em breve')).toBe(true);
+    expect(fixture.componentInstance.guias()).toEqual([]);
+    expect(fixture.componentInstance.carregandoGuias()).toBe(false);
   });
 
-  it('CTD-17: ao criar uma nova solicitação, gera uma notificação via NotificacoesService', () => {
+  it('separa as notas que exigem correção das demais', () => {
     const fixture = TestBed.createComponent(ContadorPage);
-    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    flushInit(
+      [],
+      [
+        { id: 'n1', numero: 1, status: 'AUTORIZADA', destinatarioNome: 'A' },
+        { id: 'n2', numero: 2, status: 'COM_INCONSISTENCIAS', destinatarioNome: 'B' },
+        { id: 'n3', numero: 3, status: 'REJEITADA', destinatarioNome: 'C' },
+      ],
+    );
+
+    expect(fixture.componentInstance.notasComProblema().map(n => n.numero)).toEqual([2, 3]);
+  });
+
+  it('o formulário de guia só habilita com vencimento e valor positivo', () => {
+    const fixture = TestBed.createComponent(ContadorPage);
     fixture.detectChanges();
     flushInit();
+    const cmp = fixture.componentInstance;
 
-    const notificacoesAntes = TestBed.inject(NotificacoesService).notificacoes().length;
+    expect(cmp.formValido()).toBe(false);
 
-    cmp.abrirNova();
-    cmp.novaSolicitacaoForm.setValue({
-      titulo: 'Notas de agosto', descricao: 'Notas do mês', categoria: 'Guia de imposto',
-      mesReferencia: '', prioridade: 'media', prazo: '', observacoes: '',
-    });
-    cmp.salvarSolicitacao();
-    httpMock
-      .expectOne(r => r.url === '/contador/pendencias' && r.method === 'POST')
-      .flush('erro', { status: 500, statusText: 'Server Error' });
+    cmp.formVencimento.set('2026-10-20');
+    expect(cmp.formValido()).toBe(false);
 
-    const notificacoes = TestBed.inject(NotificacoesService).notificacoes();
-    expect(notificacoes.length).toBe(notificacoesAntes + 1);
-    expect(notificacoes[0].titulo).toContain('Notas de agosto');
-    expect(notificacoes[0].tipo).toBe('Solicitação');
-    expect(notificacoes[0].lida).toBe(false);
+    cmp.formValor.set('0');
+    expect(cmp.formValido()).toBe(false);
+
+    cmp.formValor.set('820.35');
+    expect(cmp.formValido()).toBe(true);
+  });
+
+  it('dar baixa chama PATCH e recarrega a lista', () => {
+    const fixture = TestBed.createComponent(ContadorPage);
+    fixture.detectChanges();
+    flushInit([guia({ id: 'g9' })]);
+
+    fixture.componentInstance.marcarPaga(guia({ id: 'g9' }));
+
+    const patch = httpMock.expectOne(r => r.url === '/contador/guias/g9/pagar');
+    expect(patch.request.method).toBe('PATCH');
+    patch.flush({});
+
+    httpMock.expectOne(r => r.url === '/contador/guias').flush([guia({ id: 'g9', status: 'pago' })]);
+    expect(fixture.componentInstance.guiasPendentes().length).toBe(0);
+  });
+
+  it('traduz o status da guia para linguagem de quem lê, não a do banco', () => {
+    const fixture = TestBed.createComponent(ContadorPage);
+    fixture.detectChanges();
+    flushInit();
+    const cmp = fixture.componentInstance;
+
+    expect(cmp.rotuloStatusGuia('pendente')).toBe('Em aberto');
+    expect(cmp.rotuloStatusGuia('pago')).toBe('Paga');
+    expect(cmp.rotuloStatusGuia('vencido')).toBe('Vencida');
   });
 });
