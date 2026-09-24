@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, booleanAttribute, computed, input } from '@angular/core';
 
 /**
  * Moldura de tabela (#45) — a casca, não a tabela.
@@ -28,9 +28,9 @@ import { Component, computed, input } from '@angular/core';
 })
 export class UiTable {
   /** Densidade de desktop (contador), em vez do respiro do celular (produtor). */
-  readonly compacto = input(false);
-  readonly cabecalhoFixo = input(false);
-  readonly carregando = input(false);
+  readonly compacto = input(false, { transform: booleanAttribute });
+  readonly cabecalhoFixo = input(false, { transform: booleanAttribute });
+  readonly carregando = input(false, { transform: booleanAttribute });
 
   protected readonly classesMoldura = computed(() =>
     [

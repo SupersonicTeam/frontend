@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, booleanAttribute, computed, input } from '@angular/core';
 
 type Variante = 'primary' | 'ghost' | 'perigo' | 'assistente' | 'sutil';
 type Tamanho = 'md' | 'lg';
@@ -39,12 +39,12 @@ type Tamanho = 'md' | 'lg';
 export class UiButton {
   readonly variant = input<Variante>('primary');
   readonly type = input<'button' | 'submit'>('button');
-  readonly disabled = input(false);
+  readonly disabled = input(false, { transform: booleanAttribute });
   readonly tamanho = input<Tamanho>('md');
   /** Mostra giro e bloqueia o clique enquanto a ação está em andamento. */
-  readonly carregando = input(false);
+  readonly carregando = input(false, { transform: booleanAttribute });
   /** Ocupa toda a largura — o padrão em formulário no celular. */
-  readonly blocoCompleto = input(false);
+  readonly blocoCompleto = input(false, { transform: booleanAttribute });
 
   protected readonly classes = computed(() => {
     const variantes: Record<Variante, string> = {

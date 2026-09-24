@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, booleanAttribute, computed, input } from '@angular/core';
 
 type Tom = 'neutro' | 'positivo' | 'negativo' | 'assistente';
 
@@ -45,7 +45,7 @@ export class UiStat {
   readonly apoio = input<string>();
   readonly tom = input<Tom>('neutro');
   /** Densidade reduzida para grades com muitos indicadores (visão do contador). */
-  readonly compacto = input(false);
+  readonly compacto = input(false, { transform: booleanAttribute });
 
   protected readonly classesCaixa = computed(() => {
     const fundos: Record<Tom, string> = {

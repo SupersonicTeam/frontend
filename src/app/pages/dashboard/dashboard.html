@@ -1,18 +1,29 @@
-<div class="space-y-6 max-w-2xl mx-auto">
+<div class="page-container flex flex-col gap-5">
 
-  <!-- Header -->
-  <div>
-    <h1 class="text-2xl md:text-3xl font-heading font-bold text-foreground">
-      Olá, {{ nomeUsuario() }} 👋
-    </h1>
-    <p class="text-muted-foreground text-base mt-1">{{ mesAtual }}</p>
-  </div>
+  <!-- Cabeçalho -->
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1 class="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+        Olá, {{ nomeUsuario() }}
+      </h1>
+      <p class="mt-1 text-apoio text-muted-foreground">{{ mesAtual }}</p>
+    </div>
+    <button
+      type="button"
+      class="tap-target inline-flex items-center gap-2 rounded-controle border border-border px-4 text-apoio font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+      [disabled]="enviandoNotificacao()"
+      (click)="handleNotificarWhatsApp()"
+    >
+      <svg lucideBell [size]="16" />
+      {{ enviandoNotificacao() ? 'Enviando...' : 'Avisar no WhatsApp' }}
+    </button>
+  </header>
 
   @if (erro()) {
-    <div class="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+    <div class="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-apoio text-destructive flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
       <span>Não foi possível carregar os dados do dashboard.</span>
       <button
-        class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/40 text-destructive text-sm hover:bg-destructive/10 transition-colors"
+        class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/40 text-destructive text-apoio hover:bg-destructive/10 transition-colors"
         (click)="tentarNovamente()"
       >
         <svg lucideRefreshCw [size]="14" />
@@ -21,134 +32,146 @@
     </div>
   }
 
-  <!-- Card: KPIs de IBS/CBS -->
-  <div class="bg-card rounded-2xl shadow-sm border border-border">
-    <div class="flex items-center justify-between px-5 pt-5 pb-3">
-      <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
-        <svg lucideDollarSign [size]="20" class="text-primary" />
-        KPIs do período (IBS/CBS)
-        @if (loading()) {
-          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-        }
-      </h2>
-      <button
-        class="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-green-200 text-green-700 text-sm hover:bg-green-50 transition-colors disabled:opacity-50"
-        (click)="handleNotificarWhatsApp()"
-        [disabled]="enviandoNotificacao()"
-      >
-        @if (enviandoNotificacao()) {
-          <svg lucideLoaderCircle [size]="16" class="animate-spin" />
-        } @else {
-          <svg lucideMessageCircle [size]="16" />
-        }
-        <span class="hidden sm:inline">Notificar</span>
-      </button>
-    </div>
+  <!-- Assistente: so aparece quando ha algo real a dizer (#47) -->
+  @if (temInsight()) {
+    <ui-insight
+      [natureza]="notasComProblema().length ? 'atencao' : 'sugestao'"
+      [titulo]="
+        notasComProblema().length
+          ? notasComProblema().length + ' nota(s) precisam da sua correção'
+          : 'Você tem um vencimento chegando'
+      "
+    >
+      <svg icone lucideSparkles [size]="18" />
 
-    <div class="px-5 pb-5 space-y-3">
-      @if (loading() && !dashboard()) {
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-          @for (i of [1,2,3,4,5,6]; track i) {
-            <div class="h-16 bg-muted/50 animate-pulse rounded-xl"></div>
+      @if (notasComProblema().length) {
+        <p>
+          A nota <strong>{{ notasComProblema()[0].numero }}</strong>, para
+          {{ notasComProblema()[0].contraparte }}, não pode ser emitida como está.
+          @if (motivoPendencia()) {
+            <br />O que o fisco aponta: <em>{{ motivoPendencia() }}</em>
           }
-        </div>
-      } @else {
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-          <div class="p-3 rounded-xl bg-muted/60">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Débito IBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-              {{ formatCurrency(dashboard()?.kpis?.debitoIbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-muted/60">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito IBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-              {{ formatCurrency(dashboard()?.kpis?.creditoIbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-primary/10">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo IBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-primary">
-              {{ formatCurrency(dashboard()?.kpis?.saldoIbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-muted/60">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Débito CBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-              {{ formatCurrency(dashboard()?.kpis?.debitoCbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-muted/60">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Crédito CBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-              {{ formatCurrency(dashboard()?.kpis?.creditoCbs ?? 0) }}
-            </p>
-          </div>
-          <div class="p-3 rounded-xl bg-primary/10">
-            <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo CBS</p>
-            <p class="text-sm sm:text-lg font-heading font-bold text-primary">
-              {{ formatCurrency(dashboard()?.kpis?.saldoCbs ?? 0) }}
-            </p>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full bg-muted/80 text-xs sm:text-sm w-fit">
-          <svg lucideFileText [size]="12" class="text-muted-foreground shrink-0" />
-          <span class="text-muted-foreground">Total de notas no período:</span>
-          <span class="font-semibold text-foreground">{{ dashboard()?.kpis?.totalNotas ?? 0 }}</span>
-        </div>
+        </p>
+      } @else if (proximoVencimento(); as venc) {
+        <p>
+          {{ venc.descricao }} vence em {{ formatDate(venc.dataVencimento) }}.
+        </p>
       }
-    </div>
+
+      <div acoes>
+        <a
+          routerLink="/documentos"
+          class="tap-target inline-flex items-center gap-2 rounded-controle bg-assistente px-4 text-apoio font-medium text-assistente-foreground transition-colors hover:bg-assistente/90"
+        >
+          Corrigir agora
+        </a>
+      </div>
+    </ui-insight>
+  }
+
+  <!-- O que importa para o produtor: quanto pagar, quanto ja tem de credito -->
+  <section class="grid gap-4 sm:grid-cols-2">
+    @if (loading() && !dashboard()) {
+      @for (i of [1, 2]; track i) {
+        <ui-skeleton formato="bloco" [linhas]="1" altura="7rem" />
+      }
+    } @else {
+      <ui-stat
+        rotulo="Você tem a pagar"
+        [valor]="formatCurrency(saldoAPagar())"
+        apoio="saldo de IBS + CBS no período"
+        [tom]="saldoAPagar() > 0 ? 'negativo' : 'neutro'"
+      />
+      <ui-stat
+        rotulo="Crédito acumulado"
+        [valor]="formatCurrency(creditoAcumulado())"
+        apoio="abate do próximo pagamento"
+        [tom]="creditoAcumulado() > 0 ? 'positivo' : 'neutro'"
+      />
+    }
+  </section>
+
+  <!-- Detalhamento tecnico: existe, mas nao ocupa a atencao de quem nao e contador -->
+  <div>
+    <button
+      type="button"
+      class="tap-target inline-flex items-center gap-2 rounded-controle px-3 text-apoio font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      [attr.aria-expanded]="mostrarDetalheTributos()"
+      (click)="mostrarDetalheTributos.set(!mostrarDetalheTributos())"
+    >
+      <svg lucideFileText [size]="15" />
+      {{ mostrarDetalheTributos() ? 'Ocultar' : 'Ver' }} o detalhe por imposto (IBS e CBS)
+    </button>
+
+    @if (mostrarDetalheTributos()) {
+      <ui-card variant="plano" class="mt-2 block">
+        <dl class="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+          @for (item of detalheTributos(); track item.rotulo) {
+            <div>
+              <dt class="text-apoio text-muted-foreground">{{ item.rotulo }}</dt>
+              <dd class="text-valor font-semibold tabular-nums text-foreground">
+                {{ formatCurrency(item.valor) }}
+              </dd>
+            </div>
+          }
+        </dl>
+        <p class="mt-4 text-apoio text-muted-foreground">
+          <strong>IBS</strong> e <strong>CBS</strong> são os impostos que substituem ICMS, ISS, PIS e
+          Cofins na reforma tributária de 2026. <strong>Débito</strong> é o que você deve pelas
+          vendas, <strong>crédito</strong> é o que abate pelas compras, e o <strong>saldo</strong> é
+          a diferença — o que sobra para pagar.
+        </p>
+      </ui-card>
+    }
+
+    <p class="mt-2 text-apoio text-muted-foreground">
+      {{ dashboard()?.kpis?.totalNotas ?? 0 }} nota(s) no período.
+    </p>
   </div>
 
-  <!-- Card: Resumo financeiro (fluxo de caixa em R$ — backend#71) -->
+  <!-- Daqui para baixo, grade que cresce com a tela (#47) -->
+  <div class="grid items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+  <!-- Dinheiro do periodo. Semantica do backend: totalEntradas = vendas (PROPRIA),
+       totalSaidas = compras (IMPORTADA). Ja vem aplicada - NAO re-inverter. -->
   @if (temFinanceiro()) {
-    <div class="bg-card rounded-2xl shadow-sm border border-border">
-      <div class="flex items-center gap-2 px-5 pt-5 pb-3">
-        <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
-          <svg lucideTrendingUp [size]="20" class="text-primary" />
-          Resumo financeiro (R$)
-        </h2>
+    <section class="flex flex-col gap-3 lg:col-span-2 2xl:col-span-3">
+      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+        <svg lucideTrendingUp [size]="20" class="text-primary" />
+        Dinheiro do período
+      </h2>
+      <div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+        <ui-stat
+          compacto
+          rotulo="Entrou"
+          [valor]="formatCurrency(financeiro()!.totalEntradas)"
+          apoio="suas vendas"
+        />
+        <ui-stat
+          compacto
+          rotulo="Saiu"
+          [valor]="formatCurrency(financeiro()!.totalSaidas)"
+          apoio="suas compras"
+        />
+        <ui-stat
+          compacto
+          rotulo="Saldo"
+          [valor]="formatCurrency(financeiro()!.saldo)"
+          apoio="entrou menos saiu"
+          [tom]="financeiro()!.saldo < 0 ? 'negativo' : 'positivo'"
+        />
+        <ui-stat
+          compacto
+          rotulo="Lucro estimado"
+          [valor]="formatCurrency(financeiro()!.lucroEstimado)"
+          apoio="depois dos impostos"
+          [tom]="financeiro()!.lucroEstimado < 0 ? 'negativo' : 'neutro'"
+        />
       </div>
-      <!--
-        Semântica invertida vs. notasPorMes: totalEntradas = vendas (PROPRIA, dinheiro entra),
-        totalSaidas = compras (IMPORTADA, dinheiro sai). O backend já aplica — NÃO re-inverter.
-      -->
-      <div class="px-5 pb-5 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        <div class="p-3 rounded-xl bg-muted/60">
-          <p class="text-[10px] sm:text-xs text-muted-foreground">Entradas</p>
-          <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-            {{ formatCurrency(financeiro()!.totalEntradas) }}
-          </p>
-        </div>
-        <div class="p-3 rounded-xl bg-muted/60">
-          <p class="text-[10px] sm:text-xs text-muted-foreground">Saídas</p>
-          <p class="text-sm sm:text-lg font-heading font-bold text-foreground">
-            {{ formatCurrency(financeiro()!.totalSaidas) }}
-          </p>
-        </div>
-        <div class="p-3 rounded-xl bg-primary/10">
-          <p class="text-[10px] sm:text-xs text-muted-foreground">Saldo</p>
-          <p class="text-sm sm:text-lg font-heading font-bold text-primary">
-            {{ formatCurrency(financeiro()!.saldo) }}
-          </p>
-        </div>
-        <div class="p-3 rounded-xl bg-muted/60">
-          <p class="text-[10px] sm:text-xs text-muted-foreground">Lucro estimado</p>
-          <p
-            class="text-sm sm:text-lg font-heading font-bold"
-            [class.text-destructive]="financeiro()!.lucroEstimado < 0"
-            [class.text-foreground]="financeiro()!.lucroEstimado >= 0"
-          >
-            {{ formatCurrency(financeiro()!.lucroEstimado) }}
-          </p>
-        </div>
-      </div>
-    </div>
+    </section>
   }
 
   <!-- Card: Alertas e pendências -->
-  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+  <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
         <svg lucideBell [size]="20" class="text-primary" />
@@ -157,7 +180,7 @@
       @if (loadingAlertas()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       } @else if (alertas().length) {
-        <span class="text-xs bg-accent/15 text-accent px-2 py-1 rounded-full font-medium">
+        <span class="text-apoio bg-accent/15 text-accent px-2 py-1 rounded-full font-medium">
           {{ alertas().length }}
         </span>
       }
@@ -177,11 +200,11 @@
               [class]="a.status === 'vencido' ? 'bg-destructive' : 'bg-accent'"
             ></div>
             <div class="min-w-0 flex-1">
-              <p class="text-sm font-medium text-foreground truncate">{{ a.titulo }}</p>
-              <p class="text-xs text-muted-foreground">Vence em {{ formatDate(a.dataVencimento) }}</p>
+              <p class="text-apoio font-medium text-foreground truncate">{{ a.titulo }}</p>
+              <p class="text-apoio text-muted-foreground">Vence em {{ formatDate(a.dataVencimento) }}</p>
             </div>
             @if (a.valor) {
-              <span class="text-sm font-semibold text-foreground shrink-0">
+              <span class="text-apoio font-semibold text-foreground shrink-0">
                 {{ formatCurrency(a.valor) }}
               </span>
             }
@@ -191,13 +214,13 @@
     } @else {
       <div class="flex flex-col items-center justify-center text-center py-6 text-muted-foreground">
         <svg lucideBell [size]="28" class="mb-2 opacity-60" />
-        <p class="text-sm">Tudo em dia! Nenhuma pendência.</p>
+        <p class="text-apoio">Tudo em dia! Nenhuma pendência.</p>
       </div>
     }
   </div>
 
   <!-- Card: Notas por mês (gráfico) -->
-  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+  <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
         <svg lucideTrendingUp [size]="20" class="text-primary" />
@@ -206,7 +229,7 @@
       @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       } @else {
-        <span class="text-xs text-muted-foreground">Contagem de notas</span>
+        <span class="text-apoio text-muted-foreground">Contagem de notas</span>
       }
     </div>
 
@@ -219,19 +242,19 @@
     } @else {
       <div class="h-64 flex flex-col items-center justify-center text-center text-muted-foreground">
         <svg lucideFile [size]="32" class="mb-2 opacity-60" />
-        <p class="text-sm">Sem dados no período.</p>
+        <p class="text-apoio">Sem dados no período.</p>
       </div>
     }
   </div>
 
   <!-- Card: Distribuição de impostos (pizza) -->
-  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+  <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
         <svg lucideDollarSign [size]="20" class="text-primary" />
         Distribuição de impostos
       </h2>
-      <span class="text-xs text-muted-foreground">CBS × IBS</span>
+      <span class="text-apoio text-muted-foreground">CBS × IBS</span>
     </div>
     @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
@@ -240,20 +263,20 @@
         <canvas baseChart [type]="'pie'" [data]="pieChartData()" [options]="pieChartOptions"></canvas>
       </div>
     } @else {
-      <div class="h-64 flex items-center justify-center text-muted-foreground text-sm">
+      <div class="h-64 flex items-center justify-center text-muted-foreground text-apoio">
         Sem dados no período.
       </div>
     }
   </div>
 
   <!-- Card: Tendência mensal (linha) -->
-  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+  <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
         <svg lucideTrendingUp [size]="20" class="text-primary" />
         Tendência mensal
       </h2>
-      <span class="text-xs text-muted-foreground">Entradas × Saídas</span>
+      <span class="text-apoio text-muted-foreground">Entradas × Saídas</span>
     </div>
     @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
@@ -262,14 +285,14 @@
         <canvas baseChart [type]="'line'" [data]="lineChartData()" [options]="lineChartOptions"></canvas>
       </div>
     } @else {
-      <div class="h-64 flex items-center justify-center text-muted-foreground text-sm">
+      <div class="h-64 flex items-center justify-center text-muted-foreground text-apoio">
         Sem dados no período.
       </div>
     }
   </div>
 
   <!-- Card: Simulador Inteligente de Impostos -->
-  <div class="bg-card rounded-2xl shadow-sm border border-border p-5">
+  <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-base font-semibold flex items-center gap-2 text-foreground">
         <svg lucideSprout [size]="20" class="text-primary" />
@@ -279,8 +302,8 @@
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       } @else {
         <div class="flex gap-2">
-          <span class="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">Agropecuária</span>
-          <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">-60% CBS/IBS</span>
+          <span class="text-apoio bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">Agropecuária</span>
+          <span class="text-apoio bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">-60% CBS/IBS</span>
         </div>
       }
     </div>
@@ -288,7 +311,7 @@
     <!-- Período selecionável + status da apuração (#12) -->
     <div class="flex flex-wrap items-center gap-2 mb-4">
       <select
-        class="text-sm rounded-lg border border-border bg-card px-2 py-1.5 text-foreground"
+        class="text-apoio rounded-lg border border-border bg-card px-2 py-1.5 text-foreground"
         (change)="setMes($any($event.target).value)"
         aria-label="Mês de apuração"
       >
@@ -297,7 +320,7 @@
         }
       </select>
       <select
-        class="text-sm rounded-lg border border-border bg-card px-2 py-1.5 text-foreground"
+        class="text-apoio rounded-lg border border-border bg-card px-2 py-1.5 text-foreground"
         (change)="setAno($any($event.target).value)"
         aria-label="Ano de apuração"
       >
@@ -306,7 +329,7 @@
         }
       </select>
       <span
-        class="text-xs px-2 py-1 rounded-full font-medium ml-auto"
+        class="text-apoio px-2 py-1 rounded-full font-medium ml-auto"
         [class]="statusApuracao().classe"
       >
         {{ statusApuracao().label }}
@@ -315,14 +338,14 @@
 
     <!-- KPI principal -->
     <div class="p-4 rounded-xl bg-primary/5 border border-primary/10 mb-4">
-      <p class="text-xs text-muted-foreground mb-1">Imposto estimado total</p>
+      <p class="text-apoio text-muted-foreground mb-1">Imposto estimado total</p>
       @if (loading() && !dashboard()) {
         <div class="h-8 w-32 bg-muted animate-pulse rounded mt-1"></div>
       } @else {
         <p class="text-2xl font-heading font-bold text-primary">
           {{ formatCurrency(totalImpostoCalculado()) }}
         </p>
-        <p class="text-xs text-muted-foreground mt-1">
+        <p class="text-apoio text-muted-foreground mt-1">
           Regime: Pessoa Física Rural · Tributação efetiva: ~10,6%
         </p>
       }
@@ -331,13 +354,13 @@
     <!-- Tabela breakdown -->
     @if (!(loading() && !dashboard()) && impostoBreakdown().length > 0) {
       <div class="space-y-1 mb-4">
-        <div class="grid grid-cols-3 text-[10px] font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
+        <div class="grid grid-cols-3 text-apoio font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
           <span>Tributo</span>
           <span class="text-center">Alíquota</span>
           <span class="text-right">Valor</span>
         </div>
         @for (item of impostoBreakdown(); track item.nome) {
-          <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-sm">
+          <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-apoio">
             <div class="flex items-center gap-1.5">
               <span class="font-medium text-foreground">{{ item.nome }}</span>
               @if (item.reducao) {
@@ -347,27 +370,27 @@
             <div class="text-center">
               <span class="text-foreground font-medium">{{ item.aliquota }}</span>
               @if (item.original) {
-                <span class="text-[10px] text-muted-foreground line-through ml-1">{{ item.original }}</span>
+                <span class="text-apoio text-muted-foreground line-through ml-1">{{ item.original }}</span>
               }
             </div>
             <span class="text-right font-semibold text-foreground">{{ formatCurrency(item.valor) }}</span>
           </div>
         }
-        <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg bg-primary/5 border border-primary/10 text-sm mt-1">
+        <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg bg-primary/5 border border-primary/10 text-apoio mt-1">
           <span class="font-bold text-foreground">Total</span>
           <span></span>
           <span class="text-right font-bold text-primary">{{ formatCurrency(totalImpostoCalculado()) }}</span>
         </div>
       </div>
     } @else if (!(loading() && !dashboard())) {
-      <div class="text-center text-sm text-muted-foreground py-4 mb-4">
+      <div class="text-center text-apoio text-muted-foreground py-4 mb-4">
         Sem impostos no período.
       </div>
     }
 
     <!-- Toggle detalhe -->
     <button
-      class="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+      class="w-full flex items-center justify-between text-apoio text-muted-foreground hover:text-foreground transition-colors py-1"
       (click)="showSimuladorDetalhe.update(v => !v)"
     >
       <span>💡 Como funciona a redução tributária?</span>
@@ -380,7 +403,7 @@
 
     @if (showSimuladorDetalhe()) {
       <div class="mt-2 pt-2 border-t border-border">
-        <p class="text-xs text-muted-foreground leading-relaxed">
+        <p class="text-apoio text-muted-foreground leading-relaxed">
           No agronegócio, a <strong class="text-foreground">Reforma Tributária</strong> garante
           <strong class="text-primary">60% de redução</strong> nas alíquotas de CBS (8,8% → 3,5%)
           e IBS (17,7% → 7,1%). A tributação efetiva total é de aproximadamente
@@ -391,7 +414,7 @@
   </div>
 
   <!-- Card: Últimos documentos -->
-  <div class="bg-card rounded-2xl shadow-sm border border-border">
+  <div class="bg-card rounded-card border border-border shadow-suave">
     <div class="flex items-center gap-2 px-5 pt-5 pb-3">
       <svg lucideFileText [size]="20" class="text-primary" />
       <h2 class="text-base font-semibold text-foreground">Últimos documentos enviados</h2>
@@ -407,27 +430,27 @@
           }
         </div>
       } @else if (documentos().length === 0) {
-        <p class="text-sm text-muted-foreground text-center py-6">Nenhum documento encontrado.</p>
+        <p class="text-apoio text-muted-foreground text-center py-6">Nenhum documento encontrado.</p>
       } @else {
         <ul class="divide-y divide-border">
           @for (doc of documentos(); track doc.id) {
             <li class="flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-2">
               <div class="min-w-0 flex-1">
-                <p class="text-sm font-medium text-foreground truncate">{{ doc.nome }}</p>
+                <p class="text-apoio font-medium text-foreground truncate">{{ doc.nome }}</p>
                 <div class="flex items-center gap-2 mt-1">
-                  <span class="text-xs text-muted-foreground">{{ doc.tipo }}</span>
-                  <span class="text-[10px] px-1.5 py-0.5 rounded-full {{ getStatusStyle(doc.status).color }}">
+                  <span class="text-apoio text-muted-foreground">{{ doc.tipo }}</span>
+                  <span class="text-apoio px-1.5 py-0.5 rounded-full {{ getStatusStyle(doc.status).color }}">
                     {{ getStatusStyle(doc.status).label }}
                   </span>
                   @if (doc.valor > 0) {
-                    <span class="text-xs font-medium text-primary">{{ formatCurrency(doc.valor) }}</span>
+                    <span class="text-apoio font-medium text-primary">{{ formatCurrency(doc.valor) }}</span>
                   }
                 </div>
               </div>
               <div class="flex items-center gap-2 shrink-0">
-                <span class="text-xs text-muted-foreground hidden sm:inline">{{ formatDate(doc.data) }}</span>
+                <span class="text-apoio text-muted-foreground hidden sm:inline">{{ formatDate(doc.data) }}</span>
                 <button
-                  class="flex items-center justify-center w-8 h-8 rounded-lg hover:bg-muted transition-colors"
+                  class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   (click)="abrirPreview(doc)"
                 >
                   <svg lucideEye [size]="16" />
@@ -439,64 +462,39 @@
       }
     </div>
   </div>
+  </div>
 </div>
 
-<!-- Modal preview documento -->
-@if (previewDoc()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
-    <button type="button" class="absolute inset-0 bg-foreground/50" aria-label="Fechar" (click)="fecharPreview()"></button>
-    <div
-      class="relative bg-card rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
-      role="dialog"
-      aria-modal="true"
-    >
-      <div class="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
-        <h3 class="font-heading text-lg font-semibold text-foreground">{{ previewDoc()?.nome }}</h3>
-        <button
-          class="flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors"
-          (click)="fecharPreview()"
-        >
-          <svg lucideX [size]="18" />
-        </button>
-      </div>
-
-      <div class="px-6 py-5 space-y-4">
-        @if (loadingDetalhes()) {
-          <div class="flex flex-col items-center gap-4 py-8">
-            <svg lucideLoaderCircle [size]="32" class="animate-spin text-primary" />
-            <p class="text-sm text-muted-foreground">Carregando detalhes...</p>
-          </div>
-        } @else if (notaDetalhada()) {
-          <app-nota-preview [nota]="notaDetalhada()!" />
-        } @else {
-          <div class="rounded-xl border border-border bg-muted/30 flex items-center justify-center min-h-[100px]">
-            <div class="flex flex-col items-center gap-2 py-5 text-muted-foreground">
-              <svg lucideFile [size]="36" />
-              <span class="text-sm font-medium">Documento</span>
-            </div>
-          </div>
-          <dl class="grid grid-cols-2 gap-y-3 gap-x-4 text-sm">
-            <div>
-              <dt class="text-muted-foreground">Tipo</dt>
-              <dd class="font-medium text-foreground">{{ previewDoc()?.tipo }}</dd>
-            </div>
-            <div>
-              <dt class="text-muted-foreground">Data</dt>
-              <dd class="font-medium text-foreground">{{ formatDate(previewDoc()?.data ?? '') }}</dd>
-            </div>
-          </dl>
-        }
-      </div>
-
-      <div class="flex gap-3 px-6 pb-6 pt-2 border-t border-border">
-        <button
-          class="flex-1 px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-muted transition-colors"
-          (click)="fecharPreview()"
-        >Fechar</button>
-        <button class="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity">
-          <svg lucideDownload [size]="16" /> Baixar
-        </button>
-      </div>
+<!-- Preview do documento no <ui-modal> (#45): foco preso, Esc fecha, foco volta
+     ao botao que abriu e a rolagem do fundo trava. O modal anterior era uma div
+     fixa montada a mao, sem nada disso. -->
+<ui-modal
+  [aberto]="previewDoc() !== null"
+  [titulo]="previewDoc()?.nome ?? 'Documento'"
+  [descricao]="previewDoc()?.tipo"
+  tamanho="lg"
+  (fechar)="fecharPreview()"
+>
+  @if (loadingDetalhes()) {
+    <div class="flex flex-col gap-3 py-2">
+      <ui-skeleton [linhas]="1" formato="bloco" altura="9rem" />
+      <ui-skeleton [linhas]="3" />
     </div>
+  } @else if (notaDetalhada()) {
+    <app-nota-preview [nota]="notaDetalhada()!" />
+  } @else {
+    <ui-empty-state
+      titulo="Sem detalhes para mostrar"
+      descricao="Não foi possível carregar os dados desta nota."
+    >
+      <svg icone lucideFile [size]="22" />
+    </ui-empty-state>
+  }
+
+  <div rodape>
+    <ui-button variant="ghost" (click)="fecharPreview()">Fechar</ui-button>
+    <ui-button variant="primary">
+      <svg lucideDownload [size]="16" /> Baixar
+    </ui-button>
   </div>
-}
+</ui-modal>

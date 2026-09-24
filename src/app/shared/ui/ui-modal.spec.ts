@@ -111,6 +111,40 @@ describe('UiModal (#45)', () => {
     expect(host.aberto()).toBe(false);
   });
 
+  it('leva o foco para dentro ao abrir e devolve ao gatilho ao fechar', async () => {
+    const gatilho: HTMLElement = fixture.nativeElement.querySelector('#gatilho');
+    document.body.appendChild(fixture.nativeElement);
+    gatilho.focus();
+    expect(document.activeElement).toBe(gatilho);
+
+    host.aberto.set(true);
+    fixture.detectChanges();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const dialogo: HTMLElement = fixture.nativeElement.querySelector('[role="dialog"]');
+    expect(dialogo.contains(document.activeElement)).toBe(true);
+
+    host.aberto.set(false);
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(gatilho);
+  });
+
+  it('Tab no último foco volta para o primeiro (armadilha de foco)', async () => {
+    document.body.appendChild(fixture.nativeElement);
+    host.aberto.set(true);
+    fixture.detectChanges();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const dialogo: HTMLElement = fixture.nativeElement.querySelector('[role="dialog"]');
+    const focaveis = dialogo.querySelectorAll<HTMLElement>('button');
+    const ultimo = focaveis[focaveis.length - 1];
+    ultimo.focus();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(focaveis[0]);
+  });
+
   it('o botão de fechar é um alvo de toque de 44x44 (.tap-target)', () => {
     host.aberto.set(true);
     fixture.detectChanges();

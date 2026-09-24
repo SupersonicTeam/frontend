@@ -1,9 +1,17 @@
 <div class="h-screen overflow-hidden flex flex-col bg-background">
 
+  <!-- Primeira parada do Tab: pula o shell inteiro e vai pro conteudo (#46). -->
+  <a
+    href="#conteudo"
+    class="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[100] focus:rounded-controle focus:bg-primary focus:px-4 focus:py-3 focus:text-apoio focus:font-medium focus:text-primary-foreground"
+  >
+    Pular para o conteúdo
+  </a>
+
   <!-- Header fixo -->
-  <header class="h-14 md:h-16 bg-topbar flex items-center px-4 md:px-6 shrink-0 z-50">
+  <header class="flex h-16 shrink-0 items-center gap-1 border-b border-border bg-topbar px-3 sm:px-4 lg:px-6 z-50">
     <button
-      class="md:hidden mr-3 text-topbar-foreground hover:opacity-80 transition-opacity"
+      class="tap-target lg:hidden -ml-1 flex items-center justify-center rounded-controle text-topbar-foreground transition-colors hover:bg-muted"
       (click)="toggleMobileMenu()"
       aria-label="Menu"
     >
@@ -15,12 +23,21 @@
     </button>
 
     <a routerLink="/dashboard" class="flex h-full items-center shrink-0" aria-label="Ir para o início">
+      <!-- Duas artes: a preta pertence ao header claro, a clara ao tema escuro. -->
+      <img
+        src="/logo_preta.png"
+        width="605"
+        height="412"
+        alt="AgroContábil"
+        class="block h-9 w-auto max-w-[min(60vw,15rem)] object-contain dark:hidden"
+      />
       <img
         src="/logo.png"
         width="605"
         height="412"
-        alt="AgroContábil"
-        class="block h-[calc(100%-0.1rem)] w-auto max-w-[min(72vw,26rem)] object-contain"
+        alt=""
+        aria-hidden="true"
+        class="hidden h-9 w-auto max-w-[min(60vw,15rem)] object-contain dark:block"
       />
     </a>
 
@@ -28,7 +45,7 @@
       <!-- Notificações -->
       <div class="relative">
         <button
-          class="relative flex items-center justify-center w-9 h-9 rounded-full text-topbar-foreground hover:bg-white/10 transition-colors"
+          class="tap-target relative flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
           (click)="toggleNotificacoes()"
           aria-label="Notificações"
           matTooltip="Notificações"
@@ -96,7 +113,7 @@
       <!-- Configurações -->
       <a
         routerLink="/configuracoes"
-        class="flex items-center justify-center w-9 h-9 rounded-full text-topbar-foreground hover:bg-white/10 transition-colors"
+        class="tap-target flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
         aria-label="Configurações"
         matTooltip="Configurações"
         matTooltipPosition="below"
@@ -105,12 +122,12 @@
       </a>
 
       <!-- Perfil ativo + sair (demo #23) -->
-      <span class="hidden sm:inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full bg-white/10 text-topbar-foreground">
+      <span class="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-surface-2 px-3 py-1.5 text-apoio text-topbar-foreground">
         <span class="font-medium">{{ perfilService.nome() }}</span>
         <span class="opacity-70">· {{ perfilService.ehContador() ? 'Contador' : 'Produtor' }}</span>
       </span>
       <button
-        class="flex items-center justify-center w-9 h-9 rounded-full text-topbar-foreground hover:bg-white/10 transition-colors"
+        class="tap-target flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
         (click)="sair()"
         aria-label="Sair"
         matTooltip="Sair / trocar perfil"
@@ -123,43 +140,62 @@
 
   <div class="flex flex-1 overflow-hidden relative">
 
-    <!-- Desktop Sidebar -->
-    <aside class="hidden md:flex flex-col w-56 bg-sidebar shrink-0 border-r border-sidebar-accent h-full overflow-y-auto">
-      <nav class="flex-1 py-4 px-3 space-y-1">
+    <!-- Sidebar (#46): clara, agrupada por jornada, e so a partir de lg.
+         Antes aparecia em md (768px) e roubava 224px do tablet em retrato,
+         deixando o conteudo com 544px - mais apertado que em muitos celulares.
+         Ate 1024px quem navega e a barra inferior, que ja tem alvo adequado. -->
+    <aside class="hidden w-60 shrink-0 flex-col border-r border-border bg-sidebar lg:flex">
+      <nav class="flex-1 overflow-y-auto p-3" aria-label="Navegação principal">
         @if (perfilService.ehProdutor()) {
-          <a routerLink="/dashboard" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
+          <p class="px-3 pb-1 pt-2 text-apoio font-semibold uppercase tracking-wide text-muted-foreground">
+            Minha operação
+          </p>
+          <a routerLink="/dashboard" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
              [routerLinkActiveOptions]="{exact:false}"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
-            <svg lucideLayoutDashboard [size]="20" /><span>Dashboard</span>
+             class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
+            <svg lucideLayoutDashboard [size]="20" /><span>Visão geral</span>
           </a>
-          <a routerLink="/calendario" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
+          <a routerLink="/documentos" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
              [routerLinkActiveOptions]="{exact:false}"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
-            <svg lucideCalendar [size]="20" /><span>Calendário</span>
+             class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
+            <svg lucideFileText [size]="20" /><span>Minhas notas</span>
+          </a>
+          <a routerLink="/tributario" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
+            <svg lucideReceipt [size]="20" /><span>Impostos</span>
+          </a>
+          <a routerLink="/calendario" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
+            <svg lucideCalendar [size]="20" /><span>Prazos</span>
+          </a>
+
+          <!-- O assistente e a contribuicao central do TCC; deixa de ser mais um
+               item da lista e ganha o acento violeta da camada de IA (#45). -->
+          <p class="px-3 pb-1 pt-5 text-apoio font-semibold uppercase tracking-wide text-muted-foreground">
+            Assistente
+          </p>
+          <a routerLink="/chat" routerLinkActive="bg-assistente-soft text-assistente-ink font-semibold"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 rounded-controle border border-assistente-borda bg-assistente-soft/50 px-3 py-3 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente-soft">
+            <svg lucideSparkles [size]="20" /><span>Perguntar ao assistente</span>
           </a>
         }
-        <a routerLink="/documentos" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
-           [routerLinkActiveOptions]="{exact:false}"
-           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
-          <svg lucideFileText [size]="20" /><span>Documentos</span>
-        </a>
-        @if (perfilService.ehProdutor()) {
-          <a routerLink="/tributario" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
-             [routerLinkActiveOptions]="{exact:false}"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
-            <svg lucideReceipt [size]="20" /><span>Tributário</span>
-          </a>
-          <a routerLink="/chat" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
-             [routerLinkActiveOptions]="{exact:false}"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
-            <svg lucideMessageSquare [size]="20" /><span>Chat</span>
-          </a>
-        }
+
         @if (perfilService.ehContador()) {
-          <a routerLink="/contador" routerLinkActive="bg-sidebar-accent text-sidebar-primary"
+          <p class="px-3 pb-1 pt-2 text-apoio font-semibold uppercase tracking-wide text-muted-foreground">
+            Contador
+          </p>
+          <a routerLink="/contador" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
              [routerLinkActiveOptions]="{exact:false}"
-             class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-sidebar-foreground hover:bg-sidebar-accent/60">
-            <svg lucideCalculator [size]="20" /><span>Contador</span>
+             class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
+            <svg lucideCalculator [size]="20" /><span>Acompanhamento</span>
+          </a>
+          <a routerLink="/documentos" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
+            <svg lucideFileText [size]="20" /><span>Minhas notas</span>
           </a>
         }
       </nav>
@@ -167,7 +203,7 @@
 
     <!-- Mobile slide-down menu -->
     @if (mobileMenuOpen()) {
-      <div class="absolute inset-0 z-20 md:hidden">
+      <div class="absolute inset-0 z-20 lg:hidden">
         <div class="absolute inset-0 bg-foreground/30" (click)="closeMobileMenu()"></div>
         <nav class="relative bg-card rounded-b-xl shadow-lg mx-2 mt-1 p-3 space-y-1">
           @if (perfilService.ehProdutor()) {
@@ -175,33 +211,33 @@
                [routerLinkActiveOptions]="{exact:false}"
                class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
                (click)="closeMobileMenu()">
-              <svg lucideLayoutDashboard [size]="22" /><span>Dashboard</span>
+              <svg lucideLayoutDashboard [size]="22" /><span>Visão geral</span>
             </a>
             <a routerLink="/calendario" routerLinkActive="bg-primary/10 text-primary"
                [routerLinkActiveOptions]="{exact:false}"
                class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
                (click)="closeMobileMenu()">
-              <svg lucideCalendar [size]="22" /><span>Calendário</span>
+              <svg lucideCalendar [size]="22" /><span>Prazos</span>
             </a>
           }
           <a routerLink="/documentos" routerLinkActive="bg-primary/10 text-primary"
              [routerLinkActiveOptions]="{exact:false}"
              class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
              (click)="closeMobileMenu()">
-            <svg lucideFileText [size]="22" /><span>Documentos</span>
+            <svg lucideFileText [size]="22" /><span>Minhas notas</span>
           </a>
           @if (perfilService.ehProdutor()) {
             <a routerLink="/tributario" routerLinkActive="bg-primary/10 text-primary"
                [routerLinkActiveOptions]="{exact:false}"
                class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
                (click)="closeMobileMenu()">
-              <svg lucideReceipt [size]="22" /><span>Tributário</span>
+              <svg lucideReceipt [size]="22" /><span>Impostos</span>
             </a>
             <a routerLink="/chat" routerLinkActive="bg-primary/10 text-primary"
                [routerLinkActiveOptions]="{exact:false}"
                class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
                (click)="closeMobileMenu()">
-              <svg lucideMessageSquare [size]="22" /><span>Chat</span>
+              <svg lucideMessageSquare [size]="22" /><span>Assistente</span>
             </a>
           }
           @if (perfilService.ehContador()) {
@@ -217,37 +253,37 @@
     }
 
     <!-- Conteúdo principal -->
-    <main class="flex-1 overflow-y-auto overflow-x-hidden pb-20 md:pb-6 p-3 sm:p-4 md:p-6 flex flex-col">
+    <main id="conteudo" tabindex="-1" class="flex-1 overflow-y-auto overflow-x-hidden pb-24 lg:pb-8 p-3 sm:p-4 lg:p-6 flex flex-col">
       <router-outlet />
     </main>
   </div>
 
   <!-- Bottom Navigation mobile -->
-  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-bottomnav border-t border-border flex justify-around items-center h-16 shadow-lg">
+  <nav class="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-bottomnav border-t border-border flex justify-around items-center h-16 shadow-lg">
     @if (perfilService.ehProdutor()) {
       <a routerLink="/dashboard" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
-         class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
-        <svg lucideLayoutDashboard [size]="22" /><span class="text-[10px] font-medium leading-tight">Dashboard</span>
+         class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
+        <svg lucideLayoutDashboard [size]="22" /><span class="text-apoio font-medium leading-tight">Início</span>
       </a>
       <a routerLink="/calendario" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
-         class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
-        <svg lucideCalendar [size]="22" /><span class="text-[10px] font-medium leading-tight">Calendário</span>
+         class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
+        <svg lucideCalendar [size]="22" /><span class="text-apoio font-medium leading-tight">Prazos</span>
       </a>
     }
     <a routerLink="/documentos" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
-       class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
-      <svg lucideFileText [size]="22" /><span class="text-[10px] font-medium leading-tight">Documentos</span>
+       class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
+      <svg lucideFileText [size]="22" /><span class="text-apoio font-medium leading-tight">Notas</span>
     </a>
     @if (perfilService.ehProdutor()) {
       <a routerLink="/chat" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
-         class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
-        <svg lucideMessageSquare [size]="22" /><span class="text-[10px] font-medium leading-tight">Chat</span>
+         class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
+        <svg lucideMessageSquare [size]="22" /><span class="text-apoio font-medium leading-tight">Assistente</span>
       </a>
     }
     @if (perfilService.ehContador()) {
       <a routerLink="/contador" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
-         class="flex flex-col items-center gap-0.5 py-1 px-2 rounded-lg transition-colors min-w-[3rem] text-bottomnav-foreground">
-        <svg lucideCalculator [size]="22" /><span class="text-[10px] font-medium leading-tight">Contador</span>
+         class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
+        <svg lucideCalculator [size]="22" /><span class="text-apoio font-medium leading-tight">Contador</span>
       </a>
     }
   </nav>
