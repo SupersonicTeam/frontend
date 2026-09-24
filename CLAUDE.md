@@ -37,7 +37,12 @@ imposto, contador, rascunho).
 - `environment.apiUrl = '/api'` (`src/environments/environment.ts`).
 - `proxy.conf.json` → `http://localhost:8080` (backend **Spring Boot**, pacote `br.com.agrocontabil`; fonte de
   verdade dos contratos). O módulo de notas fiscais (`/api/notas`) já existe; onde faltar endpoint (chat, calendário,
-  contador, fluxo de caixa), usar mock/estado no service e deixar a chamada `/api` pronta. Não bloquear o frontend.
+  contador, fluxo de caixa), **não inventar resposta** — deixar a chamada `/api` pronta e a tela dizer que o
+  recurso ainda não existe (ver `ChatPage`/`ChatApi`).
+- **O proxy reescreve o header `Origin` para `http://localhost:4200`.** O `allowed-origins` do backend
+  (`application.yml`) só aceita a 4200; o navegador manda `Origin` em **todo POST/PUT/PATCH/DELETE**, então rodar
+  o `ng serve` em qualquer outra porta fazia o Spring devolver **403 "Invalid CORS request"** em toda escrita
+  (nova guia, criar nota, dar baixa) — só os GETs passavam. JSON não aceita comentário; o motivo mora aqui.
 
 ## Estrutura
 
@@ -96,7 +101,7 @@ Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `
 | `NotasApi` | `@services/notas/data-access/notas.service` | **Notas fiscais reais** contra `/api/notas` do backend Spring: CRUD paginado (`Page<T>`), ciclo de emissão (gerar-xml, xml, enviar-sefaz, status-sefaz, pdf, cancelar) e `validacoes`. Model `NotaFiscal` alinhado ao `NotaFiscalResponse`; status em `@core/enums/status-nota-fiscal.enum`. |
 | `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | **Dashboard real** contra `GET /api/dashboard` (KPIs IBS/CBS, notas por mês, distribuição de impostos, últimas notas), com cache local em Signal (`dashboard`). Sem fallback mock — erro propaga para a página tratar (estado de erro + retry). Rascunhos (`/dashboard/rascunhos/*`) ainda com fallback silencioso. |
 | `CalendarioApi` | `@services/calendario/data-access/calendario.service` | Vencimentos/eventos fiscais (com fallback mock). |
-| `ChatApi` | `@services/chat/data-access/chat.service` | Chat com o assistente (POST /chat). |
+| `ChatApi` | `@services/chat/data-access/chat.service` | Assistente (`POST /chat`). **O endpoint não existe** (404 — não há LLM/RAG no backend): 404/0 viram `AssistenteIndisponivelError` e a tela declara o estado. Nunca devolver texto de assistente inventado. |
 | `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. |
 | `NotificacaoApi` | `@services/notificacao/data-access/notificacao.service` | Notificações externas (WhatsApp). |
 
