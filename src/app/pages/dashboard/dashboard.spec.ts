@@ -64,11 +64,47 @@ describe('DashboardPage', () => {
   function flushDashboard(overrides: Partial<DashboardResponse> = {}) {
     const req = httpMock.expectOne(r => r.url === '/dashboard');
     req.flush(buildResponse(overrides));
+    // Na volta do dashboard o componente busca as notas com pendencia, para o
+    // bloco do assistente (#47). Drenar aqui mantem os testes existentes validos
+    // sem que cada um precise saber desta chamada.
+    flushNotasComPendencia();
+  }
+
+  /** Responde a busca por notas com pendencia; por padrao, nenhuma. */
+  function flushNotasComPendencia(notas: Partial<NotaFiscal>[] = []) {
+    httpMock
+      .match(r => r.url === '/notas')
+      .forEach(r => r.flush({ content: notas, totalElements: notas.length }));
   }
 
   function flushVencimentos() {
     httpMock.match(r => r.url.includes('/calendario-fiscal')).forEach(r => r.flush([]));
   }
+
+  it('#47: o assistente aponta pendência antiga, mesmo fora das 3 últimas notas', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    fixture.detectChanges();
+
+    // O payload do dashboard traz só notas AUTORIZADAS (as 3 mais recentes)...
+    httpMock.expectOne(r => r.url === '/dashboard').flush(buildResponse());
+    // ...mas existe uma nota antiga com inconsistência na base.
+    flushNotasComPendencia([
+      {
+        id: 'antiga-1',
+        numero: 7,
+        status: 'COM_INCONSISTENCIAS',
+        destinatarioNome: 'Cooperativa Cafeeira XYZ Ltda',
+      } as NotaFiscal,
+    ]);
+    httpMock
+      .match(r => r.url.includes('/validacoes'))
+      .forEach(r => r.flush([{ code: 'NOTA_INVALIDA_EMISSAO', message: 'Endereço obrigatório' }]));
+    flushVencimentos();
+
+    expect(fixture.componentInstance.notasComProblema().length).toBe(1);
+    expect(fixture.componentInstance.temInsight()).toBe(true);
+    expect(fixture.componentInstance.motivoPendencia()).toBe('Endereço obrigatório');
+  });
 
   it('DASH-01/02: ngOnInit chama GET /api/dashboard uma vez e expõe o nome do produtor', () => {
     const fixture = TestBed.createComponent(DashboardPage);
