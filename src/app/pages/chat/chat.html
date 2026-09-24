@@ -1,141 +1,191 @@
-<div class="flex flex-col h-full min-h-0 max-w-2xl mx-auto">
+<!-- Workspace do assistente (#51): conversas à esquerda, conversa no meio, contexto
+     à direita. No celular sobra só a conversa — as laterais são apoio de desktop. -->
+<div class="page-container grid min-h-0 flex-1 gap-4 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_17rem]">
+  <!-- ── Conversas ── -->
+  <aside class="hidden min-h-0 flex-col gap-2 lg:flex">
+    <h2 class="px-1 text-apoio font-semibold uppercase tracking-wide text-muted-foreground">
+      Conversas
+    </h2>
 
-  <div class="shrink-0 mb-2 rounded-xl border border-accent/30 bg-accent/10 p-3 text-sm text-accent">
-    Assistente em construção — respostas de demonstração. O RAG + Tool Calling entra em sprint futura.
-  </div>
-
-  <div class="shrink-0">
-    <div class="flex items-center gap-3 pb-3">
-      <svg lucideMessageSquare [size]="28" class="text-primary" />
-      <h1 class="text-2xl md:text-3xl font-heading font-bold text-foreground">Chat</h1>
+    <div class="rounded-card border border-assistente-borda bg-assistente-soft p-3">
+      <p class="text-apoio font-medium text-assistente-ink">Conversa atual</p>
+      <p class="mt-0.5 text-apoio text-muted-foreground">
+        {{ mensagens().length }} mensagem(ns)
+      </p>
     </div>
-    <div class="flex gap-2 pb-3 overflow-x-auto scrollbar-none">
-      @for (p of perguntasRapidas; track p) {
-        <button
-          class="whitespace-nowrap shrink-0 text-xs px-3 py-1.5 rounded-full border border-border bg-card text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-          (click)="enviar(p)"
-          [disabled]="isLoading()"
-        >{{ p }}</button>
+
+    <p class="rounded-card border border-dashed border-border p-3 text-apoio text-muted-foreground">
+      O histórico de conversas ainda não é guardado — isso depende do backend
+      (persistência das interações com o agente). Ao recarregar a página, esta conversa se perde.
+    </p>
+  </aside>
+
+  <!-- ── Conversa ── -->
+  <section class="flex min-h-0 flex-col gap-3">
+    <header class="flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span class="flex size-10 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
+          <svg lucideSparkles [size]="20" />
+        </span>
+        <div>
+          <h1 class="font-heading text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+            Assistente fiscal
+          </h1>
+          <p class="text-apoio text-muted-foreground">
+            Pergunte sobre suas notas, seus impostos e a reforma tributária
+          </p>
+        </div>
+      </div>
+    </header>
+
+    <!-- Mensagens -->
+    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+      @if (mensagens().length === 0) {
+        <div class="rounded-card border border-assistente-borda bg-assistente-soft p-4 sm:p-5">
+          <p class="font-heading font-semibold text-foreground">
+            Olá{{ contexto().nome ? ', ' + contexto().nome : '' }}.
+          </p>
+          <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
+            Quando estiver ligado, eu vou responder olhando as suas notas e a sua apuração —
+            e citando a legislação em que me baseei. Experimente uma das perguntas abaixo.
+          </p>
+        </div>
       }
-      <button
-        class="whitespace-nowrap shrink-0 text-xs flex items-center gap-1 px-3 py-1.5 rounded-full bg-secondary text-secondary-foreground hover:opacity-90 transition-opacity"
-        (click)="showHumano.set(true)"
-      >
-        <svg lucideHeadset [size]="14" /> Atendimento humano
-      </button>
-    </div>
-  </div>
 
-  <!-- Mensagens -->
-  <div class="flex-1 overflow-y-auto overflow-x-hidden space-y-3 min-h-0 pb-2">
-    @if (messages().length === 0) {
-      <div class="flex gap-2 max-w-[90%] md:max-w-[85%]">
-        <div class="shrink-0 h-8 w-8 rounded-full flex items-center justify-center mt-1 bg-primary/15 text-primary">
-          <svg lucideBot [size]="16" />
-        </div>
-        <div class="rounded-2xl rounded-tl-md px-4 py-2.5 text-sm leading-relaxed bg-card border border-border shadow-sm whitespace-pre-line">
-          Olá! Sou o João, seu contador virtual. 🌾
+      @for (msg of mensagens(); track $index) {
+        @if (msg.role === 'user') {
+          <div class="flex justify-end gap-2">
+            <p class="max-w-[85%] rounded-destaque rounded-tr-md bg-primary px-4 py-2.5 text-apoio leading-relaxed text-primary-foreground">
+              {{ msg.content }}
+            </p>
+            <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted-foreground">
+              <svg lucideUser [size]="16" />
+            </span>
+          </div>
+        } @else if (msg.content === 'INDISPONIVEL') {
+          <!-- Estado honesto: o assistente nao existe ainda, e a tela diz isso em vez
+               de simular uma resposta que nunca veio de lugar nenhum. -->
+          <div class="flex gap-2">
+            <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-aviso-soft text-aviso">
+              <svg lucideTriangleAlert [size]="16" />
+            </span>
+            <div class="max-w-[85%] rounded-destaque rounded-tl-md border border-aviso/30 bg-aviso-soft px-4 py-3">
+              <p class="text-apoio font-medium text-aviso-ink">
+                O assistente ainda não está ligado.
+              </p>
+              <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
+                A pergunta foi montada com o seu contexto real e está pronta para ser enviada —
+                falta o serviço de IA no servidor, que entra na Sprint 6. Enquanto isso, a
+                <strong>Visão geral</strong> já aponta o que precisa da sua atenção.
+              </p>
+            </div>
+          </div>
+        } @else {
+          <div class="flex gap-2">
+            <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
+              <svg lucideSparkles [size]="16" />
+            </span>
+            <div class="max-w-[85%] rounded-destaque rounded-tl-md border border-assistente-borda bg-card px-4 py-3">
+              <p class="whitespace-pre-line text-apoio leading-relaxed text-foreground">
+                {{ msg.content }}
+              </p>
+              <!-- Espaço reservado para a citação da legislação que o RAG usar. -->
+              <p class="mt-2 flex items-center gap-1.5 text-apoio text-muted-foreground">
+                <svg lucideBookOpen [size]="14" />
+                A fonte citada aparece aqui
+              </p>
+            </div>
+          </div>
+        }
+      }
 
-Posso te ajudar com:
-• Dúvidas sobre impostos (CBS, IBS, FUNRURAL)
-• Simulações tributárias
-• Análise de notas fiscais
-• Dicas para aumentar seu lucro
-
-Como posso ajudar?
-          <span class="block text-[10px] mt-1 text-muted-foreground">{{ horaAtual() }}</span>
-        </div>
-      </div>
-    }
-
-    @for (msg of messages(); track $index) {
-      <div
-        class="flex gap-2 max-w-[90%] md:max-w-[85%]"
-        [ngClass]="{ 'ml-auto flex-row-reverse': msg.role === 'user' }"
-      >
-        <div
-          class="shrink-0 h-8 w-8 rounded-full flex items-center justify-center mt-1"
-          [ngClass]="{
-            'bg-primary/15 text-primary': msg.role === 'assistant',
-            'bg-secondary text-secondary-foreground': msg.role === 'user'
-          }"
-        >
-          @if (msg.role === 'assistant') {
-            <svg lucideBot [size]="16" />
-          } @else {
-            <svg lucideUser [size]="16" />
-          }
-        </div>
-        <div
-          class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-line break-words"
-          [ngClass]="{
-            'bg-card border border-border shadow-sm rounded-tl-md': msg.role === 'assistant',
-            'bg-primary text-primary-foreground rounded-tr-md': msg.role === 'user'
-          }"
-        >
-          {{ msg.content }}
-          <span
-            class="block text-[10px] mt-1"
-            [ngClass]="{
-              'text-muted-foreground': msg.role === 'assistant',
-              'text-primary-foreground/70': msg.role === 'user'
-            }"
-          >{{ horaAtual() }}</span>
-        </div>
-      </div>
-    }
-
-    @if (isTyping()) {
-      <div class="flex gap-2 max-w-[90%] md:max-w-[85%]">
-        <div class="shrink-0 h-8 w-8 rounded-full flex items-center justify-center mt-1 bg-primary/15 text-primary">
-          <svg lucideBot [size]="16" />
-        </div>
-        <div class="bg-card border border-border shadow-sm rounded-2xl rounded-tl-md px-4 py-3 text-sm text-muted-foreground">
-          <span class="inline-flex gap-1">
-            <span class="animate-bounce" style="animation-delay: 0ms">●</span>
-            <span class="animate-bounce" style="animation-delay: 150ms">●</span>
-            <span class="animate-bounce" style="animation-delay: 300ms">●</span>
+      @if (enviando()) {
+        <div class="flex items-center gap-2 text-apoio text-muted-foreground">
+          <span class="flex size-8 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
+            <svg lucideSparkles [size]="16" />
           </span>
+          <span class="animate-pulse">Consultando…</span>
         </div>
-      </div>
-    }
-    <div #endRef></div>
-  </div>
+      }
 
-  <!-- Input -->
-  <div class="shrink-0 border-t border-border bg-background pt-3 pb-2 flex gap-2">
-    <input
-      type="text"
-      placeholder="Digite sua mensagem..."
-      class="flex-1 px-4 py-2.5 rounded-xl border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-colors disabled:opacity-50"
-      [value]="input()"
-      (input)="input.set($any($event.target).value)"
-      (keydown)="onKeyDown($event)"
-      [disabled]="isLoading()"
-    />
-    <button
-      class="flex items-center justify-center w-[44px] h-[44px] rounded-xl bg-primary text-primary-foreground shrink-0 hover:opacity-90 transition-opacity disabled:opacity-50"
-      (click)="enviar()"
-      [disabled]="!input().trim() || isLoading()"
-    >
-      <svg lucideSend [size]="18" />
-    </button>
-  </div>
-</div>
-
-@if (showHumano()) {
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4" (click)="showHumano.set(false)">
-    <div class="absolute inset-0 bg-foreground/50"></div>
-    <div class="relative bg-card rounded-2xl shadow-2xl w-full max-w-sm p-6" (click)="$event.stopPropagation()">
-      <button class="absolute top-4 right-4 flex items-center justify-center w-8 h-8 rounded-full hover:bg-muted transition-colors" (click)="showHumano.set(false)">
-        <svg lucideX [size]="18" />
-      </button>
-      <h3 class="font-heading font-semibold text-lg text-foreground mb-2">Atendimento humano</h3>
-      <p class="text-sm text-muted-foreground mb-1">Funcionalidade disponível na versão futura do sistema.</p>
-      <p class="text-xs text-muted-foreground mb-5">Em breve você poderá falar diretamente com seu contador ou suporte.</p>
-      <button class="w-full px-4 py-2 rounded-xl bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity" (click)="showHumano.set(false)">
-        Entendi
-      </button>
+      <div #fimDaConversa></div>
     </div>
-  </div>
-}
+
+    <!-- Sugestões -->
+    <div class="flex flex-wrap gap-2">
+      @for (pergunta of perguntasSugeridas; track pergunta) {
+        <button
+          type="button"
+          class="tap-target rounded-full border border-assistente-borda bg-assistente-soft px-4 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente/15 disabled:opacity-50"
+          [disabled]="enviando()"
+          (click)="enviar(pergunta)"
+        >
+          {{ pergunta }}
+        </button>
+      }
+    </div>
+
+    <!-- Campo -->
+    <form class="flex items-end gap-2" (submit)="$event.preventDefault(); enviar()">
+      <label for="pergunta" class="sr-only">Sua pergunta</label>
+      <textarea
+        id="pergunta"
+        rows="1"
+        placeholder="Escreva sua pergunta…"
+        class="min-h-[2.75rem] flex-1 resize-none rounded-controle border border-border bg-card px-4 py-3 text-apoio text-foreground"
+        [value]="entrada()"
+        (input)="entrada.set($any($event.target).value)"
+        (keydown)="aoTeclar($event)"
+      ></textarea>
+      <ui-button type="submit" variant="assistente" [disabled]="!podeEnviar()" [carregando]="enviando()">
+        <svg lucideSend [size]="16" />
+        <span class="hidden sm:inline">Enviar</span>
+      </ui-button>
+    </form>
+  </section>
+
+  <!-- ── Contexto: o que o assistente saberia sobre você ── -->
+  <aside class="hidden min-h-0 flex-col gap-2 xl:flex">
+    <h2 class="px-1 text-apoio font-semibold uppercase tracking-wide text-muted-foreground">
+      O que ele sabe de você
+    </h2>
+
+    <div class="flex flex-col gap-2 rounded-card border border-border bg-card p-4">
+      <p class="text-apoio text-muted-foreground">
+        Estes dados vão junto com a sua pergunta, e são os seus de verdade — nada de exemplo.
+      </p>
+
+      <dl class="mt-1 flex flex-col gap-2">
+        <div class="flex justify-between gap-2">
+          <dt class="text-apoio text-muted-foreground">Produtor</dt>
+          <dd class="text-apoio font-medium text-foreground">{{ contexto().nome ?? '—' }}</dd>
+        </div>
+        <div class="flex justify-between gap-2">
+          <dt class="text-apoio text-muted-foreground">Estado</dt>
+          <dd class="text-apoio font-medium text-foreground">{{ contexto().uf ?? '—' }}</dd>
+        </div>
+        <div class="flex justify-between gap-2">
+          <dt class="text-apoio text-muted-foreground">Período</dt>
+          <dd class="text-apoio font-medium text-foreground">{{ formatPeriodo(contexto().periodo) }}</dd>
+        </div>
+        <div class="flex justify-between gap-2">
+          <dt class="text-apoio text-muted-foreground">A pagar</dt>
+          <dd class="text-apoio font-medium tabular-nums text-foreground">
+            {{ formatCurrency(contexto().saldoAPagar) }}
+          </dd>
+        </div>
+        <div class="flex justify-between gap-2">
+          <dt class="text-apoio text-muted-foreground">Notas pendentes</dt>
+          <dd class="text-apoio font-medium tabular-nums text-foreground">
+            {{ contexto().notasPendentes }}
+          </dd>
+        </div>
+      </dl>
+    </div>
+
+    <p class="rounded-card border border-dashed border-border p-3 text-apoio text-muted-foreground">
+      Cada produtor só enxerga os próprios dados. Esse isolamento é requisito do projeto
+      (RN007) e vale também para o assistente.
+    </p>
+  </aside>
+</div>

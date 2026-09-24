@@ -1,104 +1,163 @@
-import { Component, inject, signal, ElementRef, ViewChild, AfterViewChecked } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { NgClass } from '@angular/common';
+import { Component, ElementRef, OnInit, computed, inject, signal, viewChild } from '@angular/core';
 import {
-  LucideMessageSquare,
+  LucideBookOpen,
   LucideSend,
-  LucideBot,
+  LucideSparkles,
+  LucideTriangleAlert,
   LucideUser,
-  LucideHeadset,
-  LucideX,
 } from '@lucide/angular';
-import { ChatApi } from '@services/chat/data-access/chat.service';
-import { ChatMessage } from '@models/chat-message.model';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import type { ChatMessage } from '@models/chat-message.model';
+import { AssistenteIndisponivelError, ChatApi } from '@services/chat/data-access/chat.service';
+import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
+import { NotasApi } from '@services/notas/data-access/notas.service';
+import { UiButton } from '@shared/ui/ui-button';
 
+/**
+ * Assistente fiscal (#51) — **a casca visual**, por decisão do dono do projeto.
+ *
+ * `POST /chat` responde 404: não há LLM nem RAG no backend (issues #36 e #37 do
+ * board, Sprint 6). Então esta tela monta a experiência inteira contra o contrato
+ * que o backend vai expor, e **não finge resposta**: ao enviar, a mensagem entra
+ * na conversa e o assistente responde com a verdade — que ainda não está ligado.
+ *
+ * Três decisões que valem registro:
+ *
+ * 1. **O contexto agora é real.** Antes o front mandava `estado: 'PR'` e culturas
+ *    "Soja, Milho" fixas no código, enquanto o produtor é de **MT**. O painel da
+ *    direita mostra exatamente o que seria enviado — nome, UF, período, saldo a
+ *    pagar e notas pendentes, tudo vindo da API.
+ * 2. **A coluna de conversas existe mas é honesta**: não há onde persistir
+ *    histórico (issue #43), então ela mostra só a conversa atual e diz isso.
+ * 3. **O espaço da citação de fonte** está reservado na resposta. O RAG do TCC
+ *    prevê citar a legislação, e a interface precisa ter onde mostrar.
+ */
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [
-    FormsModule,
-    NgClass,
-    LucideMessageSquare,
-    LucideSend,
-    LucideBot,
-    LucideUser,
-    LucideHeadset,
-    LucideX,
-  ],
+  imports: [LucideBookOpen, LucideSend, LucideSparkles, LucideTriangleAlert, LucideUser, UiButton],
+  // O shell (`main`) e um flex-col com rolagem propria; sem isto o host encolhe ate
+  // a altura do conteudo e o campo de escrita sobe para o meio da tela.
+  host: { class: 'flex min-h-0 flex-1 flex-col' },
   templateUrl: './chat.html',
 })
-export class ChatPage implements AfterViewChecked {
-  @ViewChild('endRef') endRef!: ElementRef<HTMLDivElement>;
+export class ChatPage implements OnInit {
+  private readonly chatApi = inject(ChatApi);
+  private readonly dashboardApi = inject(DashboardApi);
+  private readonly notasApi = inject(NotasApi);
 
-  private readonly chatService = inject(ChatApi);
+  private readonly fimDaConversa = viewChild<ElementRef<HTMLDivElement>>('fimDaConversa');
 
-  input = signal('');
-  isLoading = signal(false);
-  isTyping = signal(false);
-  showHumano = signal(false);
-  messages = signal<ChatMessage[]>([]);
+  readonly entrada = signal('');
+  readonly enviando = signal(false);
+  readonly mensagens = signal<ChatMessage[]>([]);
+  readonly notasPendentes = signal(0);
 
-  readonly perguntasRapidas = [
-    'Como está minha situação financeira?',
-    'Quais impostos devo pagar?',
-    'Resumo do mês',
-    'Como funciona o CBS?',
+  readonly perguntasSugeridas = [
+    'Quanto eu tenho que pagar este mês?',
+    'Por que a nota 7 não pode ser emitida?',
+    'O que muda para mim com o IBS e o CBS?',
+    'Posso aproveitar crédito das minhas compras?',
   ];
 
-  ngAfterViewChecked(): void {
-    try {
-      this.endRef?.nativeElement?.scrollIntoView({ behavior: 'smooth' });
-    } catch {
-      /* scroll best-effort */
-    }
+  /** O que seria enviado ao assistente — mostrado na tela, sem nada inventado. */
+  readonly contexto = computed(() => {
+    const painel = this.dashboardApi.dashboard();
+    const kpis = painel?.kpis;
+    return {
+      produtorId: LOGGED_PRODUCER_ID,
+      nome: painel?.produtor.nome,
+      uf: painel?.produtor.uf,
+      periodo: painel?.periodo,
+      saldoAPagar: (kpis?.saldoIbs ?? 0) + (kpis?.saldoCbs ?? 0),
+      notasPendentes: this.notasPendentes(),
+    };
+  });
+
+  readonly podeEnviar = computed(() => this.entrada().trim().length > 0 && !this.enviando());
+
+  ngOnInit(): void {
+    this.dashboardApi.carregar().subscribe({ error: () => undefined });
+    this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
+      next: (pagina) =>
+        this.notasPendentes.set(
+          pagina.content.filter(
+            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+          ).length,
+        ),
+      error: () => this.notasPendentes.set(0),
+    });
   }
 
   enviar(texto?: string): void {
-    const msg = (texto ?? this.input()).trim();
-    if (!msg || this.isLoading()) return;
+    const mensagem = (texto ?? this.entrada()).trim();
+    if (!mensagem || this.enviando()) return;
 
-    this.input.set('');
-    this.messages.update((list) => [...list, { role: 'user', content: msg }]);
-    this.isLoading.set(true);
-    this.isTyping.set(true);
+    this.entrada.set('');
+    this.mensagens.update((lista) => [...lista, { role: 'user', content: mensagem }]);
+    this.enviando.set(true);
+    this.rolarParaOFim();
 
-    this.chatService
+    this.chatApi
       .enviarMensagem({
-        produtorId: LOGGED_PRODUCER_ID,
-        mensagem: msg,
-        estado: 'PR',
-        culturas: ['Soja', 'Milho'],
-        regimeTributario: 'Simples Nacional',
+        mensagem,
+        contexto: this.contexto(),
+        history: this.mensagens().map((m) => ({ role: m.role, content: m.content })),
       })
       .subscribe({
         next: (res) => {
-          this.isTyping.set(false);
-          this.isLoading.set(false);
-          this.messages.update((list) => [...list, { role: 'assistant', content: res.resposta }]);
+          this.enviando.set(false);
+          this.mensagens.update((lista) => [
+            ...lista,
+            { role: 'assistant', content: res.resposta },
+          ]);
+          this.rolarParaOFim();
         },
-        error: () => {
-          this.isTyping.set(false);
-          this.isLoading.set(false);
-          this.messages.update((list) => [
-            ...list,
+        error: (erro) => {
+          this.enviando.set(false);
+          // Nada de resposta simulada: a tela diz o que de fato aconteceu.
+          this.mensagens.update((lista) => [
+            ...lista,
             {
               role: 'assistant',
-              content: 'Desculpe, não consegui processar sua mensagem. Tente novamente.',
+              content:
+                erro instanceof AssistenteIndisponivelError
+                  ? 'INDISPONIVEL'
+                  : 'Houve uma falha ao falar com o assistente. Tente de novo em instantes.',
             },
           ]);
+          this.rolarParaOFim();
         },
       });
   }
 
-  onKeyDown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
+  aoTeclar(evento: KeyboardEvent): void {
+    if (evento.key === 'Enter' && !evento.shiftKey) {
+      evento.preventDefault();
       this.enviar();
     }
   }
 
-  horaAtual(): string {
-    return new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  private rolarParaOFim(): void {
+    setTimeout(() => {
+      try {
+        this.fimDaConversa()?.nativeElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      } catch {
+        /* rolagem é conveniência, não pode quebrar a tela */
+      }
+    }, 0);
+  }
+
+  formatCurrency(valor?: number): string {
+    return (valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  /** `2026-09` e como o backend fala; quem le a tela entende "setembro de 2026". */
+  formatPeriodo(periodo?: string): string {
+    if (!periodo) return '—';
+    const [ano, mes] = periodo.split('-');
+    const data = new Date(Number(ano), Number(mes) - 1, 1);
+    if (Number.isNaN(data.getTime())) return periodo;
+    return data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
   }
 }
