@@ -19,6 +19,7 @@ import {
   LucidePencil,
   LucideTriangleAlert,
   LucideSend,
+  LucideSparkles,
 } from '@lucide/angular';
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
@@ -39,6 +40,7 @@ import { UiButton } from '@shared/ui/ui-button';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiModal } from '@shared/ui/ui-modal';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
 
 /** Item do formulário (strings, convertidas para número ao montar o request). */
 export interface ItemForm {
@@ -145,12 +147,14 @@ function cpfCnpjValido(v: string): boolean {
     LucidePencil,
     LucideTriangleAlert,
     LucideSend,
+    LucideSparkles,
     NotaPreview,
   ],
   templateUrl: './documentos.html',
 })
 export class DocumentosPage implements OnInit {
   private readonly notasApi = inject(NotasApi);
+  private readonly assistente = inject(AssistenteStore);
   private readonly contadorService = inject(ContadorApi);
   private readonly toastService = inject(ToastService);
 
@@ -881,6 +885,15 @@ export class DocumentosPage implements OnInit {
         this.toastService.error('Erro ao anexar documento.');
       },
     });
+  }
+
+  /**
+   * Abre a gaveta do assistente com esta nota do lado. Se a nota tem pendência,
+   * a gaveta busca `/notas/{id}/validações` e mostra o que o fisco apontou —
+   * o caminho curto entre "essa nota não sai" e entender por quê.
+   */
+  perguntarSobre(nota: NotaFiscal): void {
+    this.assistente.abrirSobreNota(nota);
   }
 
   // === Preview + Download de nota (PDF/XML) ===

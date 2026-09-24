@@ -1,0 +1,35 @@
+import { Component, inject } from '@angular/core';
+import { LucideSparkles } from '@lucide/angular';
+import { AssistenteStore } from './assistente.store';
+
+/**
+ * Botão flutuante do assistente — a presença permanente da IA no shell.
+ *
+ * Era a crítica central da banca: o design não passava a sensação de haver
+ * inteligência por trás. Um botão sempre à mão, no violeta do assistente, é o
+ * que torna isso visível em **toda** tela, não só na página do chat.
+ *
+ * Sobe acima da barra inferior do celular (`bottom-20`) para não cobrir a
+ * navegação, e volta ao canto no desktop.
+ */
+@Component({
+  selector: 'app-assistente-launcher',
+  standalone: true,
+  imports: [LucideSparkles],
+  template: `
+    @if (!store.aberto()) {
+      <button
+        type="button"
+        class="tap-target fixed right-4 bottom-20 z-50 flex items-center gap-2 rounded-full bg-assistente px-4 text-apoio font-semibold text-assistente-foreground shadow-assistente transition-transform hover:scale-105 lg:bottom-6"
+        (click)="store.abrir()"
+      >
+        <svg lucideSparkles [size]="18" />
+        <span class="hidden sm:inline">Perguntar</span>
+        <span class="sr-only sm:hidden">Perguntar ao assistente</span>
+      </button>
+    }
+  `,
+})
+export class AssistenteLauncher {
+  protected readonly store = inject(AssistenteStore);
+}

@@ -13,6 +13,8 @@ import {
   LucideBell,
   LucideRefreshCw,
   LucideSparkles,
+  LucideLightbulb,
+  LucideCalendar,
 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { BaseChartDirective } from 'ng2-charts';
@@ -105,6 +107,8 @@ function mesLabelFromPeriodo(periodo: string): string {
     UiModal,
     UiSkeleton,
     UiStat,
+    LucideLightbulb,
+    LucideCalendar,
   ],
   templateUrl: './dashboard.html',
 })
@@ -495,7 +499,7 @@ export class DashboardPage implements OnInit {
       next: res => {
         this.enviandoNotificacao.set(false);
         if (res.enviados > 0) {
-          this.toastService.success(`✅ ${res.enviados} notificação(ões) enviada(s) via WhatsApp!`);
+          this.toastService.success(`${res.enviados} notificação(ões) enviada(s) via WhatsApp.`);
         } else {
           this.toastService.info('Nenhuma obrigação pendente para notificar.');
         }

@@ -10,7 +10,7 @@
     <div class="rounded-card border border-assistente-borda bg-assistente-soft p-3">
       <p class="text-apoio font-medium text-assistente-ink">Conversa atual</p>
       <p class="mt-0.5 text-apoio text-muted-foreground">
-        {{ mensagens().length }} mensagem(ns)
+        {{ store.mensagens().length }} mensagem(ns)
       </p>
     </div>
 
@@ -22,126 +22,21 @@
 
   <!-- ── Conversa ── -->
   <section class="flex min-h-0 flex-col gap-3">
-    <header class="flex flex-wrap items-center justify-between gap-2">
-      <div class="flex items-center gap-2">
-        <span class="flex size-10 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
-          <svg lucideSparkles [size]="20" />
-        </span>
-        <div>
-          <h1 class="font-heading text-xl font-bold tracking-tight text-foreground sm:text-2xl">
-            Assistente fiscal
-          </h1>
-          <p class="text-apoio text-muted-foreground">
-            Pergunte sobre suas notas, seus impostos e a reforma tributária
-          </p>
-        </div>
+    <header class="flex items-center gap-2">
+      <span class="flex size-10 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
+        <svg lucideSparkles [size]="20" />
+      </span>
+      <div>
+        <h1 class="font-heading text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+          Assistente fiscal
+        </h1>
+        <p class="text-apoio text-muted-foreground">
+          Pergunte sobre suas notas, seus impostos e a reforma tributária
+        </p>
       </div>
     </header>
 
-    <!-- Mensagens -->
-    <div class="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-      @if (mensagens().length === 0) {
-        <div class="rounded-card border border-assistente-borda bg-assistente-soft p-4 sm:p-5">
-          <p class="font-heading font-semibold text-foreground">
-            Olá{{ contexto().nome ? ', ' + contexto().nome : '' }}.
-          </p>
-          <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
-            Quando estiver ligado, eu vou responder olhando as suas notas e a sua apuração —
-            e citando a legislação em que me baseei. Experimente uma das perguntas abaixo.
-          </p>
-        </div>
-      }
-
-      @for (msg of mensagens(); track $index) {
-        @if (msg.role === 'user') {
-          <div class="flex justify-end gap-2">
-            <p class="max-w-[85%] rounded-destaque rounded-tr-md bg-primary px-4 py-2.5 text-apoio leading-relaxed text-primary-foreground">
-              {{ msg.content }}
-            </p>
-            <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted-foreground">
-              <svg lucideUser [size]="16" />
-            </span>
-          </div>
-        } @else if (msg.content === 'INDISPONIVEL') {
-          <!-- Estado honesto: o assistente nao existe ainda, e a tela diz isso em vez
-               de simular uma resposta que nunca veio de lugar nenhum. -->
-          <div class="flex gap-2">
-            <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-aviso-soft text-aviso">
-              <svg lucideTriangleAlert [size]="16" />
-            </span>
-            <div class="max-w-[85%] rounded-destaque rounded-tl-md border border-aviso/30 bg-aviso-soft px-4 py-3">
-              <p class="text-apoio font-medium text-aviso-ink">
-                O assistente ainda não está ligado.
-              </p>
-              <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
-                A pergunta foi montada com o seu contexto real e está pronta para ser enviada —
-                falta o serviço de IA no servidor, que entra na Sprint 6. Enquanto isso, a
-                <strong>Visão geral</strong> já aponta o que precisa da sua atenção.
-              </p>
-            </div>
-          </div>
-        } @else {
-          <div class="flex gap-2">
-            <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
-              <svg lucideSparkles [size]="16" />
-            </span>
-            <div class="max-w-[85%] rounded-destaque rounded-tl-md border border-assistente-borda bg-card px-4 py-3">
-              <p class="whitespace-pre-line text-apoio leading-relaxed text-foreground">
-                {{ msg.content }}
-              </p>
-              <!-- Espaço reservado para a citação da legislação que o RAG usar. -->
-              <p class="mt-2 flex items-center gap-1.5 text-apoio text-muted-foreground">
-                <svg lucideBookOpen [size]="14" />
-                A fonte citada aparece aqui
-              </p>
-            </div>
-          </div>
-        }
-      }
-
-      @if (enviando()) {
-        <div class="flex items-center gap-2 text-apoio text-muted-foreground">
-          <span class="flex size-8 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
-            <svg lucideSparkles [size]="16" />
-          </span>
-          <span class="animate-pulse">Consultando…</span>
-        </div>
-      }
-
-      <div #fimDaConversa></div>
-    </div>
-
-    <!-- Sugestões -->
-    <div class="flex flex-wrap gap-2">
-      @for (pergunta of perguntasSugeridas; track pergunta) {
-        <button
-          type="button"
-          class="tap-target rounded-full border border-assistente-borda bg-assistente-soft px-4 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente/15 disabled:opacity-50"
-          [disabled]="enviando()"
-          (click)="enviar(pergunta)"
-        >
-          {{ pergunta }}
-        </button>
-      }
-    </div>
-
-    <!-- Campo -->
-    <form class="flex items-end gap-2" (submit)="$event.preventDefault(); enviar()">
-      <label for="pergunta" class="sr-only">Sua pergunta</label>
-      <textarea
-        id="pergunta"
-        rows="1"
-        placeholder="Escreva sua pergunta…"
-        class="min-h-[2.75rem] flex-1 resize-none rounded-controle border border-border bg-card px-4 py-3 text-apoio text-foreground"
-        [value]="entrada()"
-        (input)="entrada.set($any($event.target).value)"
-        (keydown)="aoTeclar($event)"
-      ></textarea>
-      <ui-button type="submit" variant="assistente" [disabled]="!podeEnviar()" [carregando]="enviando()">
-        <svg lucideSend [size]="16" />
-        <span class="hidden sm:inline">Enviar</span>
-      </ui-button>
-    </form>
+    <app-assistente-conversa />
   </section>
 
   <!-- ── Contexto: o que o assistente saberia sobre você ── -->
@@ -158,26 +53,28 @@
       <dl class="mt-1 flex flex-col gap-2">
         <div class="flex justify-between gap-2">
           <dt class="text-apoio text-muted-foreground">Produtor</dt>
-          <dd class="text-apoio font-medium text-foreground">{{ contexto().nome ?? '—' }}</dd>
+          <dd class="text-apoio font-medium text-foreground">{{ store.contexto().nome ?? '—' }}</dd>
         </div>
         <div class="flex justify-between gap-2">
           <dt class="text-apoio text-muted-foreground">Estado</dt>
-          <dd class="text-apoio font-medium text-foreground">{{ contexto().uf ?? '—' }}</dd>
+          <dd class="text-apoio font-medium text-foreground">{{ store.contexto().uf ?? '—' }}</dd>
         </div>
         <div class="flex justify-between gap-2">
           <dt class="text-apoio text-muted-foreground">Período</dt>
-          <dd class="text-apoio font-medium text-foreground">{{ formatPeriodo(contexto().periodo) }}</dd>
+          <dd class="text-apoio font-medium text-foreground">
+            {{ formatPeriodo(store.contexto().periodo) }}
+          </dd>
         </div>
         <div class="flex justify-between gap-2">
           <dt class="text-apoio text-muted-foreground">A pagar</dt>
           <dd class="text-apoio font-medium tabular-nums text-foreground">
-            {{ formatCurrency(contexto().saldoAPagar) }}
+            {{ formatCurrency(store.contexto().saldoAPagar) }}
           </dd>
         </div>
         <div class="flex justify-between gap-2">
           <dt class="text-apoio text-muted-foreground">Notas pendentes</dt>
           <dd class="text-apoio font-medium tabular-nums text-foreground">
-            {{ contexto().notasPendentes }}
+            {{ store.contexto().notasPendentes }}
           </dd>
         </div>
       </dl>

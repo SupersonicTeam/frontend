@@ -18,6 +18,9 @@ export interface ChatContexto {
   saldoAPagar?: number;
   /** Quantas notas estão com inconsistência agora. */
   notasPendentes?: number;
+  /** Nota que motivou a pergunta, quando ela parte de uma nota específica. */
+  notaId?: string;
+  notaNumero?: number;
 }
 
 export interface ChatRequest {

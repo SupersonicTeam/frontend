@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import {
   LucideMenu,
@@ -15,9 +15,13 @@ import {
   LucideReceipt,
   LucideLogOut,
   LucideSparkles,
+  LucideClipboardList,
 } from '@lucide/angular';
 import { NotificacoesService } from '@core/services/notificacoes.service';
 import { PerfilService } from '@core/services/perfil.service';
+import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
+import { AssistenteDrawer } from '@shared/assistente/assistente-drawer';
+import { AssistenteLauncher } from '@shared/assistente/assistente-launcher';
 import { ToastContainer } from '@shared/components/toast-container/toast-container';
 
 export interface NavItem {
@@ -31,7 +35,10 @@ export interface NavItem {
   selector: 'app-layout',
   standalone: true,
   imports: [
+    AssistenteDrawer,
+    AssistenteLauncher,
     LucideSparkles,
+    LucideClipboardList,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
@@ -56,6 +63,7 @@ export class AppLayout {
   private readonly router = inject(Router);
   readonly notificacoesService = inject(NotificacoesService);
   readonly perfilService = inject(PerfilService);
+  private readonly dashboardApi = inject(DashboardApi);
 
   mobileMenuOpen = signal(false);
   notificacoesOpen = signal(false);
@@ -97,13 +105,39 @@ export class AppLayout {
     this.router.navigate([notif.rota]);
   }
 
-  tipoIcon(tipo: string): string {
+  /**
+   * Cor do ícone da notificação, sobre os tokens semânticos (#59).
+   *
+   * Antes cada tipo era um **emoji** no meio do painel. Renderizam diferente em
+   * cada sistema, ignoram o tema e não têm nada a ver com a identidade visual —
+   * o ícone agora é do mesmo conjunto do resto do produto.
+   */
+  /**
+   * Nome mostrado no chip da topbar.
+   *
+   * O "login" da demo (#23) aceita o nome em branco e cai no rótulo do perfil,
+   * o que fazia o chip ler **"Produtor · Produtor"** enquanto a mesma tela
+   * saudava "Olá, João da Silva Produtor". Quando quem entrou não digitou nada,
+   * usamos o nome do produtor que veio do backend — o mesmo da saudação.
+   */
+  readonly nomeExibido = computed(() => {
+    const digitado = this.perfilService.nome().trim();
+    const padrao = this.perfilService.perfil()
+      ? this.perfilService.rotuloPadrao(this.perfilService.perfil()!)
+      : '';
+    if (digitado && digitado !== padrao) return digitado;
+    return this.dashboardApi.dashboard()?.produtor.nome ?? padrao;
+  });
+
+  readonly inicialDoPerfil = computed(() => this.nomeExibido().trim().charAt(0).toUpperCase() || '?');
+
+  classeTipo(tipo: string): string {
     const map: Record<string, string> = {
-      'Solicitação': '📋',
-      'Documento': '📄',
-      'Pagamento': '💰',
+      'Solicitação': 'bg-info-soft text-info',
+      Documento: 'bg-assistente-soft text-assistente-ink',
+      Pagamento: 'bg-aviso-soft text-aviso-ink',
     };
-    return map[tipo] ?? '🔔';
+    return map[tipo] ?? 'bg-surface-2 text-muted-foreground';
   }
 
   isNavPath(path: string): string {

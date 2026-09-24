@@ -130,7 +130,10 @@
   </div>
 
   <!-- Daqui para baixo, grade que cresce com a tela (#47) -->
-  <div class="grid items-start gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+  <!-- Sem `items-start`: com ele o card mais baixo da linha deixava um buraco
+       (Alertas tinha 192px ao lado de Notas por mes com 342px). Esticados, os
+       cards da mesma linha terminam juntos. -->
+  <div class="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
   <!-- Dinheiro do periodo. Semantica do backend: totalEntradas = vendas (PROPRIA),
        totalSaidas = compras (IMPORTADA). Ja vem aplicada - NAO re-inverter. -->
   @if (temFinanceiro()) {
@@ -170,12 +173,15 @@
     </section>
   }
 
-  <!-- Card: Alertas e pendências -->
+  <!-- Card: proximos vencimentos. O titulo era "Alertas e pendencias" e o vazio
+       dizia "Tudo em dia! Nenhuma pendencia." - na mesma tela em que o topo avisa
+       que ha 2 notas a corrigir. Este card so olha vencimentos fiscais; agora o
+       nome diz isso e a contradicao some. -->
   <div class="bg-card rounded-card border border-border shadow-suave p-5">
     <div class="flex items-center justify-between mb-4">
       <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideBell [size]="20" class="text-primary" />
-        Alertas e pendências
+        <svg lucideCalendar [size]="20" class="text-primary" />
+        Próximos vencimentos
       </h2>
       @if (loadingAlertas()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
@@ -191,7 +197,7 @@
     } @else if (alertas().length) {
       <ul class="space-y-2">
         @for (a of alertas(); track a.id) {
-          <li class="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
+          <li class="flex items-center gap-3 rounded-card bg-surface-2 p-3">
             <div
               class="w-2 h-2 rounded-full shrink-0"
               [class]="a.status === 'vencido' ? 'bg-destructive' : 'bg-accent'"
@@ -209,9 +215,9 @@
         }
       </ul>
     } @else {
-      <div class="flex flex-col items-center justify-center text-center py-6 text-muted-foreground">
-        <svg lucideBell [size]="28" class="mb-2 opacity-60" />
-        <p class="text-apoio">Tudo em dia! Nenhuma pendência.</p>
+      <div class="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
+        <svg lucideCalendar [size]="28" class="mb-2 opacity-60" />
+        <p class="text-apoio">Nenhum vencimento nos próximos dias.</p>
       </div>
     }
   </div>
@@ -390,7 +396,10 @@
       class="w-full flex items-center justify-between text-apoio text-muted-foreground hover:text-foreground transition-colors py-1"
       (click)="showSimuladorDetalhe.update(v => !v)"
     >
-      <span>💡 Como funciona a redução tributária?</span>
+      <span class="flex items-center gap-1.5">
+        <svg lucideLightbulb [size]="15" class="text-assistente" />
+        Como funciona a redução tributária?
+      </span>
       @if (showSimuladorDetalhe()) {
         <svg lucideChevronUp [size]="14" />
       } @else {
