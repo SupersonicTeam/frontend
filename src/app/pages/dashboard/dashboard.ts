@@ -42,8 +42,8 @@ Chart.register(
 );
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
-import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
+import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiCard } from '@shared/ui/ui-card';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
@@ -97,6 +97,7 @@ function mesLabelFromPeriodo(periodo: string): string {
     RouterLink,
     BaseChartDirective,
     NotaPreview,
+    UiBadgeStatus,
     UiButton,
     UiCard,
     UiEmptyState,
@@ -494,10 +495,6 @@ export class DashboardPage implements OnInit {
 
   formatDate(iso: string): string {
     return new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-  }
-
-  getStatusStyle(status?: string): { label: string; color: string } {
-    return { label: statusNotaLabel(status), color: statusNotaBadge(status) };
   }
 
   private getMesAtual(): string {
