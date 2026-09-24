@@ -173,57 +173,11 @@
     </section>
   }
 
-  <!-- Card: proximos vencimentos. O titulo era "Alertas e pendencias" e o vazio
-       dizia "Tudo em dia! Nenhuma pendencia." - na mesma tela em que o topo avisa
-       que ha 2 notas a corrigir. Este card so olha vencimentos fiscais; agora o
-       nome diz isso e a contradicao some. -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideCalendar [size]="20" class="text-primary" />
-        Próximos vencimentos
-      </h2>
-      @if (loadingAlertas()) {
-        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-      } @else if (alertas().length) {
-        <span class="text-apoio bg-accent/15 text-accent px-2 py-1 rounded-full font-medium">
-          {{ alertas().length }}
-        </span>
-      }
-    </div>
-
-    @if (loadingAlertas()) {
-      <ui-skeleton [linhas]="2" formato="bloco" altura="3.5rem" />
-    } @else if (alertas().length) {
-      <ul class="space-y-2">
-        @for (a of alertas(); track a.id) {
-          <li class="flex items-center gap-3 rounded-card bg-surface-2 p-3">
-            <div
-              class="w-2 h-2 rounded-full shrink-0"
-              [class]="a.status === 'vencido' ? 'bg-destructive' : 'bg-accent'"
-            ></div>
-            <div class="min-w-0 flex-1">
-              <p class="text-apoio font-medium text-foreground truncate">{{ a.titulo }}</p>
-              <p class="text-apoio text-muted-foreground">Vence em {{ formatDate(a.dataVencimento) }}</p>
-            </div>
-            @if (a.valor) {
-              <span class="text-apoio font-semibold text-foreground shrink-0">
-                {{ formatCurrency(a.valor) }}
-              </span>
-            }
-          </li>
-        }
-      </ul>
-    } @else {
-      <div class="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
-        <svg lucideCalendar [size]="28" class="mb-2 opacity-60" />
-        <p class="text-apoio">Nenhum vencimento nos próximos dias.</p>
-      </div>
-    }
-  </div>
-
+  <!-- Notas por mes ocupa a linha inteira (lg:col-span-2): o grafico respira e o
+       card de vencimentos, que era estreito e quase sempre vazio, desce para perto
+       dos documentos enviados, que e o contexto dele. -->
   <!-- Card: Notas por mês (gráfico) -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5">
+  <div class="bg-card rounded-card border border-border shadow-suave p-5 lg:col-span-2 2xl:col-span-2">
     <div class="flex items-center justify-between mb-4">
       <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideTrendingUp [size]="20" class="text-primary" />
@@ -408,6 +362,55 @@
           e IBS (17,7% → 7,1%). A tributação efetiva total é de aproximadamente
           <strong class="text-primary">10,6%</strong> ao invés dos 26,5% do regime comum.
         </p>
+      </div>
+    }
+  </div>
+
+  <!-- Card: proximos vencimentos. O titulo era "Alertas e pendencias" e o vazio
+       dizia "Tudo em dia! Nenhuma pendencia." - na mesma tela em que o topo avisa
+       que ha 2 notas a corrigir. Este card so olha vencimentos fiscais; agora o
+       nome diz isso e a contradicao some. -->
+  <div class="bg-card rounded-card border border-border shadow-suave p-5">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+        <svg lucideCalendar [size]="20" class="text-primary" />
+        Próximos vencimentos
+      </h2>
+      @if (loadingAlertas()) {
+        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+      } @else if (alertas().length) {
+        <span class="text-apoio bg-accent/15 text-accent px-2 py-1 rounded-full font-medium">
+          {{ alertas().length }}
+        </span>
+      }
+    </div>
+
+    @if (loadingAlertas()) {
+      <ui-skeleton [linhas]="2" formato="bloco" altura="3.5rem" />
+    } @else if (alertas().length) {
+      <ul class="space-y-2">
+        @for (a of alertas(); track a.id) {
+          <li class="flex items-center gap-3 rounded-card bg-surface-2 p-3">
+            <div
+              class="w-2 h-2 rounded-full shrink-0"
+              [class]="a.status === 'vencido' ? 'bg-destructive' : 'bg-accent'"
+            ></div>
+            <div class="min-w-0 flex-1">
+              <p class="text-apoio font-medium text-foreground truncate">{{ a.titulo }}</p>
+              <p class="text-apoio text-muted-foreground">Vence em {{ formatDate(a.dataVencimento) }}</p>
+            </div>
+            @if (a.valor) {
+              <span class="text-apoio font-semibold text-foreground shrink-0">
+                {{ formatCurrency(a.valor) }}
+              </span>
+            }
+          </li>
+        }
+      </ul>
+    } @else {
+      <div class="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
+        <svg lucideCalendar [size]="28" class="mb-2 opacity-60" />
+        <p class="text-apoio">Nenhum vencimento nos próximos dias.</p>
       </div>
     }
   </div>
