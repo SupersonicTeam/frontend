@@ -371,11 +371,29 @@ export class DashboardPage implements OnInit {
   // ---------------------------------------------------------------------------
 
   /** Notas que exigem acao do produtor, extraidas do payload do dashboard. */
-  readonly notasComProblema = computed(() =>
-    (this.dashboard()?.ultimasNotas ?? []).filter(
-      (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
-    ),
-  );
+  /**
+   * Notas que exigem acao, buscadas em TODAS as notas do produtor.
+   *
+   * A primeira versao lia `dashboard().ultimasNotas`, que traz so as 3 mais
+   * recentes - e o assistente sumia da tela assim que as tres ultimas estavam em
+   * ordem, mesmo havendo pendencia antiga em aberto. Pendencia fiscal nao
+   * envelhece: enquanto a nota nao for corrigida, o produtor precisa saber.
+   */
+  readonly notasComProblema = signal<NotaFiscal[]>([]);
+
+  private carregarNotasComProblema(): void {
+    this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
+      next: (pagina) => {
+        this.notasComProblema.set(
+          pagina.content.filter(
+            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+          ),
+        );
+        this.carregarMotivoDaPendencia();
+      },
+      error: () => this.notasComProblema.set([]),
+    });
+  }
 
   /** Motivo textual da primeira pendencia, como o backend descreve. */
   readonly motivoPendencia = signal<string | null>(null);
@@ -436,7 +454,7 @@ export class DashboardPage implements OnInit {
     this.dashboardService.carregar().subscribe({
       next: () => {
         this.loading.set(false);
-        this.carregarMotivoDaPendencia();
+        this.carregarNotasComProblema();
       },
       error: () => {
         this.loading.set(false);

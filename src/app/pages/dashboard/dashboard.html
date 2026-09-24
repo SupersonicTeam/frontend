@@ -47,7 +47,7 @@
       @if (notasComProblema().length) {
         <p>
           A nota <strong>{{ notasComProblema()[0].numero }}</strong>, para
-          {{ notasComProblema()[0].contraparte }}, não pode ser emitida como está.
+          {{ notasComProblema()[0].destinatarioNome }}, não pode ser emitida como está.
           @if (motivoPendencia()) {
             <br />O que o fisco aponta: <em>{{ motivoPendencia() }}</em>
           }
