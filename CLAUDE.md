@@ -17,7 +17,10 @@ imposto, contador, rascunho).
   detection por zona), bootstrap via `bootstrapApplication` em `src/main.ts`.
 - **Tailwind CSS v4** via PostCSS (`@import "tailwindcss"` em `src/styles.css`; **não há** `tailwind.config.js`).
 - **@lucide/angular** para ícones.
-- **Angular Material** — uso **híbrido/pontual** (datepicker, tabela paginada, select), Tailwind continua a base.
+- **Sem Angular Material** (#41). Ele estava instalado inteiro, com o tema pré-pronto no `angular.json`, por
+  causa de **dois usos**: `matTooltip` na topbar e `mat-slide-toggle` em Configurações. Substituídos pela
+  utility `.dica` e por um checkbox nativo estilizado — o bundle inicial caiu de **495,25 kB para 406,99 kB**.
+  `@angular/cdk` continua em `node_modules` só como dependência transitiva do `ng2-charts`; nada em `src/` o importa.
 - **ng2-charts + chart.js** — gráficos. Registro **enxuto por componente** (`Chart.register(...)` no componente, não
   `provideCharts` no `app.config`) para o Chart.js ficar no **chunk lazy**, não no bundle inicial. Ex.: dashboard.
 - RxJS 7.8, testes em **Vitest** (jsdom). TypeScript strict.
@@ -176,7 +179,7 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 - `noPropertyAccessFromIndexSignature`: acessar propriedades de index-signature com **bracket** `obj['x']`.
 - Prettier: `printWidth: 100`, `singleQuote: true` (config no `package.json`); HTML usa parser `angular`.
 - Budgets (`angular.json`): bundle inicial warn 500 kB / erro 1 MB; estilos warn 4 kB / erro 8 kB.
-  (Baseline atual: ~378 kB inicial — folga grande.)
+  (Baseline atual: **406,99 kB** inicial / 97,34 kB gzip — folga de ~93 kB.)
 - Evitar `?.` onde o tipo não é nullable (warning NG8107).
 
 ## Git / fluxo de trabalho

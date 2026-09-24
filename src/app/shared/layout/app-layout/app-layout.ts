@@ -16,7 +16,6 @@ import {
   LucideLogOut,
   LucideSparkles,
 } from '@lucide/angular';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { NotificacoesService } from '@core/services/notificacoes.service';
 import { PerfilService } from '@core/services/perfil.service';
 import { ToastContainer } from '@shared/components/toast-container/toast-container';
@@ -37,7 +36,6 @@ export interface NavItem {
     RouterLink,
     RouterLinkActive,
     ToastContainer,
-    MatTooltipModule,
     LucideMenu,
     LucideX,
     LucideBell,

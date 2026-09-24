@@ -1,6 +1,5 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import {
   LucideSettings,
   LucideUser,
@@ -19,7 +18,6 @@ import { UiCard } from '@shared/ui/ui-card';
   standalone: true,
   imports: [
     FormsModule,
-    MatSlideToggleModule,
     UiCard,
     LucideSettings,
     LucideUser,
