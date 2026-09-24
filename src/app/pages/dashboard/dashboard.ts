@@ -15,6 +15,7 @@ import {
   LucideSparkles,
   LucideLightbulb,
   LucideCalendar,
+  LucideArrowRight,
 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { BaseChartDirective } from 'ng2-charts';
@@ -109,6 +110,7 @@ function mesLabelFromPeriodo(periodo: string): string {
     UiStat,
     LucideLightbulb,
     LucideCalendar,
+    LucideArrowRight,
   ],
   templateUrl: './dashboard.html',
 })
@@ -384,9 +386,21 @@ export class DashboardPage implements OnInit {
    */
   readonly notasComProblema = signal<NotaFiscal[]>([]);
 
+  /**
+   * Quantas notas o produtor tem no total.
+   *
+   * O card "Ultimos documentos" mostra so 5 -- o backend devolve
+   * `findTop5ByProdutorIdOrderByDataEmissaoDesc` e nunca mais que isso. Sem
+   * saber o total, o card virava beco sem saida: quem tem 15 notas via 5 e nao
+   * tinha como chegar nas outras. O numero vem do `totalElements` desta mesma
+   * chamada, sem requisicao extra.
+   */
+  readonly totalDeNotas = signal(0);
+
   private carregarNotasComProblema(): void {
     this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
       next: (pagina) => {
+        this.totalDeNotas.set(pagina.totalElements ?? pagina.content.length);
         this.notasComProblema.set(
           pagina.content.filter(
             (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
@@ -394,7 +408,10 @@ export class DashboardPage implements OnInit {
         );
         this.carregarMotivoDaPendencia();
       },
-      error: () => this.notasComProblema.set([]),
+      error: () => {
+        this.notasComProblema.set([]);
+        this.totalDeNotas.set(0);
+      },
     });
   }
 
