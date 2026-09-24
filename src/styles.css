@@ -287,6 +287,29 @@ html {
   min-block-size: 2.75rem;
 }
 
+/* Dica visual dos icones da topbar (#41). Substitui o `matTooltip`, unico motivo
+   pelo qual o `@angular/material` inteiro entrava no bundle inicial.
+   E decoracao: quem usa leitor de tela ja recebe o nome pelo `aria-label` do
+   botao, entao a span leva `aria-hidden`. O pai precisa da classe `group`. */
+@utility dica {
+  position: absolute;
+  inset-inline-start: 50%;
+  inset-block-start: calc(100% + 0.375rem);
+  z-index: 50;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  border-radius: var(--radius-controle);
+  background-color: var(--color-foreground);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  color: var(--color-background);
+  box-shadow: var(--shadow-media);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 150ms ease;
+}
+
 /* --- Foco visivel global (#36) ------------------------------------------------
    Regra sem layer, entao vence os `focus:outline-none` dos templates, que ficam
    em @layer utilities. Usa :focus-visible, ou seja: aparece na navegacao por

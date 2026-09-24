@@ -45,13 +45,12 @@
       <!-- Notificações -->
       <div class="relative">
         <button
-          class="tap-target relative flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
+          class="tap-target group relative flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
           (click)="toggleNotificacoes()"
           aria-label="Notificações"
-          matTooltip="Notificações"
-          matTooltipPosition="below"
         >
           <svg lucideBell [size]="22" />
+          <span aria-hidden="true" class="dica group-hover:opacity-100 group-focus-visible:opacity-100">Notificações</span>
           @if (notificacoesService.naoLidas() > 0) {
             <span class="absolute -top-0.5 -right-0.5 flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none">
               {{ notificacoesService.naoLidas() }}
@@ -113,12 +112,11 @@
       <!-- Configurações -->
       <a
         routerLink="/configuracoes"
-        class="tap-target flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
+        class="tap-target group relative flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
         aria-label="Configurações"
-        matTooltip="Configurações"
-        matTooltipPosition="below"
       >
         <svg lucideSettings [size]="20" />
+        <span aria-hidden="true" class="dica group-hover:opacity-100 group-focus-visible:opacity-100">Configurações</span>
       </a>
 
       <!-- Perfil ativo + sair (demo #23) -->
@@ -127,13 +125,12 @@
         <span class="opacity-70">· {{ perfilService.ehContador() ? 'Contador' : 'Produtor' }}</span>
       </span>
       <button
-        class="tap-target flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
+        class="tap-target group relative flex items-center justify-center rounded-full text-topbar-foreground transition-colors hover:bg-muted"
         (click)="sair()"
         aria-label="Sair"
-        matTooltip="Sair / trocar perfil"
-        matTooltipPosition="below"
       >
         <svg lucideLogOut [size]="20" />
+        <span aria-hidden="true" class="dica group-hover:opacity-100 group-focus-visible:opacity-100">Sair / trocar perfil</span>
       </button>
     </div>
   </header>
