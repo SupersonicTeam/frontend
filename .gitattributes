@@ -1,0 +1,20 @@
+# Normaliza a quebra de linha do codigo-fonte no repositorio (LF), deixando o
+# checkout em CRLF no Windows.
+* text=auto eol=lf
+
+# Binarios: o git NAO pode mexer em quebra de linha aqui. Sem isto, o
+# `text=auto` acima corromperia o PDF do relatorio ao converter bytes que ele
+# confunde com fim de linha.
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.woff  binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.p12  binary
+*.zip  binary
