@@ -1,4 +1,4 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, booleanAttribute, computed, input } from '@angular/core';
 
 type Variante = 'padrao' | 'destaque' | 'assistente' | 'plano';
 
@@ -25,7 +25,7 @@ type Variante = 'padrao' | 'destaque' | 'assistente' | 'plano';
 export class UiCard {
   readonly variant = input<Variante>('padrao');
   /** Densidade reduzida, para grades densas na visão do contador. */
-  readonly compacto = input(false);
+  readonly compacto = input(false, { transform: booleanAttribute });
 
   protected readonly classes = computed(() => {
     const variantes: Record<Variante, string> = {

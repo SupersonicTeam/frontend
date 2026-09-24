@@ -1,4 +1,5 @@
-import { Component, computed, input } from '@angular/core';
+import { booleanAttribute,
+  Component, computed, input } from '@angular/core';
 import {
   STATUS_NOTA_META,
   type StatusNotaFiscal,
@@ -41,7 +42,7 @@ const TOM_POR_STATUS: Record<StatusNotaFiscal, string> = {
 export class UiBadgeStatus {
   readonly status = input.required<StatusNotaFiscal | string | undefined>();
   /** Ponto colorido antes do texto — ajuda quem não distingue bem as cores. */
-  readonly marcador = input(true);
+  readonly marcador = input(true, { transform: booleanAttribute });
 
   private readonly chave = computed<StatusNotaFiscal | null>(() => {
     const s = this.status();

@@ -7,8 +7,6 @@ import {
   LucideLoaderCircle,
   LucideFile,
   LucideDownload,
-  LucideMessageCircle,
-  LucideX,
   LucideSprout,
   LucideChevronDown,
   LucideChevronUp,
@@ -46,7 +44,10 @@ import { DashboardApi } from '@services/dashboard/data-access/dashboard.service'
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { statusNotaLabel, statusNotaBadge } from '@core/enums/status-nota-fiscal.enum';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
+import { UiButton } from '@shared/ui/ui-button';
 import { UiCard } from '@shared/ui/ui-card';
+import { UiEmptyState } from '@shared/ui/ui-empty-state';
+import { UiModal } from '@shared/ui/ui-modal';
 import { UiInsight } from '@shared/ui/ui-insight';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { UiStat } from '@shared/ui/ui-stat';
@@ -87,8 +88,6 @@ function mesLabelFromPeriodo(periodo: string): string {
     LucideLoaderCircle,
     LucideFile,
     LucideDownload,
-    LucideMessageCircle,
-    LucideX,
     LucideSprout,
     LucideChevronDown,
     LucideChevronUp,
@@ -98,8 +97,11 @@ function mesLabelFromPeriodo(periodo: string): string {
     RouterLink,
     BaseChartDirective,
     NotaPreview,
+    UiButton,
     UiCard,
+    UiEmptyState,
     UiInsight,
+    UiModal,
     UiSkeleton,
     UiStat,
   ],
