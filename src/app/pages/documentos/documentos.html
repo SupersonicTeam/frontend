@@ -217,6 +217,53 @@
   (fechar)="fecharPreview()"
 >
   @if (previewNota()) {
+    <!-- O QUE IMPEDE A EMISSAO VEM PRIMEIRO.
+         Antes este bloco ficava depois da DANFE inteira, a 644px do topo num
+         conteudo de 730px: quem clicava "Corrigir agora" no painel tinha que
+         rolar para descobrir por que veio. No celular eram 899px de conteudo
+         numa janela de 304px. -->
+    @if (validacoes().length) {
+      <div class="mb-4 rounded-card border border-aviso/40 bg-aviso-soft p-4">
+        <p class="flex items-center gap-2 font-heading font-semibold text-aviso-ink">
+          <svg lucideTriangleAlert [size]="18" />
+          @if (validacoes().length === 1) {
+            Falta uma coisa para esta nota poder ser emitida
+          } @else {
+            Faltam {{ validacoes().length }} coisas para esta nota poder ser emitida
+          }
+        </p>
+
+        <ul class="mt-3 flex flex-col gap-2">
+          @for (v of validacoes(); track v.code + (v.field ?? '')) {
+            <li class="rounded-controle bg-card px-3 py-2">
+              <p class="text-apoio font-medium text-foreground">{{ rotuloDoCampo(v.field) }}</p>
+              <p class="text-apoio leading-relaxed text-muted-foreground">{{ v.message }}</p>
+            </li>
+          }
+        </ul>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+          @if (pendenciaCorrigivelNaNota()) {
+            <button
+              class="tap-target inline-flex items-center gap-1.5 rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              (click)="editarNota(previewNota()!)"
+            >
+              <svg lucidePencil [size]="15" />
+              Corrigir a nota
+            </button>
+          }
+          @if (pendenciaNoCadastro()) {
+            <!-- Honestidade: `produtor.*` esta no cadastro, e o app ainda nao
+                 tem onde edita-lo. Mandar para Configuracoes seria um beco. -->
+            <p class="text-apoio text-muted-foreground">
+              Parte disso está no seu cadastro de produtor, que ainda não pode ser
+              editado por aqui — peça ao seu contador.
+            </p>
+          }
+        </div>
+      </div>
+    }
+
     <app-nota-preview [nota]="previewNota()!" />
       @if (errosFiscais().length) {
         <div class="mt-4 rounded-controle border border-perigo/30 bg-perigo-soft p-3">
@@ -235,19 +282,6 @@
         </div>
       }
 
-      <!-- Histórico de validações (COM_INCONSISTENCIAS / REJEITADA) -->
-      @if (validacoes().length) {
-        <div class="mt-3 rounded-controle border border-aviso/30 bg-aviso-soft p-3">
-          <p class="mb-2 text-apoio font-semibold text-aviso-ink">Motivo das inconsistências (última validação):</p>
-          <ul class="space-y-1.5">
-            @for (v of validacoes(); track v.loteValidacao + v.code + v.field) {
-              <li class="text-apoio text-foreground">
-                @if (v.field) { <span class="font-medium">{{ v.field }}</span>: } {{ v.message }}
-              </li>
-            }
-          </ul>
-        </div>
-      }
       <!-- Retorno da SEFAZ (após enviar/consultar) -->
       @if (sefazRetorno(); as r) {
         <div class="mt-3 space-y-1 rounded-controle border border-border bg-surface-2 p-3 text-apoio">
@@ -512,25 +546,46 @@
         <!-- Endereço (opcional — obrigatório para emitir o XML) -->
         <div class="border border-border rounded-controle p-3 space-y-3 bg-muted/20">
           <p class="text-apoio font-semibold text-foreground">Endereço do destinatário <span class="font-normal text-muted-foreground">(necessário para gerar o XML)</span></p>
+          <!-- Os campos tinham so `placeholder`, que some quando a pessoa digita e
+               nao vale como rotulo para leitor de tela. E justo o bloco onde o
+               botao "Corrigir a nota" deposita quem veio arrumar o endereco. -->
           <div class="grid grid-cols-3 gap-2">
-            <input type="text" placeholder="Logradouro" class="col-span-2 px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="formEndLogradouro()" (input)="formEndLogradouro.set($any($event.target).value)" />
-            <input type="text" placeholder="Número" class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="formEndNumero()" (input)="formEndNumero.set($any($event.target).value)" />
+            <div class="col-span-2">
+              <label for="end-logradouro" class="mb-1 block text-apoio text-muted-foreground">Rua</label>
+              <input id="end-logradouro" type="text" placeholder="Av. Brasil" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+                [value]="formEndLogradouro()" (input)="formEndLogradouro.set($any($event.target).value)" />
+            </div>
+            <div>
+              <label for="end-numero" class="mb-1 block text-apoio text-muted-foreground">Número</label>
+              <input id="end-numero" type="text" placeholder="1200" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+                [value]="formEndNumero()" (input)="formEndNumero.set($any($event.target).value)" />
+            </div>
           </div>
           <div class="grid grid-cols-3 gap-2">
-            <input type="text" placeholder="Município" class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="formEndMunicipio()" (input)="formEndMunicipio.set($any($event.target).value)" />
-            <input type="text" placeholder="Cód. IBGE (7 díg)" maxlength="7" class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="formEndIbge()" (input)="formEndIbge.set($any($event.target).value)" />
-            <select class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="formEndUf()" (change)="formEndUf.set($any($event.target).value)">
-              <option value="">UF</option>
-              @for (uf of ufs; track uf) { <option [value]="uf">{{ uf }}</option> }
-            </select>
+            <div>
+              <label for="end-municipio" class="mb-1 block text-apoio text-muted-foreground">Município</label>
+              <input id="end-municipio" type="text" placeholder="Sorriso" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+                [value]="formEndMunicipio()" (input)="formEndMunicipio.set($any($event.target).value)" />
+            </div>
+            <div>
+              <label for="end-ibge" class="mb-1 block text-apoio text-muted-foreground">Cód. IBGE</label>
+              <input id="end-ibge" type="text" placeholder="5107925" maxlength="7" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+                [value]="formEndIbge()" (input)="formEndIbge.set($any($event.target).value)" />
+            </div>
+            <div>
+              <label for="end-uf" class="mb-1 block text-apoio text-muted-foreground">UF</label>
+              <select id="end-uf" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+                [value]="formEndUf()" (change)="formEndUf.set($any($event.target).value)">
+                <option value="">UF</option>
+                @for (uf of ufs; track uf) { <option [value]="uf">{{ uf }}</option> }
+              </select>
+            </div>
           </div>
-          <input type="text" placeholder="CEP (8 dígitos)" maxlength="9" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-            [value]="formEndCep()" (input)="formEndCep.set($any($event.target).value)" />
+          <div>
+            <label for="end-cep" class="mb-1 block text-apoio text-muted-foreground">CEP</label>
+            <input id="end-cep" type="text" placeholder="78890-000" maxlength="9" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="formEndCep()" (input)="formEndCep.set($any($event.target).value)" />
+          </div>
           @if (!ibgeValido()) { <p class="text-apoio text-destructive">Código IBGE deve ter 7 dígitos.</p> }
           @if (!cepValido()) { <p class="text-apoio text-destructive">CEP deve ter 8 dígitos.</p> }
           @if (erroDe('destinatarioEndereco'); as e) { <p class="text-apoio text-destructive">{{ e.field }}: {{ e.message }}</p> }
