@@ -1,6 +1,7 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   LucideFileText,
   LucideSearch,
@@ -155,6 +156,8 @@ function cpfCnpjValido(v: string): boolean {
 export class DocumentosPage implements OnInit {
   private readonly notasApi = inject(NotasApi);
   private readonly assistente = inject(AssistenteStore);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly contadorService = inject(ContadorApi);
   private readonly toastService = inject(ToastService);
 
@@ -391,6 +394,28 @@ export class DocumentosPage implements OnInit {
 
   ngOnInit(): void {
     this.carregarDados();
+    this.abrirNotaDaUrl();
+  }
+
+  /**
+   * Abre direto a nota pedida em `?nota=<id>`.
+   *
+   * O alerta do painel ("2 notas precisam da sua correcao") levava so para esta
+   * lista, e quem chegava tinha que caçar a nota certa entre as 12 da pagina.
+   * Agora o link carrega o id e a nota abre ja no modal, com as inconsistencias
+   * do fisco na tela.
+   *
+   * Busca por `obter(id)` em vez de procurar na lista carregada: a nota pode
+   * estar na pagina 2, e ai nao seria encontrada.
+   */
+  private abrirNotaDaUrl(): void {
+    const id = this.route.snapshot.queryParamMap.get('nota');
+    if (!id) return;
+
+    this.notasApi.obter(id).subscribe({
+      next: nota => this.abrirPreview(nota),
+      error: () => this.toastService.error('Não encontramos essa nota. Ela pode ter sido excluída.'),
+    });
   }
 
   carregarDados(): void {
@@ -910,6 +935,17 @@ export class DocumentosPage implements OnInit {
     this.errosFiscais.set([]);
     this.validacoes.set([]);
     this.sefazRetorno.set(null);
+
+    // Tira o `?nota=` da barra de endereco: sem isso, recarregar a pagina depois
+    // de fechar reabriria o modal que a pessoa acabou de dispensar.
+    if (this.route.snapshot.queryParamMap.has('nota')) {
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { nota: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
   }
 
   /**
