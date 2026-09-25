@@ -3,6 +3,7 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
 import type { ChatMessage } from '@models/chat-message.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
+import { apenasUltimaChecagem } from '@core/utils/validacoes';
 import { AssistenteIndisponivelError, ChatApi } from '@services/chat/data-access/chat.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
@@ -106,7 +107,7 @@ export class AssistenteStore {
     this.validacoesDaNota.set([]);
     if (nota.status === 'COM_INCONSISTENCIAS' || nota.status === 'REJEITADA') {
       this.notasApi.listarValidacoes(nota.id).subscribe({
-        next: (lista) => this.validacoesDaNota.set(this.apenasUltimaChecagem(lista)),
+        next: (lista) => this.validacoesDaNota.set(apenasUltimaChecagem(lista)),
         error: () => this.validacoesDaNota.set([]),
       });
     }
@@ -158,28 +159,6 @@ export class AssistenteStore {
             },
           ]);
         },
-      });
-  }
-
-  /**
-   * `/notas/{id}/validações` devolve o **histórico inteiro**: a nota 7 traz o mesmo
-   * "Endereço do destinatário é obrigatório" duas vezes, de tentativas em horários
-   * diferentes. O que interessa a quem lê é o que impede a emissão **agora** — ou
-   * seja, o lote mais recente, sem repetir o mesmo `code`+`field`.
-   */
-  private apenasUltimaChecagem(lista: NotaValidacaoResponse[]): NotaValidacaoResponse[] {
-    if (lista.length === 0) return [];
-    const maisRecente = lista.reduce((a, b) =>
-      new Date(b.validadoEm).getTime() > new Date(a.validadoEm).getTime() ? b : a,
-    );
-    const vistos = new Set<string>();
-    return lista
-      .filter((v) => v.loteValidacao === maisRecente.loteValidacao)
-      .filter((v) => {
-        const chave = `${v.code}|${v.field ?? ''}`;
-        if (vistos.has(chave)) return false;
-        vistos.add(chave);
-        return true;
       });
   }
 

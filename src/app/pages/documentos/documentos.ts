@@ -33,6 +33,8 @@ import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response'
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
 import { statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
+import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo }
+  from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
@@ -533,11 +535,33 @@ export class DocumentosPage implements OnInit {
   }
 
   /** Carrega o histórico de inconsistências (GET /validacoes) para exibir no preview. */
+  /** Nome do campo em portugues, para o bloco de pendencia do modal. */
+  rotuloDoCampo = rotuloDoCampo;
+
+  /**
+   * A pendencia da nota e corrigivel editando a propria nota?
+   *
+   * Quando o campo e `produtor.*` (inscricao estadual, endereco), o problema
+   * esta no cadastro do produtor, que o app ainda nao permite editar -- a tela
+   * de Configuracoes so finge salvar. Oferecer "Corrigir" ali levaria a um beco.
+   */
+  readonly pendenciaCorrigivelNaNota = computed(() => {
+    const vs = this.validacoes();
+    return vs.length > 0 && vs.some(v => !ehCampoDoProdutor(v.field));
+  });
+
+  /** Ha pendencia de cadastro do produtor, que nao se resolve pela nota. */
+  readonly pendenciaNoCadastro = computed(() =>
+    this.validacoes().some(v => ehCampoDoProdutor(v.field)),
+  );
+
   verValidacoes(nota: NotaFiscal): void {
     this.carregandoValidacoes.set(true);
     this.notasApi.listarValidacoes(nota.id).subscribe({
       next: (v) => {
-        this.validacoes.set(v);
+        // Só a checagem mais recente: o endpoint devolve o historico inteiro e a
+        // nota 7 repetia a mesma frase duas vezes (ver @core/utils/validacoes).
+        this.validacoes.set(apenasUltimaChecagem(v));
         this.carregandoValidacoes.set(false);
       },
       error: () => {
