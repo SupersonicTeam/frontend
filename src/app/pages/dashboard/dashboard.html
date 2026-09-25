@@ -59,8 +59,12 @@
       }
 
       <div acoes>
+        <!-- Leva direto a nota com pendencia, nao a lista: o modal abre ja com o
+             que o fisco apontou. Sem o `nota`, quem chegava tinha que cacar a nota
+             certa entre as 12 da pagina. -->
         <a
           routerLink="/documentos"
+          [queryParams]="notasComProblema().length ? { nota: notasComProblema()[0].id } : {}"
           class="tap-target inline-flex items-center gap-2 rounded-controle bg-assistente px-4 text-apoio font-medium text-assistente-foreground transition-colors hover:bg-assistente/90"
         >
           Corrigir agora

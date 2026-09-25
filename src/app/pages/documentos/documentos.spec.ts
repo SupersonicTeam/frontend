@@ -1,16 +1,26 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { DocumentosPage } from './documentos';
 import { ToastService } from '@core/services/toast.service';
 
 describe('DocumentosPage', () => {
   let httpMock: HttpTestingController;
 
+  /** Rota simulada: cada teste ajusta os query params antes de criar o componente. */
+  const rota = { snapshot: { queryParamMap: convertToParamMap({}) } };
+
   beforeEach(async () => {
+    rota.snapshot.queryParamMap = convertToParamMap({});
     await TestBed.configureTestingModule({
       imports: [DocumentosPage],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        { provide: ActivatedRoute, useValue: rota },
+      ],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
   });
@@ -125,5 +135,58 @@ describe('DocumentosPage', () => {
     expect(cmp.showAnexar()).toBe(true);
     const toasts = TestBed.inject(ToastService).toasts();
     expect(toasts.some(t => t.type === 'error')).toBe(true);
+  });
+
+  /**
+   * O alerta do painel ("2 notas precisam da sua correcao") levava so para a
+   * lista, e quem chegava tinha que cacar a nota certa entre as 12 da pagina.
+   * Sugestao do professor: abrir direto o modal da nota.
+   */
+  describe('abertura por ?nota= (vinda do alerta do painel)', () => {
+    const nota7 = {
+      id: 'n7', numero: 7, status: 'COM_INCONSISTENCIAS', naturezaOperacao: 'Venda de cafe',
+      dataEmissao: '2026-06-20T00:00:00Z', destinatarioNome: 'Cooperativa Cafeeira XYZ',
+      destinatarioCpfCnpj: '00000000000191', itens: [],
+    };
+
+    it('sem o parametro, nao busca nota nenhuma por id', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      flushPendencias();
+
+      expect(httpMock.match(r => /\/notas\/[^/]+$/.test(r.url)).length).toBe(0);
+      expect(fixture.componentInstance.previewNota()).toBeNull();
+    });
+
+    it('com ?nota=<id>, busca a nota e abre o modal dela', () => {
+      rota.snapshot.queryParamMap = convertToParamMap({ nota: 'n7' });
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+
+      // Busca por id, e nao na lista: a nota pode estar na pagina 2.
+      httpMock.expectOne(r => r.url === '/notas/n7').flush(nota7);
+      httpMock.match(r => r.url === '/notas/n7/validacoes').forEach(r => r.flush([]));
+      flushPendencias();
+
+      expect(fixture.componentInstance.previewNota()?.numero).toBe(7);
+    });
+
+    it('com id inexistente, avisa e mantem a pagina de pe', () => {
+      rota.snapshot.queryParamMap = convertToParamMap({ nota: 'sumiu' });
+      const toast = TestBed.inject(ToastService);
+      const erro = vi.spyOn(toast, 'error');
+
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      httpMock.expectOne(r => r.url === '/notas/sumiu')
+        .flush('nao existe', { status: 404, statusText: 'Not Found' });
+      flushPendencias();
+
+      expect(erro).toHaveBeenCalled();
+      expect(fixture.componentInstance.previewNota()).toBeNull();
+    });
   });
 });
