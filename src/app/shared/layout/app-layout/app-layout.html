@@ -59,7 +59,11 @@
         </button>
 
         @if (notificacoesOpen()) {
-          <div class="fixed inset-0 z-40" (click)="closeNotificacoes()"></div>
+          <!-- Fundo de captura: fechar com o ponteiro. O teclado fecha com Esc
+               (ver aoPressionarEsc no AppLayout), entao ele nao e um controle e
+               nao deve aparecer para leitor de tela.
+               eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+          <div class="fixed inset-0 z-40" aria-hidden="true" (click)="closeNotificacoes()"></div>
           <div class="absolute right-0 top-12 z-50 w-[22rem] max-w-[90vw] overflow-hidden rounded-card border border-border bg-card shadow-alta">
             <div class="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
               <h4 class="font-heading font-semibold text-foreground">Notificações</h4>
@@ -226,7 +230,9 @@
     <!-- Mobile slide-down menu -->
     @if (mobileMenuOpen()) {
       <div class="absolute inset-0 z-20 lg:hidden">
-        <div class="absolute inset-0 bg-foreground/30" (click)="closeMobileMenu()"></div>
+        <!-- Mesmo caso do fundo das notificacoes: ponteiro aqui, Esc no teclado.
+             eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+        <div class="absolute inset-0 bg-foreground/30" aria-hidden="true" (click)="closeMobileMenu()"></div>
         <nav class="relative bg-card rounded-b-xl shadow-lg mx-2 mt-1 p-3 space-y-1">
           @if (perfilService.ehProdutor()) {
             <a routerLink="/dashboard" routerLinkActive="bg-primary/10 text-primary"
