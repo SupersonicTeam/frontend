@@ -28,6 +28,7 @@
     <div class="flex-1 min-w-[180px] relative">
       <svg lucideSearch [size]="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       <input type="text" placeholder="Buscar por natureza, número ou destinatário..."
+        aria-label="Buscar notas"
         class="tap-target w-full pl-9 pr-4 py-2 rounded-controle border border-border bg-card text-apoio text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
         [value]="busca()" (input)="busca.set($any($event.target).value)" />
     </div>
@@ -713,31 +714,31 @@
                   </button>
                 }
               </div>
-              <input type="text" placeholder="Descrição do produto *"
+              <input type="text" placeholder="Descrição do produto *" [attr.aria-label]="'Descrição do produto ' + (idx + 1)"
                 class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
                 [value]="item.descricao" (input)="updateItem(idx, 'descricao', $any($event.target).value)" />
               <div class="grid grid-cols-3 gap-2">
-                <input type="text" placeholder="Código"
+                <input type="text" placeholder="Código" [attr.aria-label]="'Código do produto ' + (idx + 1)"
                   class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.codigoProduto" (input)="updateItem(idx, 'codigoProduto', $any($event.target).value)" />
-                <input type="text" placeholder="NCM (8 díg) *" maxlength="8"
+                <input type="text" placeholder="NCM (8 díg) *" [attr.aria-label]="'NCM do produto ' + (idx + 1)" maxlength="8"
                   class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.ncm" (input)="updateItem(idx, 'ncm', $any($event.target).value)" />
-                <input type="text" placeholder="CFOP (4 díg) *" maxlength="4"
+                <input type="text" placeholder="CFOP (4 díg) *" [attr.aria-label]="'CFOP do produto ' + (idx + 1)" maxlength="4"
                   class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.cfop" (input)="updateItem(idx, 'cfop', $any($event.target).value)" />
               </div>
               <div class="grid grid-cols-4 gap-2">
-                <input type="text" placeholder="Un *"
+                <input type="text" placeholder="Un *" [attr.aria-label]="'Unidade do produto ' + (idx + 1)"
                   class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.unidade" (input)="updateItem(idx, 'unidade', $any($event.target).value)" />
-                <input type="number" placeholder="Qtde *" step="0.01"
+                <input type="number" placeholder="Qtde *" [attr.aria-label]="'Quantidade do produto ' + (idx + 1)" step="0.01"
                   class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.quantidade" (input)="updateItem(idx, 'quantidade', $any($event.target).value)" />
-                <input type="number" placeholder="Vlr unit *" step="0.01"
+                <input type="number" placeholder="Vlr unit *" [attr.aria-label]="'Valor unitário do produto ' + (idx + 1)" step="0.01"
                   class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
                   [value]="item.valorUnitario" (input)="updateItem(idx, 'valorUnitario', $any($event.target).value)" />
-                <input type="number" placeholder="Total" step="0.01" readonly
+                <input type="number" placeholder="Total" [attr.aria-label]="'Valor total do produto ' + (idx + 1)" step="0.01" readonly
                   class="px-3 py-2 rounded-controle border border-border bg-muted text-apoio focus:outline-none"
                   [value]="item.valorTotal" />
               </div>

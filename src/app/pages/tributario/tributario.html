@@ -185,14 +185,15 @@
           <p class="text-apoio sm:text-apoio text-muted-foreground">Créditos ({{ rel.quantidadeEntradas }} entradas)</p>
           <p class="text-apoio sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.creditoTotal) }}</p>
         </div>
-        <div class="p-3 rounded-controle" [class]="saldoCredor() ? 'bg-emerald-100 dark:bg-emerald-950' : 'bg-primary/10'">
+        <!-- Tokens semanticos no lugar de emerald-100/950: o par soft/ink ja
+             tem a versao escura, sem precisar de variante `dark:` a mao. -->
+        <div class="p-3 rounded-controle" [class]="saldoCredor() ? 'bg-sucesso-soft' : 'bg-primary/10'">
           <p class="text-apoio sm:text-apoio text-muted-foreground">
             {{ saldoCredor() ? 'Saldo credor' : 'Saldo a pagar' }}
           </p>
           <p
             class="text-apoio sm:text-lg font-heading font-bold"
-            [class.text-emerald-700]="saldoCredor()"
-            [class.dark:text-emerald-300]="saldoCredor()"
+            [class.text-sucesso-ink]="saldoCredor()"
             [class.text-primary]="!saldoCredor()"
           >
             {{ formatCurrency(rel.saldoAPagar) }}
