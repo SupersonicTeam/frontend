@@ -44,6 +44,7 @@ import { ThemeService } from '@core/services/theme.service';
 import { coresDeEixo, corDeSuperficie, limparCacheDeCores, paletaDeSeries }
   from '@core/utils/chart-tokens';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
+import { TributarioApi } from '@services/tributario/data-access/tributario.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
@@ -300,21 +301,64 @@ export class DashboardPage implements OnInit {
   readonly periodoMes = signal(new Date().getMonth() + 1);
   readonly periodoAno = signal(new Date().getFullYear());
 
+  private readonly tributarioApi = inject(TributarioApi);
+
+  /** Periodo escolhido, no formato que os endpoints pedem. */
+  readonly periodoSelecionado = computed(
+    () => `${this.periodoAno()}-${String(this.periodoMes()).padStart(2, '0')}`,
+  );
+
+  /** Status vindo de `/api/apuracao`; null enquanto carrega ou se falhar. */
+  private readonly statusDoBackend = signal<string | null>(null);
+
+  /**
+   * Situacao da apuracao, **como o backend responde**.
+   *
+   * Antes era adivinhada pela data: qualquer mes passado virava "Fechado". Mas
+   * a API responde `status: "ABERTO"` para junho, com `dataFechamento: null` --
+   * o selo mentia sobre o estado fiscal do produtor. E usava
+   * `bg-green-100 text-green-700`, fora dos tokens, quebrando no tema escuro.
+   */
   readonly statusApuracao = computed<{ label: string; classe: string }>(() => {
-    const agora = new Date();
-    const atual = agora.getFullYear() * 100 + (agora.getMonth() + 1);
-    const sel = this.periodoAno() * 100 + this.periodoMes();
-    if (sel === atual) return { label: 'Aberto', classe: 'bg-green-100 text-green-700' };
-    if (sel < atual) return { label: 'Fechado', classe: 'bg-muted text-muted-foreground' };
-    return { label: 'Em processamento', classe: 'bg-accent/15 text-accent' };
+    const status = this.statusDoBackend();
+    if (status === 'FECHADO') {
+      return { label: 'Fechada', classe: 'bg-surface-2 text-muted-foreground' };
+    }
+    if (status === 'ABERTO') {
+      return { label: 'Aberta', classe: 'bg-sucesso-soft text-sucesso-ink' };
+    }
+    return { label: 'Verificando…', classe: 'bg-surface-2 text-muted-foreground' };
   });
+
+  /** Recarrega painel e apuracao para o periodo escolhido. */
+  private trocarPeriodo(): void {
+    const periodo = this.periodoSelecionado();
+    this.loading.set(true);
+    this.dashboardService.carregar(periodo).subscribe({
+      next: () => {
+        this.loading.set(false);
+        this.carregarNotasComProblema();
+      },
+      error: () => {
+        this.loading.set(false);
+        this.erro.set(true);
+      },
+    });
+    this.statusDoBackend.set(null);
+    this.tributarioApi.apuracao(periodo).subscribe({
+      next: (a) => this.statusDoBackend.set(a.status ?? null),
+      error: () => this.statusDoBackend.set(null),
+    });
+  }
 
   setMes(valor: string): void {
     this.periodoMes.set(Number(valor));
+    this.trocarPeriodo();
   }
 
   setAno(valor: string): void {
     this.periodoAno.set(Number(valor));
+    this.trocarPeriodo();
   }
 
   // Ultimas notas reais do payload do dashboard (DASH-06) — ja ordenadas pelo backend por dataEmissao desc
@@ -452,6 +496,11 @@ export class DashboardPage implements OnInit {
 
   ngOnInit(): void {
     this.carregarDashboard();
+    // O selo da apuracao tambem vem do backend na primeira carga.
+    this.tributarioApi.apuracao(this.periodoSelecionado()).subscribe({
+      next: a => this.statusDoBackend.set(a.status ?? null),
+      error: () => this.statusDoBackend.set(null),
+    });
 
     this.loadingAlertas.set(true);
     this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID).subscribe({
