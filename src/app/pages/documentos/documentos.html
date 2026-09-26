@@ -39,21 +39,6 @@
     </select>
   </div>
 
-  <!-- ── IMPORTAR NF-e (drag-and-drop) ── -->
-  <label
-    class="flex flex-col items-center justify-center gap-1.5 py-6 px-4 rounded-2xl border-2 border-dashed cursor-pointer transition-colors {{ dragOver() ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40' }}"
-    (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
-    @if (importando()) {
-      <svg lucideLoaderCircle [size]="24" class="animate-spin text-primary" />
-      <span class="text-apoio text-muted-foreground">Importando nota…</span>
-    } @else {
-      <svg lucideUpload [size]="24" class="text-muted-foreground" />
-      <span class="text-apoio font-medium text-foreground">Arraste o XML da NF-e aqui</span>
-      <span class="text-apoio text-muted-foreground">ou clique para selecionar</span>
-    }
-    <input type="file" accept=".xml" class="hidden" (change)="onFileImport($event)" [disabled]="importando()" />
-  </label>
-
   <!-- ── CARREGANDO ── -->
   @if (loading()) {
     <ui-skeleton [linhas]="3" formato="bloco" altura="5rem" />
@@ -188,21 +173,19 @@
   }
 </div>
 
-<!-- ── FABs ── -->
-<div class="fixed bottom-20 md:bottom-8 right-5 z-50 flex flex-col gap-3 items-end">
+<!-- ── Um botao so ──
+     Eram dois concorrendo no canto: "Nova NF-e" e um "+" que abria o anexo ao
+     contador -- este ultimo nunca funcionou, porque /contador/pendencias
+     responde 404 e o modal sempre dizia "nenhuma solicitacao pendente".
+     Agora um botao abre o modal com as duas formas de trazer uma nota, e o
+     assistente fica logo abaixo (ele e global, vem do AppLayout). -->
+<div class="fixed right-4 bottom-36 z-50 lg:bottom-[4.5rem]">
   <button
-    class="h-12 px-4 rounded-full bg-secondary text-secondary-foreground shadow-lg flex items-center gap-2 hover:scale-105 transition-all text-apoio font-medium"
+    class="tap-target flex items-center gap-2 rounded-full bg-primary px-4 text-apoio font-semibold text-primary-foreground shadow-lg transition-transform hover:scale-105"
     (click)="abrirNovaNota()"
   >
-    <svg lucideFileText [size]="20" />
-    <span class="hidden sm:inline">Nova NF-e</span>
-  </button>
-  <button
-    class="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:scale-105 hover:bg-primary/90 transition-all"
-    (click)="showAnexar.set(true)"
-    aria-label="Anexar documento"
-  >
-    <svg lucidePlus [size]="28" />
+    <svg lucidePlus [size]="20" />
+    <span>Nova nota</span>
   </button>
 </div>
 
@@ -457,8 +440,60 @@
   [travado]="salvando()"
   (fechar)="fecharForm()"
 >
+      <!-- Abas: as duas maneiras de trazer uma nota para dentro. So aparecem ao
+           criar -- editando uma nota existente nao ha o que escolher. -->
+      @if (!formNotaId()) {
+        <div class="flex gap-1 border-b border-border px-6 pt-1" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="abaNota() === 'criar'"
+            class="tap-target border-b-2 px-4 text-apoio font-medium transition-colors"
+            [class]="abaNota() === 'criar'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'"
+            (click)="abaNota.set('criar')"
+          >
+            Criar nota
+          </button>
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="abaNota() === 'carregar'"
+            class="tap-target border-b-2 px-4 text-apoio font-medium transition-colors"
+            [class]="abaNota() === 'carregar'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'"
+            (click)="abaNota.set('carregar')"
+          >
+            Carregar XML
+          </button>
+        </div>
+      }
 
-      <div class="px-6 py-5 space-y-4">
+      @if (abaNota() === 'carregar' && !formNotaId()) {
+        <div class="px-6 py-5">
+          <p class="mb-3 text-apoio leading-relaxed text-muted-foreground">
+            Recebeu uma nota de terceiro? Suba o XML e ela entra aqui como nota de entrada,
+            sem digitar nada.
+          </p>
+        <label
+          class="flex flex-col items-center justify-center gap-1.5 py-6 px-4 rounded-2xl border-2 border-dashed cursor-pointer transition-colors {{ dragOver() ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40' }}"
+          (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
+          @if (importando()) {
+            <svg lucideLoaderCircle [size]="24" class="animate-spin text-primary" />
+            <span class="text-apoio text-muted-foreground">Importando nota…</span>
+          } @else {
+            <svg lucideUpload [size]="24" class="text-muted-foreground" />
+            <span class="text-apoio font-medium text-foreground">Arraste o XML da NF-e aqui</span>
+            <span class="text-apoio text-muted-foreground">ou clique para selecionar</span>
+          }
+          <input type="file" accept=".xml" class="hidden" (change)="onFileImport($event)" [disabled]="importando()" />
+        </label>
+        </div>
+      }
+
+      <div class="px-6 py-5 space-y-4" [hidden]="abaNota() === 'carregar' && !formNotaId()">
         <!-- Banner de erros do backend -->
         @if (erroNota().length) {
           <div class="rounded-controle border border-destructive/30 bg-destructive/5 p-3">
@@ -643,85 +678,24 @@
       </div>
 
   <!-- O aviso do que falta preencher (#44) fica junto do botao, onde a duvida acontece. -->
-  @if (!canSubmitNota() && !salvando()) {
+  @if (!canSubmitNota() && !salvando() && (abaNota() === 'criar' || formNotaId())) {
     <p class="mt-4 rounded-controle border border-aviso/30 bg-aviso-soft p-3 text-apoio text-aviso-ink">
       Para habilitar o botão, preencha: {{ camposPendentes().join(', ') }}.
     </p>
   }
 
   <div rodape>
-    <ui-button variant="ghost" [disabled]="salvando()" (click)="fecharForm()">Cancelar</ui-button>
-    <ui-button
-      [disabled]="!canSubmitNota()"
-      [carregando]="salvando()"
-      (click)="salvarNota()"
-    >
-      {{ salvando() ? 'Salvando...' : formNotaId() ? 'Salvar alterações' : 'Criar nota' }}
+    <ui-button variant="ghost" [disabled]="salvando()" (click)="fecharForm()">
+      {{ abaNota() === 'carregar' && !formNotaId() ? 'Fechar' : 'Cancelar' }}
     </ui-button>
-  </div>
-</ui-modal>
-
-<!-- ======================== DIALOG: Anexar Documento ======================== -->
-<ui-modal
-  [aberto]="showAnexar()"
-  titulo="Anexar documento"
-  descricao="Envie o XML de uma nota recebida para importar, ou um comprovante."
-  tamanho="lg"
-  (fechar)="fecharAnexar()"
->
-
-      <div class="px-6 py-5 space-y-4">
-        @if (solicitacoesPendentes().length === 0) {
-          <div class="flex flex-col items-center justify-center py-10 text-center">
-            <svg lucideCircleCheck [size]="36" class="text-emerald-500 mb-2" />
-            <p class="text-apoio text-muted-foreground">Nenhuma solicitação pendente do contador no momento.</p>
-          </div>
-        } @else {
-          <div>
-            <label for="anexo-solicitacao" class="block text-apoio font-medium text-foreground mb-1.5">Solicitação do contador</label>
-            <select class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              id="anexo-solicitacao" [value]="solicitacaoSelecionada()" (change)="solicitacaoSelecionada.set($any($event.target).value)">
-              <option value="">Selecione a solicitação</option>
-              @for (s of solicitacoesPendentes(); track s.id) { <option [value]="s.id">{{ s.titulo }}</option> }
-            </select>
-          </div>
-
-          @if (solicitacaoInfo()) {
-            <div class="rounded-controle border border-border bg-muted/30 p-4 space-y-2 text-apoio">
-              <div class="flex justify-between"><span class="text-muted-foreground">Categoria</span><span class="font-medium text-foreground">{{ solicitacaoInfo()!.categoria }}</span></div>
-              @if (solicitacaoInfo()!.mesReferencia) {
-                <div class="flex justify-between"><span class="text-muted-foreground">Mês referência</span><span class="font-medium text-foreground">{{ solicitacaoInfo()!.mesReferencia }}</span></div>
-              }
-              @if (solicitacaoInfo()!.prazo) {
-                <div class="flex justify-between"><span class="text-muted-foreground">Prazo</span><span class="font-medium text-foreground">{{ formatDate(solicitacaoInfo()!.prazo) }}</span></div>
-              }
-              @if (solicitacaoInfo()!.descricao) {
-                <p class="text-apoio text-muted-foreground pt-1">{{ solicitacaoInfo()!.descricao }}</p>
-              }
-            </div>
-          }
-
-          <div>
-            <p class="block text-apoio font-medium text-foreground mb-1.5">Arquivo</p>
-            <label class="flex flex-col items-center justify-center gap-2 rounded-controle border-2 border-dashed border-muted-foreground/30 py-8 cursor-pointer hover:border-primary/50 transition-colors">
-              <svg lucideUpload [size]="28" class="text-muted-foreground" />
-              <span class="text-apoio text-muted-foreground text-center px-2">{{ arquivoSelecionado()?.name || 'Clique para enviar arquivo' }}</span>
-              <p class="text-apoio text-muted-foreground/60">XML ou PDF da NF-e</p>
-              <input type="file" class="hidden" (change)="handleFileSelect($event)" />
-            </label>
-          </div>
-        }
-      </div>
-
-  <div rodape>
-    <ui-button variant="ghost" (click)="fecharAnexar()">Cancelar</ui-button>
-    @if (solicitacoesPendentes().length > 0) {
+    <!-- Na aba de carregar nao ha o que salvar: o arquivo e enviado ao escolher. -->
+    @if (abaNota() === 'criar' || formNotaId()) {
       <ui-button
-        [disabled]="!solicitacaoSelecionada() || !arquivoSelecionado()"
-        [carregando]="enviandoAnexo()"
-        (click)="salvarAnexo()"
+        [disabled]="!canSubmitNota()"
+        [carregando]="salvando()"
+        (click)="salvarNota()"
       >
-        Salvar
+        {{ salvando() ? 'Salvando...' : formNotaId() ? 'Salvar alterações' : 'Criar nota' }}
       </ui-button>
     }
   </div>
