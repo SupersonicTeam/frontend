@@ -707,11 +707,55 @@ export class DocumentosPage implements OnInit {
    * da pagina. Agora sao dois caminhos para a mesma intencao ("colocar uma nota
    * aqui dentro"), atras de um botao so.
    */
-  readonly abaNota = signal<'criar' | 'carregar'>('criar');
+  readonly abaNota = signal<'criar' | 'carregar' | 'ajustar'>('criar');
 
-  abrirNovaNota(aba: 'criar' | 'carregar' = 'criar'): void {
+  /**
+   * Fila de notas que o fisco travou, para a aba "Precisam de ajuste".
+   *
+   * Vem de uma busca propria e nao de `notas()`: a lista da pagina e paginada
+   * em 12, e uma nota travada pode estar na pagina 2 -- some justamente da fila
+   * de quem precisa resolver.
+   */
+  readonly notasParaAjustar = signal<NotaFiscal[]>([]);
+
+  /**
+   * Quem entrou numa nota vindo da fila volta para ela ao sair, em vez de o
+   * modal fechar. E o que permite corrigir uma atras da outra sem reabrir tudo
+   * a cada nota.
+   */
+  private readonly veioDaFila = signal(false);
+
+  abrirNovaNota(aba: 'criar' | 'carregar' | 'ajustar' = 'criar'): void {
     this.abaNota.set(aba);
+    this.veioDaFila.set(false);
     this.abrirFormNota();
+    this.carregarFilaDeAjustes();
+  }
+
+  /** Abre o modal ja na fila — usado ao sair de uma nota que veio de la. */
+  abrirFilaDeAjustes(): void {
+    this.formNotaId.set(null);
+    this.abaNota.set('ajustar');
+    this.showFormNota.set(true);
+    this.carregarFilaDeAjustes();
+  }
+
+  carregarFilaDeAjustes(): void {
+    this.notasApi.listar({ size: 100, sort: 'dataEmissao,desc' }).subscribe({
+      next: (pagina) =>
+        this.notasParaAjustar.set(
+          pagina.content.filter(
+            n => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+          ),
+        ),
+      error: () => this.notasParaAjustar.set([]),
+    });
+  }
+
+  /** Corrige uma nota escolhida na fila; ao sair, volta para a fila. */
+  corrigirDaFila(nota: NotaFiscal): void {
+    this.editarNota(nota);
+    this.veioDaFila.set(true);
   }
 
   private abrirFormNota(): void {
@@ -776,6 +820,12 @@ export class DocumentosPage implements OnInit {
   }
 
   fecharForm(): void {
+    // Veio da fila? Volta para ela, com a proxima nota a um clique.
+    if (this.veioDaFila()) {
+      this.veioDaFila.set(false);
+      this.abrirFilaDeAjustes();
+      return;
+    }
     this.showFormNota.set(false);
   }
 
@@ -843,6 +893,8 @@ export class DocumentosPage implements OnInit {
         this.toastService.success(id ? 'Nota atualizada!' : 'Nota criada em rascunho!');
         this.fecharForm();
         this.recarregarNotas();
+        // A nota corrigida sai da fila (ou continua, se o fisco ainda reclamar).
+        this.carregarFilaDeAjustes();
       },
       error: (err: HttpErrorResponse) => {
         this.salvando.set(false);
@@ -973,6 +1025,10 @@ export class DocumentosPage implements OnInit {
   }
 
   fecharPreview(): void {
+    // Fechou o preview de uma nota travada? A fila entra no lugar, com as
+    // demais a um clique -- e o caminho que comeca no alerta do painel.
+    const travada = this.podeVerValidacoes(this.previewNota());
+
     this.previewNota.set(null);
     this.errosFiscais.set([]);
     this.validacoes.set([]);
@@ -987,6 +1043,10 @@ export class DocumentosPage implements OnInit {
         queryParamsHandling: 'merge',
         replaceUrl: true,
       });
+    }
+
+    if (travada && !this.showFormNota()) {
+      this.abrirFilaDeAjustes();
     }
   }
 

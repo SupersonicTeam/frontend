@@ -430,11 +430,19 @@
 <!-- ======================== DIALOG: Nova / Editar NF-e ======================== -->
 <ui-modal
   [aberto]="showFormNota()"
-  [titulo]="formNotaId() ? 'Editar nota' : 'Nova nota fiscal'"
+  [titulo]="
+    formNotaId()
+      ? 'Editar nota'
+      : abaNota() === 'ajustar'
+        ? 'Notas que precisam de ajuste'
+        : 'Nova nota fiscal'
+  "
   [descricao]="
     formNotaId()
       ? 'Rascunhos e notas com inconsistência podem ser corrigidos.'
-      : 'Preencha os dados da venda. O imposto é calculado automaticamente.'
+      : abaNota() === 'ajustar'
+        ? 'O que o fisco travou, num lugar só.'
+        : 'Preencha os dados da venda. O imposto é calculado automaticamente.'
   "
   tamanho="lg"
   [travado]="salvando()"
@@ -468,6 +476,24 @@
           >
             Carregar XML
           </button>
+          <!-- A fila de correcoes. O contador ao lado e o que diz se vale entrar. -->
+          <button
+            type="button"
+            role="tab"
+            [attr.aria-selected]="abaNota() === 'ajustar'"
+            class="tap-target flex items-center gap-1.5 border-b-2 px-4 text-apoio font-medium transition-colors"
+            [class]="abaNota() === 'ajustar'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'"
+            (click)="abaNota.set('ajustar'); carregarFilaDeAjustes()"
+          >
+            Precisam de ajuste
+            @if (notasParaAjustar().length) {
+              <span class="rounded-full bg-aviso-soft px-2 text-apoio font-semibold text-aviso-ink">
+                {{ notasParaAjustar().length }}
+              </span>
+            }
+          </button>
         </div>
       }
 
@@ -493,7 +519,55 @@
         </div>
       }
 
-      <div class="px-6 py-5 space-y-4" [hidden]="abaNota() === 'carregar' && !formNotaId()">
+      @if (abaNota() === 'ajustar' && !formNotaId()) {
+        <div class="px-6 py-5">
+          @if (notasParaAjustar().length === 0) {
+            <div class="flex flex-col items-center justify-center gap-2 py-10 text-center">
+              <svg lucideCircleCheck [size]="32" class="text-sucesso" />
+              <p class="text-apoio font-medium text-foreground">Nenhuma nota travada.</p>
+              <p class="text-apoio text-muted-foreground">
+                Quando o fisco recusar alguma, ela aparece aqui para você resolver.
+              </p>
+            </div>
+          } @else {
+            <p class="mb-3 text-apoio leading-relaxed text-muted-foreground">
+              Estas notas não podem ser emitidas como estão. Corrija uma e você volta para esta
+              lista, com a próxima já à mão.
+            </p>
+            <ul class="flex flex-col gap-2">
+              @for (nota of notasParaAjustar(); track nota.id) {
+                <li
+                  class="flex flex-wrap items-center justify-between gap-3 rounded-card border border-aviso/30 bg-aviso-soft p-3"
+                >
+                  <div class="min-w-0">
+                    <p class="text-apoio font-medium text-foreground">
+                      Nota {{ nota.numero }} · {{ nota.destinatarioNome }}
+                    </p>
+                    <p class="text-apoio text-muted-foreground">
+                      {{ formatDate(nota.dataEmissao) }} · {{ formatCurrency(nota.valorTotalNota) }}
+                    </p>
+                  </div>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <ui-badge-status [status]="nota.status" />
+                    <button
+                      class="tap-target inline-flex items-center gap-1.5 rounded-controle bg-primary px-3 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                      (click)="corrigirDaFila(nota)"
+                    >
+                      <svg lucidePencil [size]="15" />
+                      Corrigir
+                    </button>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        </div>
+      }
+
+      <div
+        class="px-6 py-5 space-y-4"
+        [hidden]="(abaNota() === 'carregar' || abaNota() === 'ajustar') && !formNotaId()"
+      >
         <!-- Banner de erros do backend -->
         @if (erroNota().length) {
           <div class="rounded-controle border border-destructive/30 bg-destructive/5 p-3">
@@ -686,7 +760,7 @@
 
   <div rodape>
     <ui-button variant="ghost" [disabled]="salvando()" (click)="fecharForm()">
-      {{ abaNota() === 'carregar' && !formNotaId() ? 'Fechar' : 'Cancelar' }}
+      {{ abaNota() !== 'criar' && !formNotaId() ? 'Fechar' : 'Cancelar' }}
     </ui-button>
     <!-- Na aba de carregar nao ha o que salvar: o arquivo e enviado ao escolher. -->
     @if (abaNota() === 'criar' || formNotaId()) {
