@@ -242,4 +242,83 @@ describe('DocumentosPage', () => {
       expect(cmp.abaNota()).toBe('criar');
     });
   });
+
+  /**
+   * A fila de correcoes: o caminho que comeca no alerta do painel e termina com
+   * todas as notas travadas resolvidas, sem sair do modal a cada uma.
+   */
+  describe('aba "Precisam de ajuste"', () => {
+    const travada = (id: string, numero: number) => ({
+      id, numero, status: 'COM_INCONSISTENCIAS', naturezaOperacao: 'Venda',
+      dataEmissao: '2026-06-20T00:00:00Z', destinatarioNome: 'Cooperativa',
+      destinatarioCpfCnpj: '00000000000191', itens: [],
+    });
+
+    function abrirComFila(notas: unknown[]) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      flushPendencias();
+
+      fixture.componentInstance.abrirNovaNota('ajustar');
+      httpMock.match(r => r.url === '/notas').forEach(r =>
+        r.flush({ content: notas, totalElements: notas.length }));
+      return fixture;
+    }
+
+    it('lista so as notas travadas, ignorando as que estao em ordem', () => {
+      const cmp = abrirComFila([
+        travada('n7', 7),
+        { ...travada('n9', 9), status: 'AUTORIZADA' },
+        { ...travada('n2', 2), status: 'REJEITADA' },
+      ]).componentInstance;
+
+      expect(cmp.notasParaAjustar().map(n => n.numero)).toEqual([7, 2]);
+    });
+
+    it('busca a fila alem da pagina atual — uma nota travada pode estar na pagina 2', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      flushPendencias();
+
+      fixture.componentInstance.abrirNovaNota('ajustar');
+      // Ha duas chamadas a /notas aqui: a fila e a sugestao do proximo numero.
+      // A da fila e a que pede 100 — nao a pagina de 12 que a tela ja mostra.
+      const daFila = httpMock.match(r => r.url === '/notas' && r.params.get('size') === '100');
+      expect(daFila.length).toBe(1);
+      httpMock.match(r => r.url === '/notas').forEach(r =>
+        r.flush({ content: [], totalElements: 0 }));
+    });
+
+    it('corrigir uma da fila e sair devolve para a fila, nao fecha o modal', () => {
+      const cmp = abrirComFila([travada('n7', 7), travada('n2', 2)]).componentInstance;
+
+      cmp.corrigirDaFila(cmp.notasParaAjustar()[0] as never);
+      expect(cmp.formNotaId()).toBe('n7');
+
+      cmp.fecharForm();
+      httpMock.match(r => r.url === '/notas').forEach(r =>
+        r.flush({ content: [travada('n2', 2)], totalElements: 1 }));
+
+      // O modal continua aberto, agora na fila — a proxima nota a um clique.
+      expect(cmp.showFormNota()).toBe(true);
+      expect(cmp.abaNota()).toBe('ajustar');
+      expect(cmp.formNotaId()).toBeNull();
+    });
+
+    it('sair de uma nota aberta fora da fila fecha o modal, como antes', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      flushPendencias();
+
+      fixture.componentInstance.abrirNovaNota();
+      httpMock.match(r => r.url === '/notas').forEach(r =>
+        r.flush({ content: [], totalElements: 0 }));
+
+      fixture.componentInstance.fecharForm();
+      expect(fixture.componentInstance.showFormNota()).toBe(false);
+    });
+  });
 });
