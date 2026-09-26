@@ -189,4 +189,57 @@ describe('DocumentosPage', () => {
       expect(fixture.componentInstance.previewNota()).toBeNull();
     });
   });
+
+  /**
+   * Eram dois botoes flutuantes concorrendo no canto: "Nova NF-e" e um "+" que
+   * abria o anexo ao contador -- este nunca funcionou, porque
+   * /contador/pendencias responde 404. Agora um botao so, com as duas formas de
+   * trazer uma nota atras de abas.
+   */
+  describe('abas do modal de nova nota', () => {
+    function abrirPagina() {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      flushPendencias();
+      return fixture;
+    }
+
+    it('abre na aba de criar', () => {
+      const cmp = abrirPagina().componentInstance;
+      cmp.abrirNovaNota();
+      httpMock.match(r => r.url === '/notas').forEach(r =>
+        r.flush({ content: [], totalElements: 0 }));
+
+      expect(cmp.abaNota()).toBe('criar');
+      expect(cmp.showFormNota()).toBe(true);
+    });
+
+    it('abre direto na aba pedida', () => {
+      const cmp = abrirPagina().componentInstance;
+      cmp.abrirNovaNota('carregar');
+      httpMock.match(r => r.url === '/notas').forEach(r =>
+        r.flush({ content: [], totalElements: 0 }));
+
+      expect(cmp.abaNota()).toBe('carregar');
+    });
+
+    it('editar uma nota volta para a aba de criar — nao ha o que escolher ali', () => {
+      const cmp = abrirPagina().componentInstance;
+      cmp.abrirNovaNota('carregar');
+      httpMock.match(r => r.url === '/notas').forEach(r =>
+        r.flush({ content: [], totalElements: 0 }));
+
+      cmp.editarNota({
+        id: 'n7', numero: 7, status: 'COM_INCONSISTENCIAS', naturezaOperacao: 'Venda',
+        dataEmissao: '2026-06-20T00:00:00Z', destinatarioNome: 'Cooperativa',
+        destinatarioCpfCnpj: '00000000000191', itens: [],
+      } as never);
+
+      expect(cmp.formNotaId()).toBe('n7');
+      // O estado nao pode ficar preso em "carregar": ao voltar para "Nova nota"
+      // a pessoa cairia na aba errada.
+      expect(cmp.abaNota()).toBe('criar');
+    });
+  });
 });

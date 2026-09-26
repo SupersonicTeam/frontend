@@ -699,7 +699,22 @@ export class DocumentosPage implements OnInit {
     this.erroNota.set([]);
   }
 
-  abrirNovaNota(): void {
+  /**
+   * Aba ativa do modal de nova nota: preencher o formulario ou subir o XML.
+   *
+   * As duas coisas eram dois botoes flutuantes concorrendo no canto da tela, e
+   * o "carregar" nem estava neles -- vivia numa area de arrastar solta no meio
+   * da pagina. Agora sao dois caminhos para a mesma intencao ("colocar uma nota
+   * aqui dentro"), atras de um botao so.
+   */
+  readonly abaNota = signal<'criar' | 'carregar'>('criar');
+
+  abrirNovaNota(aba: 'criar' | 'carregar' = 'criar'): void {
+    this.abaNota.set(aba);
+    this.abrirFormNota();
+  }
+
+  private abrirFormNota(): void {
     this.resetForm();
     this.showFormNota.set(true);
     this.sugerirProximoNumero();
@@ -724,6 +739,9 @@ export class DocumentosPage implements OnInit {
   /** Abre o formulário pré-preenchido para editar uma nota em RASCUNHO/COM_INCONSISTENCIAS. */
   editarNota(nota: NotaFiscal): void {
     this.resetForm();
+    // Editar nao tem aba: volta ao formulario para o estado nao ficar preso em
+    // "carregar" se a pessoa passou por la antes.
+    this.abaNota.set('criar');
     this.formNotaId.set(nota.id);
     this.formNumero.set(String(nota.numero ?? ''));
     this.formSerie.set(String(nota.serie ?? 1));
