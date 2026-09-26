@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DashboardPage } from './dashboard';
@@ -54,12 +55,25 @@ describe('DashboardPage', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [DashboardPage],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        // A pagina usa routerLink ("Corrigir agora", "Ver todas as N notas").
+        // O spec nao provia o router e so nao quebrava porque os blocos com
+        // link nao chegavam a renderizar nestes fixtures.
+        provideRouter([]),
+      ],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => {
+    // O selo Aberta/Fechada vem de GET /apuracao e a pagina o pede no init, em
+    // TODO teste. Drenar aqui evita repetir a linha em cada um; o verify()
+    // continua pegando qualquer outra requisicao nao tratada.
+    flushApuracao();
+    httpMock.verify();
+  });
 
   function flushDashboard(overrides: Partial<DashboardResponse> = {}) {
     const req = httpMock.expectOne(r => r.url === '/dashboard');
@@ -68,6 +82,17 @@ describe('DashboardPage', () => {
     // bloco do assistente (#47). Drenar aqui mantem os testes existentes validos
     // sem que cada um precise saber desta chamada.
     flushNotasComPendencia();
+    flushApuracao();
+  }
+
+  /**
+   * Drena o GET /apuracao que alimenta o selo Aberta/Fechada. Antes o selo era
+   * adivinhado pela data; agora vem do backend, entao a pagina faz esta chamada.
+   */
+  function flushApuracao(status: string | null = 'ABERTO') {
+    httpMock
+      .match(r => r.url === '/apuracao')
+      .forEach(r => (status ? r.flush({ periodo: '2026-09', status }) : r.flush('x', { status: 500, statusText: 'x' })));
   }
 
   /** Responde a busca por notas com pendencia; por padrao, nenhuma. */
@@ -203,6 +228,41 @@ describe('DashboardPage', () => {
     flushVencimentos();
 
     expect(cmp.totalDeNotas()).toBe(15);
+  });
+
+  /**
+   * O selo mentia: era calculado pela data, entao junho virava "Fechado" --
+   * enquanto a API responde status ABERTO com dataFechamento null.
+   */
+  it('DASH-10: o selo da apuracao vem do backend, nao da data do calendario', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    httpMock.expectOne(r => r.url === '/dashboard').flush(buildResponse());
+    flushNotasComPendencia();
+    flushVencimentos();
+
+    httpMock.expectOne(r => r.url === '/apuracao')
+      .flush({ periodo: '2026-09', status: 'FECHADO' });
+    expect(cmp.statusApuracao().label).toBe('Fechada');
+  });
+
+  it('DASH-10b: trocar o mes recarrega o painel com o periodo escolhido', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    fixture.detectChanges();
+    httpMock.expectOne(r => r.url === '/dashboard').flush(buildResponse());
+    flushNotasComPendencia();
+    flushVencimentos();
+    flushApuracao();
+
+    fixture.componentInstance.setMes('6');
+
+    // Antes os selects nao chamavam nada: o comentario no codigo dizia
+    // "exibicao apenas; MVP carrega so o mes corrente".
+    const req = httpMock.expectOne(r => r.url === '/dashboard');
+    expect(req.request.params.get('periodo')).toBe(new Date().getFullYear() + '-06');
+    req.flush(buildResponse());
+    flushNotasComPendencia();
   });
 
   it('DASH-05: pieChartData plota [cbs, ibs] com legenda CBS × IBS (sem FUNRURAL)', () => {
