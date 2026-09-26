@@ -172,6 +172,20 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `<ui-table>` | Moldura de tabela: rolagem na moldura, cabeçalho fixo, densidade por contexto. |
 | `<ui-card>` / `<ui-button>` | Variantes `padrao/destaque/assistente/plano` e `primary/ghost/perigo/assistente/sutil`. O botão já garante 44×44 e rótulo ≥14px. |
 
+## Utilitários compartilhados (`core/utils/`)
+
+| Arquivo | Para quê |
+|---|---|
+| `validacoes.ts` | Inconsistências fiscais de `/notas/{id}/validacoes`. O endpoint devolve o **histórico inteiro** — `apenasUltimaChecagem()` fica só com o lote mais recente, sem repetir `code`+`field`. `rotuloDoCampo()` traduz os 17 campos que o `FiscalRulesValidator` emite. `ehCampoDoProdutor()` separa o que se corrige na nota do que está no cadastro (que o app **não** edita). Usado no modal da nota **e** na gaveta do assistente. |
+| `chart-tokens.ts` | Cores do Chart.js a partir das custom properties do tema. O `<canvas>` não enxerga Tailwind. |
+| `download.ts` · `nota-pdf.ts` | Salvar blob / DANFE. |
+
+## Assistente (`shared/assistente/`)
+
+`AssistenteStore` guarda **uma** conversa, compartilhada pela gaveta flutuante (global, no `AppLayout`) e
+pela página `/chat`. `AssistenteConversa` desenha as mensagens nas duas. `abrirSobreNota(nota)` abre a
+gaveta com a nota à direita e busca as validações reais.
+
 **Medição:** `docs/ux-audit.js` — cole no console e rode `uxAudit()`. Devolve alvos abaixo de 44px, textos
 abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o critério de aceite numérico das fases.
 
@@ -182,7 +196,10 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 - `noPropertyAccessFromIndexSignature`: acessar propriedades de index-signature com **bracket** `obj['x']`.
 - Prettier: `printWidth: 100`, `singleQuote: true` (config no `package.json`); HTML usa parser `angular`.
 - Budgets (`angular.json`): bundle inicial warn 500 kB / erro 1 MB; estilos warn 4 kB / erro 8 kB.
-  (Baseline atual: **406,99 kB** inicial / 97,34 kB gzip — folga de ~93 kB.)
+  (Baseline atual: **437,18 kB** inicial / 107,20 kB gzip — folga de ~63 kB.)
+- **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
+  conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
+  de fechar painel do `app-layout`, e só depois de `Esc` passar a fechar os painéis de verdade.
 - Evitar `?.` onde o tipo não é nullable (warning NG8107).
 
 ## Git / fluxo de trabalho
