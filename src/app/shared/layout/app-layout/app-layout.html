@@ -59,7 +59,11 @@
         </button>
 
         @if (notificacoesOpen()) {
-          <div class="fixed inset-0 z-40" (click)="closeNotificacoes()"></div>
+          <!-- Fundo de captura: fechar com o ponteiro. O teclado fecha com Esc
+               (ver aoPressionarEsc no AppLayout), entao ele nao e um controle e
+               nao deve aparecer para leitor de tela.
+               eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+          <div class="fixed inset-0 z-40" aria-hidden="true" (click)="closeNotificacoes()"></div>
           <div class="absolute right-0 top-12 z-50 w-[22rem] max-w-[90vw] overflow-hidden rounded-card border border-border bg-card shadow-alta">
             <div class="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
               <h4 class="font-heading font-semibold text-foreground">Notificações</h4>
@@ -144,9 +148,7 @@
         </span>
         <span class="flex flex-col leading-tight">
           <span class="text-apoio font-medium text-topbar-foreground">{{ nomeExibido() }}</span>
-          <span class="text-apoio text-muted-foreground">
-            {{ perfilService.ehContador() ? 'Contador' : 'Produtor rural' }}
-          </span>
+          <span class="text-apoio text-muted-foreground">{{ papelExibido() }}</span>
         </span>
       </span>
       <button
@@ -214,10 +216,24 @@
              class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
             <svg lucideCalculator [size]="20" /><span>Acompanhamento</span>
           </a>
+          <!-- "Minhas notas" e a voz do produtor: para o contador, as notas sao
+               do cliente dele. -->
           <a routerLink="/documentos" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
              [routerLinkActiveOptions]="{exact:false}"
              class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
-            <svg lucideFileText [size]="20" /><span>Minhas notas</span>
+            <svg lucideFileText [size]="20" /><span>Notas do produtor</span>
+          </a>
+          <!-- Apuracao e prazos sao o trabalho do contador, existem com dado real
+               e estavam fora da navegacao dele -- so o produtor os alcancava. -->
+          <a routerLink="/tributario" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
+            <svg lucideReceipt [size]="20" /><span>Impostos</span>
+          </a>
+          <a routerLink="/calendario" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
+             [routerLinkActiveOptions]="{exact:false}"
+             class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
+            <svg lucideCalendar [size]="20" /><span>Prazos</span>
           </a>
         }
       </nav>
@@ -226,7 +242,9 @@
     <!-- Mobile slide-down menu -->
     @if (mobileMenuOpen()) {
       <div class="absolute inset-0 z-20 lg:hidden">
-        <div class="absolute inset-0 bg-foreground/30" (click)="closeMobileMenu()"></div>
+        <!-- Mesmo caso do fundo das notificacoes: ponteiro aqui, Esc no teclado.
+             eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+        <div class="absolute inset-0 bg-foreground/30" aria-hidden="true" (click)="closeMobileMenu()"></div>
         <nav class="relative bg-card rounded-b-xl shadow-lg mx-2 mt-1 p-3 space-y-1">
           @if (perfilService.ehProdutor()) {
             <a routerLink="/dashboard" routerLinkActive="bg-primary/10 text-primary"
@@ -303,6 +321,10 @@
       </a>
     }
     @if (perfilService.ehContador()) {
+      <a routerLink="/calendario" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
+         class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
+        <svg lucideCalendar [size]="22" /><span class="text-apoio font-medium leading-tight">Prazos</span>
+      </a>
       <a routerLink="/contador" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
          class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
         <svg lucideCalculator [size]="22" /><span class="text-apoio font-medium leading-tight">Contador</span>

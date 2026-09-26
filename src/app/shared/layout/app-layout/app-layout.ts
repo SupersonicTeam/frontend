@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router } from '@angular/router';
 import {
   LucideMenu,
@@ -59,7 +59,7 @@ export interface NavItem {
   ],
   templateUrl: './app-layout.html',
 })
-export class AppLayout {
+export class AppLayout implements OnInit {
   private readonly router = inject(Router);
   readonly notificacoesService = inject(NotificacoesService);
   readonly perfilService = inject(PerfilService);
@@ -85,6 +85,29 @@ export class AppLayout {
 
   toggleMobileMenu(): void {
     this.mobileMenuOpen.update(v => !v);
+  }
+
+  ngOnInit(): void {
+    // O nome do produtor vem do dashboard. Sem esta carga, quem entra direto em
+    // /documentos ve "Produtor" na topbar enquanto o painel mostra "Joao da
+    // Silva Produtor" -- duas identidades para a mesma pessoa, dependendo de
+    // por onde se entrou. O service guarda em signal, entao nao repete.
+    if (!this.dashboardApi.dashboard()) {
+      this.dashboardApi.carregar().subscribe({ error: () => undefined });
+    }
+  }
+
+  /**
+   * Esc fecha os paineis sobrepostos.
+   *
+   * E o que de fato resolve o teclado aqui: o fundo escuro atras deles e um
+   * atalho de ponteiro, nao um controle -- por isso leva `aria-hidden` no
+   * template em vez de fingir um botao.
+   */
+  @HostListener('document:keydown.escape')
+  aoPressionarEsc(): void {
+    if (this.notificacoesOpen()) this.closeNotificacoes();
+    if (this.mobileMenuOpen()) this.closeMobileMenu();
   }
 
   closeMobileMenu(): void {
@@ -126,7 +149,27 @@ export class AppLayout {
       ? this.perfilService.rotuloPadrao(this.perfilService.perfil()!)
       : '';
     if (digitado && digitado !== padrao) return digitado;
+
+    // O nome do backend e o do PRODUTOR. Usa-lo para o contador o identificava
+    // como o proprio cliente: a topbar dizia "Joao da Silva Produtor" com
+    // "Contador" embaixo -- duas pessoas diferentes no mesmo chip.
+    if (!this.perfilService.ehProdutor()) return padrao;
     return this.dashboardApi.dashboard()?.produtor.nome ?? padrao;
+  });
+
+  /**
+   * Segunda linha do chip.
+   *
+   * Para o produtor e o papel. Para o contador, dizer "Contador" embaixo de
+   * "Contador" e gaguejo -- o espaco rende mais mostrando de quem sao os
+   * numeros que ele esta vendo.
+   */
+  readonly papelExibido = computed(() => {
+    if (this.perfilService.ehContador()) {
+      const produtor = this.dashboardApi.dashboard()?.produtor.nome;
+      return produtor ? `Atendendo ${produtor}` : 'Contador';
+    }
+    return 'Produtor rural';
   });
 
   readonly inicialDoPerfil = computed(() => this.nomeExibido().trim().charAt(0).toUpperCase() || '?');
