@@ -149,7 +149,27 @@ export class AppLayout implements OnInit {
       ? this.perfilService.rotuloPadrao(this.perfilService.perfil()!)
       : '';
     if (digitado && digitado !== padrao) return digitado;
+
+    // O nome do backend e o do PRODUTOR. Usa-lo para o contador o identificava
+    // como o proprio cliente: a topbar dizia "Joao da Silva Produtor" com
+    // "Contador" embaixo -- duas pessoas diferentes no mesmo chip.
+    if (!this.perfilService.ehProdutor()) return padrao;
     return this.dashboardApi.dashboard()?.produtor.nome ?? padrao;
+  });
+
+  /**
+   * Segunda linha do chip.
+   *
+   * Para o produtor e o papel. Para o contador, dizer "Contador" embaixo de
+   * "Contador" e gaguejo -- o espaco rende mais mostrando de quem sao os
+   * numeros que ele esta vendo.
+   */
+  readonly papelExibido = computed(() => {
+    if (this.perfilService.ehContador()) {
+      const produtor = this.dashboardApi.dashboard()?.produtor.nome;
+      return produtor ? `Atendendo ${produtor}` : 'Contador';
+    }
+    return 'Produtor rural';
   });
 
   readonly inicialDoPerfil = computed(() => this.nomeExibido().trim().charAt(0).toUpperCase() || '?');
