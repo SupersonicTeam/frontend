@@ -25,6 +25,7 @@ import {
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
+import { PerfilService } from '@core/services/perfil.service';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
 import { SolicitacaoContador } from '@models/solicitacao-contador.model';
@@ -158,6 +159,7 @@ function cpfCnpjValido(v: string): boolean {
 export class DocumentosPage implements OnInit {
   private readonly notasApi = inject(NotasApi);
   private readonly assistente = inject(AssistenteStore);
+  protected readonly perfilService = inject(PerfilService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly contadorService = inject(ContadorApi);

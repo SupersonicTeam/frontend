@@ -1,10 +1,16 @@
-<div class="page-container flex flex-col gap-5 pb-24">
+<!-- pb generoso: os dois botoes flutuantes empilhados (Nova nota + assistente)
+     chegam a ~190px do fundo e cobriam o valor do ultimo card. -->
+<div class="page-container flex flex-col gap-5 pb-52">
 
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
       <svg lucideFileText [size]="28" class="text-primary" />
-      <h1 class="text-2xl md:text-3xl font-heading font-bold text-foreground">Documentos</h1>
+      <!-- A navegacao diz "Minhas notas" (e "Notas do produtor" para o contador);
+           o titulo dizia "Documentos". Mesma tela, tres nomes. -->
+      <h1 class="font-heading text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+        {{ perfilService.ehContador() ? 'Notas do produtor' : 'Minhas notas' }}
+      </h1>
     </div>
     <button class="tap-target flex items-center justify-center rounded-controle border border-border transition-colors hover:bg-muted" (click)="carregarDados()" title="Recarregar">
       <svg lucideRefreshCw [size]="16" />
@@ -62,8 +68,15 @@
     <div class="space-y-3">
       <div class="flex items-center gap-2">
         <svg lucideFileCheck [size]="18" class="text-muted-foreground" />
-        <h2 class="text-base font-semibold text-foreground">Notas Fiscais</h2>
-        <span class="text-apoio px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{{ notasFiltradas().length }}</span>
+        <h2 class="font-heading text-base font-semibold text-foreground">Notas fiscais</h2>
+        <!-- Mostrava so o tamanho da pagina: "12" com 15 notas na base. -->
+        <span class="rounded-full bg-muted px-2 py-0.5 text-apoio text-muted-foreground">
+          @if (totalElements() > notasFiltradas().length) {
+            {{ notasFiltradas().length }} de {{ totalElements() }}
+          } @else {
+            {{ notasFiltradas().length }}
+          }
+        </span>
       </div>
 
       @if (notasFiltradas().length === 0) {
@@ -83,22 +96,42 @@
       } @else {
         <div class="grid gap-3 sm:grid-cols-2">
           @for (nota of notasFiltradas(); track nota.id) {
-            <div class="bg-card rounded-card border border-border p-4 space-y-2 hover:ring-2 hover:ring-primary/20 transition-shadow">
-              <div class="flex items-start justify-between gap-2">
-                <button type="button" class="min-w-0 flex-1 text-left" (click)="abrirPreview(nota)">
-                  <p class="font-medium text-foreground leading-tight truncate">{{ nota.naturezaOperacao || 'NF-e ' + nota.numero }}</p>
-                  <p class="text-apoio text-muted-foreground mt-0.5">Nº {{ nota.numero }} · {{ nota.destinatarioNome }}</p>
-                </button>
-                <ui-badge-status class="shrink-0" [status]="nota.status" />
-              </div>
-              <div class="flex items-center justify-between text-apoio">
-                <span class="text-muted-foreground text-apoio">{{ formatDate(nota.dataEmissao) }}</span>
-                <span class="font-semibold text-foreground">{{ formatCurrency(nota.valorTotalNota) }}</span>
-              </div>
-              <div class="flex items-center gap-1.5 pt-1">
-                <button class="tap-target flex flex-1 items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio transition-colors hover:bg-muted" (click)="abrirPreview(nota)">
-                  <svg lucideEye [size]="14" /> Ver
-                </button>
+            <!-- Hierarquia invertida antes: a natureza da operacao vinha grande e
+                 se repetia em 7 dos 12 cards ("Venda de producao do
+                 estabelecimento"), enquanto numero, destinatario e valor -- o que
+                 distingue uma nota da outra -- ficavam em texto fraco.
+                 O botao "Ver" ocupava uma linha inteira e era redundante: clicar
+                 no card ja abre a nota. -->
+            <div class="group rounded-card border border-border bg-card p-4 transition-shadow hover:ring-2 hover:ring-primary/20">
+              <button
+                type="button"
+                class="flex w-full items-start justify-between gap-3 text-left"
+                (click)="abrirPreview(nota)"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="text-apoio text-muted-foreground">
+                    Nº {{ nota.numero }} · {{ formatDate(nota.dataEmissao) }}
+                  </p>
+                  <p class="truncate font-heading text-valor font-semibold text-foreground">
+                    {{ nota.destinatarioNome }}
+                  </p>
+                </div>
+                <div class="flex shrink-0 flex-col items-end gap-1.5">
+                  <ui-badge-status [status]="nota.status" />
+                  <span class="font-heading text-valor font-semibold tabular-nums text-foreground">
+                    {{ formatCurrency(nota.valorTotalNota) }}
+                  </span>
+                </div>
+              </button>
+
+              <!-- A natureza divide a linha com as acoes: sozinhas elas deixavam uma
+                   faixa vazia embaixo, porque a maioria das notas so tem o botao
+                   do assistente (as autorizadas nao se editam nem se excluem). -->
+              <div class="mt-2 flex items-center justify-between gap-2">
+                <p class="min-w-0 flex-1 truncate text-apoio text-muted-foreground">
+                  {{ nota.naturezaOperacao || 'NF-e ' + nota.numero }}
+                </p>
+                <div class="flex shrink-0 items-center gap-1.5">
                 <!-- Abre o assistente com esta nota do lado. Quando ela tem pendencia,
                      a gaveta ja traz o que o fisco apontou em /notas/{id}/validacoes. -->
                 <button
@@ -117,6 +150,7 @@
                     <svg lucideTrash2 [size]="14" />
                   </button>
                 }
+                </div>
               </div>
             </div>
           }
