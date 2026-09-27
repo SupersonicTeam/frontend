@@ -321,4 +321,50 @@ describe('DocumentosPage', () => {
       expect(fixture.componentInstance.showFormNota()).toBe(false);
     });
   });
+
+  /**
+   * A lista mostrava a natureza da operacao em destaque -- e ela se repetia em 7
+   * dos 12 cards ("Venda de producao do estabelecimento"), enquanto destinatario
+   * e valor, que distinguem uma nota da outra, ficavam em texto fraco.
+   */
+  describe('hierarquia da lista', () => {
+    function comNotas(notas: unknown[], total = notas.length) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne(r => r.url === '/notas').flush({ content: notas, totalElements: total });
+      flushPendencias();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    const nota = {
+      id: 'n1', numero: 101, status: 'AUTORIZADA',
+      naturezaOperacao: 'Venda de producao do estabelecimento',
+      dataEmissao: '2026-09-10T00:00:00Z', destinatarioNome: 'Cerealista Sorriso Ltda',
+      destinatarioCpfCnpj: '00000000000191', valorTotalNota: 70500, itens: [],
+    };
+
+    it('o destinatario e o elemento forte do card, nao a natureza', () => {
+      const fixture = comNotas([nota]);
+      const card = (fixture.nativeElement as HTMLElement).querySelector('.grid > div.bg-card');
+
+      const destaque = card?.querySelector('.font-heading');
+      expect(destaque?.textContent?.trim()).toBe('Cerealista Sorriso Ltda');
+    });
+
+    it('nao repete um botao "Ver" — clicar no card ja abre a nota', () => {
+      const fixture = comNotas([nota]);
+      const textos = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.grid button')]
+        .map(b => b.textContent?.trim());
+
+      expect(textos.some(t => t === 'Ver')).toBe(false);
+    });
+
+    it('a contagem diz quantas de quantas — 12 e a pagina, nao o total', () => {
+      const fixture = comNotas([nota], 15);
+      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+      expect(texto).toContain('1 de 15');
+    });
+  });
 });
