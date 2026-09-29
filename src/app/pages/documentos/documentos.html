@@ -102,7 +102,13 @@
                  distingue uma nota da outra -- ficavam em texto fraco.
                  O botao "Ver" ocupava uma linha inteira e era redundante: clicar
                  no card ja abre a nota. -->
-            <div class="group rounded-card border border-border bg-card p-4 transition-shadow hover:ring-2 hover:ring-primary/20">
+            <!-- A nota travada ganha moldura de aviso: numa lista de 12 cards
+                 quase iguais o selo sozinho nao bastava para ela saltar -- e ela e
+                 justamente a que exige acao. -->
+            <div
+              class="rounded-card border bg-card p-4 transition-shadow hover:ring-2 hover:ring-primary/20"
+              [class]="podeVerValidacoes(nota) ? 'border-aviso/50 bg-aviso-soft/30' : 'border-border'"
+            >
               <button
                 type="button"
                 class="flex w-full items-start justify-between gap-3 text-left"
@@ -618,7 +624,12 @@
           </div>
         }
 
-        <!-- Número / Série / Tipo -->
+        <!-- Secao 1: identificacao da nota -->
+        <div class="flex items-center gap-2 pt-1">
+          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary">1</span>
+          <h3 class="font-heading text-base font-semibold text-foreground">A nota</h3>
+          <span class="text-apoio text-muted-foreground">&middot; numeração e data</span>
+        </div>
         <div class="grid grid-cols-3 gap-3">
           <div>
             <label for="nf-numero" class="block text-apoio font-medium text-foreground mb-1.5">Número *</label>
@@ -661,7 +672,12 @@
           </div>
         </div>
 
-        <!-- Destinatário -->
+        <!-- Secao 2: para quem a nota e emitida -->
+        <div class="flex items-center gap-2 pt-1">
+          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary">2</span>
+          <h3 class="font-heading text-base font-semibold text-foreground">Para quem</h3>
+          <span class="text-apoio text-muted-foreground">&middot; dados do destinatário</span>
+        </div>
         <div>
           <label for="nf-destnome" class="block text-apoio font-medium text-foreground mb-1.5">Nome/Razão Social do Destinatário *</label>
           <input type="text" placeholder="Ex: Cooperativa Agrícola ABC Ltda"
@@ -687,9 +703,13 @@
           </div>
         </div>
 
-        <!-- Endereço (opcional — obrigatório para emitir o XML) -->
-        <div class="border border-border rounded-controle p-3 space-y-3 bg-muted/20">
-          <p class="text-apoio font-semibold text-foreground">Endereço do destinatário <span class="font-normal text-muted-foreground">(necessário para gerar o XML)</span></p>
+        <!-- Endereco: sub-bloco da secao 2. Antes tinha moldura propria enquanto
+             os campos acima nao tinham nenhuma, o que sugeria uma hierarquia que
+             nao existia -- os dois sao do destinatario. -->
+        <div class="space-y-3">
+          <p class="text-apoio font-medium text-foreground">
+            Endereço <span class="font-normal text-muted-foreground">(necessário para gerar o XML)</span>
+          </p>
           <!-- Os campos tinham so `placeholder`, que some quando a pessoa digita e
                nao vale como rotulo para leitor de tela. E justo o bloco onde o
                botao "Corrigir a nota" deposita quem veio arrumar o endereco. -->
@@ -735,9 +755,13 @@
           @if (erroDe('destinatarioEndereco'); as e) { <p class="text-apoio text-destructive">{{ e.field }}: {{ e.message }}</p> }
         </div>
 
-        <!-- Itens -->
+        <!-- Secao 3: o que esta sendo vendido -->
+        <div class="flex items-center gap-2 pt-1">
+          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary">3</span>
+          <h3 class="font-heading text-base font-semibold text-foreground">O que você está vendendo</h3>
+          <span class="text-apoio text-muted-foreground">&middot; produtos da nota</span>
+        </div>
         <div class="space-y-3">
-          <p class="block text-apoio font-semibold text-foreground">Itens da Nota *</p>
           @for (item of formItens(); track $index; let idx = $index) {
             <div class="border border-border rounded-controle p-3 space-y-2 bg-muted/30">
               <div class="flex items-center justify-between">
@@ -786,14 +810,15 @@
         </div>
       </div>
 
-  <!-- O aviso do que falta preencher (#44) fica junto do botao, onde a duvida acontece. -->
-  @if (!canSubmitNota() && !salvando() && (abaNota() === 'criar' || formNotaId())) {
-    <p class="mt-4 rounded-controle border border-aviso/30 bg-aviso-soft p-3 text-apoio text-aviso-ink">
-      Para habilitar o botão, preencha: {{ camposPendentes().join(', ') }}.
-    </p>
-  }
 
-  <div rodape>
+  <!-- O aviso vive no rodape porque o rodape e fixo: antes ele ficava no fim de
+       1.173px de formulario, e a pessoa via o botao apagado sem o motivo a vista. -->
+  <div rodape class="flex w-full flex-wrap items-center gap-2">
+    @if (!canSubmitNota() && !salvando() && (abaNota() === 'criar' || formNotaId())) {
+      <p class="min-w-0 flex-1 text-apoio leading-snug text-aviso-ink">
+        Falta preencher: {{ camposPendentes().join(', ') }}.
+      </p>
+    }
     <ui-button variant="ghost" [disabled]="salvando()" (click)="fecharForm()">
       {{ abaNota() !== 'criar' && !formNotaId() ? 'Fechar' : 'Cancelar' }}
     </ui-button>

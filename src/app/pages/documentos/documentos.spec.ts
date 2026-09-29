@@ -360,6 +360,15 @@ describe('DocumentosPage', () => {
       expect(textos.some(t => t === 'Ver')).toBe(false);
     });
 
+    it('destaca a nota travada — o selo sozinho nao a separava das outras 11', () => {
+      const travada = { ...nota, id: 'n7', numero: 7, status: 'COM_INCONSISTENCIAS' };
+      const fixture = comNotas([nota, travada]);
+      const cards = (fixture.nativeElement as HTMLElement).querySelectorAll('.grid > div.bg-card');
+
+      expect(cards[0].className).not.toContain('border-aviso');
+      expect(cards[1].className).toContain('border-aviso');
+    });
+
     it('a contagem diz quantas de quantas — 12 e a pagina, nao o total', () => {
       const fixture = comNotas([nota], 15);
       const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
