@@ -34,8 +34,7 @@ import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response'
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
 import { statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
-import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo }
-  from '@core/utils/validacoes';
+import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
@@ -70,8 +69,33 @@ const emptyItem = (): ItemForm => ({
 });
 
 const UFS = [
-  'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT',
-  'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
+  'AC',
+  'AL',
+  'AM',
+  'AP',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MG',
+  'MS',
+  'MT',
+  'PA',
+  'PB',
+  'PE',
+  'PI',
+  'PR',
+  'RJ',
+  'RN',
+  'RO',
+  'RR',
+  'RS',
+  'SC',
+  'SE',
+  'SP',
+  'TO',
 ];
 
 const PERIODO_OPTIONS = [
@@ -105,7 +129,10 @@ function cpfValido(cpf: string): boolean {
 function cnpjValido(cnpj: string): boolean {
   if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
   const dv = (base: string): number => {
-    const pesos = base.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const pesos =
+      base.length === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
     let soma = 0;
     for (let i = 0; i < base.length; i++) soma += Number(base[i]) * pesos[i];
     const resto = soma % 11;
@@ -265,10 +292,12 @@ export class DocumentosPage implements OnInit {
     }
 
     // Tipo do documento (NFE/NFA)
-    if (this.tipo() !== 'todos') lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
+    if (this.tipo() !== 'todos')
+      lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
 
     // Status
-    if (this.statusFilter() !== 'todos') lista = lista.filter((n) => n.status === this.statusFilter());
+    if (this.statusFilter() !== 'todos')
+      lista = lista.filter((n) => n.status === this.statusFilter());
 
     // Busca (natureza, número ou destinatário)
     if (busca)
@@ -417,8 +446,9 @@ export class DocumentosPage implements OnInit {
     if (!id) return;
 
     this.notasApi.obter(id).subscribe({
-      next: nota => this.abrirPreview(nota),
-      error: () => this.toastService.error('Não encontramos essa nota. Ela pode ter sido excluída.'),
+      next: (nota) => this.abrirPreview(nota),
+      error: () =>
+        this.toastService.error('Não encontramos essa nota. Ela pode ter sido excluída.'),
     });
   }
 
@@ -456,7 +486,9 @@ export class DocumentosPage implements OnInit {
   }
 
   /** Total de páginas (server-side, a partir de totalElements/pageSize). */
-  readonly totalPaginas = computed(() => Math.max(1, Math.ceil(this.totalElements() / this.pageSize())));
+  readonly totalPaginas = computed(() =>
+    Math.max(1, Math.ceil(this.totalElements() / this.pageSize())),
+  );
 
   /** Vai para uma página (0-based) e recarrega do backend (Pageable). */
   irParaPagina(idx: number): void {
@@ -549,12 +581,12 @@ export class DocumentosPage implements OnInit {
    */
   readonly pendenciaCorrigivelNaNota = computed(() => {
     const vs = this.validacoes();
-    return vs.length > 0 && vs.some(v => !ehCampoDoProdutor(v.field));
+    return vs.length > 0 && vs.some((v) => !ehCampoDoProdutor(v.field));
   });
 
   /** Ha pendencia de cadastro do produtor, que nao se resolve pela nota. */
   readonly pendenciaNoCadastro = computed(() =>
-    this.validacoes().some(v => ehCampoDoProdutor(v.field)),
+    this.validacoes().some((v) => ehCampoDoProdutor(v.field)),
   );
 
   verValidacoes(nota: NotaFiscal): void {
@@ -616,15 +648,19 @@ export class DocumentosPage implements OnInit {
         this.enviandoSefaz.set(false);
         this.sefazRetorno.set(r);
         this.atualizarNotaLocal({ ...nota, status: r.status, chaveAcesso: r.chaveAcesso });
-        if (r.status === 'AUTORIZADA') this.toastService.success(`Autorizada pela SEFAZ (cStat ${r.cStat}).`);
-        else if (r.status === 'REJEITADA') this.toastService.error(`Rejeitada (cStat ${r.cStat}): ${r.xMotivo}`);
+        if (r.status === 'AUTORIZADA')
+          this.toastService.success(`Autorizada pela SEFAZ (cStat ${r.cStat}).`);
+        else if (r.status === 'REJEITADA')
+          this.toastService.error(`Rejeitada (cStat ${r.cStat}): ${r.xMotivo}`);
         else this.toastService.info(`Pendente na SEFAZ: ${r.xMotivo}`);
       },
       error: (err: HttpErrorResponse) => {
         this.enviandoSefaz.set(false);
         const env = err?.error as ApiErrorEnvelope | undefined;
         if (err?.status === 502) {
-          this.toastService.error('SEFAZ indisponível após as tentativas. Tente novamente em instantes.');
+          this.toastService.error(
+            'SEFAZ indisponível após as tentativas. Tente novamente em instantes.',
+          );
         } else if (err?.status === 409) {
           this.toastService.error(env?.message ?? 'Envio inválido para o status atual.');
         } else {
@@ -642,7 +678,9 @@ export class DocumentosPage implements OnInit {
         this.consultandoStatus.set(false);
         this.sefazRetorno.set(r);
         this.atualizarNotaLocal({ ...nota, status: r.status, chaveAcesso: r.chaveAcesso });
-        this.toastService.success(`Status sincronizado: ${statusNotaLabel(r.status)} (cStat ${r.cStat}).`);
+        this.toastService.success(
+          `Status sincronizado: ${statusNotaLabel(r.status)} (cStat ${r.cStat}).`,
+        );
       },
       error: (err: HttpErrorResponse) => {
         this.consultandoStatus.set(false);
@@ -747,7 +785,7 @@ export class DocumentosPage implements OnInit {
       next: (pagina) =>
         this.notasParaAjustar.set(
           pagina.content.filter(
-            n => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
           ),
         ),
       error: () => this.notasParaAjustar.set([]),
@@ -989,11 +1027,11 @@ export class DocumentosPage implements OnInit {
     const categoria = this.solicitacaoInfo()?.categoria ?? 'Documento';
     this.enviandoAnexo.set(true);
     this.contadorService.anexarDocumento(solicitacaoId, file, categoria).subscribe({
-      next: doc => {
+      next: (doc) => {
         this.enviandoAnexo.set(false);
         if (doc) {
-          this.solicitacoes.update(list =>
-            list.map(s => (s.id === solicitacaoId ? { ...s, status: 'enviado' as const } : s))
+          this.solicitacoes.update((list) =>
+            list.map((s) => (s.id === solicitacaoId ? { ...s, status: 'enviado' as const } : s)),
           );
           this.toastService.success('Documento anexado com sucesso!');
           this.fecharAnexar();
@@ -1159,7 +1197,9 @@ export class DocumentosPage implements OnInit {
   importarArquivo(file: File): void {
     const nome = file.name.toLowerCase();
     if (!nome.endsWith('.xml')) {
-      this.toastService.info('A importação lê apenas o XML da NF-e (o PDF não é aceito pelo backend).');
+      this.toastService.info(
+        'A importação lê apenas o XML da NF-e (o PDF não é aceito pelo backend).',
+      );
       return;
     }
     this.importando.set(true);
@@ -1228,11 +1268,16 @@ export class DocumentosPage implements OnInit {
 
   solicitacaoStatusColor(status: string): string {
     const map: Record<string, string> = {
-      pendente: 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
-      enviado: 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-      concluido: 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-      cancelado: 'bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
-      rejeitado: 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
+      pendente:
+        'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
+      enviado:
+        'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
+      concluido:
+        'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
+      cancelado:
+        'bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
+      rejeitado:
+        'bg-red-100 text-red-700 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
     };
     return map[status] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
   }

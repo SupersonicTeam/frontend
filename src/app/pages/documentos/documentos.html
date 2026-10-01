@@ -1,7 +1,6 @@
 <!-- pb generoso: os dois botoes flutuantes empilhados (Nova nota + assistente)
      chegam a ~190px do fundo e cobriam o valor do ultimo card. -->
 <div class="page-container flex flex-col gap-5 pb-52">
-
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -12,35 +11,59 @@
         {{ perfilService.ehContador() ? 'Notas do produtor' : 'Minhas notas' }}
       </h1>
     </div>
-    <button class="tap-target flex items-center justify-center rounded-controle border border-border transition-colors hover:bg-muted" (click)="carregarDados()" title="Recarregar">
+    <button
+      class="tap-target flex items-center justify-center rounded-controle border border-border transition-colors hover:bg-muted"
+      (click)="carregarDados()"
+      title="Recarregar"
+    >
       <svg lucideRefreshCw [size]="16" />
     </button>
   </div>
 
   <!-- ── FILTROS ── -->
   <div class="flex flex-wrap gap-2">
-    <select class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-      [value]="periodo()" (change)="periodo.set($any($event.target).value)">
-      @for (o of periodoOptions; track o.value) { <option [value]="o.value">{{ o.label }}</option> }
+    <select
+      class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+      [value]="periodo()"
+      (change)="periodo.set($any($event.target).value)"
+    >
+      @for (o of periodoOptions; track o.value) {
+        <option [value]="o.value">{{ o.label }}</option>
+      }
     </select>
 
-    <select class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-      [value]="tipo()" (change)="tipo.set($any($event.target).value)">
+    <select
+      class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+      [value]="tipo()"
+      (change)="tipo.set($any($event.target).value)"
+    >
       <option value="todos">Todos os tipos</option>
       <option value="NFE">NF-e (modelo 55)</option>
       <option value="NFA">NFA (avulsa)</option>
     </select>
 
     <div class="flex-1 min-w-[180px] relative">
-      <svg lucideSearch [size]="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input type="text" placeholder="Buscar por natureza, número ou destinatário..."
+      <svg
+        lucideSearch
+        [size]="16"
+        class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+      />
+      <input
+        type="text"
+        placeholder="Buscar por natureza, número ou destinatário..."
         aria-label="Buscar notas"
         class="tap-target w-full pl-9 pr-4 py-2 rounded-controle border border-border bg-card text-apoio text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-        [value]="busca()" (input)="busca.set($any($event.target).value)" />
+        [value]="busca()"
+        (input)="busca.set($any($event.target).value)"
+      />
     </div>
 
-    <select class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
-      [value]="ordenacao()" (change)="ordenacao.set($any($event.target).value)" title="Ordenar">
+    <select
+      class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+      [value]="ordenacao()"
+      (change)="ordenacao.set($any($event.target).value)"
+      title="Ordenar"
+    >
       <option value="data">Mais recentes</option>
       <option value="valor">Maior valor</option>
     </select>
@@ -50,15 +73,21 @@
   @if (loading()) {
     <ui-skeleton [linhas]="3" formato="bloco" altura="5rem" />
   } @else {
-
     <!-- ── ERRO AO CARREGAR ── -->
     @if (notasErro()) {
-      <div class="flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4">
+      <div
+        class="flex items-center gap-3 rounded-2xl border border-destructive/30 bg-destructive/5 p-4"
+      >
         <div class="flex-1 text-apoio">
-          <p class="font-medium text-destructive">Não foi possível carregar as notas do servidor.</p>
+          <p class="font-medium text-destructive">
+            Não foi possível carregar as notas do servidor.
+          </p>
           <p class="text-muted-foreground text-apoio">Verifique a conexão e tente novamente.</p>
         </div>
-        <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-controle border border-border text-apoio hover:bg-muted shrink-0" (click)="carregarDados()">
+        <button
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-controle border border-border text-apoio hover:bg-muted shrink-0"
+          (click)="carregarDados()"
+        >
           <svg lucideRefreshCw [size]="14" /> Tentar novamente
         </button>
       </div>
@@ -107,7 +136,9 @@
                  justamente a que exige acao. -->
             <div
               class="rounded-card border bg-card p-4 transition-shadow hover:ring-2 hover:ring-primary/20"
-              [class]="podeVerValidacoes(nota) ? 'border-aviso/50 bg-aviso-soft/30' : 'border-border'"
+              [class]="
+                podeVerValidacoes(nota) ? 'border-aviso/50 bg-aviso-soft/30' : 'border-border'
+              "
             >
               <button
                 type="button"
@@ -138,24 +169,32 @@
                   {{ nota.naturezaOperacao || 'NF-e ' + nota.numero }}
                 </p>
                 <div class="flex shrink-0 items-center gap-1.5">
-                <!-- Abre o assistente com esta nota do lado. Quando ela tem pendencia,
+                  <!-- Abre o assistente com esta nota do lado. Quando ela tem pendencia,
                      a gaveta ja traz o que o fisco apontou em /notas/{id}/validacoes. -->
-                <button
-                  class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-assistente-borda bg-assistente-soft px-3 text-apoio text-assistente-ink transition-colors hover:bg-assistente/15"
-                  [attr.aria-label]="'Perguntar ao assistente sobre a nota ' + nota.numero"
-                  title="Perguntar ao assistente"
-                  (click)="perguntarSobre(nota)"
-                >
-                  <svg lucideSparkles [size]="14" />
-                </button>
-                @if (podeEditar(nota)) {
-                  <button class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio transition-colors hover:bg-muted" (click)="editarNota(nota)" title="Editar">
-                    <svg lucidePencil [size]="14" />
+                  <button
+                    class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-assistente-borda bg-assistente-soft px-3 text-apoio text-assistente-ink transition-colors hover:bg-assistente/15"
+                    [attr.aria-label]="'Perguntar ao assistente sobre a nota ' + nota.numero"
+                    title="Perguntar ao assistente"
+                    (click)="perguntarSobre(nota)"
+                  >
+                    <svg lucideSparkles [size]="14" />
                   </button>
-                  <button class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio text-perigo transition-colors hover:bg-perigo-soft" (click)="pedirExclusao(nota)" title="Excluir">
-                    <svg lucideTrash2 [size]="14" />
-                  </button>
-                }
+                  @if (podeEditar(nota)) {
+                    <button
+                      class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio transition-colors hover:bg-muted"
+                      (click)="editarNota(nota)"
+                      title="Editar"
+                    >
+                      <svg lucidePencil [size]="14" />
+                    </button>
+                    <button
+                      class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio text-perigo transition-colors hover:bg-perigo-soft"
+                      (click)="pedirExclusao(nota)"
+                      title="Excluir"
+                    >
+                      <svg lucideTrash2 [size]="14" />
+                    </button>
+                  }
                 </div>
               </div>
             </div>
@@ -164,11 +203,15 @@
       }
 
       @if (totalPaginas() > 1) {
-        <nav class="flex items-center justify-between gap-2 pt-1" aria-label="Paginação das notas fiscais">
+        <nav
+          class="flex items-center justify-between gap-2 pt-1"
+          aria-label="Paginação das notas fiscais"
+        >
           <button
             class="tap-target rounded-controle border border-border px-4 text-apoio transition-colors hover:bg-muted disabled:opacity-40"
             [disabled]="pageIndex() === 0"
-            (click)="irParaPagina(pageIndex() - 1)">
+            (click)="irParaPagina(pageIndex() - 1)"
+          >
             ‹ Anterior
           </button>
           <span class="text-apoio text-muted-foreground">
@@ -177,7 +220,8 @@
           <button
             class="tap-target rounded-controle border border-border px-4 text-apoio transition-colors hover:bg-muted disabled:opacity-40"
             [disabled]="pageIndex() + 1 >= totalPaginas()"
-            (click)="irParaPagina(pageIndex() + 1)">
+            (click)="irParaPagina(pageIndex() + 1)"
+          >
             Próxima ›
           </button>
         </nav>
@@ -190,7 +234,9 @@
         <div class="flex items-center gap-2">
           <svg lucideClipboardList [size]="18" class="text-muted-foreground" />
           <h2 class="text-base font-semibold text-foreground">Solicitações do Contador</h2>
-          <span class="text-apoio px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{{ solicitacoesFiltradas().length }}</span>
+          <span class="text-apoio px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{{
+            solicitacoesFiltradas().length
+          }}</span>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
           @for (s of solicitacoesFiltradas(); track s.id) {
@@ -200,11 +246,18 @@
                   <p class="font-medium text-foreground leading-tight truncate">{{ s.titulo }}</p>
                   <p class="text-apoio text-muted-foreground mt-0.5 truncate">{{ s.descricao }}</p>
                 </div>
-                <span class="text-apoio px-1.5 py-0.5 rounded-full shrink-0 {{ solicitacaoStatusColor(s.status) }}">{{ solicitacaoStatusLabel(s.status) }}</span>
+                <span
+                  class="text-apoio px-1.5 py-0.5 rounded-full shrink-0 {{
+                    solicitacaoStatusColor(s.status)
+                  }}"
+                  >{{ solicitacaoStatusLabel(s.status) }}</span
+                >
               </div>
               <div class="flex items-center justify-between text-apoio text-muted-foreground">
                 <span>{{ s.categoria }}</span>
-                @if (s.prazo) { <span>Prazo: {{ formatDate(s.prazo) }}</span> }
+                @if (s.prazo) {
+                  <span>Prazo: {{ formatDate(s.prazo) }}</span>
+                }
               </div>
             </div>
           }
@@ -236,7 +289,9 @@
 <ui-modal
   [aberto]="previewNota() !== null"
   [titulo]="previewNota()?.naturezaOperacao || 'NF-e ' + previewNota()?.numero"
-  [descricao]="'Nota ' + (previewNota()?.numero ?? '') + ' · ' + notaStatusLabel(previewNota()?.status)"
+  [descricao]="
+    'Nota ' + (previewNota()?.numero ?? '') + ' · ' + notaStatusLabel(previewNota()?.status)
+  "
   tamanho="lg"
   (fechar)="fecharPreview()"
 >
@@ -280,8 +335,8 @@
             <!-- Honestidade: `produtor.*` esta no cadastro, e o app ainda nao
                  tem onde edita-lo. Mandar para Configuracoes seria um beco. -->
             <p class="text-apoio text-muted-foreground">
-              Parte disso está no seu cadastro de produtor, que ainda não pode ser
-              editado por aqui — peça ao seu contador.
+              Parte disso está no seu cadastro de produtor, que ainda não pode ser editado por aqui
+              — peça ao seu contador.
             </p>
           }
         </div>
@@ -289,108 +344,153 @@
     }
 
     <app-nota-preview [nota]="previewNota()!" />
-      @if (errosFiscais().length) {
-        <div class="mt-4 rounded-controle border border-perigo/30 bg-perigo-soft p-3">
-          <p class="mb-2 text-apoio font-semibold text-perigo-ink">Inconsistências fiscais — corrija antes de gerar o XML:</p>
-          <ul class="space-y-1.5">
-            @for (erro of errosFiscais(); track erro.code + erro.field) {
-              <li class="text-apoio text-foreground">
-                <span class="font-medium">{{ erro.field }}</span>: {{ erro.message }}
-                @if (erro.suggestion) { <span class="block text-muted-foreground">{{ erro.suggestion }}</span> }
-                @if (erro.expectedValue || erro.rejectedValue) {
-                  <span class="block text-muted-foreground">Esperado: {{ erro.expectedValue || '—' }} · Informado: {{ erro.rejectedValue || '—' }}</span>
-                }
-              </li>
-            }
-          </ul>
-        </div>
-      }
+    @if (errosFiscais().length) {
+      <div class="mt-4 rounded-controle border border-perigo/30 bg-perigo-soft p-3">
+        <p class="mb-2 text-apoio font-semibold text-perigo-ink">
+          Inconsistências fiscais — corrija antes de gerar o XML:
+        </p>
+        <ul class="space-y-1.5">
+          @for (erro of errosFiscais(); track erro.code + erro.field) {
+            <li class="text-apoio text-foreground">
+              <span class="font-medium">{{ erro.field }}</span
+              >: {{ erro.message }}
+              @if (erro.suggestion) {
+                <span class="block text-muted-foreground">{{ erro.suggestion }}</span>
+              }
+              @if (erro.expectedValue || erro.rejectedValue) {
+                <span class="block text-muted-foreground"
+                  >Esperado: {{ erro.expectedValue || '—' }} · Informado:
+                  {{ erro.rejectedValue || '—' }}</span
+                >
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
 
-      <!-- Retorno da SEFAZ (após enviar/consultar) -->
-      @if (sefazRetorno(); as r) {
-        <div class="mt-3 space-y-1 rounded-controle border border-border bg-surface-2 p-3 text-apoio">
-          <p class="font-semibold text-foreground">Retorno da SEFAZ</p>
-          <div class="flex justify-between"><span class="text-muted-foreground">Situação</span><span class="font-medium text-foreground">{{ r.cStat }} — {{ r.xMotivo }}</span></div>
-          @if (r.protocolo) { <div class="flex justify-between"><span class="text-muted-foreground">Protocolo</span><span class="font-medium text-foreground">{{ r.protocolo }}</span></div> }
-          @if (r.dataAutorizacao) { <div class="flex justify-between"><span class="text-muted-foreground">Autorização</span><span class="font-medium text-foreground">{{ formatDate(r.dataAutorizacao) }}</span></div> }
+    <!-- Retorno da SEFAZ (após enviar/consultar) -->
+    @if (sefazRetorno(); as r) {
+      <div class="mt-3 space-y-1 rounded-controle border border-border bg-surface-2 p-3 text-apoio">
+        <p class="font-semibold text-foreground">Retorno da SEFAZ</p>
+        <div class="flex justify-between">
+          <span class="text-muted-foreground">Situação</span
+          ><span class="font-medium text-foreground">{{ r.cStat }} — {{ r.xMotivo }}</span>
         </div>
-      }
+        @if (r.protocolo) {
+          <div class="flex justify-between">
+            <span class="text-muted-foreground">Protocolo</span
+            ><span class="font-medium text-foreground">{{ r.protocolo }}</span>
+          </div>
+        }
+        @if (r.dataAutorizacao) {
+          <div class="flex justify-between">
+            <span class="text-muted-foreground">Autorização</span
+            ><span class="font-medium text-foreground">{{ formatDate(r.dataAutorizacao) }}</span>
+          </div>
+        }
+      </div>
+    }
 
-      <!-- Ações contextuais por status (#14): só aparecem as válidas para o status atual -->
+    <!-- Ações contextuais por status (#14): só aparecem as válidas para o status atual -->
   }
 
   <div rodape class="flex w-full flex-wrap gap-2">
-        @if (podeEditar(previewNota())) {
-          <button class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-controle border border-border text-apoio hover:bg-muted" (click)="editarNota(previewNota()!)">
-            <svg lucidePencil [size]="15" /> Editar
-          </button>
-          <button class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-controle border border-border text-apoio text-destructive hover:bg-destructive/10" (click)="pedirExclusao(previewNota()!)">
-            <svg lucideTrash2 [size]="15" /> Excluir
-          </button>
+    @if (podeEditar(previewNota())) {
+      <button
+        class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-controle border border-border text-apoio hover:bg-muted"
+        (click)="editarNota(previewNota()!)"
+      >
+        <svg lucidePencil [size]="15" /> Editar
+      </button>
+      <button
+        class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-controle border border-border text-apoio text-destructive hover:bg-destructive/10"
+        (click)="pedirExclusao(previewNota()!)"
+      >
+        <svg lucideTrash2 [size]="15" /> Excluir
+      </button>
+    }
+    @if (podeGerarXml(previewNota())) {
+      <button
+        class="flex-1 min-w-[110px] flex items-center justify-center gap-2 px-4 py-2 rounded-controle bg-primary text-primary-foreground text-apoio font-medium hover:opacity-90 disabled:opacity-50"
+        [disabled]="gerandoXml()"
+        (click)="gerarXml(previewNota()!)"
+      >
+        @if (gerandoXml()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Gerando...
+        } @else {
+          <svg lucideFileOutput [size]="16" /> Gerar XML
         }
-        @if (podeGerarXml(previewNota())) {
-          <button
-            class="flex-1 min-w-[110px] flex items-center justify-center gap-2 px-4 py-2 rounded-controle bg-primary text-primary-foreground text-apoio font-medium hover:opacity-90 disabled:opacity-50"
-            [disabled]="gerandoXml()"
-            (click)="gerarXml(previewNota()!)"
-          >
-            @if (gerandoXml()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Gerando... }
-            @else { <svg lucideFileOutput [size]="16" /> Gerar XML }
-          </button>
-          <button
-            class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted"
-            (click)="baixarPdf(previewNota()!)"
-            title="Pré-visualização sem valor fiscal (rascunho)"
-          >
-            <svg lucideDownload [size]="16" /> Prévia
-          </button>
+      </button>
+      <button
+        class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted"
+        (click)="baixarPdf(previewNota()!)"
+        title="Pré-visualização sem valor fiscal (rascunho)"
+      >
+        <svg lucideDownload [size]="16" /> Prévia
+      </button>
+    }
+    @if (podeEnviarSefaz(previewNota())) {
+      <button
+        class="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 rounded-controle bg-primary text-primary-foreground text-apoio font-medium hover:opacity-90 disabled:opacity-50"
+        [disabled]="enviandoSefaz()"
+        (click)="enviarSefaz(previewNota()!)"
+      >
+        @if (enviandoSefaz()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Enviando...
+        } @else {
+          <svg lucideSend [size]="16" /> Enviar à SEFAZ
         }
-        @if (podeEnviarSefaz(previewNota())) {
-          <button
-            class="flex-1 min-w-[120px] flex items-center justify-center gap-2 px-4 py-2 rounded-controle bg-primary text-primary-foreground text-apoio font-medium hover:opacity-90 disabled:opacity-50"
-            [disabled]="enviandoSefaz()"
-            (click)="enviarSefaz(previewNota()!)"
-          >
-            @if (enviandoSefaz()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Enviando... }
-            @else { <svg lucideSend [size]="16" /> Enviar à SEFAZ }
-          </button>
+      </button>
+    }
+    @if (temArquivos(previewNota())) {
+      <button
+        class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted disabled:opacity-50"
+        [disabled]="baixandoXml()"
+        (click)="baixarXml(previewNota()!)"
+      >
+        @if (baixandoXml()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" />
+        } @else {
+          <svg lucideFileOutput [size]="16" />
         }
-        @if (temArquivos(previewNota())) {
-          <button
-            class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted disabled:opacity-50"
-            [disabled]="baixandoXml()"
-            (click)="baixarXml(previewNota()!)"
-          >
-            @if (baixandoXml()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
-            @else { <svg lucideFileOutput [size]="16" /> }
-            XML
-          </button>
-          <button
-            class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted disabled:opacity-50"
-            [disabled]="baixandoDanfe()"
-            (click)="baixarDanfe(previewNota()!)"
-          >
-            @if (baixandoDanfe()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
-            @else { <svg lucideDownload [size]="16" /> }
-            DANFE
-          </button>
+        XML
+      </button>
+      <button
+        class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted disabled:opacity-50"
+        [disabled]="baixandoDanfe()"
+        (click)="baixarDanfe(previewNota()!)"
+      >
+        @if (baixandoDanfe()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" />
+        } @else {
+          <svg lucideDownload [size]="16" />
         }
-        @if (podeConsultarSefaz(previewNota())) {
-          <button
-            class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted disabled:opacity-50"
-            [disabled]="consultandoStatus()"
-            (click)="consultarStatus(previewNota()!)"
-          >
-            @if (consultandoStatus()) { <svg lucideLoaderCircle [size]="16" class="animate-spin" /> }
-            @else { <svg lucideRefreshCw [size]="16" /> }
-            Consultar SEFAZ
-          </button>
+        DANFE
+      </button>
+    }
+    @if (podeConsultarSefaz(previewNota())) {
+      <button
+        class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted disabled:opacity-50"
+        [disabled]="consultandoStatus()"
+        (click)="consultarStatus(previewNota()!)"
+      >
+        @if (consultandoStatus()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" />
+        } @else {
+          <svg lucideRefreshCw [size]="16" />
         }
-        @if (podeCancelar(previewNota())) {
-          <button class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-controle border border-border text-apoio text-destructive hover:bg-destructive/10" (click)="pedirCancelamento(previewNota()!)">
-            <svg lucideTriangleAlert [size]="15" /> Cancelar
-          </button>
-        }
+        Consultar SEFAZ
+      </button>
+    }
+    @if (podeCancelar(previewNota())) {
+      <button
+        class="flex items-center justify-center gap-1.5 px-3 py-2 rounded-controle border border-border text-apoio text-destructive hover:bg-destructive/10"
+        (click)="pedirCancelamento(previewNota()!)"
+      >
+        <svg lucideTriangleAlert [size]="15" /> Cancelar
+      </button>
+    }
     <ui-button variant="ghost" (click)="fecharPreview()">Fechar</ui-button>
   </div>
 </ui-modal>
@@ -412,7 +512,9 @@
   (fechar)="cancelarExclusao()"
 >
   <div class="flex items-start gap-3">
-    <span class="flex size-10 shrink-0 items-center justify-center rounded-full bg-perigo-soft text-perigo">
+    <span
+      class="flex size-10 shrink-0 items-center justify-center rounded-full bg-perigo-soft text-perigo"
+    >
       <svg lucideTriangleAlert [size]="20" />
     </span>
     <p class="text-apoio text-muted-foreground">
@@ -421,7 +523,9 @@
   </div>
 
   <div rodape>
-    <ui-button variant="ghost" [disabled]="excluindo()" (click)="cancelarExclusao()">Voltar</ui-button>
+    <ui-button variant="ghost" [disabled]="excluindo()" (click)="cancelarExclusao()"
+      >Voltar</ui-button
+    >
     <ui-button variant="perigo" [carregando]="excluindo()" (click)="confirmarExclusao()">
       {{ excluindo() ? 'Excluindo...' : 'Excluir nota' }}
     </ui-button>
@@ -456,7 +560,9 @@
   </p>
 
   <div rodape>
-    <ui-button variant="ghost" [disabled]="cancelando()" (click)="fecharCancelamento()">Voltar</ui-button>
+    <ui-button variant="ghost" [disabled]="cancelando()" (click)="fecharCancelamento()"
+      >Voltar</ui-button
+    >
     <ui-button
       variant="perigo"
       [disabled]="!motivoCancelValido()"
@@ -489,327 +595,536 @@
   [travado]="salvando()"
   (fechar)="fecharForm()"
 >
-      <!-- Abas: as duas maneiras de trazer uma nota para dentro. So aparecem ao
+  <!-- Abas: as duas maneiras de trazer uma nota para dentro. So aparecem ao
            criar -- editando uma nota existente nao ha o que escolher. -->
-      @if (!formNotaId()) {
-        <div class="flex gap-1 border-b border-border px-6 pt-1" role="tablist">
-          <button
-            type="button"
-            role="tab"
-            [attr.aria-selected]="abaNota() === 'criar'"
-            class="tap-target border-b-2 px-4 text-apoio font-medium transition-colors"
-            [class]="abaNota() === 'criar'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'"
-            (click)="abaNota.set('criar')"
-          >
-            Criar nota
-          </button>
-          <button
-            type="button"
-            role="tab"
-            [attr.aria-selected]="abaNota() === 'carregar'"
-            class="tap-target border-b-2 px-4 text-apoio font-medium transition-colors"
-            [class]="abaNota() === 'carregar'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'"
-            (click)="abaNota.set('carregar')"
-          >
-            Carregar XML
-          </button>
-          <!-- A fila de correcoes. O contador ao lado e o que diz se vale entrar. -->
-          <button
-            type="button"
-            role="tab"
-            [attr.aria-selected]="abaNota() === 'ajustar'"
-            class="tap-target flex items-center gap-1.5 border-b-2 px-4 text-apoio font-medium transition-colors"
-            [class]="abaNota() === 'ajustar'
-              ? 'border-primary text-primary'
-              : 'border-transparent text-muted-foreground hover:text-foreground'"
-            (click)="abaNota.set('ajustar'); carregarFilaDeAjustes()"
-          >
-            Precisam de ajuste
-            @if (notasParaAjustar().length) {
-              <span class="rounded-full bg-aviso-soft px-2 text-apoio font-semibold text-aviso-ink">
-                {{ notasParaAjustar().length }}
-              </span>
-            }
-          </button>
-        </div>
-      }
-
-      @if (abaNota() === 'carregar' && !formNotaId()) {
-        <div class="px-6 py-5">
-          <p class="mb-3 text-apoio leading-relaxed text-muted-foreground">
-            Recebeu uma nota de terceiro? Suba o XML e ela entra aqui como nota de entrada,
-            sem digitar nada.
-          </p>
-        <label
-          class="flex flex-col items-center justify-center gap-1.5 py-6 px-4 rounded-2xl border-2 border-dashed cursor-pointer transition-colors {{ dragOver() ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40' }}"
-          (dragover)="onDragOver($event)" (dragleave)="onDragLeave($event)" (drop)="onDrop($event)">
-          @if (importando()) {
-            <svg lucideLoaderCircle [size]="24" class="animate-spin text-primary" />
-            <span class="text-apoio text-muted-foreground">Importando nota…</span>
-          } @else {
-            <svg lucideUpload [size]="24" class="text-muted-foreground" />
-            <span class="text-apoio font-medium text-foreground">Arraste o XML da NF-e aqui</span>
-            <span class="text-apoio text-muted-foreground">ou clique para selecionar</span>
-          }
-          <input type="file" accept=".xml" class="hidden" (change)="onFileImport($event)" [disabled]="importando()" />
-        </label>
-        </div>
-      }
-
-      @if (abaNota() === 'ajustar' && !formNotaId()) {
-        <div class="px-6 py-5">
-          @if (notasParaAjustar().length === 0) {
-            <div class="flex flex-col items-center justify-center gap-2 py-10 text-center">
-              <svg lucideCircleCheck [size]="32" class="text-sucesso" />
-              <p class="text-apoio font-medium text-foreground">Nenhuma nota travada.</p>
-              <p class="text-apoio text-muted-foreground">
-                Quando o fisco recusar alguma, ela aparece aqui para você resolver.
-              </p>
-            </div>
-          } @else {
-            <p class="mb-3 text-apoio leading-relaxed text-muted-foreground">
-              Estas notas não podem ser emitidas como estão. Corrija uma e você volta para esta
-              lista, com a próxima já à mão.
-            </p>
-            <ul class="flex flex-col gap-2">
-              @for (nota of notasParaAjustar(); track nota.id) {
-                <li
-                  class="flex flex-wrap items-center justify-between gap-3 rounded-card border border-aviso/30 bg-aviso-soft p-3"
-                >
-                  <div class="min-w-0">
-                    <p class="text-apoio font-medium text-foreground">
-                      Nota {{ nota.numero }} · {{ nota.destinatarioNome }}
-                    </p>
-                    <p class="text-apoio text-muted-foreground">
-                      {{ formatDate(nota.dataEmissao) }} · {{ formatCurrency(nota.valorTotalNota) }}
-                    </p>
-                  </div>
-                  <div class="flex shrink-0 items-center gap-2">
-                    <ui-badge-status [status]="nota.status" />
-                    <button
-                      class="tap-target inline-flex items-center gap-1.5 rounded-controle bg-primary px-3 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-                      (click)="corrigirDaFila(nota)"
-                    >
-                      <svg lucidePencil [size]="15" />
-                      Corrigir
-                    </button>
-                  </div>
-                </li>
-              }
-            </ul>
-          }
-        </div>
-      }
-
-      <div
-        class="px-6 py-5 space-y-4"
-        [hidden]="(abaNota() === 'carregar' || abaNota() === 'ajustar') && !formNotaId()"
+  @if (!formNotaId()) {
+    <div class="flex gap-1 border-b border-border px-6 pt-1" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="abaNota() === 'criar'"
+        class="tap-target border-b-2 px-4 text-apoio font-medium transition-colors"
+        [class]="
+          abaNota() === 'criar'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+        "
+        (click)="abaNota.set('criar')"
       >
-        <!-- Banner de erros do backend -->
-        @if (erroNota().length) {
-          <div class="rounded-controle border border-destructive/30 bg-destructive/5 p-3">
-            <p class="text-apoio font-semibold text-destructive mb-2">O servidor recusou os dados. Corrija:</p>
-            <ul class="space-y-1.5">
-              @for (erro of erroNota(); track erro.code + erro.field) {
-                <li class="text-apoio text-foreground">
-                  @if (erro.field) { <span class="font-medium">{{ erro.field }}</span>: } {{ erro.message }}
-                  @if (erro.suggestion) { <span class="block text-muted-foreground">{{ erro.suggestion }}</span> }
-                </li>
-              }
-            </ul>
-          </div>
+        Criar nota
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="abaNota() === 'carregar'"
+        class="tap-target border-b-2 px-4 text-apoio font-medium transition-colors"
+        [class]="
+          abaNota() === 'carregar'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+        "
+        (click)="abaNota.set('carregar')"
+      >
+        Carregar XML
+      </button>
+      <!-- A fila de correcoes. O contador ao lado e o que diz se vale entrar. -->
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="abaNota() === 'ajustar'"
+        class="tap-target flex items-center gap-1.5 border-b-2 px-4 text-apoio font-medium transition-colors"
+        [class]="
+          abaNota() === 'ajustar'
+            ? 'border-primary text-primary'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+        "
+        (click)="abaNota.set('ajustar'); carregarFilaDeAjustes()"
+      >
+        Precisam de ajuste
+        @if (notasParaAjustar().length) {
+          <span class="rounded-full bg-aviso-soft px-2 text-apoio font-semibold text-aviso-ink">
+            {{ notasParaAjustar().length }}
+          </span>
         }
+      </button>
+    </div>
+  }
 
-        <!-- Secao 1: identificacao da nota -->
-        <div class="flex items-center gap-2 pt-1">
-          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary">1</span>
-          <h3 class="font-heading text-base font-semibold text-foreground">A nota</h3>
-          <span class="text-apoio text-muted-foreground">&middot; numeração e data</span>
-        </div>
-        <div class="grid grid-cols-3 gap-3">
-          <div>
-            <label for="nf-numero" class="block text-apoio font-medium text-foreground mb-1.5">Número *</label>
-            <input type="number" min="1" placeholder="1"
-              class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              id="nf-numero" [value]="formNumero()" (input)="formNumero.set($any($event.target).value)" />
-            @if (erroDe('numero'); as e) { <p class="text-apoio text-destructive mt-1">{{ e.message }}</p> }
-          </div>
-          <div>
-            <label for="nf-serie" class="block text-apoio font-medium text-foreground mb-1.5">Série</label>
-            <input type="number" min="1" placeholder="1"
-              class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              id="nf-serie" [value]="formSerie()" (input)="formSerie.set($any($event.target).value)" />
-          </div>
-          <div>
-            <label for="nf-tipo" class="block text-apoio font-medium text-foreground mb-1.5">Tipo</label>
-            <select class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              id="nf-tipo" [value]="formTipoDoc()" (change)="formTipoDoc.set($any($event.target).value)">
-              <option value="NFE">NF-e</option>
-              <option value="NFA">NFA</option>
-            </select>
-          </div>
-        </div>
+  @if (abaNota() === 'carregar' && !formNotaId()) {
+    <div class="px-6 py-5">
+      <p class="mb-3 text-apoio leading-relaxed text-muted-foreground">
+        Recebeu uma nota de terceiro? Suba o XML e ela entra aqui como nota de entrada, sem digitar
+        nada.
+      </p>
+      <label
+        class="flex flex-col items-center justify-center gap-1.5 py-6 px-4 rounded-2xl border-2 border-dashed cursor-pointer transition-colors {{
+          dragOver() ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/40'
+        }}"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        @if (importando()) {
+          <svg lucideLoaderCircle [size]="24" class="animate-spin text-primary" />
+          <span class="text-apoio text-muted-foreground">Importando nota…</span>
+        } @else {
+          <svg lucideUpload [size]="24" class="text-muted-foreground" />
+          <span class="text-apoio font-medium text-foreground">Arraste o XML da NF-e aqui</span>
+          <span class="text-apoio text-muted-foreground">ou clique para selecionar</span>
+        }
+        <input
+          type="file"
+          accept=".xml"
+          class="hidden"
+          (change)="onFileImport($event)"
+          [disabled]="importando()"
+        />
+      </label>
+    </div>
+  }
 
-        <!-- Natureza / Data -->
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label for="nf-natureza" class="block text-apoio font-medium text-foreground mb-1.5">Natureza da Operação *</label>
-            <input type="text" placeholder="Ex: Venda de produção rural"
-              class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              id="nf-natureza" [value]="formNatureza()" (input)="formNatureza.set($any($event.target).value)" />
-            @if (erroDe('naturezaOperacao'); as e) { <p class="text-apoio text-destructive mt-1">{{ e.message }}</p> }
-          </div>
-          <div>
-            <label for="nf-data" class="block text-apoio font-medium text-foreground mb-1.5">Data de Emissão *</label>
-            <input type="date"
-              class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              id="nf-data" [value]="formData()" (change)="formData.set($any($event.target).value)" />
-            @if (erroDe('dataEmissao'); as e) { <p class="text-apoio text-destructive mt-1">{{ e.message }}</p> }
-          </div>
+  @if (abaNota() === 'ajustar' && !formNotaId()) {
+    <div class="px-6 py-5">
+      @if (notasParaAjustar().length === 0) {
+        <div class="flex flex-col items-center justify-center gap-2 py-10 text-center">
+          <svg lucideCircleCheck [size]="32" class="text-sucesso" />
+          <p class="text-apoio font-medium text-foreground">Nenhuma nota travada.</p>
+          <p class="text-apoio text-muted-foreground">
+            Quando o fisco recusar alguma, ela aparece aqui para você resolver.
+          </p>
         </div>
+      } @else {
+        <p class="mb-3 text-apoio leading-relaxed text-muted-foreground">
+          Estas notas não podem ser emitidas como estão. Corrija uma e você volta para esta lista,
+          com a próxima já à mão.
+        </p>
+        <ul class="flex flex-col gap-2">
+          @for (nota of notasParaAjustar(); track nota.id) {
+            <li
+              class="flex flex-wrap items-center justify-between gap-3 rounded-card border border-aviso/30 bg-aviso-soft p-3"
+            >
+              <div class="min-w-0">
+                <p class="text-apoio font-medium text-foreground">
+                  Nota {{ nota.numero }} · {{ nota.destinatarioNome }}
+                </p>
+                <p class="text-apoio text-muted-foreground">
+                  {{ formatDate(nota.dataEmissao) }} · {{ formatCurrency(nota.valorTotalNota) }}
+                </p>
+              </div>
+              <div class="flex shrink-0 items-center gap-2">
+                <ui-badge-status [status]="nota.status" />
+                <button
+                  class="tap-target inline-flex items-center gap-1.5 rounded-controle bg-primary px-3 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  (click)="corrigirDaFila(nota)"
+                >
+                  <svg lucidePencil [size]="15" />
+                  Corrigir
+                </button>
+              </div>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+  }
 
-        <!-- Secao 2: para quem a nota e emitida -->
-        <div class="flex items-center gap-2 pt-1">
-          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary">2</span>
-          <h3 class="font-heading text-base font-semibold text-foreground">Para quem</h3>
-          <span class="text-apoio text-muted-foreground">&middot; dados do destinatário</span>
-        </div>
-        <div>
-          <label for="nf-destnome" class="block text-apoio font-medium text-foreground mb-1.5">Nome/Razão Social do Destinatário *</label>
-          <input type="text" placeholder="Ex: Cooperativa Agrícola ABC Ltda"
-            class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-            id="nf-destnome" [value]="formDestNome()" (input)="formDestNome.set($any($event.target).value)" />
-          @if (erroDe('destinatarioNome'); as e) { <p class="text-apoio text-destructive mt-1">{{ e.message }}</p> }
-        </div>
+  <div
+    class="px-6 py-5 space-y-4"
+    [hidden]="(abaNota() === 'carregar' || abaNota() === 'ajustar') && !formNotaId()"
+  >
+    <!-- Banner de erros do backend -->
+    @if (erroNota().length) {
+      <div class="rounded-controle border border-destructive/30 bg-destructive/5 p-3">
+        <p class="text-apoio font-semibold text-destructive mb-2">
+          O servidor recusou os dados. Corrija:
+        </p>
+        <ul class="space-y-1.5">
+          @for (erro of erroNota(); track erro.code + erro.field) {
+            <li class="text-apoio text-foreground">
+              @if (erro.field) {
+                <span class="font-medium">{{ erro.field }}</span
+                >:
+              }
+              {{ erro.message }}
+              @if (erro.suggestion) {
+                <span class="block text-muted-foreground">{{ erro.suggestion }}</span>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
 
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label for="nf-cpfcnpj" class="block text-apoio font-medium text-foreground mb-1.5">CPF/CNPJ *</label>
-            <input type="text" placeholder="Só números (11 ou 14 dígitos)" maxlength="18"
-              class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              id="nf-cpfcnpj" [value]="formDestCpfCnpj()" (input)="formatCpfCnpj($event)" />
-            @if (!cpfCnpjValido()) { <p class="text-apoio text-destructive mt-1">CPF/CNPJ inválido (verifique os dígitos).</p> }
-            @if (erroDe('destinatarioCpfCnpj'); as e) { <p class="text-apoio text-destructive mt-1">{{ e.message }}</p> }
-          </div>
-          <div>
-            <label for="nf-destie" class="block text-apoio font-medium text-foreground mb-1.5">Inscrição Estadual</label>
-            <input type="text" placeholder="Opcional" maxlength="20"
-              class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              id="nf-destie" [value]="formDestIe()" (input)="formDestIe.set($any($event.target).value)" />
-          </div>
-        </div>
+    <!-- Secao 1: identificacao da nota -->
+    <div class="flex items-center gap-2 pt-1">
+      <span
+        class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary"
+        >1</span
+      >
+      <h3 class="font-heading text-base font-semibold text-foreground">A nota</h3>
+      <span class="text-apoio text-muted-foreground">&middot; numeração e data</span>
+    </div>
+    <div class="grid grid-cols-3 gap-3">
+      <div>
+        <label for="nf-numero" class="block text-apoio font-medium text-foreground mb-1.5"
+          >Número *</label
+        >
+        <input
+          type="number"
+          min="1"
+          placeholder="1"
+          class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          id="nf-numero"
+          [value]="formNumero()"
+          (input)="formNumero.set($any($event.target).value)"
+        />
+        @if (erroDe('numero'); as e) {
+          <p class="text-apoio text-destructive mt-1">{{ e.message }}</p>
+        }
+      </div>
+      <div>
+        <label for="nf-serie" class="block text-apoio font-medium text-foreground mb-1.5"
+          >Série</label
+        >
+        <input
+          type="number"
+          min="1"
+          placeholder="1"
+          class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          id="nf-serie"
+          [value]="formSerie()"
+          (input)="formSerie.set($any($event.target).value)"
+        />
+      </div>
+      <div>
+        <label for="nf-tipo" class="block text-apoio font-medium text-foreground mb-1.5"
+          >Tipo</label
+        >
+        <select
+          class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          id="nf-tipo"
+          [value]="formTipoDoc()"
+          (change)="formTipoDoc.set($any($event.target).value)"
+        >
+          <option value="NFE">NF-e</option>
+          <option value="NFA">NFA</option>
+        </select>
+      </div>
+    </div>
 
-        <!-- Endereco: sub-bloco da secao 2. Antes tinha moldura propria enquanto
+    <!-- Natureza / Data -->
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label for="nf-natureza" class="block text-apoio font-medium text-foreground mb-1.5"
+          >Natureza da Operação *</label
+        >
+        <input
+          type="text"
+          placeholder="Ex: Venda de produção rural"
+          class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          id="nf-natureza"
+          [value]="formNatureza()"
+          (input)="formNatureza.set($any($event.target).value)"
+        />
+        @if (erroDe('naturezaOperacao'); as e) {
+          <p class="text-apoio text-destructive mt-1">{{ e.message }}</p>
+        }
+      </div>
+      <div>
+        <label for="nf-data" class="block text-apoio font-medium text-foreground mb-1.5"
+          >Data de Emissão *</label
+        >
+        <input
+          type="date"
+          class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          id="nf-data"
+          [value]="formData()"
+          (change)="formData.set($any($event.target).value)"
+        />
+        @if (erroDe('dataEmissao'); as e) {
+          <p class="text-apoio text-destructive mt-1">{{ e.message }}</p>
+        }
+      </div>
+    </div>
+
+    <!-- Secao 2: para quem a nota e emitida -->
+    <div class="flex items-center gap-2 pt-1">
+      <span
+        class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary"
+        >2</span
+      >
+      <h3 class="font-heading text-base font-semibold text-foreground">Para quem</h3>
+      <span class="text-apoio text-muted-foreground">&middot; dados do destinatário</span>
+    </div>
+    <div>
+      <label for="nf-destnome" class="block text-apoio font-medium text-foreground mb-1.5"
+        >Nome/Razão Social do Destinatário *</label
+      >
+      <input
+        type="text"
+        placeholder="Ex: Cooperativa Agrícola ABC Ltda"
+        class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+        id="nf-destnome"
+        [value]="formDestNome()"
+        (input)="formDestNome.set($any($event.target).value)"
+      />
+      @if (erroDe('destinatarioNome'); as e) {
+        <p class="text-apoio text-destructive mt-1">{{ e.message }}</p>
+      }
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label for="nf-cpfcnpj" class="block text-apoio font-medium text-foreground mb-1.5"
+          >CPF/CNPJ *</label
+        >
+        <input
+          type="text"
+          placeholder="Só números (11 ou 14 dígitos)"
+          maxlength="18"
+          class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          id="nf-cpfcnpj"
+          [value]="formDestCpfCnpj()"
+          (input)="formatCpfCnpj($event)"
+        />
+        @if (!cpfCnpjValido()) {
+          <p class="text-apoio text-destructive mt-1">CPF/CNPJ inválido (verifique os dígitos).</p>
+        }
+        @if (erroDe('destinatarioCpfCnpj'); as e) {
+          <p class="text-apoio text-destructive mt-1">{{ e.message }}</p>
+        }
+      </div>
+      <div>
+        <label for="nf-destie" class="block text-apoio font-medium text-foreground mb-1.5"
+          >Inscrição Estadual</label
+        >
+        <input
+          type="text"
+          placeholder="Opcional"
+          maxlength="20"
+          class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          id="nf-destie"
+          [value]="formDestIe()"
+          (input)="formDestIe.set($any($event.target).value)"
+        />
+      </div>
+    </div>
+
+    <!-- Endereco: sub-bloco da secao 2. Antes tinha moldura propria enquanto
              os campos acima nao tinham nenhuma, o que sugeria uma hierarquia que
              nao existia -- os dois sao do destinatario. -->
-        <div class="space-y-3">
-          <p class="text-apoio font-medium text-foreground">
-            Endereço <span class="font-normal text-muted-foreground">(necessário para gerar o XML)</span>
-          </p>
-          <!-- Os campos tinham so `placeholder`, que some quando a pessoa digita e
+    <div class="space-y-3">
+      <p class="text-apoio font-medium text-foreground">
+        Endereço
+        <span class="font-normal text-muted-foreground">(necessário para gerar o XML)</span>
+      </p>
+      <!-- Os campos tinham so `placeholder`, que some quando a pessoa digita e
                nao vale como rotulo para leitor de tela. E justo o bloco onde o
                botao "Corrigir a nota" deposita quem veio arrumar o endereco. -->
-          <div class="grid grid-cols-3 gap-2">
-            <div class="col-span-2">
-              <label for="end-logradouro" class="mb-1 block text-apoio text-muted-foreground">Rua</label>
-              <input id="end-logradouro" type="text" placeholder="Av. Brasil" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                [value]="formEndLogradouro()" (input)="formEndLogradouro.set($any($event.target).value)" />
-            </div>
-            <div>
-              <label for="end-numero" class="mb-1 block text-apoio text-muted-foreground">Número</label>
-              <input id="end-numero" type="text" placeholder="1200" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                [value]="formEndNumero()" (input)="formEndNumero.set($any($event.target).value)" />
-            </div>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label for="end-municipio" class="mb-1 block text-apoio text-muted-foreground">Município</label>
-              <input id="end-municipio" type="text" placeholder="Sorriso" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                [value]="formEndMunicipio()" (input)="formEndMunicipio.set($any($event.target).value)" />
-            </div>
-            <div>
-              <label for="end-ibge" class="mb-1 block text-apoio text-muted-foreground">Cód. IBGE</label>
-              <input id="end-ibge" type="text" placeholder="5107925" maxlength="7" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                [value]="formEndIbge()" (input)="formEndIbge.set($any($event.target).value)" />
-            </div>
-            <div>
-              <label for="end-uf" class="mb-1 block text-apoio text-muted-foreground">UF</label>
-              <select id="end-uf" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                [value]="formEndUf()" (change)="formEndUf.set($any($event.target).value)">
-                <option value="">UF</option>
-                @for (uf of ufs; track uf) { <option [value]="uf">{{ uf }}</option> }
-              </select>
-            </div>
-          </div>
-          <div>
-            <label for="end-cep" class="mb-1 block text-apoio text-muted-foreground">CEP</label>
-            <input id="end-cep" type="text" placeholder="78890-000" maxlength="9" class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-              [value]="formEndCep()" (input)="formEndCep.set($any($event.target).value)" />
-          </div>
-          @if (!ibgeValido()) { <p class="text-apoio text-destructive">Código IBGE deve ter 7 dígitos.</p> }
-          @if (!cepValido()) { <p class="text-apoio text-destructive">CEP deve ter 8 dígitos.</p> }
-          @if (erroDe('destinatarioEndereco'); as e) { <p class="text-apoio text-destructive">{{ e.field }}: {{ e.message }}</p> }
+      <div class="grid grid-cols-3 gap-2">
+        <div class="col-span-2">
+          <label for="end-logradouro" class="mb-1 block text-apoio text-muted-foreground"
+            >Rua</label
+          >
+          <input
+            id="end-logradouro"
+            type="text"
+            placeholder="Av. Brasil"
+            class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+            [value]="formEndLogradouro()"
+            (input)="formEndLogradouro.set($any($event.target).value)"
+          />
         </div>
-
-        <!-- Secao 3: o que esta sendo vendido -->
-        <div class="flex items-center gap-2 pt-1">
-          <span class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary">3</span>
-          <h3 class="font-heading text-base font-semibold text-foreground">O que você está vendendo</h3>
-          <span class="text-apoio text-muted-foreground">&middot; produtos da nota</span>
-        </div>
-        <div class="space-y-3">
-          @for (item of formItens(); track $index; let idx = $index) {
-            <div class="border border-border rounded-controle p-3 space-y-2 bg-muted/30">
-              <div class="flex items-center justify-between">
-                <span class="text-apoio font-medium text-muted-foreground">Item {{ idx + 1 }}</span>
-                @if (formItens().length > 1) {
-                  <button class="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-destructive rounded" (click)="removeItem(idx)">
-                    <svg lucideTrash2 [size]="14" />
-                  </button>
-                }
-              </div>
-              <input type="text" placeholder="Descrição do produto *" [attr.aria-label]="'Descrição do produto ' + (idx + 1)"
-                class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                [value]="item.descricao" (input)="updateItem(idx, 'descricao', $any($event.target).value)" />
-              <div class="grid grid-cols-3 gap-2">
-                <input type="text" placeholder="Código" [attr.aria-label]="'Código do produto ' + (idx + 1)"
-                  class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  [value]="item.codigoProduto" (input)="updateItem(idx, 'codigoProduto', $any($event.target).value)" />
-                <input type="text" placeholder="NCM (8 díg) *" [attr.aria-label]="'NCM do produto ' + (idx + 1)" maxlength="8"
-                  class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  [value]="item.ncm" (input)="updateItem(idx, 'ncm', $any($event.target).value)" />
-                <input type="text" placeholder="CFOP (4 díg) *" [attr.aria-label]="'CFOP do produto ' + (idx + 1)" maxlength="4"
-                  class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  [value]="item.cfop" (input)="updateItem(idx, 'cfop', $any($event.target).value)" />
-              </div>
-              <div class="grid grid-cols-4 gap-2">
-                <input type="text" placeholder="Un *" [attr.aria-label]="'Unidade do produto ' + (idx + 1)"
-                  class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  [value]="item.unidade" (input)="updateItem(idx, 'unidade', $any($event.target).value)" />
-                <input type="number" placeholder="Qtde *" [attr.aria-label]="'Quantidade do produto ' + (idx + 1)" step="0.01"
-                  class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  [value]="item.quantidade" (input)="updateItem(idx, 'quantidade', $any($event.target).value)" />
-                <input type="number" placeholder="Vlr unit *" [attr.aria-label]="'Valor unitário do produto ' + (idx + 1)" step="0.01"
-                  class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-                  [value]="item.valorUnitario" (input)="updateItem(idx, 'valorUnitario', $any($event.target).value)" />
-                <input type="number" placeholder="Total" [attr.aria-label]="'Valor total do produto ' + (idx + 1)" step="0.01" readonly
-                  class="px-3 py-2 rounded-controle border border-border bg-muted text-apoio focus:outline-none"
-                  [value]="item.valorTotal" />
-              </div>
-              @if (itemErro(item); as msgErro) { <p class="text-apoio text-destructive">{{ msgErro }}</p> }
-            </div>
-          }
-          <button class="w-full flex items-center justify-center gap-1.5 py-2 rounded-controle border border-border text-apoio hover:bg-muted" (click)="addItem()">
-            <svg lucidePlus [size]="14" /> Adicionar item
-          </button>
-          <p class="text-apoio text-muted-foreground">Os totais e os impostos IBS/CBS são calculados pelo servidor.</p>
+        <div>
+          <label for="end-numero" class="mb-1 block text-apoio text-muted-foreground">Número</label>
+          <input
+            id="end-numero"
+            type="text"
+            placeholder="1200"
+            class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+            [value]="formEndNumero()"
+            (input)="formEndNumero.set($any($event.target).value)"
+          />
         </div>
       </div>
+      <div class="grid grid-cols-3 gap-2">
+        <div>
+          <label for="end-municipio" class="mb-1 block text-apoio text-muted-foreground"
+            >Município</label
+          >
+          <input
+            id="end-municipio"
+            type="text"
+            placeholder="Sorriso"
+            class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+            [value]="formEndMunicipio()"
+            (input)="formEndMunicipio.set($any($event.target).value)"
+          />
+        </div>
+        <div>
+          <label for="end-ibge" class="mb-1 block text-apoio text-muted-foreground"
+            >Cód. IBGE</label
+          >
+          <input
+            id="end-ibge"
+            type="text"
+            placeholder="5107925"
+            maxlength="7"
+            class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+            [value]="formEndIbge()"
+            (input)="formEndIbge.set($any($event.target).value)"
+          />
+        </div>
+        <div>
+          <label for="end-uf" class="mb-1 block text-apoio text-muted-foreground">UF</label>
+          <select
+            id="end-uf"
+            class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+            [value]="formEndUf()"
+            (change)="formEndUf.set($any($event.target).value)"
+          >
+            <option value="">UF</option>
+            @for (uf of ufs; track uf) {
+              <option [value]="uf">{{ uf }}</option>
+            }
+          </select>
+        </div>
+      </div>
+      <div>
+        <label for="end-cep" class="mb-1 block text-apoio text-muted-foreground">CEP</label>
+        <input
+          id="end-cep"
+          type="text"
+          placeholder="78890-000"
+          maxlength="9"
+          class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          [value]="formEndCep()"
+          (input)="formEndCep.set($any($event.target).value)"
+        />
+      </div>
+      @if (!ibgeValido()) {
+        <p class="text-apoio text-destructive">Código IBGE deve ter 7 dígitos.</p>
+      }
+      @if (!cepValido()) {
+        <p class="text-apoio text-destructive">CEP deve ter 8 dígitos.</p>
+      }
+      @if (erroDe('destinatarioEndereco'); as e) {
+        <p class="text-apoio text-destructive">{{ e.field }}: {{ e.message }}</p>
+      }
+    </div>
 
+    <!-- Secao 3: o que esta sendo vendido -->
+    <div class="flex items-center gap-2 pt-1">
+      <span
+        class="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-apoio font-semibold text-primary"
+        >3</span
+      >
+      <h3 class="font-heading text-base font-semibold text-foreground">O que você está vendendo</h3>
+      <span class="text-apoio text-muted-foreground">&middot; produtos da nota</span>
+    </div>
+    <div class="space-y-3">
+      @for (item of formItens(); track $index; let idx = $index) {
+        <div class="border border-border rounded-controle p-3 space-y-2 bg-muted/30">
+          <div class="flex items-center justify-between">
+            <span class="text-apoio font-medium text-muted-foreground">Item {{ idx + 1 }}</span>
+            @if (formItens().length > 1) {
+              <button
+                class="w-7 h-7 flex items-center justify-center text-muted-foreground hover:text-destructive rounded"
+                (click)="removeItem(idx)"
+              >
+                <svg lucideTrash2 [size]="14" />
+              </button>
+            }
+          </div>
+          <input
+            type="text"
+            placeholder="Descrição do produto *"
+            [attr.aria-label]="'Descrição do produto ' + (idx + 1)"
+            class="w-full px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+            [value]="item.descricao"
+            (input)="updateItem(idx, 'descricao', $any($event.target).value)"
+          />
+          <div class="grid grid-cols-3 gap-2">
+            <input
+              type="text"
+              placeholder="Código"
+              [attr.aria-label]="'Código do produto ' + (idx + 1)"
+              class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="item.codigoProduto"
+              (input)="updateItem(idx, 'codigoProduto', $any($event.target).value)"
+            />
+            <input
+              type="text"
+              placeholder="NCM (8 díg) *"
+              [attr.aria-label]="'NCM do produto ' + (idx + 1)"
+              maxlength="8"
+              class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="item.ncm"
+              (input)="updateItem(idx, 'ncm', $any($event.target).value)"
+            />
+            <input
+              type="text"
+              placeholder="CFOP (4 díg) *"
+              [attr.aria-label]="'CFOP do produto ' + (idx + 1)"
+              maxlength="4"
+              class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="item.cfop"
+              (input)="updateItem(idx, 'cfop', $any($event.target).value)"
+            />
+          </div>
+          <div class="grid grid-cols-4 gap-2">
+            <input
+              type="text"
+              placeholder="Un *"
+              [attr.aria-label]="'Unidade do produto ' + (idx + 1)"
+              class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="item.unidade"
+              (input)="updateItem(idx, 'unidade', $any($event.target).value)"
+            />
+            <input
+              type="number"
+              placeholder="Qtde *"
+              [attr.aria-label]="'Quantidade do produto ' + (idx + 1)"
+              step="0.01"
+              class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="item.quantidade"
+              (input)="updateItem(idx, 'quantidade', $any($event.target).value)"
+            />
+            <input
+              type="number"
+              placeholder="Vlr unit *"
+              [attr.aria-label]="'Valor unitário do produto ' + (idx + 1)"
+              step="0.01"
+              class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="item.valorUnitario"
+              (input)="updateItem(idx, 'valorUnitario', $any($event.target).value)"
+            />
+            <input
+              type="number"
+              placeholder="Total"
+              [attr.aria-label]="'Valor total do produto ' + (idx + 1)"
+              step="0.01"
+              readonly
+              class="px-3 py-2 rounded-controle border border-border bg-muted text-apoio focus:outline-none"
+              [value]="item.valorTotal"
+            />
+          </div>
+          @if (itemErro(item); as msgErro) {
+            <p class="text-apoio text-destructive">{{ msgErro }}</p>
+          }
+        </div>
+      }
+      <button
+        class="w-full flex items-center justify-center gap-1.5 py-2 rounded-controle border border-border text-apoio hover:bg-muted"
+        (click)="addItem()"
+      >
+        <svg lucidePlus [size]="14" /> Adicionar item
+      </button>
+      <p class="text-apoio text-muted-foreground">
+        Os totais e os impostos IBS/CBS são calculados pelo servidor.
+      </p>
+    </div>
+  </div>
 
   <!-- O aviso vive no rodape porque o rodape e fixo: antes ele ficava no fim de
        1.173px de formulario, e a pessoa via o botao apagado sem o motivo a vista. -->
@@ -824,11 +1139,7 @@
     </ui-button>
     <!-- Na aba de carregar nao ha o que salvar: o arquivo e enviado ao escolher. -->
     @if (abaNota() === 'criar' || formNotaId()) {
-      <ui-button
-        [disabled]="!canSubmitNota()"
-        [carregando]="salvando()"
-        (click)="salvarNota()"
-      >
+      <ui-button [disabled]="!canSubmitNota()" [carregando]="salvando()" (click)="salvarNota()">
         {{ salvando() ? 'Salvando...' : formNotaId() ? 'Salvar alterações' : 'Criar nota' }}
       </ui-button>
     }
