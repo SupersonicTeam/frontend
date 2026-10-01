@@ -475,4 +475,115 @@ describe('DocumentosPage', () => {
       expect(texto).toContain('1 de 15');
     });
   });
+
+  /**
+   * Tres ideias que o dono aprovou de uma vez: agrupar por mes, adensar a grade
+   * e fazer os filtros falarem. Os testes guardam o comportamento, nao o visual.
+   */
+  describe('agrupamento por mes e filtros', () => {
+    function comNotas(notas: unknown[], total = notas.length) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: notas, totalElements: total });
+      flushPendencias();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function nota(id: string, dataEmissao: string, extra: Record<string, unknown> = {}) {
+      return {
+        id,
+        numero: Number(id.slice(1)),
+        status: 'AUTORIZADA',
+        naturezaOperacao: 'Venda de producao',
+        dataEmissao,
+        destinatarioNome: 'Cerealista Sorriso Ltda',
+        destinatarioCpfCnpj: '00000000000191',
+        valorTotalNota: 1000,
+        itens: [],
+        ...extra,
+      };
+    }
+
+    it('separa as notas em um grupo por mes de emissao', () => {
+      const fixture = comNotas([
+        nota('n1', '2026-09-10T00:00:00Z'),
+        nota('n2', '2026-09-02T00:00:00Z'),
+        nota('n3', '2026-08-15T00:00:00Z'),
+      ]);
+      const grupos = fixture.componentInstance.notasPorMes();
+
+      expect(grupos.map((g) => g.chave)).toEqual(['2026-09', '2026-08']);
+      expect(grupos[0].notas.length).toBe(2);
+      expect(grupos[1].notas.length).toBe(1);
+    });
+
+    it('o cabecalho do mes sai por extenso e em portugues', () => {
+      const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
+      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+      expect(texto).toContain('Setembro de 2026');
+      expect(texto).toContain('1 nota(s)');
+    });
+
+    it('ordenado por valor nao agrupa — um cabecalho de mes mentiria sobre a sequencia', () => {
+      const fixture = comNotas([
+        nota('n1', '2026-09-10T00:00:00Z', { valorTotalNota: 100 }),
+        nota('n2', '2026-08-01T00:00:00Z', { valorTotalNota: 900 }),
+      ]);
+      const cmp = fixture.componentInstance;
+
+      cmp.ordenacao.set('valor');
+      fixture.detectChanges();
+
+      expect(cmp.notasPorMes()).toEqual([]);
+      // A lista continua inteira: so perdeu os cabecalhos.
+      expect(cmp.listaAgrupada().length).toBe(1);
+      expect(cmp.listaAgrupada()[0].notas.length).toBe(2);
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Setembro de 2026');
+    });
+
+    it('sem filtro ativo nao oferece "Limpar filtros"', () => {
+      const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
+
+      expect(fixture.componentInstance.temFiltroAtivo()).toBe(false);
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Limpar filtros');
+    });
+
+    it('com busca ativa, diz quantas sobraram e oferece limpar', () => {
+      const fixture = comNotas([
+        nota('n1', '2026-09-10T00:00:00Z', { destinatarioNome: 'Cerealista Sorriso Ltda' }),
+        nota('n2', '2026-09-11T00:00:00Z', { destinatarioNome: 'Frigorifico Norte' }),
+      ]);
+      const cmp = fixture.componentInstance;
+
+      cmp.busca.set('Sorriso');
+      fixture.detectChanges();
+
+      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(cmp.temFiltroAtivo()).toBe(true);
+      expect(texto).toContain('1 de 2 nesta página');
+      expect(texto).toContain('Limpar filtros');
+    });
+
+    it('limparFiltros devolve os quatro filtros ao estado neutro', () => {
+      const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
+      const cmp = fixture.componentInstance;
+
+      cmp.busca.set('qualquer');
+      cmp.periodo.set('2026-09');
+      cmp.tipo.set('NFE');
+      cmp.statusFilter.set('AUTORIZADA');
+      expect(cmp.temFiltroAtivo()).toBe(true);
+
+      cmp.limparFiltros();
+      fixture.detectChanges();
+
+      expect(cmp.temFiltroAtivo()).toBe(false);
+      expect(cmp.busca()).toBe('');
+      expect(cmp.periodo()).toBe('todos');
+      expect(cmp.tipo()).toBe('todos');
+      expect(cmp.statusFilter()).toBe('todos');
+    });
+  });
 });

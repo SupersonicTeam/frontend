@@ -6,7 +6,6 @@ import {
   LucideFileText,
   LucideSearch,
   LucideUpload,
-  LucideEye,
   LucideDownload,
   LucideFile,
   LucideCircleCheck,
@@ -21,6 +20,7 @@ import {
   LucideTriangleAlert,
   LucideSend,
   LucideSparkles,
+  LucideX,
 } from '@lucide/angular';
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
@@ -164,7 +164,6 @@ function cpfCnpjValido(v: string): boolean {
     LucideFileText,
     LucideSearch,
     LucideUpload,
-    LucideEye,
     LucideDownload,
     LucideFile,
     LucideCircleCheck,
@@ -180,6 +179,7 @@ function cpfCnpjValido(v: string): boolean {
     LucideSend,
     LucideSparkles,
     NotaPreview,
+    LucideX,
   ],
   templateUrl: './documentos.html',
 })
@@ -316,6 +316,66 @@ export class DocumentosPage implements OnInit {
 
     return lista;
   });
+
+  /**
+   * Notas agrupadas por mes de emissao.
+   *
+   * A lista atravessa setembro, agosto, julho, junho e maio sem nenhuma marca de
+   * transicao -- doze cards seguidos em que so a data em texto pequeno diz que
+   * mudou de mes. Agrupando, a pessoa se localiza sem ler data por data.
+   *
+   * So agrupa quando a ordenacao e por data: ordenado por valor, um cabecalho de
+   * mes mentiria sobre a sequencia.
+   */
+  readonly notasPorMes = computed(() => {
+    if (this.ordenacao() !== 'data') return [];
+
+    const grupos = new Map<string, { rotulo: string; notas: NotaFiscal[] }>();
+    for (const nota of this.notasFiltradas()) {
+      const chave = (nota.dataEmissao ?? '').slice(0, 7); // YYYY-MM
+      if (!grupos.has(chave)) {
+        grupos.set(chave, { rotulo: this.rotuloDoMes(chave), notas: [] });
+      }
+      grupos.get(chave)!.notas.push(nota);
+    }
+    return [...grupos.entries()].map(([chave, g]) => ({ chave, ...g }));
+  });
+
+  /** `2026-09` vira "Setembro de 2026". Mes invalido devolve "Sem data". */
+  private rotuloDoMes(periodo: string): string {
+    const [ano, mes] = periodo.split('-');
+    const data = new Date(Number(ano), Number(mes) - 1, 1);
+    if (Number.isNaN(data.getTime())) return 'Sem data';
+    const texto = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  /**
+   * O que o template percorre: grupos por mes quando ordenado por data, ou um
+   * unico grupo sem rotulo quando ordenado por valor. Assim o template tem um
+   * caminho so, em vez de dois blocos quase iguais.
+   */
+  readonly listaAgrupada = computed(() => {
+    const porMes = this.notasPorMes();
+    if (porMes.length) return porMes;
+    return [{ chave: 'todas', rotulo: '', notas: this.notasFiltradas() }];
+  });
+
+  /** Algum filtro esta ativo? Decide se vale oferecer "limpar". */
+  readonly temFiltroAtivo = computed(
+    () =>
+      this.periodo() !== 'todos' ||
+      this.tipo() !== 'todos' ||
+      this.statusFilter() !== 'todos' ||
+      this.busca().trim().length > 0,
+  );
+
+  limparFiltros(): void {
+    this.periodo.set('todos');
+    this.tipo.set('todos');
+    this.statusFilter.set('todos');
+    this.busca.set('');
+  }
 
   readonly solicitacoesFiltradas = computed(() => {
     const busca = this.busca().toLowerCase();
