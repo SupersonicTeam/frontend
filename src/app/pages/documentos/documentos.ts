@@ -21,6 +21,7 @@ import {
   LucideSend,
   LucideSparkles,
   LucideX,
+  LucideChevronDown,
 } from '@lucide/angular';
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
@@ -180,6 +181,7 @@ function cpfCnpjValido(v: string): boolean {
     LucideSparkles,
     NotaPreview,
     LucideX,
+    LucideChevronDown,
   ],
   templateUrl: './documentos.html',
 })
@@ -208,7 +210,20 @@ export class DocumentosPage implements OnInit {
   // Carregamento de notas + paginação server-side (Page<T> do Spring)
   notasErro = signal(false);
   pageIndex = signal(0);
-  pageSize = signal(12);
+  /**
+   * **Provisório, e o número é o sintoma de um problema real.**
+   *
+   * Filtrar é trabalho do servidor, mas o `GET /api/notas` aceita só `Pageable`
+   * — nenhum parâmetro de status, tipo, data ou busca. Então os filtros desta
+   * tela rodam em memória, sobre o que veio na página. Com 12 por página e 15
+   * notas na base, o filtro **não enxergava 3 delas**: digitar o nome de um
+   * destinatário da página 2 devolvia "nenhuma nota".
+   *
+   * Subir para 100 faz o filtro parar de mentir enquanto o backend não expõe os
+   * parâmetros (issue aberta para o Murillo). Quando a rota existir, isto volta
+   * para 12 e o filtro em memória é apagado.
+   */
+  pageSize = signal(100);
   totalElements = signal(0);
 
   // Importar nota via XML (drag-and-drop)
@@ -360,6 +375,58 @@ export class DocumentosPage implements OnInit {
     if (porMes.length) return porMes;
     return [{ chave: 'todas', rotulo: '', notas: this.notasFiltradas() }];
   });
+
+  /**
+   * Meses que o produtor fechou. Guarda o **fechado**, nao o aberto: assim um mes
+   * novo que aparece na lista ja nasce aberto, sem ninguem precisar lembrar de
+   * registra-lo em lugar nenhum.
+   */
+  private readonly mesesFechados = signal<ReadonlySet<string>>(new Set());
+
+  /**
+   * Com filtro ligado, tudo fica aberto -- quem esta procurando nao pode ter o
+   * resultado escondido atras de um mes fechado. O que ele fechou nao se perde:
+   * `mesesFechados` continua intacto e volta a valer quando o filtro sai.
+   */
+  mesAberto(chave: string): boolean {
+    if (this.temFiltroAtivo()) return true;
+    return !this.mesesFechados().has(chave);
+  }
+
+  alternarMes(chave: string): void {
+    this.mesesFechados.update((atual) => {
+      const proximo = new Set(atual);
+      if (!proximo.delete(chave)) proximo.add(chave);
+      return proximo;
+    });
+  }
+
+  /** Quantos meses estao abertos agora -- decide o rotulo do botao global. */
+  readonly todosOsMesesAbertos = computed(() =>
+    this.notasPorMes().every((g) => !this.mesesFechados().has(g.chave)),
+  );
+
+  alternarTodosOsMeses(): void {
+    if (this.todosOsMesesAbertos()) {
+      this.mesesFechados.set(new Set(this.notasPorMes().map((g) => g.chave)));
+    } else {
+      this.mesesFechados.set(new Set());
+    }
+  }
+
+  /** Soma do mes, para o cabecalho dizer algo util mesmo fechado. */
+  totalDoGrupo(notas: readonly NotaFiscal[]): number {
+    return notas.reduce((soma, n) => soma + (n.valorTotalNota ?? 0), 0);
+  }
+
+  /**
+   * A pagina atual ja contem todas as notas do produtor?
+   *
+   * Enquanto for verdade, o filtro em memoria da o mesmo resultado que um filtro
+   * no servidor daria, e a contagem pode falar da base inteira. Se um dia passar
+   * de `pageSize`, a contagem volta a dizer "nesta pagina" -- que e a verdade.
+   */
+  readonly tudoCarregado = computed(() => this.notas().length >= this.totalElements());
 
   /** Algum filtro esta ativo? Decide se vale oferecer "limpar". */
   readonly temFiltroAtivo = computed(

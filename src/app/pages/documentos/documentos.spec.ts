@@ -562,7 +562,9 @@ describe('DocumentosPage', () => {
 
       const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
       expect(cmp.temFiltroAtivo()).toBe(true);
-      expect(texto).toContain('1 de 2 nesta página');
+      expect(texto).toContain('1 de 2');
+      // Tudo carregado: dizer "nesta página" sugeriria que há nota fora do filtro.
+      expect(texto).not.toContain('nesta página');
       expect(texto).toContain('Limpar filtros');
     });
 
@@ -584,6 +586,129 @@ describe('DocumentosPage', () => {
       expect(cmp.periodo()).toBe('todos');
       expect(cmp.tipo()).toBe('todos');
       expect(cmp.statusFilter()).toBe('todos');
+    });
+  });
+
+  /**
+   * Com varios meses na tela a lista fica longa; fechar um mes e como fechar uma
+   * pasta. O estado guardado e o **fechado**, para um mes novo nascer aberto.
+   */
+  describe('abrir e fechar os meses', () => {
+    function comNotas(notas: unknown[], total = notas.length) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: notas, totalElements: total });
+      flushPendencias();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function nota(id: string, dataEmissao: string) {
+      return {
+        id,
+        numero: Number(id.slice(1)),
+        status: 'AUTORIZADA',
+        naturezaOperacao: 'Venda de producao',
+        dataEmissao,
+        destinatarioNome: 'Cerealista Sorriso Ltda',
+        destinatarioCpfCnpj: '00000000000191',
+        valorTotalNota: 1000,
+        itens: [],
+      };
+    }
+
+    const doisMeses = () => [
+      nota('n1', '2026-09-10T00:00:00Z'),
+      nota('n2', '2026-08-05T00:00:00Z'),
+    ];
+
+    it('todo mes comeca aberto', () => {
+      const cmp = comNotas(doisMeses()).componentInstance;
+
+      expect(cmp.mesAberto('2026-09')).toBe(true);
+      expect(cmp.mesAberto('2026-08')).toBe(true);
+      expect(cmp.todosOsMesesAbertos()).toBe(true);
+    });
+
+    it('fechar um mes tira os cards dele do DOM, e so os dele', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.alternarMes('2026-09');
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+      expect(cmp.mesAberto('2026-08')).toBe(true);
+      // O cabecalho continua; o conteudo nao.
+      expect(el.textContent).toContain('Setembro de 2026');
+      expect(el.querySelectorAll('#notas-2026-09 > div.bg-card').length).toBe(0);
+      expect(el.querySelectorAll('#notas-2026-08 > div.bg-card').length).toBe(1);
+    });
+
+    it('o cabecalho anuncia o estado para leitor de tela', () => {
+      const fixture = comNotas(doisMeses());
+      const botao = (fixture.nativeElement as HTMLElement).querySelector(
+        '[aria-controls="notas-2026-09"]',
+      );
+
+      expect(botao?.getAttribute('aria-expanded')).toBe('true');
+
+      fixture.componentInstance.alternarMes('2026-09');
+      fixture.detectChanges();
+      expect(botao?.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('o cabecalho mostra a soma do mes — serve de resumo com o mes fechado', () => {
+      const fixture = comNotas([
+        nota('n1', '2026-09-10T00:00:00Z'),
+        nota('n2', '2026-09-20T00:00:00Z'),
+      ]);
+      fixture.componentInstance.alternarMes('2026-09');
+      fixture.detectChanges();
+
+      const texto =
+        (fixture.nativeElement as HTMLElement).textContent?.replace(/\u00a0/g, ' ') ?? '';
+      expect(texto).toContain('R$ 2.000,00');
+    });
+
+    it('com filtro ativo tudo reabre — resultado nao pode ficar escondido', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.alternarMes('2026-09');
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+
+      cmp.busca.set('Cerealista');
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-09')).toBe(true);
+
+      // E o que ele fechou nao se perdeu: volta a valer quando o filtro sai.
+      cmp.limparFiltros();
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+    });
+
+    it('o botao global fecha todos e depois reabre todos', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.alternarTodosOsMeses();
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+      expect(cmp.mesAberto('2026-08')).toBe(false);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Expandir todos');
+
+      cmp.alternarTodosOsMeses();
+      fixture.detectChanges();
+      expect(cmp.todosOsMesesAbertos()).toBe(true);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Recolher todos');
+    });
+
+    it('com um mes so, nao oferece o botao global', () => {
+      const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
+
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Recolher todos');
     });
   });
 });
