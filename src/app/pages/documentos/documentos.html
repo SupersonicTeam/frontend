@@ -248,16 +248,18 @@
                         {{ nota.naturezaOperacao || 'NF-e ' + nota.numero }}
                       </p>
                       <div class="flex shrink-0 items-center gap-1.5">
-                        <!-- Abre o assistente com esta nota do lado. Quando ela tem pendencia,
+                        <!-- Abre a Ceres com esta nota do lado. Quando ela tem pendencia,
                        a gaveta ja traz o que o fisco apontou em /notas/{id}/validacoes. -->
-                        <button
-                          class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-assistente-borda bg-assistente-soft px-3 text-apoio text-assistente-ink transition-colors hover:bg-assistente/15"
-                          [attr.aria-label]="'Perguntar ao assistente sobre a nota ' + nota.numero"
-                          title="Perguntar ao assistente"
-                          (click)="perguntarSobre(nota)"
-                        >
-                          <svg lucideSparkles [size]="14" />
-                        </button>
+                        @if (assistenteDisponivel()) {
+                          <button
+                            class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-assistente-borda bg-assistente-soft px-3 text-apoio text-assistente-ink transition-colors hover:bg-assistente/15"
+                            [attr.aria-label]="'Perguntar a Ceres sobre a nota ' + nota.numero"
+                            title="Perguntar a Ceres"
+                            (click)="perguntarSobre(nota)"
+                          >
+                            <svg lucideSparkles [size]="14" />
+                          </button>
+                        }
                         @if (podeEditar(nota)) {
                           <button
                             class="tap-target flex items-center justify-center gap-1.5 rounded-controle border border-border px-3 text-apoio transition-colors hover:bg-muted"

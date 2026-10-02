@@ -188,6 +188,12 @@ function cpfCnpjValido(v: string): boolean {
 export class DocumentosPage implements OnInit {
   private readonly notasApi = inject(NotasApi);
   private readonly assistente = inject(AssistenteStore);
+
+  /**
+   * A Ceres atende produtor (`403 PAPEL_NAO_AUTORIZADO` para contador), então o
+   * botão de perguntar sobre a nota só existe para quem ela atende.
+   */
+  protected readonly assistenteDisponivel = this.assistente.disponivel;
   protected readonly perfilService = inject(PerfilService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

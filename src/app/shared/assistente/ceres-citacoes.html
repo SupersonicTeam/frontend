@@ -1,0 +1,44 @@
+@if (citacoes().length > 0) {
+  <section
+    class="mt-3 rounded-controle border border-assistente-borda bg-assistente-soft/60 p-3"
+    aria-label="Base legal da resposta"
+  >
+    <p class="flex items-center gap-1.5 text-apoio font-semibold text-assistente-ink">
+      <svg lucideScale [size]="14" aria-hidden="true" />
+      Base legal
+    </p>
+
+    <ul class="mt-2 flex flex-col gap-3">
+      @for (citacao of citacoes(); track citacao.norma + citacao.dispositivo + $index) {
+        <li>
+          <a
+            [href]="citacao.url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="tap-target inline-flex items-center gap-1.5 py-1 text-apoio font-medium text-assistente-ink underline decoration-assistente/40 underline-offset-2 hover:decoration-assistente"
+          >
+            {{ citacao.norma }}, {{ citacao.dispositivo }}
+            <svg lucideExternalLink [size]="12" aria-hidden="true" />
+            <span class="sr-only">(abre o texto oficial no Planalto em nova aba)</span>
+          </a>
+
+          @if (citacao.trecho) {
+            <details class="mt-1 group">
+              <summary
+                class="tap-target inline-flex cursor-pointer items-center py-1 text-apoio text-muted-foreground hover:text-foreground"
+              >
+                <span class="group-open:hidden">ver trecho da lei</span>
+                <span class="hidden group-open:inline">esconder o trecho</span>
+              </summary>
+              <p
+                class="mt-1 border-l-2 border-assistente-borda pl-3 text-apoio leading-relaxed whitespace-pre-line text-muted-foreground"
+              >
+                {{ citacao.trecho }}
+              </p>
+            </details>
+          }
+        </li>
+      }
+    </ul>
+  </section>
+}
