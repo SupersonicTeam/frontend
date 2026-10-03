@@ -27,8 +27,8 @@ describe('apiInterceptor (toast global de erro)', () => {
   afterEach(() => httpMock.verify());
 
   it('exibe toast amigável (do ApiError) em endpoint não tratado localmente', () => {
-    http.get('/apuracao').subscribe({ next: () => undefined, error: () => undefined });
-    httpMock.expectOne('/api/apuracao').flush(
+    http.get('/produtores/1').subscribe({ next: () => undefined, error: () => undefined });
+    httpMock.expectOne('/api/produtores/1').flush(
       { message: 'Falha', errors: [{ code: 'X', message: 'Período inválido' }] },
       { status: 500, statusText: 'Server Error' },
     );
@@ -45,8 +45,8 @@ describe('apiInterceptor (toast global de erro)', () => {
   });
 
   it('respeita skipErrorNotify() na requisição', () => {
-    http.get('/apuracao', { context: skipErrorNotify() }).subscribe({ next: () => undefined, error: () => undefined });
-    httpMock.expectOne('/api/apuracao').flush({ message: 'x' }, { status: 500, statusText: 'x' });
+    http.get('/produtores/1', { context: skipErrorNotify() }).subscribe({ next: () => undefined, error: () => undefined });
+    httpMock.expectOne('/api/produtores/1').flush({ message: 'x' }, { status: 500, statusText: 'x' });
     expect(toast.toasts().length).toBe(0);
   });
 
@@ -74,4 +74,36 @@ describe('mensagemDeEnvelope (INT-12 — reusável no fluxo de blob)', () => {
   it('envelope nulo com status 5xx → mensagem genérica de servidor', () => {
     expect(mensagemDeEnvelope(null, 500)).toBe('Erro no servidor. Tente novamente em instantes.');
   });
+});
+
+/**
+ * Tela que já mostra o erro no lugar certo não precisa de toast por cima. Medido na tela de
+ * Impostos com o servidor fora: três cards com "Não foi possível carregar…" **e** três toasts
+ * dizendo a mesma coisa.
+ */
+describe('apiInterceptor (sem toast onde a tela já trata)', () => {
+  it.each(['/apuracao', '/creditos', '/relatorios/conformidade'])(
+    'não exibe toast para %s — o card da tela tem o próprio "Tentar novamente"',
+    (endpoint) => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttpClient(withInterceptors([apiInterceptor])),
+          provideHttpClientTesting(),
+          ToastService,
+        ],
+      });
+      const http = TestBed.inject(HttpClient);
+      const httpMock = TestBed.inject(HttpTestingController);
+      const toast = TestBed.inject(ToastService);
+
+      http.get(endpoint).subscribe({ next: () => undefined, error: () => undefined });
+      httpMock
+        .expectOne(`/api${endpoint}`)
+        .flush({ message: 'boom' }, { status: 500, statusText: 'Server Error' });
+
+      expect(toast.toasts().length).toBe(0);
+      httpMock.verify();
+    },
+  );
 });

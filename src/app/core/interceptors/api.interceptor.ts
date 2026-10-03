@@ -19,6 +19,12 @@ const PREFIXOS_SEM_TOAST = [
   '/api/contador',
   '/api/notificacao',
   '/api/chat',
+  // Tributário: cada card da tela tem o próprio estado de erro com "Tentar novamente".
+  // Sem isto, uma queda do servidor empilhava **três** toasts por cima de três avisos que já
+  // diziam a mesma coisa — medido na tela, com o backend fora do ar.
+  '/api/apuracao',
+  '/api/creditos',
+  '/api/relatorios',
 ];
 
 /**
