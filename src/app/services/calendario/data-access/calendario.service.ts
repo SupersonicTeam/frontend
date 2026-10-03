@@ -1,54 +1,107 @@
 import { Injectable, inject } from '@angular/core';
-import { Observable, of, catchError, map } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import { ApiService } from '@core/services/api.service';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
 
-interface CalendarioVencimento {
-  id?: string;
-  evento?: string; // backend usa este campo p/ o nome
-  nome?: string;
-  titulo?: string;
-  descricao?: string;
-  dataVencimento?: string;
-  data?: string;
-  tipo?: string;
-  status?: string; // backend: vencido | urgente | normal
-  valor?: number;
-  obrigatorio?: boolean;
+/**
+ * Resposta de `GET /api/calendario-fiscal/{produtorId}/vencimentos`
+ * (`VencimentoFiscalResponse` do backend Spring).
+ *
+ * Os campos são obrigatórios no contrato — `descricao` e `valor` podem vir nulos. Tipar como
+ * opcional o que o backend garante só serviria para justificar um valor inventado quando faltasse.
+ */
+interface VencimentoFiscalResponse {
+  id: string;
+  /** Título exibido no calendário (ex.: "Guia ICMS"). */
+  evento: string;
+  descricao?: string | null;
+  /** `AAAA-MM-DD`. */
+  dataVencimento: string;
+  /** Hoje sempre `imposto`; o backend reserva obrigacao/declaracao/solicitacao. */
+  tipo: string;
+  /** `pendente` · `pago` · `vencido`. */
+  status: string;
+  valor?: number | null;
+}
+
+const TIPOS: readonly VencimentoFiscal['tipo'][] = [
+  'imposto',
+  'obrigacao',
+  'declaracao',
+  'solicitacao',
+];
+const STATUS: readonly VencimentoFiscal['status'][] = ['pendente', 'pago', 'vencido'];
+
+/** Janela pedida ao servidor. Datas em `AAAA-MM-DD`, extremos inclusivos. */
+export interface JanelaVencimentos {
+  de: string;
+  ate: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class CalendarioApi {
   private readonly api = inject(ApiService);
 
-  // Backend: GET /calendario-fiscal/:produtorId/vencimentos
-  // Sem fallback mock: em falha, o erro propaga para a página tratar (erro + retry).
-  getVencimentos(produtorId?: string): Observable<VencimentoFiscal[]> {
-    const id = produtorId || 'default';
+  /**
+   * `GET /api/calendario-fiscal/{produtorId}/vencimentos` — as guias do produtor na janela pedida.
+   *
+   * **A janela é do servidor, não da tela.** Sem `de`/`ate` o backend devolve o mês corrente ±12
+   * meses: navegar para fora disso traria lista vazia, indistinguível de "não há nada a pagar".
+   * Por isso a página pede o mês que está mostrando.
+   *
+   * Em falha o erro propaga — a tela mostra o estado de erro com "Tentar novamente", nunca um
+   * vencimento inventado.
+   */
+  getVencimentos(produtorId: string, janela?: JanelaVencimentos): Observable<VencimentoFiscal[]> {
     return this.api
-      .get<CalendarioVencimento[]>(`/calendario-fiscal/${id}/vencimentos`)
-      .pipe(map(items => items.map(item => this.mapToVencimento(item))));
+      .get<VencimentoFiscalResponse[]>(
+        `/calendario-fiscal/${produtorId}/vencimentos`,
+        janela ? { de: janela.de, ate: janela.ate } : undefined,
+      )
+      .pipe(map((itens) => (itens ?? []).flatMap((item) => this.paraVencimento(item))));
   }
 
-  // Backend: GET /calendario-fiscal/:produtorId/resumo
-  getResumo(produtorId: string): Observable<unknown> {
-    return this.api.get<unknown>(`/calendario-fiscal/${produtorId}/resumo`).pipe(
-      catchError(() => of(null))
-    );
+  /**
+   * Converte um item do contrato. **Nada é preenchido por adivinhação**: item sem `id` ou sem
+   * `dataVencimento` é descartado, porque a alternativa (id aleatório, data de hoje) coloca na
+   * tela do produtor um prazo fiscal que o servidor nunca informou.
+   *
+   * Devolve lista para o `flatMap` do chamador poder descartar sem `null`.
+   */
+  private paraVencimento(item: VencimentoFiscalResponse): VencimentoFiscal[] {
+    const data = (item.dataVencimento ?? '').split('T')[0];
+    if (!item.id || !data) return [];
+
+    return [
+      {
+        id: item.id,
+        titulo: item.evento || 'Vencimento fiscal',
+        descricao: item.descricao ?? undefined,
+        dataVencimento: data,
+        tipo: this.tipoConhecido(item.tipo),
+        status: this.statusConhecido(item.status),
+        valor: item.valor ?? undefined,
+      },
+    ];
   }
 
-  private mapToVencimento(item: CalendarioVencimento): VencimentoFiscal {
-    const dataRaw = item.dataVencimento || item.data || new Date().toISOString();
-    return {
-      id: item.id || String(Math.random()),
-      titulo: item.evento || item.nome || item.titulo || 'Obrigação fiscal',
-      descricao: item.descricao,
-      dataVencimento: dataRaw.split('T')[0],
-      // Heurística: se tem valor monetário é imposto/pagamento, senão obrigação
-      tipo: item.valor && item.valor > 0 ? 'imposto' : 'obrigacao',
-      // backend devolve 'vencido' | 'urgente' | 'normal'
-      status: item.status === 'vencido' ? 'vencido' : 'pendente',
-      valor: item.valor,
-    };
+  /** O backend documenta `imposto` como o único tipo hoje; é o padrão para valor desconhecido. */
+  private tipoConhecido(tipo: string): VencimentoFiscal['tipo'] {
+    return (TIPOS as readonly string[]).includes(tipo)
+      ? (tipo as VencimentoFiscal['tipo'])
+      : 'imposto';
+  }
+
+  /**
+   * `pago` e `vencido` precisam chegar inteiros à tela.
+   *
+   * O mapeamento anterior reconhecia só `vencido` e jogava todo o resto em `pendente` — uma guia
+   * **paga** aparecia como pendente no calendário. O próprio `VencimentoFiscalResponse` do backend
+   * registra esse bug como pendência do frontend.
+   */
+  private statusConhecido(status: string): VencimentoFiscal['status'] {
+    return (STATUS as readonly string[]).includes(status)
+      ? (status as VencimentoFiscal['status'])
+      : 'pendente';
   }
 }
