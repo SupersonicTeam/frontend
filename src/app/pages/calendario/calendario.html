@@ -42,7 +42,7 @@
   <div class="grid md:grid-cols-3 gap-6">
 
     <!-- ── CALENDÁRIO ── -->
-    <div class="md:col-span-2 bg-card rounded-card border border-border shadow-suave p-5">
+    <div class="md:col-span-2 bg-card rounded-card border border-border shadow-suave p-3 sm:p-5">
       <!-- Navegação -->
       <div class="flex items-center justify-between mb-4">
         <button
@@ -73,13 +73,13 @@
 
       <!-- Grade do calendário -->
       @if (loading()) {
-        <div class="grid grid-cols-7 gap-1">
+        <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
           @for (i of [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]; track i) {
             <div class="aspect-square bg-muted/40 animate-pulse rounded-controle"></div>
           }
         </div>
       } @else {
-        <div class="grid grid-cols-7 gap-1">
+        <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
           @for (dia of diasDoMes(); track $index) {
             @if (dia === null) {
               <div></div>

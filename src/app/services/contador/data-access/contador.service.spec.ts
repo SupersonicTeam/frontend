@@ -105,24 +105,49 @@ describe('ContadorApi', () => {
     // entrava em cena quando a chamada falhava: a tela exibia guias inexistentes e
     // dava "baixa" em pagamento que nunca aconteceu. Esse estado foi removido.
 
-    it('CTD-10: getGuias devolve a resposta do backend tal como veio', () => {
+    it('CTD-10: getGuias traduz o status do backend (MAIUSCULO) para o do modelo', () => {
+      // O backend manda `PENDENTE`/`PAGA`/`VENCIDA`; o `GuiaFiscal` declara
+      // `pendente`/`pago`/`vencido`. O fixture antigo deste teste usava minusculo e por isso
+      // escondia a divergencia: na tela, guia paga entrava no total a pagar e guia vencida
+      // nunca acendia o alerta. Conferido contra o backend real em 05/10/2026.
       const doBackend = [
-        {
-          id: 'real-1',
-          produtorId: 'p1',
-          tipoGuia: 'ICMS',
-          dataVencimento: '2026-10-20',
-          valor: 990,
-          status: 'pendente',
-          createdAt: '2026-09-01T10:00:00Z',
-        },
+        { id: 'g1', produtorId: 'p1', tipoGuia: 'ICMS', dataVencimento: '2026-10-20', valor: 990, status: 'PENDENTE', createdAt: '2026-09-01T10:00:00Z' },
+        { id: 'g2', produtorId: 'p1', tipoGuia: 'FUNRURAL', dataVencimento: '2026-09-20', valor: 1840.55, status: 'PAGA', createdAt: '2026-09-01T10:00:00Z' },
+        { id: 'g3', produtorId: 'p1', tipoGuia: 'GPS', dataVencimento: '2026-09-10', valor: 890, status: 'VENCIDA', createdAt: '2026-09-01T10:00:00Z' },
       ];
       let resultado: GuiaFiscal[] | undefined;
       service.getGuias('p1').subscribe(res => (resultado = res));
 
       httpMock.expectOne(r => r.url === '/contador/guias').flush(doBackend);
 
-      expect(resultado).toEqual(doBackend);
+      expect(resultado?.map(g => g.status)).toEqual(['pendente', 'pago', 'vencido']);
+      // O resto do payload passa intacto.
+      expect(resultado?.[1]).toMatchObject({ id: 'g2', tipoGuia: 'FUNRURAL', valor: 1840.55 });
+    });
+
+    it('CTD-10b: status desconhecido vira pendente em vez de vazar cru para a tela', () => {
+      let resultado: GuiaFiscal[] | undefined;
+      service.getGuias('p1').subscribe(res => (resultado = res));
+
+      httpMock.expectOne(r => r.url === '/contador/guias').flush([
+        { id: 'g9', produtorId: 'p1', tipoGuia: 'OUTRO', dataVencimento: '2026-11-01', valor: 10, status: 'EM_ANALISE', createdAt: '2026-09-01T10:00:00Z' },
+      ]);
+
+      expect(resultado?.[0].status).toBe('pendente');
+    });
+
+    it('CTD-10c: a guia recem-criada volta com o status ja traduzido', () => {
+      let criada: GuiaFiscal | null | undefined;
+      service
+        .anexarGuia({ produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2026-11-10', valor: 500 })
+        .subscribe(res => (criada = res));
+
+      httpMock.expectOne(r => r.url === '/contador/guias' && r.method === 'POST').flush({
+        id: 'nova', produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2026-11-10',
+        valor: 500, status: 'PENDENTE', createdAt: '2026-10-05T10:00:00Z',
+      });
+
+      expect(criada?.status).toBe('pendente');
     });
 
     it('CTD-06 (#50): em erro, getGuias devolve VAZIO — nunca guias de exemplo', () => {

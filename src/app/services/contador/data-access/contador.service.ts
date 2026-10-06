@@ -43,6 +43,12 @@ interface PendenciaBackend {
 // Seed inicial das guias por produtor. O status é recalculado apenas no fallback mock
 // (getGuias/catchError); em sucesso real do backend, o array retorna como veio, sem recálculo.
 
+/**
+ * Guia como o backend a envia: `status` em MAIUSCULO e no feminino
+ * (`PENDENTE` · `PAGA` · `VENCIDA`), diferente do union do `GuiaFiscal`.
+ */
+type GuiaFiscalResponse = Omit<GuiaFiscal, 'status'> & { status: string };
+
 @Injectable({ providedIn: 'root' })
 export class ContadorApi {
   private readonly api = inject(ApiService);
@@ -259,13 +265,46 @@ export class ContadorApi {
   // guias que nao existem no banco (#50).
   getGuias(produtorId?: string): Observable<GuiaFiscal[]> {
     const params = produtorId ? { produtorId } : undefined;
-    return this.api.get<GuiaFiscal[]>('/contador/guias', params).pipe(catchError(() => of([])));
+    return this.api.get<GuiaFiscalResponse[]>('/contador/guias', params).pipe(
+      map((lista) => (lista ?? []).map((g) => this.paraGuia(g))),
+      catchError(() => of([])),
+    );
   }
 
   // POST /contador/guias — endpoint REAL. Em erro devolve null para a pagina
   // avisar a falha, em vez de criar a guia so na memoria e fingir que salvou (#50).
   anexarGuia(dto: CreateGuiaDto): Observable<GuiaFiscal | null> {
-    return this.api.post<GuiaFiscal>('/contador/guias', dto).pipe(catchError(() => of(null)));
+    return this.api.post<GuiaFiscalResponse>('/contador/guias', dto).pipe(
+      map((g) => this.paraGuia(g)),
+      catchError(() => of(null)),
+    );
+  }
+
+  /**
+   * Traduz o status da guia para o vocabulario do modelo.
+   *
+   * **O backend fala MAIUSCULO e no feminino** (`PENDENTE`, `PAGA`, `VENCIDA`); o
+   * `GuiaFiscal` daqui declara `'pendente' | 'pago' | 'vencido'`. Antes o service so fazia cast,
+   * entao o tipo mentia e **nenhuma comparacao de status batia**: guia paga entrava no total a
+   * pagar, guia vencida nunca acendia o alerta, e o selo saia escrito "PAGA" sem cor nenhuma.
+   *
+   * Reparar aqui, na entrada, e o que mantem a tela comparando com o que o tipo promete.
+   */
+  private paraGuia(bruto: GuiaFiscalResponse): GuiaFiscal {
+    return { ...bruto, status: this.statusDaGuia(bruto.status) };
+  }
+
+  private statusDaGuia(status: string): GuiaFiscal['status'] {
+    switch ((status ?? '').toUpperCase()) {
+      case 'PAGA':
+      case 'PAGO':
+        return 'pago';
+      case 'VENCIDA':
+      case 'VENCIDO':
+        return 'vencido';
+      default:
+        return 'pendente';
+    }
   }
 
   // PATCH /contador/guias/:id/pagar — endpoint REAL. Sem catchError: a falha tem

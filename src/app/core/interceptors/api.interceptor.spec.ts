@@ -1,8 +1,10 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { apiInterceptor, mensagemDeEnvelope } from './api.interceptor';
 import { skipErrorNotify } from './error-notify.context';
+import { IdentidadeService } from '@core/services/identidade.service';
 import { ToastService } from '@core/services/toast.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 
@@ -106,4 +108,51 @@ describe('apiInterceptor (sem toast onde a tela já trata)', () => {
       httpMock.verify();
     },
   );
+});
+
+/**
+ * O header de identidade sai daqui para **todas** as chamadas do `HttpClient` — e
+ * o `fetch` do streaming da Ceres lê a mesma fonte à mão, porque o interceptor
+ * não o alcança (contrato #76).
+ *
+ * O caso de ausência não é detalhe: com um UUID que não existe no banco o backend
+ * responde 401 em toda chamada, enquanto **sem** o header ele resolve o produtor
+ * semente. Mandar header errado é pior que não mandar.
+ */
+describe('apiInterceptor (identidade X-Usuario-Id)', () => {
+  function comIdentidade(usuarioId: string | null) {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([apiInterceptor])),
+        provideHttpClientTesting(),
+        ToastService,
+        { provide: IdentidadeService, useValue: { usuarioId: signal(usuarioId) } },
+      ],
+    });
+    return {
+      http: TestBed.inject(HttpClient),
+      httpMock: TestBed.inject(HttpTestingController),
+    };
+  }
+
+  it('declara a identidade quando existe uma', () => {
+    const { http, httpMock } = comIdentidade('aaee3cd4-9e47-41f9-bf0b-26ae5531c8a8');
+    http.get('/assistente/chat').subscribe({ next: () => undefined, error: () => undefined });
+
+    const req = httpMock.expectOne('/api/assistente/chat');
+    expect(req.request.headers.get('X-Usuario-Id')).toBe('aaee3cd4-9e47-41f9-bf0b-26ae5531c8a8');
+    req.flush({});
+    httpMock.verify();
+  });
+
+  it('não manda o header quando não há identidade — o backend usa o produtor semente', () => {
+    const { http, httpMock } = comIdentidade(null);
+    http.get('/dashboard').subscribe({ next: () => undefined, error: () => undefined });
+
+    const req = httpMock.expectOne('/api/dashboard');
+    expect(req.request.headers.has('X-Usuario-Id')).toBe(false);
+    req.flush({});
+    httpMock.verify();
+  });
 });

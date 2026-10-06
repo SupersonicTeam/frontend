@@ -11,21 +11,24 @@ import { AssistenteStore } from './assistente.store';
  *
  * Sobe acima da barra inferior do celular (`bottom-20`) para não cobrir a
  * navegação, e volta ao canto no desktop.
+ *
+ * Não aparece para o contador: a Ceres atende produtor e responderia
+ * `403 PAPEL_NAO_AUTORIZADO` (ver `AssistenteStore.disponivel`).
  */
 @Component({
   selector: 'app-assistente-launcher',
   standalone: true,
   imports: [LucideSparkles],
   template: `
-    @if (!store.aberto()) {
+    @if (!store.aberto() && store.disponivel()) {
       <button
         type="button"
         class="tap-target fixed right-4 bottom-20 z-50 flex items-center gap-2 rounded-full bg-assistente px-4 text-apoio font-semibold text-assistente-foreground shadow-assistente transition-transform hover:scale-105 lg:bottom-6"
         (click)="store.abrir()"
       >
         <svg lucideSparkles [size]="18" />
-        <span class="hidden sm:inline">Perguntar</span>
-        <span class="sr-only sm:hidden">Perguntar ao assistente</span>
+        <span class="hidden sm:inline">Perguntar à Ceres</span>
+        <span class="sr-only sm:hidden">Perguntar à Ceres</span>
       </button>
     }
   `,

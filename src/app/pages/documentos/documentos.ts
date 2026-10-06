@@ -6,7 +6,6 @@ import {
   LucideFileText,
   LucideSearch,
   LucideUpload,
-  LucideEye,
   LucideDownload,
   LucideFile,
   LucideCircleCheck,
@@ -21,6 +20,8 @@ import {
   LucideTriangleAlert,
   LucideSend,
   LucideSparkles,
+  LucideX,
+  LucideChevronDown,
 } from '@lucide/angular';
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
@@ -34,8 +35,7 @@ import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response'
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
 import { statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
-import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo }
-  from '@core/utils/validacoes';
+import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
@@ -70,8 +70,33 @@ const emptyItem = (): ItemForm => ({
 });
 
 const UFS = [
-  'AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT',
-  'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO',
+  'AC',
+  'AL',
+  'AM',
+  'AP',
+  'BA',
+  'CE',
+  'DF',
+  'ES',
+  'GO',
+  'MA',
+  'MG',
+  'MS',
+  'MT',
+  'PA',
+  'PB',
+  'PE',
+  'PI',
+  'PR',
+  'RJ',
+  'RN',
+  'RO',
+  'RR',
+  'RS',
+  'SC',
+  'SE',
+  'SP',
+  'TO',
 ];
 
 const PERIODO_OPTIONS = [
@@ -105,7 +130,10 @@ function cpfValido(cpf: string): boolean {
 function cnpjValido(cnpj: string): boolean {
   if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
   const dv = (base: string): number => {
-    const pesos = base.length === 12 ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2] : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const pesos =
+      base.length === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
     let soma = 0;
     for (let i = 0; i < base.length; i++) soma += Number(base[i]) * pesos[i];
     const resto = soma % 11;
@@ -137,7 +165,6 @@ function cpfCnpjValido(v: string): boolean {
     LucideFileText,
     LucideSearch,
     LucideUpload,
-    LucideEye,
     LucideDownload,
     LucideFile,
     LucideCircleCheck,
@@ -153,12 +180,20 @@ function cpfCnpjValido(v: string): boolean {
     LucideSend,
     LucideSparkles,
     NotaPreview,
+    LucideX,
+    LucideChevronDown,
   ],
   templateUrl: './documentos.html',
 })
 export class DocumentosPage implements OnInit {
   private readonly notasApi = inject(NotasApi);
   private readonly assistente = inject(AssistenteStore);
+
+  /**
+   * A Ceres atende produtor (`403 PAPEL_NAO_AUTORIZADO` para contador), então o
+   * botão de perguntar sobre a nota só existe para quem ela atende.
+   */
+  protected readonly assistenteDisponivel = this.assistente.disponivel;
   protected readonly perfilService = inject(PerfilService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -181,7 +216,20 @@ export class DocumentosPage implements OnInit {
   // Carregamento de notas + paginação server-side (Page<T> do Spring)
   notasErro = signal(false);
   pageIndex = signal(0);
-  pageSize = signal(12);
+  /**
+   * **Provisório, e o número é o sintoma de um problema real.**
+   *
+   * Filtrar é trabalho do servidor, mas o `GET /api/notas` aceita só `Pageable`
+   * — nenhum parâmetro de status, tipo, data ou busca. Então os filtros desta
+   * tela rodam em memória, sobre o que veio na página. Com 12 por página e 15
+   * notas na base, o filtro **não enxergava 3 delas**: digitar o nome de um
+   * destinatário da página 2 devolvia "nenhuma nota".
+   *
+   * Subir para 100 faz o filtro parar de mentir enquanto o backend não expõe os
+   * parâmetros (issue aberta para o Murillo). Quando a rota existir, isto volta
+   * para 12 e o filtro em memória é apagado.
+   */
+  pageSize = signal(100);
   totalElements = signal(0);
 
   // Importar nota via XML (drag-and-drop)
@@ -265,10 +313,12 @@ export class DocumentosPage implements OnInit {
     }
 
     // Tipo do documento (NFE/NFA)
-    if (this.tipo() !== 'todos') lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
+    if (this.tipo() !== 'todos')
+      lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
 
     // Status
-    if (this.statusFilter() !== 'todos') lista = lista.filter((n) => n.status === this.statusFilter());
+    if (this.statusFilter() !== 'todos')
+      lista = lista.filter((n) => n.status === this.statusFilter());
 
     // Busca (natureza, número ou destinatário)
     if (busca)
@@ -287,6 +337,118 @@ export class DocumentosPage implements OnInit {
 
     return lista;
   });
+
+  /**
+   * Notas agrupadas por mes de emissao.
+   *
+   * A lista atravessa setembro, agosto, julho, junho e maio sem nenhuma marca de
+   * transicao -- doze cards seguidos em que so a data em texto pequeno diz que
+   * mudou de mes. Agrupando, a pessoa se localiza sem ler data por data.
+   *
+   * So agrupa quando a ordenacao e por data: ordenado por valor, um cabecalho de
+   * mes mentiria sobre a sequencia.
+   */
+  readonly notasPorMes = computed(() => {
+    if (this.ordenacao() !== 'data') return [];
+
+    const grupos = new Map<string, { rotulo: string; notas: NotaFiscal[] }>();
+    for (const nota of this.notasFiltradas()) {
+      const chave = (nota.dataEmissao ?? '').slice(0, 7); // YYYY-MM
+      if (!grupos.has(chave)) {
+        grupos.set(chave, { rotulo: this.rotuloDoMes(chave), notas: [] });
+      }
+      grupos.get(chave)!.notas.push(nota);
+    }
+    return [...grupos.entries()].map(([chave, g]) => ({ chave, ...g }));
+  });
+
+  /** `2026-09` vira "Setembro de 2026". Mes invalido devolve "Sem data". */
+  private rotuloDoMes(periodo: string): string {
+    const [ano, mes] = periodo.split('-');
+    const data = new Date(Number(ano), Number(mes) - 1, 1);
+    if (Number.isNaN(data.getTime())) return 'Sem data';
+    const texto = data.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  /**
+   * O que o template percorre: grupos por mes quando ordenado por data, ou um
+   * unico grupo sem rotulo quando ordenado por valor. Assim o template tem um
+   * caminho so, em vez de dois blocos quase iguais.
+   */
+  readonly listaAgrupada = computed(() => {
+    const porMes = this.notasPorMes();
+    if (porMes.length) return porMes;
+    return [{ chave: 'todas', rotulo: '', notas: this.notasFiltradas() }];
+  });
+
+  /**
+   * Meses que o produtor fechou. Guarda o **fechado**, nao o aberto: assim um mes
+   * novo que aparece na lista ja nasce aberto, sem ninguem precisar lembrar de
+   * registra-lo em lugar nenhum.
+   */
+  private readonly mesesFechados = signal<ReadonlySet<string>>(new Set());
+
+  /**
+   * Com filtro ligado, tudo fica aberto -- quem esta procurando nao pode ter o
+   * resultado escondido atras de um mes fechado. O que ele fechou nao se perde:
+   * `mesesFechados` continua intacto e volta a valer quando o filtro sai.
+   */
+  mesAberto(chave: string): boolean {
+    if (this.temFiltroAtivo()) return true;
+    return !this.mesesFechados().has(chave);
+  }
+
+  alternarMes(chave: string): void {
+    this.mesesFechados.update((atual) => {
+      const proximo = new Set(atual);
+      if (!proximo.delete(chave)) proximo.add(chave);
+      return proximo;
+    });
+  }
+
+  /** Quantos meses estao abertos agora -- decide o rotulo do botao global. */
+  readonly todosOsMesesAbertos = computed(() =>
+    this.notasPorMes().every((g) => !this.mesesFechados().has(g.chave)),
+  );
+
+  alternarTodosOsMeses(): void {
+    if (this.todosOsMesesAbertos()) {
+      this.mesesFechados.set(new Set(this.notasPorMes().map((g) => g.chave)));
+    } else {
+      this.mesesFechados.set(new Set());
+    }
+  }
+
+  /** Soma do mes, para o cabecalho dizer algo util mesmo fechado. */
+  totalDoGrupo(notas: readonly NotaFiscal[]): number {
+    return notas.reduce((soma, n) => soma + (n.valorTotalNota ?? 0), 0);
+  }
+
+  /**
+   * A pagina atual ja contem todas as notas do produtor?
+   *
+   * Enquanto for verdade, o filtro em memoria da o mesmo resultado que um filtro
+   * no servidor daria, e a contagem pode falar da base inteira. Se um dia passar
+   * de `pageSize`, a contagem volta a dizer "nesta pagina" -- que e a verdade.
+   */
+  readonly tudoCarregado = computed(() => this.notas().length >= this.totalElements());
+
+  /** Algum filtro esta ativo? Decide se vale oferecer "limpar". */
+  readonly temFiltroAtivo = computed(
+    () =>
+      this.periodo() !== 'todos' ||
+      this.tipo() !== 'todos' ||
+      this.statusFilter() !== 'todos' ||
+      this.busca().trim().length > 0,
+  );
+
+  limparFiltros(): void {
+    this.periodo.set('todos');
+    this.tipo.set('todos');
+    this.statusFilter.set('todos');
+    this.busca.set('');
+  }
 
   readonly solicitacoesFiltradas = computed(() => {
     const busca = this.busca().toLowerCase();
@@ -417,8 +579,9 @@ export class DocumentosPage implements OnInit {
     if (!id) return;
 
     this.notasApi.obter(id).subscribe({
-      next: nota => this.abrirPreview(nota),
-      error: () => this.toastService.error('Não encontramos essa nota. Ela pode ter sido excluída.'),
+      next: (nota) => this.abrirPreview(nota),
+      error: () =>
+        this.toastService.error('Não encontramos essa nota. Ela pode ter sido excluída.'),
     });
   }
 
@@ -456,7 +619,9 @@ export class DocumentosPage implements OnInit {
   }
 
   /** Total de páginas (server-side, a partir de totalElements/pageSize). */
-  readonly totalPaginas = computed(() => Math.max(1, Math.ceil(this.totalElements() / this.pageSize())));
+  readonly totalPaginas = computed(() =>
+    Math.max(1, Math.ceil(this.totalElements() / this.pageSize())),
+  );
 
   /** Vai para uma página (0-based) e recarrega do backend (Pageable). */
   irParaPagina(idx: number): void {
@@ -549,12 +714,12 @@ export class DocumentosPage implements OnInit {
    */
   readonly pendenciaCorrigivelNaNota = computed(() => {
     const vs = this.validacoes();
-    return vs.length > 0 && vs.some(v => !ehCampoDoProdutor(v.field));
+    return vs.length > 0 && vs.some((v) => !ehCampoDoProdutor(v.field));
   });
 
   /** Ha pendencia de cadastro do produtor, que nao se resolve pela nota. */
   readonly pendenciaNoCadastro = computed(() =>
-    this.validacoes().some(v => ehCampoDoProdutor(v.field)),
+    this.validacoes().some((v) => ehCampoDoProdutor(v.field)),
   );
 
   verValidacoes(nota: NotaFiscal): void {
@@ -616,15 +781,19 @@ export class DocumentosPage implements OnInit {
         this.enviandoSefaz.set(false);
         this.sefazRetorno.set(r);
         this.atualizarNotaLocal({ ...nota, status: r.status, chaveAcesso: r.chaveAcesso });
-        if (r.status === 'AUTORIZADA') this.toastService.success(`Autorizada pela SEFAZ (cStat ${r.cStat}).`);
-        else if (r.status === 'REJEITADA') this.toastService.error(`Rejeitada (cStat ${r.cStat}): ${r.xMotivo}`);
+        if (r.status === 'AUTORIZADA')
+          this.toastService.success(`Autorizada pela SEFAZ (cStat ${r.cStat}).`);
+        else if (r.status === 'REJEITADA')
+          this.toastService.error(`Rejeitada (cStat ${r.cStat}): ${r.xMotivo}`);
         else this.toastService.info(`Pendente na SEFAZ: ${r.xMotivo}`);
       },
       error: (err: HttpErrorResponse) => {
         this.enviandoSefaz.set(false);
         const env = err?.error as ApiErrorEnvelope | undefined;
         if (err?.status === 502) {
-          this.toastService.error('SEFAZ indisponível após as tentativas. Tente novamente em instantes.');
+          this.toastService.error(
+            'SEFAZ indisponível após as tentativas. Tente novamente em instantes.',
+          );
         } else if (err?.status === 409) {
           this.toastService.error(env?.message ?? 'Envio inválido para o status atual.');
         } else {
@@ -642,7 +811,9 @@ export class DocumentosPage implements OnInit {
         this.consultandoStatus.set(false);
         this.sefazRetorno.set(r);
         this.atualizarNotaLocal({ ...nota, status: r.status, chaveAcesso: r.chaveAcesso });
-        this.toastService.success(`Status sincronizado: ${statusNotaLabel(r.status)} (cStat ${r.cStat}).`);
+        this.toastService.success(
+          `Status sincronizado: ${statusNotaLabel(r.status)} (cStat ${r.cStat}).`,
+        );
       },
       error: (err: HttpErrorResponse) => {
         this.consultandoStatus.set(false);
@@ -747,7 +918,7 @@ export class DocumentosPage implements OnInit {
       next: (pagina) =>
         this.notasParaAjustar.set(
           pagina.content.filter(
-            n => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
           ),
         ),
       error: () => this.notasParaAjustar.set([]),
@@ -989,11 +1160,11 @@ export class DocumentosPage implements OnInit {
     const categoria = this.solicitacaoInfo()?.categoria ?? 'Documento';
     this.enviandoAnexo.set(true);
     this.contadorService.anexarDocumento(solicitacaoId, file, categoria).subscribe({
-      next: doc => {
+      next: (doc) => {
         this.enviandoAnexo.set(false);
         if (doc) {
-          this.solicitacoes.update(list =>
-            list.map(s => (s.id === solicitacaoId ? { ...s, status: 'enviado' as const } : s))
+          this.solicitacoes.update((list) =>
+            list.map((s) => (s.id === solicitacaoId ? { ...s, status: 'enviado' as const } : s)),
           );
           this.toastService.success('Documento anexado com sucesso!');
           this.fecharAnexar();
@@ -1159,7 +1330,9 @@ export class DocumentosPage implements OnInit {
   importarArquivo(file: File): void {
     const nome = file.name.toLowerCase();
     if (!nome.endsWith('.xml')) {
-      this.toastService.info('A importação lê apenas o XML da NF-e (o PDF não é aceito pelo backend).');
+      this.toastService.info(
+        'A importação lê apenas o XML da NF-e (o PDF não é aceito pelo backend).',
+      );
       return;
     }
     this.importando.set(true);
@@ -1228,11 +1401,16 @@ export class DocumentosPage implements OnInit {
 
   solicitacaoStatusColor(status: string): string {
     const map: Record<string, string> = {
-      pendente: 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
-      enviado: 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-      concluido: 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-      cancelado: 'bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
-      rejeitado: 'bg-red-100 text-red-700 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
+      pendente:
+        'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
+      enviado:
+        'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
+      concluido:
+        'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
+      cancelado:
+        'bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
+      rejeitado:
+        'bg-red-100 text-red-700 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
     };
     return map[status] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
   }

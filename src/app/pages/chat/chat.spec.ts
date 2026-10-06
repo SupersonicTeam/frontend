@@ -2,15 +2,18 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { PerfilService } from '@core/services/perfil.service';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { ChatPage } from './chat';
 
 /**
  * A conversa em si é testada em `assistente.store.spec.ts` — aqui cobrimos o que
- * é da página: ela lê o mesmo estado da gaveta (não começa uma conversa nova) e
- * fecha a gaveta ao abrir, para a mesma conversa não aparecer duas vezes.
+ * é da página: ela lê o mesmo estado da gaveta (não começa uma conversa nova),
+ * fecha a gaveta ao abrir, e **mostra a fundamentação da resposta** (citação com
+ * link oficial e origem dos números), que é a garantia do produto exigida pelo
+ * contrato da Ceres (#76) e o que faltava para a IA aparecer na tela.
  */
-describe('ChatPage (#51)', () => {
+describe('ChatPage (#51, ligada à Ceres na #76)', () => {
   let httpMock: HttpTestingController;
 
   const dashboard = {
@@ -25,13 +28,16 @@ describe('ChatPage (#51)', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
+    TestBed.inject(PerfilService).entrar('produtor');
   });
 
   afterEach(() => httpMock.verify());
 
   function flushContexto() {
-    httpMock.match(r => r.url === '/dashboard').forEach(r => r.flush(dashboard));
-    httpMock.match(r => r.url === '/notas').forEach(r => r.flush({ content: [], totalElements: 0 }));
+    httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
+    httpMock
+      .match((r) => r.url === '/notas')
+      .forEach((r) => r.flush({ content: [], totalElements: 0 }));
   }
 
   it('mostra o contexto real do produtor no painel lateral', () => {
@@ -51,7 +57,7 @@ describe('ChatPage (#51)', () => {
 
   it('continua a conversa que já existia — não recomeça do zero', () => {
     const store = TestBed.inject(AssistenteStore);
-    store.mensagens.set([{ role: 'user', content: 'pergunta feita na gaveta' }]);
+    store.mensagens.set([{ autor: 'produtor', texto: 'pergunta feita na gaveta' }]);
 
     const fixture = TestBed.createComponent(ChatPage);
     fixture.detectChanges();
@@ -70,5 +76,93 @@ describe('ChatPage (#51)', () => {
 
     TestBed.createComponent(ChatPage).detectChanges();
     expect(store.aberto()).toBe(false);
+  });
+
+  it('mostra a citação da lei com link oficial e o trecho ao alcance', () => {
+    const store = TestBed.inject(AssistenteStore);
+    store.mensagens.set([
+      {
+        autor: 'ceres',
+        texto: 'A redução é de 60%. (LC 214/2025, art. 138, § 1º)',
+        rota: 'LEGISLACAO',
+        citacoes: [
+          {
+            norma: 'LC 214/2025',
+            dispositivo: 'art. 138, § 1º',
+            url: 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp214.htm',
+            trecho: 'Art. 138. Ficam reduzidas em 60% as aliquotas do IBS e da CBS...',
+          },
+        ],
+        fontesDados: [],
+        modoFallback: false,
+      },
+    ]);
+
+    const fixture = TestBed.createComponent(ChatPage);
+    fixture.detectChanges();
+    flushContexto();
+    fixture.detectChanges();
+
+    const raiz = fixture.nativeElement as HTMLElement;
+    const link = raiz.querySelector<HTMLAnchorElement>('a[href*="planalto.gov.br"]');
+    expect(link).not.toBeNull();
+    expect(link?.textContent).toContain('LC 214/2025, art. 138, § 1º');
+    expect(link?.target).toBe('_blank');
+    expect(link?.rel).toContain('noopener');
+
+    // O trecho fica num <details>: visível em um clique, e não escondido atrás
+    // de outra tela. O contrato manda mostrar a base legal, não guardá-la.
+    const detalhe = raiz.querySelector('details');
+    expect(detalhe?.textContent).toContain('ver trecho da lei');
+    expect(detalhe?.textContent).toContain('Ficam reduzidas em 60%');
+  });
+
+  it('diz de onde veio o número, com a consulta em português', () => {
+    const store = TestBed.inject(AssistenteStore);
+    store.mensagens.set([
+      {
+        autor: 'ceres',
+        texto: 'A guia vence em 20/10/2026, no valor de R$ 1.840,55.',
+        rota: 'DADOS',
+        citacoes: [],
+        fontesDados: [{ funcao: 'proximosVencimentos', parametros: { dias: '30' } }],
+        modoFallback: false,
+      },
+    ]);
+
+    const fixture = TestBed.createComponent(ChatPage);
+    fixture.detectChanges();
+    flushContexto();
+    fixture.detectChanges();
+
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('Calculado a partir das suas notas');
+    expect(texto).toContain('Guias a vencer');
+    expect(texto).toContain('próximos dias: 30');
+    expect(texto).toContain('Resposta das suas notas');
+  });
+
+  it('avisa que a Ceres não substitui o contador', () => {
+    const fixture = TestBed.createComponent(ChatPage);
+    fixture.detectChanges();
+    flushContexto();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      'não substitui a análise do seu contador',
+    );
+  });
+
+  it('sair da tela aborta a pergunta em andamento', () => {
+    const store = TestBed.inject(AssistenteStore);
+    const cancelar = vi.spyOn(store, 'cancelar');
+
+    const fixture = TestBed.createComponent(ChatPage);
+    fixture.detectChanges();
+    flushContexto();
+    fixture.destroy();
+
+    // Sem aviso na conversa: ninguém está vendo a tela para ler o recado.
+    expect(cancelar).toHaveBeenCalledWith(false);
   });
 });

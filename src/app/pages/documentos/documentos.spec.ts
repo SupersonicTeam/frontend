@@ -28,7 +28,7 @@ describe('DocumentosPage', () => {
   afterEach(() => httpMock.verify());
 
   function flushPendencias() {
-    httpMock.match(r => r.url.includes('/contador')).forEach(r => r.flush([]));
+    httpMock.match((r) => r.url.includes('/contador')).forEach((r) => r.flush([]));
   }
 
   it('DASH-11: em falha do GET /api/notas, mostra notasErro(true) e lista vazia — sem mockNotas', () => {
@@ -36,7 +36,9 @@ describe('DocumentosPage', () => {
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
-    httpMock.expectOne(r => r.url === '/notas').flush('erro', { status: 500, statusText: 'Server Error' });
+    httpMock
+      .expectOne((r) => r.url === '/notas')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
     flushPendencias();
 
     expect(cmp.notasErro()).toBe(true);
@@ -49,10 +51,19 @@ describe('DocumentosPage', () => {
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
-    httpMock.expectOne(r => r.url === '/notas').flush({
-      content: [], totalElements: 0, totalPages: 0, number: 0, size: 12,
-      first: true, last: true, numberOfElements: 0, empty: true,
-    });
+    httpMock
+      .expectOne((r) => r.url === '/notas')
+      .flush({
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: 12,
+        first: true,
+        last: true,
+        numberOfElements: 0,
+        empty: true,
+      });
     flushPendencias();
 
     expect(cmp.notasErro()).toBe(false);
@@ -63,17 +74,28 @@ describe('DocumentosPage', () => {
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
-    httpMock.expectOne(r => r.url === '/notas').flush('erro', { status: 500, statusText: 'Server Error' });
+    httpMock
+      .expectOne((r) => r.url === '/notas')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
     flushPendencias();
     expect(cmp.notasErro()).toBe(true);
 
     cmp.recarregarNotas();
     expect(cmp.notasErro()).toBe(false);
 
-    httpMock.expectOne(r => r.url === '/notas').flush({
-      content: [], totalElements: 0, totalPages: 0, number: 0, size: 12,
-      first: true, last: true, numberOfElements: 0, empty: true,
-    });
+    httpMock
+      .expectOne((r) => r.url === '/notas')
+      .flush({
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: 12,
+        first: true,
+        last: true,
+        numberOfElements: 0,
+        empty: true,
+      });
     expect(cmp.notasErro()).toBe(false);
   });
 
@@ -82,28 +104,54 @@ describe('DocumentosPage', () => {
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
-    httpMock.expectOne(r => r.url === '/notas').flush({
-      content: [], totalElements: 0, totalPages: 0, number: 0, size: 12,
-      first: true, last: true, numberOfElements: 0, empty: true,
-    });
-    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([
-      {
-        id: 'sol-1', produtorId: 'p1', titulo: 'Balancete', descricao: 'Balancete',
-        dataLimite: '2026-08-01', prioridade: 'media', status: 'pendente',
-        tiposDocumentos: '["Balancete"]', createdAt: '2026-07-01T00:00:00', updatedAt: '2026-07-01T00:00:00',
-      },
-    ]);
+    httpMock
+      .expectOne((r) => r.url === '/notas')
+      .flush({
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: 12,
+        first: true,
+        last: true,
+        numberOfElements: 0,
+        empty: true,
+      });
+    httpMock
+      .expectOne((r) => r.url === '/contador/pendencias')
+      .flush([
+        {
+          id: 'sol-1',
+          produtorId: 'p1',
+          titulo: 'Balancete',
+          descricao: 'Balancete',
+          dataLimite: '2026-08-01',
+          prioridade: 'media',
+          status: 'pendente',
+          tiposDocumentos: '["Balancete"]',
+          createdAt: '2026-07-01T00:00:00',
+          updatedAt: '2026-07-01T00:00:00',
+        },
+      ]);
 
     cmp.solicitacaoSelecionada.set('sol-1');
-    cmp.arquivoSelecionado.set(new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }));
+    cmp.arquivoSelecionado.set(
+      new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }),
+    );
     cmp.salvarAnexo();
 
-    httpMock.expectOne(r => r.url === '/contador/documentos/anexar').flush({
-      id: 'doc-1', solicitacaoId: 'sol-1', nomeArquivo: 'balancete.pdf', arquivoUrl: '', tipo: 'Balancete',
-      createdAt: '2026-07-07T00:00:00',
-    });
+    httpMock
+      .expectOne((r) => r.url === '/contador/documentos/anexar')
+      .flush({
+        id: 'doc-1',
+        solicitacaoId: 'sol-1',
+        nomeArquivo: 'balancete.pdf',
+        arquivoUrl: '',
+        tipo: 'Balancete',
+        createdAt: '2026-07-07T00:00:00',
+      });
 
-    expect(cmp.solicitacoes().find(s => s.id === 'sol-1')?.status).toBe('enviado');
+    expect(cmp.solicitacoes().find((s) => s.id === 'sol-1')?.status).toBe('enviado');
     expect(cmp.showAnexar()).toBe(false);
   });
 
@@ -112,29 +160,51 @@ describe('DocumentosPage', () => {
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
-    httpMock.expectOne(r => r.url === '/notas').flush({
-      content: [], totalElements: 0, totalPages: 0, number: 0, size: 12,
-      first: true, last: true, numberOfElements: 0, empty: true,
-    });
-    httpMock.expectOne(r => r.url === '/contador/pendencias').flush([
-      {
-        id: 'sol-1', produtorId: 'p1', titulo: 'Balancete', descricao: 'Balancete',
-        dataLimite: '2026-08-01', prioridade: 'media', status: 'pendente',
-        tiposDocumentos: '["Balancete"]', createdAt: '2026-07-01T00:00:00', updatedAt: '2026-07-01T00:00:00',
-      },
-    ]);
+    httpMock
+      .expectOne((r) => r.url === '/notas')
+      .flush({
+        content: [],
+        totalElements: 0,
+        totalPages: 0,
+        number: 0,
+        size: 12,
+        first: true,
+        last: true,
+        numberOfElements: 0,
+        empty: true,
+      });
+    httpMock
+      .expectOne((r) => r.url === '/contador/pendencias')
+      .flush([
+        {
+          id: 'sol-1',
+          produtorId: 'p1',
+          titulo: 'Balancete',
+          descricao: 'Balancete',
+          dataLimite: '2026-08-01',
+          prioridade: 'media',
+          status: 'pendente',
+          tiposDocumentos: '["Balancete"]',
+          createdAt: '2026-07-01T00:00:00',
+          updatedAt: '2026-07-01T00:00:00',
+        },
+      ]);
 
     cmp.showAnexar.set(true);
     cmp.solicitacaoSelecionada.set('sol-1');
-    cmp.arquivoSelecionado.set(new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }));
+    cmp.arquivoSelecionado.set(
+      new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }),
+    );
     cmp.salvarAnexo();
 
-    httpMock.expectOne(r => r.url === '/contador/documentos/anexar').flush(null as unknown as object);
+    httpMock
+      .expectOne((r) => r.url === '/contador/documentos/anexar')
+      .flush(null as unknown as object);
 
-    expect(cmp.solicitacoes().find(s => s.id === 'sol-1')?.status).toBe('pendente');
+    expect(cmp.solicitacoes().find((s) => s.id === 'sol-1')?.status).toBe('pendente');
     expect(cmp.showAnexar()).toBe(true);
     const toasts = TestBed.inject(ToastService).toasts();
-    expect(toasts.some(t => t.type === 'error')).toBe(true);
+    expect(toasts.some((t) => t.type === 'error')).toBe(true);
   });
 
   /**
@@ -144,18 +214,23 @@ describe('DocumentosPage', () => {
    */
   describe('abertura por ?nota= (vinda do alerta do painel)', () => {
     const nota7 = {
-      id: 'n7', numero: 7, status: 'COM_INCONSISTENCIAS', naturezaOperacao: 'Venda de cafe',
-      dataEmissao: '2026-06-20T00:00:00Z', destinatarioNome: 'Cooperativa Cafeeira XYZ',
-      destinatarioCpfCnpj: '00000000000191', itens: [],
+      id: 'n7',
+      numero: 7,
+      status: 'COM_INCONSISTENCIAS',
+      naturezaOperacao: 'Venda de cafe',
+      dataEmissao: '2026-06-20T00:00:00Z',
+      destinatarioNome: 'Cooperativa Cafeeira XYZ',
+      destinatarioCpfCnpj: '00000000000191',
+      itens: [],
     };
 
     it('sem o parametro, nao busca nota nenhuma por id', () => {
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
-      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: [], totalElements: 0 });
       flushPendencias();
 
-      expect(httpMock.match(r => /\/notas\/[^/]+$/.test(r.url)).length).toBe(0);
+      expect(httpMock.match((r) => /\/notas\/[^/]+$/.test(r.url)).length).toBe(0);
       expect(fixture.componentInstance.previewNota()).toBeNull();
     });
 
@@ -163,11 +238,11 @@ describe('DocumentosPage', () => {
       rota.snapshot.queryParamMap = convertToParamMap({ nota: 'n7' });
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
-      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: [], totalElements: 0 });
 
       // Busca por id, e nao na lista: a nota pode estar na pagina 2.
-      httpMock.expectOne(r => r.url === '/notas/n7').flush(nota7);
-      httpMock.match(r => r.url === '/notas/n7/validacoes').forEach(r => r.flush([]));
+      httpMock.expectOne((r) => r.url === '/notas/n7').flush(nota7);
+      httpMock.match((r) => r.url === '/notas/n7/validacoes').forEach((r) => r.flush([]));
       flushPendencias();
 
       expect(fixture.componentInstance.previewNota()?.numero).toBe(7);
@@ -180,8 +255,9 @@ describe('DocumentosPage', () => {
 
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
-      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
-      httpMock.expectOne(r => r.url === '/notas/sumiu')
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      httpMock
+        .expectOne((r) => r.url === '/notas/sumiu')
         .flush('nao existe', { status: 404, statusText: 'Not Found' });
       flushPendencias();
 
@@ -200,7 +276,7 @@ describe('DocumentosPage', () => {
     function abrirPagina() {
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
-      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: [], totalElements: 0 });
       flushPendencias();
       return fixture;
     }
@@ -208,8 +284,9 @@ describe('DocumentosPage', () => {
     it('abre na aba de criar', () => {
       const cmp = abrirPagina().componentInstance;
       cmp.abrirNovaNota();
-      httpMock.match(r => r.url === '/notas').forEach(r =>
-        r.flush({ content: [], totalElements: 0 }));
+      httpMock
+        .match((r) => r.url === '/notas')
+        .forEach((r) => r.flush({ content: [], totalElements: 0 }));
 
       expect(cmp.abaNota()).toBe('criar');
       expect(cmp.showFormNota()).toBe(true);
@@ -218,8 +295,9 @@ describe('DocumentosPage', () => {
     it('abre direto na aba pedida', () => {
       const cmp = abrirPagina().componentInstance;
       cmp.abrirNovaNota('carregar');
-      httpMock.match(r => r.url === '/notas').forEach(r =>
-        r.flush({ content: [], totalElements: 0 }));
+      httpMock
+        .match((r) => r.url === '/notas')
+        .forEach((r) => r.flush({ content: [], totalElements: 0 }));
 
       expect(cmp.abaNota()).toBe('carregar');
     });
@@ -227,13 +305,19 @@ describe('DocumentosPage', () => {
     it('editar uma nota volta para a aba de criar — nao ha o que escolher ali', () => {
       const cmp = abrirPagina().componentInstance;
       cmp.abrirNovaNota('carregar');
-      httpMock.match(r => r.url === '/notas').forEach(r =>
-        r.flush({ content: [], totalElements: 0 }));
+      httpMock
+        .match((r) => r.url === '/notas')
+        .forEach((r) => r.flush({ content: [], totalElements: 0 }));
 
       cmp.editarNota({
-        id: 'n7', numero: 7, status: 'COM_INCONSISTENCIAS', naturezaOperacao: 'Venda',
-        dataEmissao: '2026-06-20T00:00:00Z', destinatarioNome: 'Cooperativa',
-        destinatarioCpfCnpj: '00000000000191', itens: [],
+        id: 'n7',
+        numero: 7,
+        status: 'COM_INCONSISTENCIAS',
+        naturezaOperacao: 'Venda',
+        dataEmissao: '2026-06-20T00:00:00Z',
+        destinatarioNome: 'Cooperativa',
+        destinatarioCpfCnpj: '00000000000191',
+        itens: [],
       } as never);
 
       expect(cmp.formNotaId()).toBe('n7');
@@ -249,20 +333,26 @@ describe('DocumentosPage', () => {
    */
   describe('aba "Precisam de ajuste"', () => {
     const travada = (id: string, numero: number) => ({
-      id, numero, status: 'COM_INCONSISTENCIAS', naturezaOperacao: 'Venda',
-      dataEmissao: '2026-06-20T00:00:00Z', destinatarioNome: 'Cooperativa',
-      destinatarioCpfCnpj: '00000000000191', itens: [],
+      id,
+      numero,
+      status: 'COM_INCONSISTENCIAS',
+      naturezaOperacao: 'Venda',
+      dataEmissao: '2026-06-20T00:00:00Z',
+      destinatarioNome: 'Cooperativa',
+      destinatarioCpfCnpj: '00000000000191',
+      itens: [],
     });
 
     function abrirComFila(notas: unknown[]) {
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
-      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: [], totalElements: 0 });
       flushPendencias();
 
       fixture.componentInstance.abrirNovaNota('ajustar');
-      httpMock.match(r => r.url === '/notas').forEach(r =>
-        r.flush({ content: notas, totalElements: notas.length }));
+      httpMock
+        .match((r) => r.url === '/notas')
+        .forEach((r) => r.flush({ content: notas, totalElements: notas.length }));
       return fixture;
     }
 
@@ -273,22 +363,23 @@ describe('DocumentosPage', () => {
         { ...travada('n2', 2), status: 'REJEITADA' },
       ]).componentInstance;
 
-      expect(cmp.notasParaAjustar().map(n => n.numero)).toEqual([7, 2]);
+      expect(cmp.notasParaAjustar().map((n) => n.numero)).toEqual([7, 2]);
     });
 
     it('busca a fila alem da pagina atual — uma nota travada pode estar na pagina 2', () => {
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
-      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: [], totalElements: 0 });
       flushPendencias();
 
       fixture.componentInstance.abrirNovaNota('ajustar');
       // Ha duas chamadas a /notas aqui: a fila e a sugestao do proximo numero.
       // A da fila e a que pede 100 — nao a pagina de 12 que a tela ja mostra.
-      const daFila = httpMock.match(r => r.url === '/notas' && r.params.get('size') === '100');
+      const daFila = httpMock.match((r) => r.url === '/notas' && r.params.get('size') === '100');
       expect(daFila.length).toBe(1);
-      httpMock.match(r => r.url === '/notas').forEach(r =>
-        r.flush({ content: [], totalElements: 0 }));
+      httpMock
+        .match((r) => r.url === '/notas')
+        .forEach((r) => r.flush({ content: [], totalElements: 0 }));
     });
 
     it('corrigir uma da fila e sair devolve para a fila, nao fecha o modal', () => {
@@ -298,8 +389,9 @@ describe('DocumentosPage', () => {
       expect(cmp.formNotaId()).toBe('n7');
 
       cmp.fecharForm();
-      httpMock.match(r => r.url === '/notas').forEach(r =>
-        r.flush({ content: [travada('n2', 2)], totalElements: 1 }));
+      httpMock
+        .match((r) => r.url === '/notas')
+        .forEach((r) => r.flush({ content: [travada('n2', 2)], totalElements: 1 }));
 
       // O modal continua aberto, agora na fila — a proxima nota a um clique.
       expect(cmp.showFormNota()).toBe(true);
@@ -310,12 +402,13 @@ describe('DocumentosPage', () => {
     it('sair de uma nota aberta fora da fila fecha o modal, como antes', () => {
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
-      httpMock.expectOne(r => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: [], totalElements: 0 });
       flushPendencias();
 
       fixture.componentInstance.abrirNovaNota();
-      httpMock.match(r => r.url === '/notas').forEach(r =>
-        r.flush({ content: [], totalElements: 0 }));
+      httpMock
+        .match((r) => r.url === '/notas')
+        .forEach((r) => r.flush({ content: [], totalElements: 0 }));
 
       fixture.componentInstance.fecharForm();
       expect(fixture.componentInstance.showFormNota()).toBe(false);
@@ -331,17 +424,22 @@ describe('DocumentosPage', () => {
     function comNotas(notas: unknown[], total = notas.length) {
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
-      httpMock.expectOne(r => r.url === '/notas').flush({ content: notas, totalElements: total });
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: notas, totalElements: total });
       flushPendencias();
       fixture.detectChanges();
       return fixture;
     }
 
     const nota = {
-      id: 'n1', numero: 101, status: 'AUTORIZADA',
+      id: 'n1',
+      numero: 101,
+      status: 'AUTORIZADA',
       naturezaOperacao: 'Venda de producao do estabelecimento',
-      dataEmissao: '2026-09-10T00:00:00Z', destinatarioNome: 'Cerealista Sorriso Ltda',
-      destinatarioCpfCnpj: '00000000000191', valorTotalNota: 70500, itens: [],
+      dataEmissao: '2026-09-10T00:00:00Z',
+      destinatarioNome: 'Cerealista Sorriso Ltda',
+      destinatarioCpfCnpj: '00000000000191',
+      valorTotalNota: 70500,
+      itens: [],
     };
 
     it('o destinatario e o elemento forte do card, nao a natureza', () => {
@@ -354,10 +452,11 @@ describe('DocumentosPage', () => {
 
     it('nao repete um botao "Ver" — clicar no card ja abre a nota', () => {
       const fixture = comNotas([nota]);
-      const textos = [...(fixture.nativeElement as HTMLElement).querySelectorAll('.grid button')]
-        .map(b => b.textContent?.trim());
+      const textos = [
+        ...(fixture.nativeElement as HTMLElement).querySelectorAll('.grid button'),
+      ].map((b) => b.textContent?.trim());
 
-      expect(textos.some(t => t === 'Ver')).toBe(false);
+      expect(textos.some((t) => t === 'Ver')).toBe(false);
     });
 
     it('destaca a nota travada — o selo sozinho nao a separava das outras 11', () => {
@@ -374,6 +473,242 @@ describe('DocumentosPage', () => {
       const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
       expect(texto).toContain('1 de 15');
+    });
+  });
+
+  /**
+   * Tres ideias que o dono aprovou de uma vez: agrupar por mes, adensar a grade
+   * e fazer os filtros falarem. Os testes guardam o comportamento, nao o visual.
+   */
+  describe('agrupamento por mes e filtros', () => {
+    function comNotas(notas: unknown[], total = notas.length) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: notas, totalElements: total });
+      flushPendencias();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function nota(id: string, dataEmissao: string, extra: Record<string, unknown> = {}) {
+      return {
+        id,
+        numero: Number(id.slice(1)),
+        status: 'AUTORIZADA',
+        naturezaOperacao: 'Venda de producao',
+        dataEmissao,
+        destinatarioNome: 'Cerealista Sorriso Ltda',
+        destinatarioCpfCnpj: '00000000000191',
+        valorTotalNota: 1000,
+        itens: [],
+        ...extra,
+      };
+    }
+
+    it('separa as notas em um grupo por mes de emissao', () => {
+      const fixture = comNotas([
+        nota('n1', '2026-09-10T00:00:00Z'),
+        nota('n2', '2026-09-02T00:00:00Z'),
+        nota('n3', '2026-08-15T00:00:00Z'),
+      ]);
+      const grupos = fixture.componentInstance.notasPorMes();
+
+      expect(grupos.map((g) => g.chave)).toEqual(['2026-09', '2026-08']);
+      expect(grupos[0].notas.length).toBe(2);
+      expect(grupos[1].notas.length).toBe(1);
+    });
+
+    it('o cabecalho do mes sai por extenso e em portugues', () => {
+      const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
+      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+      expect(texto).toContain('Setembro de 2026');
+      expect(texto).toContain('1 nota(s)');
+    });
+
+    it('ordenado por valor nao agrupa — um cabecalho de mes mentiria sobre a sequencia', () => {
+      const fixture = comNotas([
+        nota('n1', '2026-09-10T00:00:00Z', { valorTotalNota: 100 }),
+        nota('n2', '2026-08-01T00:00:00Z', { valorTotalNota: 900 }),
+      ]);
+      const cmp = fixture.componentInstance;
+
+      cmp.ordenacao.set('valor');
+      fixture.detectChanges();
+
+      expect(cmp.notasPorMes()).toEqual([]);
+      // A lista continua inteira: so perdeu os cabecalhos.
+      expect(cmp.listaAgrupada().length).toBe(1);
+      expect(cmp.listaAgrupada()[0].notas.length).toBe(2);
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Setembro de 2026');
+    });
+
+    it('sem filtro ativo nao oferece "Limpar filtros"', () => {
+      const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
+
+      expect(fixture.componentInstance.temFiltroAtivo()).toBe(false);
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Limpar filtros');
+    });
+
+    it('com busca ativa, diz quantas sobraram e oferece limpar', () => {
+      const fixture = comNotas([
+        nota('n1', '2026-09-10T00:00:00Z', { destinatarioNome: 'Cerealista Sorriso Ltda' }),
+        nota('n2', '2026-09-11T00:00:00Z', { destinatarioNome: 'Frigorifico Norte' }),
+      ]);
+      const cmp = fixture.componentInstance;
+
+      cmp.busca.set('Sorriso');
+      fixture.detectChanges();
+
+      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(cmp.temFiltroAtivo()).toBe(true);
+      expect(texto).toContain('1 de 2');
+      // Tudo carregado: dizer "nesta página" sugeriria que há nota fora do filtro.
+      expect(texto).not.toContain('nesta página');
+      expect(texto).toContain('Limpar filtros');
+    });
+
+    it('limparFiltros devolve os quatro filtros ao estado neutro', () => {
+      const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
+      const cmp = fixture.componentInstance;
+
+      cmp.busca.set('qualquer');
+      cmp.periodo.set('2026-09');
+      cmp.tipo.set('NFE');
+      cmp.statusFilter.set('AUTORIZADA');
+      expect(cmp.temFiltroAtivo()).toBe(true);
+
+      cmp.limparFiltros();
+      fixture.detectChanges();
+
+      expect(cmp.temFiltroAtivo()).toBe(false);
+      expect(cmp.busca()).toBe('');
+      expect(cmp.periodo()).toBe('todos');
+      expect(cmp.tipo()).toBe('todos');
+      expect(cmp.statusFilter()).toBe('todos');
+    });
+  });
+
+  /**
+   * Com varios meses na tela a lista fica longa; fechar um mes e como fechar uma
+   * pasta. O estado guardado e o **fechado**, para um mes novo nascer aberto.
+   */
+  describe('abrir e fechar os meses', () => {
+    function comNotas(notas: unknown[], total = notas.length) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: notas, totalElements: total });
+      flushPendencias();
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function nota(id: string, dataEmissao: string) {
+      return {
+        id,
+        numero: Number(id.slice(1)),
+        status: 'AUTORIZADA',
+        naturezaOperacao: 'Venda de producao',
+        dataEmissao,
+        destinatarioNome: 'Cerealista Sorriso Ltda',
+        destinatarioCpfCnpj: '00000000000191',
+        valorTotalNota: 1000,
+        itens: [],
+      };
+    }
+
+    const doisMeses = () => [
+      nota('n1', '2026-09-10T00:00:00Z'),
+      nota('n2', '2026-08-05T00:00:00Z'),
+    ];
+
+    it('todo mes comeca aberto', () => {
+      const cmp = comNotas(doisMeses()).componentInstance;
+
+      expect(cmp.mesAberto('2026-09')).toBe(true);
+      expect(cmp.mesAberto('2026-08')).toBe(true);
+      expect(cmp.todosOsMesesAbertos()).toBe(true);
+    });
+
+    it('fechar um mes tira os cards dele do DOM, e so os dele', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.alternarMes('2026-09');
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+      expect(cmp.mesAberto('2026-08')).toBe(true);
+      // O cabecalho continua; o conteudo nao.
+      expect(el.textContent).toContain('Setembro de 2026');
+      expect(el.querySelectorAll('#notas-2026-09 > div.bg-card').length).toBe(0);
+      expect(el.querySelectorAll('#notas-2026-08 > div.bg-card').length).toBe(1);
+    });
+
+    it('o cabecalho anuncia o estado para leitor de tela', () => {
+      const fixture = comNotas(doisMeses());
+      const botao = (fixture.nativeElement as HTMLElement).querySelector(
+        '[aria-controls="notas-2026-09"]',
+      );
+
+      expect(botao?.getAttribute('aria-expanded')).toBe('true');
+
+      fixture.componentInstance.alternarMes('2026-09');
+      fixture.detectChanges();
+      expect(botao?.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('o cabecalho mostra a soma do mes — serve de resumo com o mes fechado', () => {
+      const fixture = comNotas([
+        nota('n1', '2026-09-10T00:00:00Z'),
+        nota('n2', '2026-09-20T00:00:00Z'),
+      ]);
+      fixture.componentInstance.alternarMes('2026-09');
+      fixture.detectChanges();
+
+      const texto =
+        (fixture.nativeElement as HTMLElement).textContent?.replace(/\u00a0/g, ' ') ?? '';
+      expect(texto).toContain('R$ 2.000,00');
+    });
+
+    it('com filtro ativo tudo reabre — resultado nao pode ficar escondido', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.alternarMes('2026-09');
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+
+      cmp.busca.set('Cerealista');
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-09')).toBe(true);
+
+      // E o que ele fechou nao se perdeu: volta a valer quando o filtro sai.
+      cmp.limparFiltros();
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+    });
+
+    it('o botao global fecha todos e depois reabre todos', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.alternarTodosOsMeses();
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+      expect(cmp.mesAberto('2026-08')).toBe(false);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Expandir todos');
+
+      cmp.alternarTodosOsMeses();
+      fixture.detectChanges();
+      expect(cmp.todosOsMesesAbertos()).toBe(true);
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('Recolher todos');
+    });
+
+    it('com um mes so, nao oferece o botao global', () => {
+      const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
+
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Recolher todos');
     });
   });
 });

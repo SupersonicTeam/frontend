@@ -7,7 +7,7 @@
     <!-- Seletor de período (mês/ano) — os endpoints exigem periodo YYYY-MM -->
     <div class="flex items-center gap-2">
       <select
-        class="px-3 py-2 rounded-lg border border-border bg-card text-apoio text-foreground"
+        class="tap-target px-3 rounded-controle border border-border bg-card text-apoio text-foreground"
         [ngModel]="mes()"
         (ngModelChange)="mudarMes($event)"
         aria-label="Mês"
@@ -17,7 +17,7 @@
         }
       </select>
       <select
-        class="px-3 py-2 rounded-lg border border-border bg-card text-apoio text-foreground"
+        class="tap-target px-3 rounded-controle border border-border bg-card text-apoio text-foreground"
         [ngModel]="ano()"
         (ngModelChange)="mudarAno($event)"
         aria-label="Ano"

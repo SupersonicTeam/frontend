@@ -39,6 +39,11 @@ testem.log
 /typings
 __screenshots__/
 
+# Prints de conferencia das telas (11 MB e crescendo). Sao material de trabalho:
+# saem do Playwright a cada rodada de UX e nao descrevem o codigo -- versiona-los
+# so engorda o historico, que e para sempre.
+/docs/prints/
+
 # System files
 .DS_Store
 Thumbs.db
