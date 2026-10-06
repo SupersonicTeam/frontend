@@ -1,28 +1,28 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { LucideSparkles } from '@lucide/angular';
 import { AssistenteConversa } from '@shared/assistente/assistente-conversa';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
 
 /**
- * Assistente fiscal em tela cheia (#51) — **a casca visual**, por decisão do
- * dono do projeto.
+ * A **Ceres** em tela cheia (#51, ligada ao backend na #76): conversas à
+ * esquerda, conversa no meio, o que ela vê do produtor à direita.
  *
- * `POST /chat` responde 404: não há LLM nem RAG no backend (Sprint 6). Então a
- * tela monta a experiência inteira contra o contrato que o backend vai expor e
- * **não finge resposta** — ao enviar, a mensagem entra na conversa e o
- * assistente responde com a verdade, que ainda não está ligado.
- *
- * A conversa em si vive no `AssistenteStore` e é desenhada pelo
- * `AssistenteConversa`, os mesmos usados pela gaveta flutuante. Quem começa a
- * perguntar sobre uma nota na gaveta e abre esta página continua de onde parou.
+ * A conversa vive no `AssistenteStore` e é desenhada pelo `AssistenteConversa`,
+ * os mesmos usados pela gaveta flutuante. Quem começa a perguntar sobre uma nota
+ * na gaveta e abre esta página continua de onde parou.
  *
  * Duas decisões que valem registro:
  *
- * 1. **O contexto é real.** Antes o front mandava `estado: 'PR'` e culturas
- *    "Soja, Milho" fixas no código, enquanto o produtor é de **MT**. O painel da
- *    direita mostra exatamente o que seria enviado, vindo da API.
+ * 1. **O painel da direita não é o payload.** A Ceres recebe apenas a pergunta;
+ *    quem ela é e o que pode ver sai da identidade da requisição, no servidor
+ *    (RN007). O painel mostra os mesmos números do dashboard para quem lê a tela
+ *    saber de que operação a resposta está falando.
  * 2. **A coluna de conversas é honesta**: não há onde persistir histórico
  *    (issue #43), então ela mostra só a conversa atual e diz isso.
+ *
+ * Sair da tela aborta a pergunta em andamento (`AbortController`), como o
+ * contrato pede — o backend percebe a saída, interrompe e libera a vaga. Só não
+ * aborta se a gaveta estiver aberta: aí a mesma conversa continua visível.
  */
 @Component({
   selector: 'app-chat',
@@ -33,13 +33,17 @@ import { AssistenteStore } from '@shared/assistente/assistente.store';
   host: { class: 'flex min-h-0 flex-1 flex-col' },
   templateUrl: './chat.html',
 })
-export class ChatPage implements OnInit {
+export class ChatPage implements OnInit, OnDestroy {
   protected readonly store = inject(AssistenteStore);
 
   ngOnInit(): void {
     this.store.carregarContexto();
     // Em tela cheia a gaveta não faz sentido: seria a mesma conversa duas vezes.
     this.store.fechar();
+  }
+
+  ngOnDestroy(): void {
+    if (!this.store.aberto()) this.store.cancelar(false);
   }
 
   formatCurrency(valor?: number): string {

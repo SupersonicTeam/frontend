@@ -2,6 +2,7 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { environment } from '@env/environment';
+import { IdentidadeService } from '@core/services/identidade.service';
 import { ToastService } from '@core/services/toast.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import { SKIP_ERROR_NOTIFY } from './error-notify.context';
@@ -18,7 +19,9 @@ const PREFIXOS_SEM_TOAST = [
   '/api/calendario-fiscal',
   '/api/contador',
   '/api/notificacao',
-  '/api/chat',
+  // A Ceres mostra a falha dentro da conversa, com mensagem por código
+  // (ocupada, indisponível, tempo esgotado). Toast global seria eco.
+  '/api/assistente',
 ];
 
 /**
@@ -43,12 +46,15 @@ export function mensagemAmigavel(err: HttpErrorResponse): string {
  * Interceptor da API: ponto único que
  *  - prefixa a baseURL (`environment.apiUrl`) nas chamadas relativas;
  *  - adiciona o header `Accept: application/json`;
+ *  - declara a identidade (`X-Usuario-Id`) quando existe uma — ver
+ *    `IdentidadeService` para o porquê de normalmente **não** existir;
  *  - exibe um toast global amigável (derivado de `ApiError.errors[]`) para erros
  *    HTTP não tratados localmente (issue #21). Suprime 404, chamadas que optam por
  *    `skipErrorNotify()` e os prefixos tratados/mock em `PREFIXOS_SEM_TOAST`.
  */
 export const apiInterceptor: HttpInterceptorFn = (req, next) => {
   const toast = inject(ToastService);
+  const identidade = inject(IdentidadeService);
   const base = environment.apiUrl;
 
   // Prefixa a baseURL apenas em paths relativos que ainda não a tenham.
@@ -58,9 +64,13 @@ export const apiInterceptor: HttpInterceptorFn = (req, next) => {
     req.url !== base &&
     !req.url.startsWith(`${base}/`);
 
+  const usuarioId = identidade.usuarioId();
+
   const apiReq = req.clone({
     url: precisaBase ? `${base}${req.url}` : req.url,
-    setHeaders: { Accept: 'application/json' },
+    setHeaders: usuarioId
+      ? { Accept: 'application/json', 'X-Usuario-Id': usuarioId }
+      : { Accept: 'application/json' },
   });
 
   return next(apiReq).pipe(

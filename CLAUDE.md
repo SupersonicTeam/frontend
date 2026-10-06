@@ -42,9 +42,9 @@ imposto, contador, rascunho).
 
 - `environment.apiUrl = '/api'` (`src/environments/environment.ts`).
 - `proxy.conf.json` → `http://localhost:8080` (backend **Spring Boot**, pacote `br.com.agrocontabil`; fonte de
-  verdade dos contratos). O módulo de notas fiscais (`/api/notas`) já existe; onde faltar endpoint (chat, calendário,
-  contador, fluxo de caixa), **não inventar resposta** — deixar a chamada `/api` pronta e a tela dizer que o
-  recurso ainda não existe (ver `ChatPage`/`ChatApi`).
+  verdade dos contratos). Já existem `/api/notas`, `/api/dashboard` e `/api/assistente/chat[/stream]` (a **Ceres**,
+  Sprint 6 do backend); onde faltar endpoint (calendário, contador, fluxo de caixa), **não inventar resposta** —
+  deixar a chamada `/api` pronta e a tela dizer que o recurso ainda não existe.
 - **O proxy reescreve o header `Origin` para `http://localhost:4200`.** O `allowed-origins` do backend
   (`application.yml`) só aceita a 4200; o navegador manda `Origin` em **todo POST/PUT/PATCH/DELETE**, então rodar
   o `ng serve` em qualquer outra porta fazia o Spring devolver **403 "Invalid CORS request"** em toda escrita
@@ -70,7 +70,8 @@ src/
       DTOs/shared/responses/   # DTOs de API (ex.: api-error.response — envelope de erro)
       config/                  # constantes (ex.: produtor-logado → LOGGED_PRODUCER_ID)
       services/                # services CROSS-CUTTING (api, toast, theme, notificacoes-UI)
-      interceptors/            # api.interceptor
+      guards/                  # perfil.guard (logado), produtor.guard (rotas só de produtor)
+      interceptors/            # api.interceptor (baseURL, Accept, X-Usuario-Id, toast de erro)
       utils/                   # nota-pdf
     services/<feat>/data-access/<feat>.service.ts   # services de NEGÓCIO, classes XxxApi (ver tabela)
     pages/<nome>/<nome>.ts + <nome>.html            # páginas rotáveis, classes XxxPage (lazy-loaded)
@@ -94,7 +95,7 @@ Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `
 | `/dashboard` | DashboardPage | `pages/dashboard/dashboard.{ts,html}` |
 | `/calendario` | CalendarioPage | `pages/calendario/calendario.{ts,html}` |
 | `/documentos` | DocumentosPage | `pages/documentos/documentos.{ts,html}` |
-| `/chat` | ChatPage | `pages/chat/chat.{ts,html}` |
+| `/chat` | ChatPage | `pages/chat/chat.{ts,html}` — **só produtor** (`produtorGuard`) |
 | `/contador` | ContadorPage | `pages/contador/contador.{ts,html}` |
 | `/configuracoes` | ConfiguracoesPage | `pages/configuracoes/configuracoes.{ts,html}` |
 
@@ -107,7 +108,7 @@ Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `
 | `NotasApi` | `@services/notas/data-access/notas.service` | **Notas fiscais reais** contra `/api/notas` do backend Spring: CRUD paginado (`Page<T>`), ciclo de emissão (gerar-xml, xml, enviar-sefaz, status-sefaz, pdf, cancelar) e `validacoes`. Model `NotaFiscal` alinhado ao `NotaFiscalResponse`; status em `@core/enums/status-nota-fiscal.enum`. |
 | `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | **Dashboard real** contra `GET /api/dashboard` (KPIs IBS/CBS, notas por mês, distribuição de impostos, últimas notas), com cache local em Signal (`dashboard`). Sem fallback mock — erro propaga para a página tratar (estado de erro + retry). Rascunhos (`/dashboard/rascunhos/*`) ainda com fallback silencioso. |
 | `CalendarioApi` | `@services/calendario/data-access/calendario.service` | Vencimentos/eventos fiscais (com fallback mock). |
-| `ChatApi` | `@services/chat/data-access/chat.service` | Assistente (`POST /chat`). **O endpoint não existe** (404 — não há LLM/RAG no backend): 404/0 viram `AssistenteIndisponivelError` e a tela declara o estado. Nunca devolver texto de assistente inventado. |
+| `CeresApi` | `@services/assistente/data-access/ceres.service` | **A Ceres**, assistente fiscal (issue #76). `perguntarEmStream()` em `POST /api/assistente/chat/stream` (SSE via `fetch`, padrão) e `perguntar()` em `POST /api/assistente/chat` (síncrono, timeout de 6 min — fallback de navegador sem `TextDecoderStream`). Erros viram `CeresError` com `codigo` (`CodigoCeres`) e `retryAfterSegundos`; cancelamento vira `CeresCancelada`. Nunca inventa texto de assistente. |
 | `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. |
 | `NotificacaoApi` | `@services/notificacao/data-access/notificacao.service` | Notificações externas (WhatsApp). |
 
@@ -119,6 +120,7 @@ Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `
 | `NotificacoesService` | Estado **local** de notificações da UI (signal). Não confundir com `NotificacaoApi`. |
 | `ToastService` | Toasts (auto-dismiss 4s), renderizados por `ToastContainer`. |
 | `ThemeService` | Tema claro/escuro. |
+| `IdentidadeService` | Fonte única do header **`X-Usuario-Id`** (interceptor **e** `fetch` do SSE). Hoje devolve `null` de propósito: sem header o backend resolve o produtor semente; com UUID inexistente ele responde **401 em toda chamada** (e o seed regenera o UUID). Escape hatch por `localStorage` (`agrocontabil.usuario-id`). Mesmo padrão do `TokenService`. |
 
 `LOGGED_PRODUCER_ID` mora em `@core/config/produtor-logado`.
 
@@ -127,7 +129,8 @@ Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `
 Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `ProdutorContador`),
 `nota-fiscal.model.ts` (`NotaFiscal`, `ItemNotaFiscal`), `rascunho-nota.model.ts` (`RascunhoNota`,
 `ItemRascunhoNota`), `solicitacao-contador.model.ts` (`SolicitacaoContador`, `DocumentoContador`),
-`chat-message.model.ts`, `vencimento-fiscal.model.ts`, `notificacao.model.ts`, `fluxo-caixa.model.ts`.
+`assistente-mensagem.model.ts` (`AssistenteMensagem` — texto, rota, citações, fontes e `falha`),
+`vencimento-fiscal.model.ts`, `notificacao.model.ts`, `fluxo-caixa.model.ts`.
 `StatusRascunho` em `@core/enums/status-rascunho.enum`. Envelope de erro da API (`ApiErrorEnvelope`,
 `FiscalError`) em `@dtos/shared/responses/api-error.response`. Campos de status são unions de string.
 
@@ -177,14 +180,32 @@ Antes de escrever markup novo, veja se um destes resolve:
 | Arquivo | Para quê |
 |---|---|
 | `validacoes.ts` | Inconsistências fiscais de `/notas/{id}/validacoes`. O endpoint devolve o **histórico inteiro** — `apenasUltimaChecagem()` fica só com o lote mais recente, sem repetir `code`+`field`. `rotuloDoCampo()` traduz os 17 campos que o `FiscalRulesValidator` emite. `ehCampoDoProdutor()` separa o que se corrige na nota do que está no cadastro (que o app **não** edita). Usado no modal da nota **e** na gaveta do assistente. |
+| `ceres.ts` | Vocabulário da Ceres em português: `rotuloRota()` (selo "das suas notas"), `etapaDaRota()` (o que mostrar enquanto ela trabalha), `rotuloFonte()`/`descreverFonte()` (as consultas de `fontesDados`) e `TAMANHO_MAXIMO_PERGUNTA` (1000). Função não documentada no contrato aparece com o nome cru — melhor que inventar rótulo. |
 | `chart-tokens.ts` | Cores do Chart.js a partir das custom properties do tema. O `<canvas>` não enxerga Tailwind. |
 | `download.ts` · `nota-pdf.ts` | Salvar blob / DANFE. |
 
-## Assistente (`shared/assistente/`)
+## Assistente — a Ceres (`shared/assistente/`, issue #76)
 
 `AssistenteStore` guarda **uma** conversa, compartilhada pela gaveta flutuante (global, no `AppLayout`) e
 pela página `/chat`. `AssistenteConversa` desenha as mensagens nas duas. `abrirSobreNota(nota)` abre a
 gaveta com a nota à direita e busca as validações reais.
+
+O que o contrato da Ceres impõe e onde isso mora:
+
+| Regra do contrato | Onde |
+|---|---|
+| Citação legal **visível**, com link do Planalto e trecho expansível | `<app-ceres-citacoes>` (`<details>`, sem estado nem JS) |
+| "Calculado a partir das suas notas", com as consultas feitas | `<app-ceres-fontes>` + `@core/utils/ceres` |
+| `rota` (DADOS/LEGISLACAO/MISTO/FORA_DE_ESCOPO) | selo na mensagem; durante a espera vira "Consultando as suas notas…" (evento `rota` do SSE chega em segundos) |
+| Uma pergunta por vez; 1 a 1000 caracteres | `podeEnviar`/`perguntaLonga` no store, contador no campo |
+| `Retry-After` no 503 `ASSISTENTE_OCUPADO` | store reenvia **uma** vez (`TENTATIVAS_POR_PERGUNTA`) |
+| `AbortController` ao sair da tela | `store.cancelar(false)` no `ngOnDestroy` da `ChatPage`; botão "Cancelar" durante a espera |
+| Chat escondido para contador (403 `PAPEL_NAO_AUTORIZADO`) | `store.disponivel()` + `produtorGuard` na rota |
+| `resposta` é texto puro | interpolação com `whitespace-pre-line`; **nunca** `[innerHTML]` |
+
+Falha **não vira texto de assistente**: a mensagem carrega `falha` com o código do backend e a tela
+escolhe o que dizer (`tituloDaFalha`/`detalheDaFalha` em `assistente-conversa.ts`). "Modelo fora do ar"
+(`ASSISTENTE_INDISPONIVEL`) e "servidor fora do ar" (`SEM_CONEXAO`) são coisas diferentes e a tela diz qual é.
 
 **Medição:** `docs/ux-audit.js` — cole no console e rode `uxAudit()`. Devolve alvos abaixo de 44px, textos
 abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o critério de aceite numérico das fases.
@@ -196,7 +217,8 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 - `noPropertyAccessFromIndexSignature`: acessar propriedades de index-signature com **bracket** `obj['x']`.
 - Prettier: `printWidth: 100`, `singleQuote: true` (config no `package.json`); HTML usa parser `angular`.
 - Budgets (`angular.json`): bundle inicial warn 500 kB / erro 1 MB; estilos warn 4 kB / erro 8 kB.
-  (Baseline atual: **437,18 kB** inicial / 107,20 kB gzip — folga de ~63 kB.)
+  (Baseline atual: **457,67 kB** inicial / 112,42 kB gzip — folga de ~42 kB. A Ceres custou ~19 kB: a gaveta
+  entra no bundle inicial pelo `AppLayout`. Se apertar, o caminho é `@defer` na gaveta, não cortar a camada de IA.)
 - **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
   conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
   de fechar painel do `app-layout`, e só depois de `Esc` passar a fechar os painéis de verdade.

@@ -6,14 +6,17 @@
         Olá{{ store.contexto().nome ? ', ' + store.contexto().nome : '' }}.
       </p>
       <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
-        Quando estiver ligado, eu vou responder olhando as suas notas e a sua apuração —
-        e citando a legislação em que me baseei. Experimente uma das perguntas abaixo.
+        Sou a Ceres. Eu respondo olhando as suas notas e a sua apuração, e cito a lei em que me
+        baseei — com o link para o texto oficial. Experimente uma das perguntas abaixo.
       </p>
     </div>
   } @else if (store.mensagens().length === 0) {
-    <p class="rounded-card border border-assistente-borda bg-assistente-soft p-3 text-apoio leading-relaxed text-muted-foreground">
+    <p
+      class="rounded-card border border-assistente-borda bg-assistente-soft p-3 text-apoio leading-relaxed text-muted-foreground"
+    >
       @if (store.notaEmFoco(); as nota) {
-        Pergunte o que quiser sobre a nota {{ nota.numero }} — eu vejo os dados dela aqui do lado.
+        Pergunte o que quiser sobre a nota {{ nota.numero }} — ela está aqui do lado para você
+        conferir enquanto eu consulto as suas notas.
       } @else {
         Pergunte o que quiser sobre as suas notas e os seus impostos.
       }
@@ -21,103 +24,171 @@
   }
 
   @for (msg of store.mensagens(); track $index) {
-    @if (msg.role === 'user') {
+    @if (msg.autor === 'produtor') {
       <div class="flex justify-end gap-2">
-        <p class="max-w-[85%] rounded-destaque rounded-tr-md bg-primary px-4 py-2.5 text-apoio leading-relaxed text-primary-foreground">
-          {{ msg.content }}
+        <p
+          class="max-w-[85%] rounded-destaque rounded-tr-md bg-primary px-4 py-2.5 text-apoio leading-relaxed whitespace-pre-line text-primary-foreground"
+        >
+          {{ msg.texto }}
         </p>
-        <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted-foreground">
-          <svg lucideUser [size]="16" />
+        <span
+          class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted-foreground"
+        >
+          <svg lucideUser [size]="16" aria-hidden="true" />
         </span>
       </div>
-    } @else if (msg.content === 'INDISPONIVEL') {
-      <!-- Estado honesto: o assistente nao existe ainda, e a tela diz isso em vez
-           de simular uma resposta que nunca veio de lugar nenhum. -->
+    } @else if (msg.falha === 'CANCELADA') {
+      <p class="pl-10 text-apoio text-muted-foreground">Pergunta cancelada.</p>
+    } @else if (msg.falha; as falha) {
+      <!-- Falha não vira resposta de assistente: a tela diz o que aconteceu, com a
+           mensagem certa para cada código do backend. -->
       <div class="flex gap-2">
-        <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-aviso-soft text-aviso">
-          <svg lucideTriangleAlert [size]="16" />
+        <span
+          class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-aviso-soft text-aviso"
+        >
+          <svg lucideTriangleAlert [size]="16" aria-hidden="true" />
         </span>
-        <div class="max-w-[85%] rounded-destaque rounded-tl-md border border-aviso/30 bg-aviso-soft px-4 py-3">
-          <p class="text-apoio font-medium text-aviso-ink">O assistente ainda não está ligado.</p>
+        <div
+          class="max-w-[85%] rounded-destaque rounded-tl-md border border-aviso/30 bg-aviso-soft px-4 py-3"
+        >
+          <p class="text-apoio font-medium text-aviso-ink">{{ tituloDaFalha(falha) }}</p>
           <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
-            A pergunta foi montada com o seu contexto real e está pronta para ser enviada —
-            falta o serviço de IA no servidor, que entra na Sprint 6.
+            {{ detalheDaFalha(msg) }}
           </p>
         </div>
       </div>
     } @else {
       <div class="flex gap-2">
-        <span class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
-          <svg lucideSparkles [size]="16" />
+        <span
+          class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground"
+        >
+          <svg lucideSparkles [size]="16" aria-hidden="true" />
         </span>
-        <div class="max-w-[85%] rounded-destaque rounded-tl-md border border-assistente-borda bg-card px-4 py-3">
-          <p class="whitespace-pre-line text-apoio leading-relaxed text-foreground">
-            {{ msg.content }}
+        <div
+          class="max-w-[85%] rounded-destaque rounded-tl-md border border-assistente-borda bg-card px-4 py-3"
+        >
+          @if (selo(msg); as origem) {
+            <p class="mb-1.5 text-apoio font-medium text-assistente-ink">Resposta {{ origem }}</p>
+          }
+
+          <p class="text-apoio leading-relaxed whitespace-pre-line text-foreground">
+            {{ msg.texto }}
           </p>
-          <!-- Espaço reservado para a citação da legislação que o RAG usar. -->
-          <p class="mt-2 flex items-center gap-1.5 text-apoio text-muted-foreground">
-            <svg lucideBookOpen [size]="14" />
-            A fonte citada aparece aqui
-          </p>
+
+          @if (msg.modoFallback) {
+            <p class="mt-2 text-apoio leading-relaxed text-muted-foreground">
+              Resposta montada apenas com o texto da lei, sem interpretação.
+            </p>
+          }
+
+          <app-ceres-citacoes [citacoes]="msg.citacoes ?? []" />
+          <app-ceres-fontes [fontes]="msg.fontesDados ?? []" />
         </div>
       </div>
     }
   }
 
-  @if (store.enviando()) {
-    <div class="flex items-center gap-2 text-apoio text-muted-foreground">
-      <span class="flex size-8 items-center justify-center rounded-full bg-assistente text-assistente-foreground">
-        <svg lucideSparkles [size]="16" />
+  @if (store.etapa(); as etapa) {
+    <div class="flex items-center gap-2" aria-live="polite">
+      <span
+        class="flex size-8 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground"
+      >
+        <svg lucideSparkles [size]="16" aria-hidden="true" />
       </span>
-      <span class="animate-pulse">Consultando…</span>
+      <span class="animate-pulse text-apoio text-muted-foreground">{{ etapa }}</span>
+      <button
+        type="button"
+        class="tap-target inline-flex items-center gap-1.5 rounded-controle px-3 text-apoio font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        (click)="store.cancelar()"
+      >
+        <svg lucideCircleStop [size]="14" aria-hidden="true" />
+        Cancelar
+      </button>
     </div>
   }
 
   <div #fimDaConversa></div>
 </div>
 
-<!-- Sugestões -->
-<div
-  class="flex gap-2"
-  [class.flex-wrap]="!compacto()"
-  [class.overflow-x-auto]="compacto()"
-  [class.scrollbar-none]="compacto()"
->
-  @for (pergunta of store.sugestoes(); track pergunta) {
-    <button
-      type="button"
-      class="tap-target shrink-0 rounded-full border border-assistente-borda bg-assistente-soft px-4 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente/15 disabled:opacity-50"
-      [disabled]="store.enviando()"
-      (click)="store.enviar(pergunta)"
-    >
-      {{ pergunta }}
-    </button>
-  }
-</div>
-
-<!-- Campo -->
-<form class="flex items-end gap-2" (submit)="$event.preventDefault(); store.enviar()">
-  <label [attr.for]="'pergunta-' + (compacto() ? 'gaveta' : 'pagina')" class="sr-only">
-    Sua pergunta
-  </label>
-  <textarea
-    [id]="'pergunta-' + (compacto() ? 'gaveta' : 'pagina')"
-    rows="1"
-    placeholder="Escreva sua pergunta…"
-    class="min-h-[2.75rem] flex-1 resize-none rounded-controle border border-border bg-card px-4 py-3 text-apoio text-foreground"
-    [value]="store.entrada()"
-    (input)="store.entrada.set($any($event.target).value)"
-    (keydown)="aoTeclar($event)"
-  ></textarea>
-  <ui-button
-    type="submit"
-    variant="assistente"
-    [disabled]="!store.podeEnviar()"
-    [carregando]="store.enviando()"
+@if (store.disponivel()) {
+  <!-- Sugestões -->
+  <div
+    class="flex gap-2"
+    [class.flex-wrap]="!compacto()"
+    [class.overflow-x-auto]="compacto()"
+    [class.scrollbar-none]="compacto()"
   >
-    <svg lucideSend [size]="16" />
-    @if (!compacto()) {
-      <span class="hidden sm:inline">Enviar</span>
+    @for (pergunta of store.sugestoes(); track pergunta) {
+      <button
+        type="button"
+        class="tap-target shrink-0 rounded-full border border-assistente-borda bg-assistente-soft px-4 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente/15 disabled:opacity-50"
+        [disabled]="store.enviando()"
+        (click)="store.enviar(pergunta)"
+      >
+        {{ pergunta }}
+      </button>
     }
-  </ui-button>
-</form>
+  </div>
+
+  <!-- Campo -->
+  <form class="flex flex-col gap-1.5" (submit)="$event.preventDefault(); store.enviar()">
+    <div class="flex items-end gap-2">
+      <label [attr.for]="'pergunta-' + (compacto() ? 'gaveta' : 'pagina')" class="sr-only">
+        Sua pergunta
+      </label>
+      <textarea
+        [id]="'pergunta-' + (compacto() ? 'gaveta' : 'pagina')"
+        rows="1"
+        placeholder="Escreva sua pergunta…"
+        class="min-h-[2.75rem] flex-1 resize-none rounded-controle border bg-card px-4 py-3 text-apoio text-foreground"
+        [class.border-border]="!store.perguntaLonga()"
+        [class.border-perigo]="store.perguntaLonga()"
+        [attr.aria-invalid]="store.perguntaLonga() ? 'true' : null"
+        [attr.aria-describedby]="
+          store.perguntaLonga() ? 'limite-' + (compacto() ? 'gaveta' : 'pagina') : null
+        "
+        [value]="store.entrada()"
+        (input)="store.entrada.set($any($event.target).value)"
+        (keydown)="aoTeclar($event)"
+      ></textarea>
+      <ui-button
+        type="submit"
+        variant="assistente"
+        [disabled]="!store.podeEnviar()"
+        [carregando]="store.enviando()"
+      >
+        <svg lucideSend [size]="16" aria-hidden="true" />
+        @if (!compacto()) {
+          <span class="hidden sm:inline">Enviar</span>
+        }
+      </ui-button>
+    </div>
+
+    <!-- O limite é do backend (400 VALIDATION_ERROR acima de 1000 caracteres): o
+         contador avisa antes de a pergunta ser recusada. -->
+    @if (store.caracteresUsados() >= limiarDoContador) {
+      <p
+        [id]="'limite-' + (compacto() ? 'gaveta' : 'pagina')"
+        class="text-apoio tabular-nums"
+        [class.text-muted-foreground]="!store.perguntaLonga()"
+        [class.text-perigo]="store.perguntaLonga()"
+      >
+        {{ store.caracteresUsados() }} de {{ store.limiteDeCaracteres }} caracteres
+        @if (store.perguntaLonga()) {
+          <span>— encurte a pergunta para enviar.</span>
+        }
+      </p>
+    }
+
+    <p class="text-apoio leading-relaxed text-muted-foreground">
+      A Ceres é uma assistente informativa e não substitui a análise do seu contador.
+    </p>
+  </form>
+} @else {
+  <p
+    class="rounded-card border border-aviso/30 bg-aviso-soft p-3 text-apoio leading-relaxed text-muted-foreground"
+  >
+    A Ceres responde sobre os dados de um produtor. O perfil de contador não tem acesso a esta
+    conversa.
+  </p>
+}

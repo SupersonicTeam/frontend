@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { AppLayout } from '@shared/layout/app-layout/app-layout';
 import { perfilGuard } from '@core/guards/perfil.guard';
+import { produtorGuard } from '@core/guards/produtor.guard';
 
 export const routes: Routes = [
   {
@@ -30,7 +31,9 @@ export const routes: Routes = [
         loadComponent: () => import('@pages/tributario/tributario').then((m) => m.TributarioPage),
       },
       {
+        // A Ceres atende produtor (403 PAPEL_NAO_AUTORIZADO para contador).
         path: 'chat',
+        canActivate: [produtorGuard],
         loadComponent: () => import('@pages/chat/chat').then((m) => m.ChatPage),
       },
       {

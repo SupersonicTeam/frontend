@@ -1,0 +1,22 @@
+@if (fontes().length > 0) {
+  <section
+    class="mt-3 rounded-controle border border-border bg-surface-2 p-3"
+    aria-label="Origem dos números da resposta"
+  >
+    <p class="flex items-center gap-1.5 text-apoio font-semibold text-foreground">
+      <svg lucideDatabase [size]="14" aria-hidden="true" />
+      Calculado a partir das suas notas
+    </p>
+
+    <ul class="mt-1.5 flex flex-col gap-1">
+      @for (fonte of fontes(); track fonte.funcao + $index) {
+        <li class="text-apoio leading-relaxed text-muted-foreground">
+          <span class="font-medium text-foreground">{{ rotulo(fonte.funcao) }}</span>
+          @if (detalhe(fonte)) {
+            <span> — {{ detalhe(fonte) }}</span>
+          }
+        </li>
+      }
+    </ul>
+  </section>
+}

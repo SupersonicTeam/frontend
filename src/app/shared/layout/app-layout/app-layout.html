@@ -203,7 +203,7 @@
           <a routerLink="/chat" routerLinkActive="bg-assistente-soft text-assistente-ink font-semibold"
              [routerLinkActiveOptions]="{exact:false}"
              class="flex items-center gap-3 rounded-controle border border-assistente-borda bg-assistente-soft/50 px-3 py-3 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente-soft">
-            <svg lucideSparkles [size]="20" /><span>Perguntar ao assistente</span>
+            <svg lucideSparkles [size]="20" /><span>Perguntar à Ceres</span>
           </a>
         }
 
@@ -332,10 +332,13 @@
     }
   </nav>
 
-  <!-- Assistente sempre a mao: botao flutuante + gaveta. A gaveta le o mesmo
-       estado da pagina /chat, entao a conversa nao recomeca ao trocar de tela. -->
-  <app-assistente-launcher />
-  <app-assistente-drawer />
+  <!-- A Ceres sempre a mao: botao flutuante + gaveta. A gaveta le o mesmo estado
+       da pagina /chat, entao a conversa nao recomeca ao trocar de tela. Para o
+       contador nao existe: a Ceres responde 403 PAPEL_NAO_AUTORIZADO. -->
+  @if (perfilService.ehProdutor()) {
+    <app-assistente-launcher />
+    <app-assistente-drawer />
+  }
 
   <app-toast-container />
 </div>
