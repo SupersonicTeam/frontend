@@ -13,13 +13,12 @@ import {
   LucideMail,
   LucideRefreshCw,
 } from '@lucide/angular';
-import { forkJoin } from 'rxjs';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { ToastService } from '@core/services/toast.service';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
-import { SolicitacaoContador, GuiaFiscal } from '@models/solicitacao-contador.model';
+import { SolicitacaoContador } from '@models/solicitacao-contador.model';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 
 @Component({
@@ -47,11 +46,19 @@ export class CalendarioPage implements OnInit {
   private readonly notificacaoService = inject(NotificacaoApi);
   private readonly toastService = inject(ToastService);
 
-  // Vencimentos reais (/calendario-fiscal) e itens do ContadorApi (solicitações + guias, com
-  // fallback mock) são carregados de forma desacoplada — uma falha isolada em um deles não
-  // esconde o outro (ver design.md: "Resiliência do calendário").
-  private readonly vencimentosReais = signal<VencimentoFiscal[]>([]);
+  /**
+   * Vencimentos já buscados, **por mês** (`AAAA-MM`). A janela é do servidor: cada mês visitado
+   * vira uma busca, e o que já veio fica guardado para voltar ao mês não custar outra requisição.
+   */
+  private readonly vencimentosPorMes = signal<Record<string, VencimentoFiscal[]>>({});
   private readonly vencimentosContador = signal<VencimentoFiscal[]>([]);
+
+  private readonly vencimentosReais = computed(() =>
+    Object.values(this.vencimentosPorMes()).flat(),
+  );
+
+  // As duas fontes carregam desacopladas: uma falha isolada em `/calendario-fiscal` não esconde
+  // as solicitações do contador, e vice-versa (ver design.md: "Resiliência do calendário").
   readonly vencimentos = computed(() => [...this.vencimentosReais(), ...this.vencimentosContador()]);
   loading = signal(false);
   vencimentosErro = signal(false);
@@ -114,44 +121,59 @@ export class CalendarioPage implements OnInit {
   }
 
   /**
-   * Busca vencimentos fiscais reais E itens do ContadorApi (solicitações + guias) de forma
-   * desacoplada: uma falha em `/calendario-fiscal` zera só os vencimentos reais e mostra o
-   * banner de erro (`vencimentosErro`), mas NÃO esconde solicitações/guias do ContadorApi
-   * (que têm fallback mock e praticamente nunca falham) — ver design.md.
+   * Carrega o mês que está na tela e as solicitações do contador, desacoplados: uma falha em
+   * `/calendario-fiscal` mostra o banner de erro sem esconder as solicitações, e vice-versa.
    */
   carregar(): void {
-    this.loading.set(true);
-    this.vencimentosErro.set(false);
-    this.carregarVencimentosReais();
+    this.carregarMes(this.chaveDoMes(this.mesAtual()), { recarregar: true });
     this.carregarVencimentosContador();
   }
 
-  private carregarVencimentosReais(): void {
-    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID).subscribe({
+  /**
+   * Busca um mês no servidor, uma vez só.
+   *
+   * **A janela vai na query, não no filtro da tela.** Sem `de`/`ate` o backend devolve o mês
+   * corrente ±12 meses — navegar para fora disso traria lista vazia, que na tela é idêntico a
+   * "não há nada a pagar neste mês".
+   */
+  private carregarMes(chave: string, opcoes: { recarregar?: boolean } = {}): void {
+    if (!opcoes.recarregar && this.vencimentosPorMes()[chave]) return;
+
+    this.loading.set(true);
+    this.vencimentosErro.set(false);
+
+    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID, this.janelaDoMes(chave)).subscribe({
       next: (vencimentos) => {
-        this.vencimentosReais.set(vencimentos);
+        this.vencimentosPorMes.update((mapa) => ({ ...mapa, [chave]: vencimentos }));
         this.vencimentosErro.set(false);
         this.loading.set(false);
       },
       error: () => {
-        this.vencimentosReais.set([]);
+        this.vencimentosPorMes.update((mapa) => {
+          const copia = { ...mapa };
+          delete copia[chave];
+          return copia;
+        });
         this.vencimentosErro.set(true);
         this.loading.set(false);
       },
     });
   }
 
+  /** `2026-10` → primeiro e último dia do mês, que é o que o endpoint espera. */
+  private janelaDoMes(chave: string): { de: string; ate: string } {
+    const [ano, mes] = chave.split('-').map(Number);
+    const ultimoDia = new Date(ano, mes, 0).getDate();
+    return { de: `${chave}-01`, ate: `${chave}-${String(ultimoDia).padStart(2, '0')}` };
+  }
+
+  private chaveDoMes(data: Date): string {
+    return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
+  }
+
   private carregarVencimentosContador(): void {
-    forkJoin({
-      pendencias: this.contadorService.getPendencias(LOGGED_PRODUCER_ID),
-      guias: this.contadorService.getGuias(LOGGED_PRODUCER_ID),
-    }).subscribe({
-      next: ({ pendencias, guias }) => {
-        this.vencimentosContador.set([
-          ...this.mapPendenciasParaEventos(pendencias),
-          ...this.mapGuiasParaEventos(guias),
-        ]);
-      },
+    this.contadorService.getPendencias(LOGGED_PRODUCER_ID).subscribe({
+      next: (pendencias) => this.vencimentosContador.set(this.mapPendenciasParaEventos(pendencias)),
       error: () => this.vencimentosContador.set([]),
     });
   }
@@ -178,28 +200,22 @@ export class CalendarioPage implements OnInit {
       }));
   }
 
-  // Converte guias fiscais anexadas pelo contador em eventos do calendário (tipo imposto)
-  private mapGuiasParaEventos(guias: GuiaFiscal[]): VencimentoFiscal[] {
-    return guias.map((g) => ({
-      id: 'guia-' + g.id,
-      titulo: `Guia ${g.tipoGuia}`,
-      dataVencimento: g.dataVencimento,
-      tipo: 'imposto' as const,
-      status: g.status,
-      valor: g.valor,
-    }));
-  }
-
   mesAnterior(): void {
-    const d = new Date(this.mesAtual());
-    d.setMonth(d.getMonth() - 1);
-    this.mesAtual.set(d);
+    this.irParaMes(-1);
   }
 
   proximoMes(): void {
+    this.irParaMes(1);
+  }
+
+  /** Troca o mês e busca o que faltar — o servidor é quem recorta a janela. */
+  private irParaMes(passo: number): void {
     const d = new Date(this.mesAtual());
-    d.setMonth(d.getMonth() + 1);
+    // Dia 1 antes de somar: em 31/03, `setMonth(-1)` cairia em 03/03 (fevereiro não tem 31).
+    d.setDate(1);
+    d.setMonth(d.getMonth() + passo);
     this.mesAtual.set(d);
+    this.carregarMes(this.chaveDoMes(d));
   }
 
   selecionarDia(dia: number): void {
@@ -270,13 +286,18 @@ export class CalendarioPage implements OnInit {
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
+  /**
+   * Cor por tipo, status e prioridade sai dos **tokens semânticos** (#45), não de `amber-50` e
+   * companhia: as classes fixas do Tailwind não têm variante `dark:`, então no tema escuro o chip
+   * ficava com fundo claro e texto claro. Os tokens já trocam de valor com o tema.
+   */
   tipoIconClass(tipo: string): string {
     return (
       {
-        imposto: 'bg-amber-50 text-amber-600',
-        obrigacao: 'bg-blue-50 text-blue-600',
-        declaracao: 'bg-violet-50 text-violet-600',
-        solicitacao: 'bg-orange-50 text-orange-600',
+        imposto: 'bg-aviso-soft text-aviso-ink',
+        obrigacao: 'bg-info-soft text-info-ink',
+        declaracao: 'bg-assistente-soft text-assistente-ink',
+        solicitacao: 'bg-accent/15 text-accent',
       }[tipo] ?? 'bg-muted text-muted-foreground'
     );
   }
@@ -284,20 +305,22 @@ export class CalendarioPage implements OnInit {
   prioridadeColor(p?: string): string {
     return (
       {
-        urgente: 'text-red-600 font-semibold',
-        alta: 'text-orange-600',
-        media: 'text-yellow-600',
-        baixa: 'text-green-600',
+        urgente: 'text-perigo font-semibold',
+        alta: 'text-accent',
+        media: 'text-aviso-ink',
+        baixa: 'text-sucesso',
       }[p ?? ''] ?? 'text-muted-foreground'
     );
   }
 
   statusColor(status: string): string {
-    return status === 'pago'
-      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-      : status === 'vencido'
-        ? 'bg-red-100 text-red-800 border border-red-200'
-        : 'bg-yellow-100 text-yellow-800 border border-yellow-200';
+    return (
+      {
+        pago: 'bg-sucesso-soft text-sucesso-ink border border-sucesso/30',
+        vencido: 'bg-perigo-soft text-perigo-ink border border-perigo/30',
+        pendente: 'bg-aviso-soft text-aviso-ink border border-aviso/30',
+      }[status] ?? 'bg-muted text-muted-foreground border border-border'
+    );
   }
 
   statusLabel(status: string): string {
@@ -314,11 +337,11 @@ export class CalendarioPage implements OnInit {
     const eventos = this.eventosPorDia()[dia];
     if (!eventos) return '';
     const selected = this.ehSelecionado(dia);
-    if (tipo === 'imposto' && eventos.imposto) return selected ? 'bg-primary-foreground' : 'bg-amber-500';
+    if (tipo === 'imposto' && eventos.imposto) return selected ? 'bg-primary-foreground' : 'bg-aviso';
     if (tipo === 'obrigacao' && eventos.obrigacao)
-      return selected ? 'bg-primary-foreground' : 'bg-blue-500';
+      return selected ? 'bg-primary-foreground' : 'bg-info';
     if (tipo === 'solicitacao' && eventos.solicitacao)
-      return selected ? 'bg-primary-foreground' : 'bg-orange-500';
+      return selected ? 'bg-primary-foreground' : 'bg-accent';
     return '';
   }
 

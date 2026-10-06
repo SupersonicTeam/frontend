@@ -11,22 +11,23 @@ import { ToastService } from '@core/services/toast.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
+import { UiButton } from '@shared/ui/ui-button';
 import { UiStat } from '@shared/ui/ui-stat';
 
-/** Rótulo + classe de badge por status de apuração (RN004/RN005). */
+/**
+ * Rótulo + classe de badge por status de apuração (RN004/RN005).
+ *
+ * Sobre os **tokens semânticos** (#45) em vez do par `bg-blue-100`/`dark:bg-blue-950`: o token já
+ * troca de valor com o tema, então some a duplicação de cada cor em duas variantes — e o badge
+ * passa a combinar com o resto do sistema, que é quem define o que é "atenção" e o que é "ok".
+ */
 const STATUS_APURACAO: Record<StatusApuracao, { label: string; classe: string }> = {
-  ABERTO: {
-    label: 'Aberto',
-    classe: 'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-  },
+  ABERTO: { label: 'Aberto', classe: 'bg-info-soft text-info-ink border border-info/30' },
   EM_PROCESSAMENTO: {
     label: 'Em processamento',
-    classe: 'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
+    classe: 'bg-aviso-soft text-aviso-ink border border-aviso/30',
   },
-  FECHADO: {
-    label: 'Fechado',
-    classe: 'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-  },
+  FECHADO: { label: 'Fechado', classe: 'bg-sucesso-soft text-sucesso-ink border border-sucesso/30' },
 };
 
 const MESES = [
@@ -45,6 +46,7 @@ const MESES = [
   selector: 'app-tributario',
   standalone: true,
   imports: [
+    UiButton,
     UiStat,
     FormsModule, LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
   ],
@@ -219,5 +221,15 @@ export class TributarioPage implements OnInit {
 
   formatCurrency(v?: number | null): string {
     return (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  /**
+   * `dataFechamento` vem como instante ISO (`2026-08-01T03:00:00Z`). Sem isto a tela mostrava a
+   * string crua ao produtor — que é a cara de um dado que vazou da API para a interface.
+   */
+  formatDate(iso?: string | null): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR');
   }
 }

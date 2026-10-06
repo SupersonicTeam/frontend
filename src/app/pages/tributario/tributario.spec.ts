@@ -232,4 +232,32 @@ describe('TributarioPage', () => {
     await vi.waitFor(() => expect(toast.toasts().at(-1)?.message).toBe('Período inválido'));
     expect(cmp.baixandoPdf()).toBe(false);
   });
+
+  it('mostra a data de fechamento em português, não o instante ISO da API', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    f.detectChanges();
+    flushTodos();
+    f.detectChanges();
+
+    const texto = (f.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('01/08/2026');
+    expect(texto).not.toContain('2026-08-01T03:00:00');
+  });
+
+  it('todo botão da tela respeita o alvo mínimo de 44×44 (WCAG 2.5.5)', () => {
+    // Os botões eram `py-1.5` (~30px de altura). O `ui-button` é quem garante o piso de 44px e
+    // o rótulo de 14px — por isso a tela usa ele em vez de `<button>` com classe à mão.
+    const f = TestBed.createComponent(TributarioPage);
+    f.detectChanges();
+    flushTodos();
+    f.detectChanges();
+
+    const botoes = Array.from(
+      (f.nativeElement as HTMLElement).querySelectorAll('button'),
+    );
+    expect(botoes.length).toBeGreaterThan(0);
+    for (const b of botoes) {
+      expect(b.className).toContain('tap-target');
+    }
+  });
 });

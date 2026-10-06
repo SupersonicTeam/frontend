@@ -7,8 +7,12 @@
         <p class="font-medium text-destructive">Não foi possível carregar os vencimentos.</p>
         <p class="text-muted-foreground text-apoio">Verifique a conexão e tente novamente.</p>
       </div>
-      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-controle border border-border text-apoio hover:bg-muted shrink-0" (click)="retry()">
-        <svg lucideRefreshCw [size]="14" /> Tentar novamente
+      <button
+        type="button"
+        class="tap-target flex shrink-0 items-center gap-1.5 rounded-controle border border-border px-3 text-apoio hover:bg-muted"
+        (click)="retry()"
+      >
+        <svg lucideRefreshCw [size]="14" aria-hidden="true" /> Tentar novamente
       </button>
     </div>
   }
@@ -20,7 +24,9 @@
       <h1 class="text-2xl md:text-3xl font-heading font-bold text-foreground">Prazos</h1>
     </div>
     <button
+      type="button"
       class="tap-target flex items-center gap-2 rounded-controle border border-sucesso/30 px-4 text-apoio font-medium text-sucesso-ink transition-colors hover:bg-sucesso-soft disabled:opacity-50"
+      aria-label="Notificar WhatsApp"
       (click)="handleNotificarWhatsApp()"
       [disabled]="enviandoNotificacao()"
     >
@@ -39,12 +45,22 @@
     <div class="md:col-span-2 bg-card rounded-card border border-border shadow-suave p-3 sm:p-5">
       <!-- Navegação -->
       <div class="flex items-center justify-between mb-4">
-        <button class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" (click)="mesAnterior()">
-          <svg lucideChevronLeft [size]="20" />
+        <button
+          type="button"
+          class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Mês anterior"
+          (click)="mesAnterior()"
+        >
+          <svg lucideChevronLeft [size]="20" aria-hidden="true" />
         </button>
         <h2 class="font-heading font-semibold text-base text-foreground capitalize">{{ nomeMes() }}</h2>
-        <button class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" (click)="proximoMes()">
-          <svg lucideChevronRight [size]="20" />
+        <button
+          type="button"
+          class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Próximo mês"
+          (click)="proximoMes()"
+        >
+          <svg lucideChevronRight [size]="20" aria-hidden="true" />
         </button>
       </div>
 
@@ -69,7 +85,10 @@
               <div></div>
             } @else {
               <button
+                type="button"
                 class="relative flex flex-col items-center justify-start w-full aspect-square rounded-controle text-apoio font-medium transition-colors pt-1.5 {{ diaClass(dia) }}"
+                [attr.aria-pressed]="ehSelecionado(dia)"
+                [attr.aria-current]="ehHoje(dia) ? 'date' : null"
                 (click)="selecionarDia(dia)"
               >
                 {{ dia }}

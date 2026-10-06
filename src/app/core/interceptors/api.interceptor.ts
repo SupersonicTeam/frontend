@@ -22,6 +22,12 @@ const PREFIXOS_SEM_TOAST = [
   // A Ceres mostra a falha dentro da conversa, com mensagem por código
   // (ocupada, indisponível, tempo esgotado). Toast global seria eco.
   '/api/assistente',
+  // Tributário: cada card da tela tem o próprio estado de erro com "Tentar novamente".
+  // Sem isto, uma queda do servidor empilhava **três** toasts por cima de três avisos que já
+  // diziam a mesma coisa — medido na tela, com o backend fora do ar.
+  '/api/apuracao',
+  '/api/creditos',
+  '/api/relatorios',
 ];
 
 /**

@@ -44,12 +44,9 @@
       @if (erroApuracao()) {
         <div class="flex items-center justify-between gap-3 text-apoio text-muted-foreground">
           <span>Não foi possível carregar a apuração.</span>
-          <button
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
-            (click)="carregarApuracao()"
-          >
+          <ui-button variant="ghost" (click)="carregarApuracao()">
             <svg lucideRefreshCw [size]="14" /> Tentar novamente
-          </button>
+          </ui-button>
         </div>
       } @else if (apuracao(); as ap) {
         <!-- O que o produtor precisa saber vem primeiro e grande; o par IBS/CBS
@@ -70,7 +67,10 @@
         <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-apoio text-muted-foreground">
           <span>Notas no período: <span class="font-semibold text-foreground">{{ ap.totalNotas }}</span></span>
           @if (ap.dataFechamento) {
-            <span>Fechada em: <span class="font-semibold text-foreground">{{ ap.dataFechamento }}</span></span>
+            <span>
+              Fechada em:
+              <span class="font-semibold text-foreground">{{ formatDate(ap.dataFechamento) }}</span>
+            </span>
           }
         </div>
         @if (podeReabrir()) {
@@ -78,15 +78,12 @@
             Reabrir desabilitado (A-7/OQ-1): POST /apuracao/{id}/reabrir exige um id que o
             ApuracaoResponse não expõe. Reativa quando o backend passar a enviar o id.
           -->
-          <div class="mt-3 flex flex-col gap-1">
-            <button
-              type="button"
-              class="flex items-center gap-1.5 px-3 py-1.5 w-fit rounded-lg border border-border text-apoio text-muted-foreground opacity-60 cursor-not-allowed"
-              [disabled]="true"
-              title="Reabertura indisponível: o backend ainda não expõe o id da apuração."
-            >
+          <div class="mt-3 flex w-fit flex-col gap-1">
+            <!-- O porque fica escrito abaixo, visivel: `title` so aparece no mouse parado,
+                 e quem usa teclado ou celular nunca ve. -->
+            <ui-button variant="ghost" [disabled]="true">
               <svg lucideLockOpen [size]="14" /> Reabrir apuração
-            </button>
+            </ui-button>
             <span class="text-apoio text-muted-foreground">
               Reabertura indisponível — o backend ainda não expõe o id da apuração.
             </span>
@@ -109,30 +106,27 @@
       @if (erroCreditos()) {
         <div class="flex items-center justify-between gap-3 text-apoio text-muted-foreground">
           <span>Não foi possível carregar os créditos.</span>
-          <button
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
-            (click)="carregarCreditos()"
-          >
+          <ui-button variant="ghost" (click)="carregarCreditos()">
             <svg lucideRefreshCw [size]="14" /> Tentar novamente
-          </button>
+          </ui-button>
         </div>
       } @else if (creditos(); as cr) {
         <div class="grid grid-cols-2 gap-2 sm:gap-3">
           <div class="p-3 rounded-controle bg-muted/60">
             <p class="text-apoio sm:text-apoio text-muted-foreground">Crédito IBS</p>
-            <p class="text-apoio sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(cr.creditoIbs) }}</p>
+            <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(cr.creditoIbs) }}</p>
           </div>
           <div class="p-3 rounded-controle bg-muted/60">
             <p class="text-apoio sm:text-apoio text-muted-foreground">Crédito CBS</p>
-            <p class="text-apoio sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(cr.creditoCbs) }}</p>
+            <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(cr.creditoCbs) }}</p>
           </div>
           <div class="p-3 rounded-controle bg-primary/10">
             <p class="text-apoio sm:text-apoio text-muted-foreground">Crédito total</p>
-            <p class="text-apoio sm:text-lg font-heading font-bold text-primary">{{ formatCurrency(cr.creditoTotal) }}</p>
+            <p class="text-valor sm:text-lg font-heading font-bold text-primary">{{ formatCurrency(cr.creditoTotal) }}</p>
           </div>
           <div class="p-3 rounded-controle bg-muted/60">
             <p class="text-apoio sm:text-apoio text-muted-foreground">Notas de entrada</p>
-            <p class="text-apoio sm:text-lg font-heading font-bold text-foreground">{{ cr.quantidadeNotas }}</p>
+            <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ cr.quantidadeNotas }}</p>
           </div>
         </div>
       } @else if (!loadingCreditos()) {
@@ -149,41 +143,36 @@
         @if (loadingRelatorio()) {
           <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
         }
-        <button
-          type="button"
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-apoio text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-          [disabled]="baixandoPdf() || loadingRelatorio() || erroRelatorio()"
+        <ui-button
+          variant="ghost"
+          [disabled]="loadingRelatorio() || erroRelatorio()"
+          [carregando]="baixandoPdf()"
           (click)="baixarPdf()"
         >
-          @if (baixandoPdf()) {
-            <svg lucideLoaderCircle [size]="14" class="animate-spin" />
-          } @else {
+          @if (!baixandoPdf()) {
             <svg lucideDownload [size]="14" />
           }
           Baixar PDF
-        </button>
+        </ui-button>
       </div>
     </div>
 
     @if (erroRelatorio()) {
       <div class="flex items-center justify-between gap-3 text-apoio text-muted-foreground">
         <span>Não foi possível carregar o relatório.</span>
-        <button
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border hover:bg-muted transition-colors"
-          (click)="carregarRelatorio()"
-        >
+        <ui-button variant="ghost" (click)="carregarRelatorio()">
           <svg lucideRefreshCw [size]="14" /> Tentar novamente
-        </button>
+        </ui-button>
       </div>
     } @else if (relatorio(); as rel) {
       <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
         <div class="p-3 rounded-controle bg-muted/60">
           <p class="text-apoio sm:text-apoio text-muted-foreground">Débitos ({{ rel.quantidadeSaidas }} saídas)</p>
-          <p class="text-apoio sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.debitoTotal) }}</p>
+          <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.debitoTotal) }}</p>
         </div>
         <div class="p-3 rounded-controle bg-muted/60">
           <p class="text-apoio sm:text-apoio text-muted-foreground">Créditos ({{ rel.quantidadeEntradas }} entradas)</p>
-          <p class="text-apoio sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.creditoTotal) }}</p>
+          <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.creditoTotal) }}</p>
         </div>
         <!-- Tokens semanticos no lugar de emerald-100/950: o par soft/ink ja
              tem a versao escura, sem precisar de variante `dark:` a mao. -->
@@ -192,7 +181,7 @@
             {{ saldoCredor() ? 'Saldo credor' : 'Saldo a pagar' }}
           </p>
           <p
-            class="text-apoio sm:text-lg font-heading font-bold"
+            class="text-valor sm:text-lg font-heading font-bold"
             [class.text-sucesso-ink]="saldoCredor()"
             [class.text-primary]="!saldoCredor()"
           >
