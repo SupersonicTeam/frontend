@@ -265,7 +265,7 @@
     <!-- Período selecionável + status da apuração (#12) -->
     <div class="flex flex-wrap items-center gap-2 mb-4">
       <select
-        class="text-apoio rounded-lg border border-border bg-card px-2 py-1.5 text-foreground"
+        class="tap-target text-apoio rounded-controle border border-border bg-card px-2 text-foreground"
         (change)="setMes($any($event.target).value)"
         aria-label="Mês de apuração"
       >
@@ -274,7 +274,7 @@
         }
       </select>
       <select
-        class="text-apoio rounded-lg border border-border bg-card px-2 py-1.5 text-foreground"
+        class="tap-target text-apoio rounded-controle border border-border bg-card px-2 text-foreground"
         (change)="setAno($any($event.target).value)"
         aria-label="Ano de apuração"
       >
@@ -344,7 +344,9 @@
 
     <!-- Toggle detalhe -->
     <button
-      class="w-full flex items-center justify-between text-apoio text-muted-foreground hover:text-foreground transition-colors py-1"
+      type="button"
+      class="tap-target w-full flex items-center justify-between text-apoio text-muted-foreground hover:text-foreground transition-colors"
+      [attr.aria-expanded]="showSimuladorDetalhe()"
       (click)="showSimuladorDetalhe.update(v => !v)"
     >
       <span class="flex items-center gap-1.5">
@@ -461,11 +463,16 @@
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <span class="text-apoio text-muted-foreground hidden sm:inline">{{ formatDate(doc.data) }}</span>
+                <!-- Sem o rotulo, o leitor de tela anuncia cinco "botao" seguidos, um por nota,
+                     sem dizer de qual nota e. O nome da nota ja esta na linha; so faltava chegar
+                     ao botao. -->
                 <button
+                  type="button"
                   class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  [attr.aria-label]="'Ver ' + doc.nome"
                   (click)="abrirPreview(doc)"
                 >
-                  <svg lucideEye [size]="16" />
+                  <svg lucideEye [size]="16" aria-hidden="true" />
                 </button>
               </div>
             </li>
