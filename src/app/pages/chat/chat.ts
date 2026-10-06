@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
-import { LucideSparkles } from '@lucide/angular';
 import { AssistenteConversa } from '@shared/assistente/assistente-conversa';
+import { CeresAvatar } from '@shared/assistente/ceres-avatar';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
 
 /**
@@ -27,7 +27,7 @@ import { AssistenteStore } from '@shared/assistente/assistente.store';
 @Component({
   selector: 'app-chat',
   standalone: true,
-  imports: [AssistenteConversa, LucideSparkles],
+  imports: [AssistenteConversa, CeresAvatar],
   // O shell (`main`) é um flex-col com rolagem própria; sem isto o host encolhe
   // até a altura do conteúdo e o campo de escrita sobe para o meio da tela.
   host: { class: 'flex min-h-0 flex-1 flex-col' },

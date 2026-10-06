@@ -17,20 +17,14 @@
     <header
       class="flex items-center gap-2 border-b border-border bg-assistente-soft px-4 py-3"
     >
-      <span
-        class="flex size-9 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground"
-      >
-        <svg lucideSparkles [size]="18" />
-      </span>
+      <app-ceres-avatar />
       <div class="min-w-0 flex-1">
-        <h2 id="assistente-titulo" class="font-heading font-semibold text-foreground">
-          Ceres · assistente fiscal
-        </h2>
+        <h2 id="assistente-titulo" class="font-heading font-semibold text-foreground">Ceres</h2>
         <p class="truncate text-apoio text-muted-foreground">
           @if (store.notaEmFoco(); as nota) {
             Falando sobre a nota {{ nota.numero }}
           } @else {
-            {{ store.contexto().nome ?? 'Sua operação' }} · {{ store.contexto().uf ?? '—' }}
+            Consulta as suas notas e a legislação
           }
         </p>
       </div>
