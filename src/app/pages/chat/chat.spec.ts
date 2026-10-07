@@ -176,8 +176,8 @@ describe('ChatPage (#51, ligada à Ceres na #76)', () => {
     const raiz = fixture.nativeElement as HTMLElement;
     expect(raiz.textContent).toContain('Ceres');
     expect(raiz.textContent).toContain('IA');
-    // E ela tem rosto: o símbolo da marca, não um ícone genérico.
-    expect(raiz.querySelector('img[src="/agrocontabil-simbolo.svg"]')).not.toBeNull();
+    // E ela tem rosto: a marca *dela*, não a do produto nem um ícone genérico.
+    expect(raiz.querySelector('img[src="/ceres-avatar.svg"]')).not.toBeNull();
   });
 
   it('sair da tela aborta a pergunta em andamento', () => {
