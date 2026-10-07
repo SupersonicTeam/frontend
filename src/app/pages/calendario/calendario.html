@@ -1,8 +1,9 @@
 <div class="page-container flex flex-col gap-5">
-
   <!-- ── ERRO AO CARREGAR ── -->
   @if (vencimentosErro()) {
-    <div class="flex items-center gap-3 rounded-card border border-destructive/30 bg-destructive/5 p-4">
+    <div
+      class="flex items-center gap-3 rounded-card border border-destructive/30 bg-destructive/5 p-4"
+    >
       <div class="flex-1 text-apoio">
         <p class="font-medium text-destructive">Não foi possível carregar os vencimentos.</p>
         <p class="text-muted-foreground text-apoio">Verifique a conexão e tente novamente.</p>
@@ -39,10 +40,145 @@
     </button>
   </div>
 
-  <div class="grid md:grid-cols-3 gap-6">
+  <!--
+    ── O QUE VENCE ──
+    Primeiro bloco da tela porque e a pergunta que traz o produtor aqui. Antes a resposta estava
+    enterrada numa grade de 35 celulas com dois pontinhos de 6px, e a guia vencida em outro mes
+    nao aparecia de jeito nenhum.
+  -->
+  @if (atrasados().length) {
+    <div class="rounded-card border border-perigo/30 bg-perigo-soft p-4">
+      <p class="font-heading font-semibold text-perigo-ink">
+        {{
+          atrasados().length === 1 ? '1 prazo atrasado' : atrasados().length + ' prazos atrasados'
+        }}
+        @if (totalAtrasado() > 0) {
+          <span class="tabular-nums">— {{ formatCurrency(totalAtrasado()) }}</span>
+        }
+      </p>
+      <p class="mt-0.5 text-apoio text-perigo-ink/90">
+        Procure o seu escritório de contabilidade: guia atrasada costuma ter multa e juros.
+      </p>
+    </div>
+  }
 
-    <!-- ── CALENDÁRIO ── -->
-    <div class="md:col-span-2 bg-card rounded-card border border-border shadow-suave p-3 sm:p-5">
+  @if (proximoPrazo(); as proximo) {
+    <section class="rounded-card border border-border bg-card p-5 shadow-suave">
+      <p class="text-apoio text-muted-foreground">O próximo prazo</p>
+      <div class="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 class="font-heading text-xl font-bold text-foreground">{{ proximo.titulo }}</h2>
+        @if (proximo.valor) {
+          <p class="font-heading text-xl font-bold tabular-nums text-foreground">
+            {{ formatCurrency(proximo.valor) }}
+          </p>
+        }
+      </div>
+      <p class="mt-1 text-valor">
+        <span [class]="classeRotulo(proximo.dataVencimento, proximo.status)">
+          {{ rotuloPrazo(proximo.dataVencimento) }}
+        </span>
+        <span class="text-muted-foreground">
+          · {{ formatDataCompleta(proximo.dataVencimento) }}
+        </span>
+      </p>
+      @if (proximo.descricao) {
+        <p class="text-apoio text-muted-foreground">{{ proximo.descricao }}</p>
+      }
+      <button
+        type="button"
+        class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
+        (click)="irParaData(proximo.dataVencimento)"
+      >
+        Ver no mês
+      </button>
+    </section>
+  } @else if (!loading() && !vencimentosErro()) {
+    <section class="rounded-card border border-border bg-card p-5 text-center shadow-suave">
+      <svg lucideCheck [size]="28" class="mx-auto text-sucesso" aria-hidden="true" />
+      <p class="mt-1 text-apoio text-muted-foreground">
+        Nenhum prazo a vencer nos próximos três meses.
+      </p>
+    </section>
+  }
+
+  <!--
+    ── A LISTA ──
+    Ordenada por data, que e o conteudo de uma tela chamada "Prazos". A lista antiga vinha na
+    ordem em que o servidor mandou (31/10 antes de 20/10) e so cobria o mes corrente.
+  -->
+  @if (gruposDePrazo().length) {
+    <section class="rounded-card border border-border bg-card p-5 shadow-suave">
+      <h2 class="font-heading text-base font-semibold text-foreground">Os seus prazos</h2>
+      <p class="text-apoio text-muted-foreground">de três meses atrás até três meses à frente</p>
+
+      @for (grupo of gruposDePrazo(); track grupo.chave) {
+        <h3 class="mt-4 text-apoio font-semibold tracking-wide text-muted-foreground uppercase">
+          {{ grupo.titulo }}
+        </h3>
+        <ul class="mt-1 flex flex-col">
+          @for (v of grupo.itens; track v.id) {
+            <li class="border-b border-border last:border-0">
+              <button
+                type="button"
+                class="flex w-full items-center gap-3 py-3 text-left hover:bg-muted/50"
+                (click)="irParaData(v.dataVencimento)"
+              >
+                <span
+                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-controle {{
+                    tipoIconClass(v.tipo)
+                  }}"
+                  aria-hidden="true"
+                >
+                  @switch (v.tipo) {
+                    @case ('imposto') {
+                      <svg lucideCoins [size]="20" />
+                    }
+                    @case ('obrigacao') {
+                      <svg lucideClipboardList [size]="20" />
+                    }
+                    @case ('declaracao') {
+                      <svg lucideFileText [size]="20" />
+                    }
+                    @case ('solicitacao') {
+                      <svg lucideMail [size]="20" />
+                    }
+                    @default {
+                      <svg lucideCalendar [size]="20" />
+                    }
+                  }
+                </span>
+                <span class="min-w-0 flex-1">
+                  <span class="block text-apoio font-medium text-foreground">{{ v.titulo }}</span>
+                  <span class="block text-apoio">
+                    <span [class]="classeRotulo(v.dataVencimento, v.status)">
+                      {{ v.status === 'pago' ? 'pago' : rotuloPrazo(v.dataVencimento) }}
+                    </span>
+                    <span class="text-muted-foreground">
+                      · {{ formatDataCompleta(v.dataVencimento) }}
+                    </span>
+                  </span>
+                  @if (v.descricao) {
+                    <span class="block truncate text-apoio text-muted-foreground">
+                      {{ v.descricao }}
+                    </span>
+                  }
+                </span>
+                @if (v.valor) {
+                  <span class="shrink-0 text-apoio font-semibold tabular-nums text-foreground">
+                    {{ formatCurrency(v.valor) }}
+                  </span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+
+  <!-- ── O MAPA DO MÊS ── -->
+  <div class="grid gap-6 md:grid-cols-3">
+    <div class="rounded-card border border-border bg-card p-3 shadow-suave sm:p-5 md:col-span-2">
       <!-- Navegação -->
       <div class="flex items-center justify-between mb-4">
         <button
@@ -53,7 +189,7 @@
         >
           <svg lucideChevronLeft [size]="20" aria-hidden="true" />
         </button>
-        <h2 class="font-heading font-semibold text-base text-foreground capitalize">{{ nomeMes() }}</h2>
+        <h2 class="font-heading text-base font-semibold text-foreground">{{ nomeMes() }}</h2>
         <button
           type="button"
           class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -74,7 +210,13 @@
       <!-- Grade do calendário -->
       @if (loading()) {
         <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
-          @for (i of [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35]; track i) {
+          @for (
+            i of [
+              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+              25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+            ];
+            track i
+          ) {
             <div class="aspect-square bg-muted/40 animate-pulse rounded-controle"></div>
           }
         </div>
@@ -86,7 +228,9 @@
             } @else {
               <button
                 type="button"
-                class="relative flex flex-col items-center justify-start w-full aspect-square rounded-controle text-apoio font-medium transition-colors pt-1.5 {{ diaClass(dia) }}"
+                class="relative flex flex-col items-center justify-start w-full aspect-square rounded-controle text-apoio font-medium transition-colors pt-1.5 {{
+                  diaClass(dia)
+                }}"
                 [attr.aria-pressed]="ehSelecionado(dia)"
                 [attr.aria-current]="ehHoje(dia) ? 'date' : null"
                 (click)="selecionarDia(dia)"
@@ -99,10 +243,14 @@
                       <span class="h-1.5 w-1.5 rounded-full {{ dotColor(dia, 'imposto') }}"></span>
                     }
                     @if (ev.obrigacao) {
-                      <span class="h-1.5 w-1.5 rounded-full {{ dotColor(dia, 'obrigacao') }}"></span>
+                      <span
+                        class="h-1.5 w-1.5 rounded-full {{ dotColor(dia, 'obrigacao') }}"
+                      ></span>
                     }
                     @if (ev.solicitacao) {
-                      <span class="h-1.5 w-1.5 rounded-full {{ dotColor(dia, 'solicitacao') }}"></span>
+                      <span
+                        class="h-1.5 w-1.5 rounded-full {{ dotColor(dia, 'solicitacao') }}"
+                      ></span>
                     }
                   </div>
                 }
@@ -112,150 +260,66 @@
         </div>
       }
 
-      <!-- Legenda -->
-      <div class="flex flex-wrap items-center gap-4 mt-4 pt-4 border-t border-border">
-        <div class="flex items-center gap-1.5">
-          <span class="h-2.5 w-2.5 rounded-full bg-aviso"></span>
-          <span class="text-apoio text-muted-foreground">Imposto/Pagamento</span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <span class="h-2.5 w-2.5 rounded-full bg-info"></span>
-          <span class="text-apoio text-muted-foreground">Obrigação/Declaração</span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <span class="h-2.5 w-2.5 rounded-full bg-accent"></span>
-          <span class="text-apoio text-muted-foreground">Solicitação do contador</span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <span class="h-2.5 w-2.5 rounded-full bg-primary/40 ring-2 ring-primary/30"></span>
+      <!-- Legenda: so o que o mes tem de verdade. Ver `legenda` no componente. -->
+      <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-4">
+        @for (l of legenda(); track l.chave) {
+          <span class="flex items-center gap-1.5">
+            <span class="h-2.5 w-2.5 rounded-full {{ l.cor }}" aria-hidden="true"></span>
+            <span class="text-apoio text-muted-foreground">{{ l.texto }}</span>
+          </span>
+        }
+        <span class="flex items-center gap-1.5">
+          <span
+            class="h-2.5 w-2.5 rounded-full bg-primary/40 ring-2 ring-primary/30"
+            aria-hidden="true"
+          ></span>
           <span class="text-apoio text-muted-foreground">Hoje</span>
-        </div>
+        </span>
       </div>
     </div>
 
-    <!-- ── AGENDA DO DIA ── -->
-    <div class="bg-card rounded-card border border-border shadow-suave p-5 flex flex-col">
-      <div class="mb-4">
-        <h3 class="font-heading font-semibold text-apoio text-foreground capitalize">{{ nomeDiaSelecionado() }}</h3>
-        <p class="text-apoio text-muted-foreground mt-0.5">Obrigações do dia</p>
-      </div>
+    <!-- ── O DIA ESCOLHIDO ── -->
+    <div class="flex flex-col rounded-card border border-border bg-card p-5 shadow-suave">
+      <h3 class="font-heading text-apoio font-semibold text-foreground">
+        {{ nomeDiaSelecionado() }}
+      </h3>
 
       @if (vencimentosDia().length === 0) {
-        <div class="flex-1 flex flex-col items-center justify-center py-8 text-center">
-          <svg lucideCheck [size]="32" class="text-sucesso mb-2" />
-          <p class="text-apoio text-muted-foreground">Nenhuma obrigação<br/>para este dia</p>
-        </div>
+        <!-- Uma linha, nao um card inteiro com um check gigante: o conteudo aqui e a ausencia
+             de conteudo, e ele ocupava mais espaco que a lista de prazos de verdade. -->
+        <p class="mt-1 text-apoio text-muted-foreground">Nada vence neste dia.</p>
       } @else {
-        <div class="space-y-4 flex-1">
-
-          <!-- Sub-seção: Impostos/Pagamentos -->
-          @if (impostosHoje().length > 0) {
-            <div class="space-y-2">
-              <div class="flex items-center gap-1.5">
-                <span class="h-2 w-2 rounded-full bg-aviso"></span>
-                <p class="text-apoio font-semibold text-muted-foreground uppercase tracking-wide">Impostos</p>
+        <ul class="mt-2 flex flex-col gap-2">
+          @for (v of vencimentosDia(); track v.id) {
+            <li class="rounded-controle border border-border p-3">
+              <div class="flex items-start justify-between gap-2">
+                <p class="text-apoio leading-tight font-medium text-foreground">{{ v.titulo }}</p>
+                <span
+                  class="shrink-0 rounded-full px-1.5 py-0.5 text-apoio {{ statusColor(v.status) }}"
+                >
+                  {{ statusLabel(v.status) }}
+                </span>
               </div>
-              @for (v of impostosHoje(); track v.id) {
-                <div class="p-3 rounded-controle bg-aviso-soft border border-aviso/30">
-                  <div class="flex items-start justify-between gap-2">
-                    <p class="text-apoio font-medium text-foreground leading-tight">{{ v.titulo }}</p>
-                    <span class="text-apoio px-1.5 py-0.5 rounded-full shrink-0 {{ statusColor(v.status) }}">{{ statusLabel(v.status) }}</span>
-                  </div>
-                  @if (v.descricao) { <p class="text-apoio text-muted-foreground mt-0.5">{{ v.descricao }}</p> }
-                  @if (v.valor) { <p class="text-apoio font-semibold text-aviso-ink mt-1">{{ formatCurrency(v.valor) }}</p> }
-                </div>
+              @if (v.descricao) {
+                <p class="mt-0.5 text-apoio text-muted-foreground">{{ v.descricao }}</p>
               }
-            </div>
-          }
-
-          <!-- Sub-seção: Obrigações/Declarações -->
-          @if (obrigacoesHoje().length > 0) {
-            <div class="space-y-2">
-              <div class="flex items-center gap-1.5">
-                <span class="h-2 w-2 rounded-full bg-info"></span>
-                <p class="text-apoio font-semibold text-muted-foreground uppercase tracking-wide">Obrigações</p>
-              </div>
-              @for (v of obrigacoesHoje(); track v.id) {
-                <div class="p-3 rounded-controle bg-info-soft border border-info/30">
-                  <div class="flex items-start justify-between gap-2">
-                    <p class="text-apoio font-medium text-foreground leading-tight">{{ v.titulo }}</p>
-                    <span class="text-apoio px-1.5 py-0.5 rounded-full shrink-0 {{ statusColor(v.status) }}">{{ statusLabel(v.status) }}</span>
-                  </div>
-                  @if (v.descricao) { <p class="text-apoio text-muted-foreground mt-0.5">{{ v.descricao }}</p> }
-                </div>
+              @if (v.valor) {
+                <p class="mt-1 text-apoio font-semibold tabular-nums text-foreground">
+                  {{ formatCurrency(v.valor) }}
+                </p>
               }
-            </div>
-          }
-
-          <!-- Sub-seção: Solicitações do Contador -->
-          @if (solicitacoesHoje().length > 0) {
-            <div class="space-y-2">
-              <div class="flex items-center gap-1.5">
-                <span class="h-2 w-2 rounded-full bg-accent"></span>
-                <p class="text-apoio font-semibold text-muted-foreground uppercase tracking-wide">Solicitações do contador</p>
-              </div>
-              @for (v of solicitacoesHoje(); track v.id) {
-                <div class="p-3 rounded-controle bg-accent/10 border border-accent/30">
-                  <div class="flex items-start justify-between gap-2">
-                    <p class="text-apoio font-medium text-foreground leading-tight">{{ v.titulo }}</p>
-                    @if (v.prioridade) {
-                      <span class="text-apoio shrink-0 {{ prioridadeColor(v.prioridade) }}">{{ v.prioridade }}</span>
-                    }
-                  </div>
-                  @if (v.descricao) { <p class="text-apoio text-muted-foreground mt-0.5">{{ v.descricao }}</p> }
-                  <a routerLink="/documentos" class="inline-flex items-center gap-1 text-apoio text-accent font-medium mt-1.5 hover:underline">
-                    Anexar documento →
-                  </a>
-                </div>
+              @if (v.tipo === 'solicitacao') {
+                <a
+                  routerLink="/documentos"
+                  class="tap-target mt-1 inline-flex items-center gap-1 text-apoio font-medium text-accent hover:underline"
+                >
+                  Anexar documento
+                </a>
               }
-            </div>
+            </li>
           }
-        </div>
+        </ul>
       }
     </div>
-  </div>
-
-  <!-- ── OBRIGAÇÕES DO MÊS ── -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="font-heading font-semibold text-base text-foreground">Obrigações do mês</h2>
-      <span class="text-apoio text-muted-foreground">{{ vencimentosDoMes().length }} evento(s)</span>
-    </div>
-
-    @if (vencimentosDoMes().length === 0) {
-      <div class="flex flex-col items-center justify-center py-8 text-center">
-        <svg lucideCheck [size]="32" class="text-sucesso mb-2" />
-        <p class="text-apoio text-muted-foreground">Nenhuma obrigação para este mês.</p>
-      </div>
-    } @else {
-      <div class="space-y-0">
-        @for (v of vencimentosDoMes(); track v.id) {
-          <div class="flex items-center gap-4 py-3 border-b border-border last:border-0">
-            <div
-              class="flex items-center justify-center w-10 h-10 rounded-controle shrink-0 {{ tipoIconClass(v.tipo) }}"
-            >
-              @switch (v.tipo) {
-                @case ('imposto') { <svg lucideCoins [size]="20" /> }
-                @case ('obrigacao') { <svg lucideClipboardList [size]="20" /> }
-                @case ('declaracao') { <svg lucideFileText [size]="20" /> }
-                @case ('solicitacao') { <svg lucideMail [size]="20" /> }
-                @default { <svg lucideCalendar [size]="20" /> }
-              }
-            </div>
-            <div class="flex-1 min-w-0">
-              <p class="text-apoio font-medium text-foreground">{{ v.titulo }}</p>
-              @if (v.descricao) { <p class="text-apoio text-muted-foreground truncate">{{ v.descricao }}</p> }
-            </div>
-            <div class="text-right shrink-0 space-y-1">
-              <p class="text-apoio text-muted-foreground">{{ formatDate(v.dataVencimento) }}</p>
-              @if (v.valor) {
-                <p class="text-apoio font-semibold text-primary">{{ formatCurrency(v.valor) }}</p>
-              }
-              <span class="text-apoio px-1.5 py-0.5 rounded-full {{ statusColor(v.status) }}">{{ statusLabel(v.status) }}</span>
-            </div>
-          </div>
-        }
-      </div>
-    }
   </div>
 </div>
