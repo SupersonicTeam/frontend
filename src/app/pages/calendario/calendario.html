@@ -189,7 +189,16 @@
         >
           <svg lucideChevronLeft [size]="20" aria-hidden="true" />
         </button>
-        <h2 class="font-heading text-base font-semibold text-foreground">{{ nomeMes() }}</h2>
+        <h2 class="text-center font-heading text-base font-semibold text-foreground">
+          {{ nomeMes() }}
+          @if (prazosNoMes()) {
+            <span class="block text-apoio font-normal text-muted-foreground">
+              {{ prazosNoMes() === 1 ? '1 prazo' : prazosNoMes() + ' prazos' }}
+            </span>
+          } @else {
+            <span class="block text-apoio font-normal text-muted-foreground">nada vence aqui</span>
+          }
+        </h2>
         <button
           type="button"
           class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -233,26 +242,17 @@
                 }}"
                 [attr.aria-pressed]="ehSelecionado(dia)"
                 [attr.aria-current]="ehHoje(dia) ? 'date' : null"
+                [attr.aria-label]="rotuloDoDia(dia)"
                 (click)="selecionarDia(dia)"
               >
                 {{ dia }}
-                <!-- Indicadores de eventos -->
-                @if (eventosPorDia()[dia]; as ev) {
-                  <div class="flex gap-0.5 mt-0.5">
-                    @if (ev.imposto) {
-                      <span class="h-1.5 w-1.5 rounded-full {{ dotColor(dia, 'imposto') }}"></span>
-                    }
-                    @if (ev.obrigacao) {
-                      <span
-                        class="h-1.5 w-1.5 rounded-full {{ dotColor(dia, 'obrigacao') }}"
-                      ></span>
-                    }
-                    @if (ev.solicitacao) {
-                      <span
-                        class="h-1.5 w-1.5 rounded-full {{ dotColor(dia, 'solicitacao') }}"
-                      ></span>
-                    }
-                  </div>
+                <!-- A celula inteira ja e a marca; so falta dizer quantos, quando ha mais de um. -->
+                @if (diasComPrazo()[dia]; as prazo) {
+                  @if (prazo.quantidade > 1) {
+                    <span class="mt-0.5 text-apoio leading-none font-semibold">
+                      {{ prazo.quantidade }}
+                    </span>
+                  }
                 }
               </button>
             }
@@ -264,17 +264,26 @@
       <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-4">
         @for (l of legenda(); track l.chave) {
           <span class="flex items-center gap-1.5">
-            <span class="h-2.5 w-2.5 rounded-full {{ l.cor }}" aria-hidden="true"></span>
+            <span class="h-3 w-3 rounded-[0.25rem] border {{ l.cor }}" aria-hidden="true"></span>
             <span class="text-apoio text-muted-foreground">{{ l.texto }}</span>
           </span>
         }
         <span class="flex items-center gap-1.5">
           <span
-            class="h-2.5 w-2.5 rounded-full bg-primary/40 ring-2 ring-primary/30"
+            class="h-3 w-3 rounded-[0.25rem] bg-muted ring-2 ring-primary/50"
             aria-hidden="true"
           ></span>
           <span class="text-apoio text-muted-foreground">Hoje</span>
         </span>
+        @if (foraDoMesCorrente()) {
+          <button
+            type="button"
+            class="tap-target ml-auto text-apoio font-medium text-primary underline"
+            (click)="irParaHoje()"
+          >
+            Voltar para hoje
+          </button>
+        }
       </div>
     </div>
 

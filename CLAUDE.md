@@ -70,7 +70,7 @@ src/
       DTOs/shared/responses/   # DTOs de API (ex.: api-error.response — envelope de erro)
       config/                  # constantes (ex.: produtor-logado → LOGGED_PRODUCER_ID)
       services/                # services CROSS-CUTTING (api, toast, theme, notificacoes-UI)
-      guards/                  # perfil.guard (logado), produtor.guard (rotas só de produtor)
+      guards/                  # perfil.guard (logado), produtor.guard / contador.guard (rotas por papel)
       interceptors/            # api.interceptor (baseURL, Accept, X-Usuario-Id, toast de erro)
       utils/                   # nota-pdf
     services/<feat>/data-access/<feat>.service.ts   # services de NEGÓCIO, classes XxxApi (ver tabela)
@@ -88,16 +88,22 @@ Imports sempre via alias (sem `../../`): `@core/*` · `@services/*` · `@pages/*
 
 ## Rotas (`app.routes.ts`)
 
-Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `**` → `dashboard`.
+Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `**` → `''`.
 
-| Rota | Classe | Arquivos |
-|---|---|---|
-| `/dashboard` | DashboardPage | `pages/dashboard/dashboard.{ts,html}` |
-| `/calendario` | CalendarioPage | `pages/calendario/calendario.{ts,html}` |
-| `/documentos` | DocumentosPage | `pages/documentos/documentos.{ts,html}` |
-| `/chat` | ChatPage | `pages/chat/chat.{ts,html}` — **só produtor** (`produtorGuard`) |
-| `/contador` | ContadorPage | `pages/contador/contador.{ts,html}` |
-| `/configuracoes` | ConfiguracoesPage | `pages/configuracoes/configuracoes.{ts,html}` |
+**As telas dos dois papéis são separadas, e isso é imposto por guard** — endereço é digitável, esconder o
+link do menu não protege. O contador chegava em `/calendario` e `/tributario` e lia texto escrito para o
+produtor, inclusive "procure o seu escritório de contabilidade" mostrado para o escritório. O que ele
+precisa de apuração e de prazos está em `/contador`. `app.routes.spec.ts` reprova se um guard cair fora.
+
+| Rota | Classe | Papel | Arquivos |
+|---|---|---|---|
+| `/dashboard` | DashboardPage | produtor | `pages/dashboard/dashboard.{ts,html}` |
+| `/calendario` | CalendarioPage | produtor | `pages/calendario/calendario.{ts,html}` |
+| `/tributario` | TributarioPage | produtor | `pages/tributario/tributario.{ts,html}` |
+| `/chat` | ChatPage | produtor | `pages/chat/chat.{ts,html}` |
+| `/contador` | ContadorPage | **contador** | `pages/contador/contador.{ts,html}` |
+| `/documentos` | DocumentosPage | os dois | `pages/documentos/documentos.{ts,html}` — mesma lista, título e voz trocam |
+| `/configuracoes` | ConfiguracoesPage | os dois | `pages/configuracoes/configuracoes.{ts,html}` |
 
 ## Services
 
@@ -235,6 +241,8 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 ## Estado das sprints (frontend)
 
 Frontend ~85-90% pronto. Gaps reais (em ordem de sprint): ~~gráficos ng2-charts no dashboard (S1)~~ ✅ feito ·
-filtros grupo/status em Documentos (S2) · seletor multi-produtor no Contador · download PDF/XML (S3) ·
+filtros grupo/status em Documentos (S2) · ~~seletor multi-produtor no Contador~~ **bloqueado no backend**:
+`/apuracao`, `/notas`, `/dashboard` e `/relatorios/conformidade` dão **403** para contador (derivam o
+produtor da identidade), e não há endpoint de carteira — desenho pronto, issue aberta · download PDF/XML (S3) ·
 dialog inline de anexar no Calendário · polir estados loading/erro/vazio (S5) · WCAG + README (S10).
 Plano completo: `../../../.claude/plans/` (sessão de planejamento).

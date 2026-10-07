@@ -102,22 +102,51 @@ export class CalendarioPage implements OnInit {
     this.vencimentosDia().filter((v) => v.tipo === 'solicitacao'),
   );
 
-  // Contagem de eventos por dia para indicadores
-  readonly eventosPorDia = computed(() => {
-    const mapa: Record<number, { imposto: boolean; obrigacao: boolean; solicitacao: boolean }> = {};
-    const mes = this.mesAtual();
-    this.vencimentos().forEach((v) => {
-      const d = new Date(v.dataVencimento + 'T12:00:00');
-      if (d.getFullYear() === mes.getFullYear() && d.getMonth() === mes.getMonth()) {
-        const dia = d.getDate();
-        if (!mapa[dia]) mapa[dia] = { imposto: false, obrigacao: false, solicitacao: false };
-        if (v.tipo === 'imposto') mapa[dia].imposto = true;
-        else if (v.tipo === 'solicitacao') mapa[dia].solicitacao = true;
-        else mapa[dia].obrigacao = true;
-      }
-    });
+  /**
+   * O que cai em cada dia do mês, **por situação**.
+   *
+   * Era por tipo (imposto/obrigação/solicitação) e virava um ponto de 6px — numa grade de 35
+   * células com dois dias marcados, ninguém achava. Numa tela de prazos quem decide a cor é a
+   * situação: atrasado, a vencer, pago. O dia inteiro passa a ser a marca.
+   */
+  readonly diasComPrazo = computed(() => {
+    const mapa: Record<
+      number,
+      { atrasado: boolean; aVencer: boolean; pago: boolean; quantidade: number }
+    > = {};
+    const mes = this.chaveDoMes(this.mesAtual());
+    const hoje = this.hoje();
+
+    this.vencimentos()
+      .filter((v) => v.dataVencimento.startsWith(mes))
+      .forEach((v) => {
+        const dia = Number(v.dataVencimento.slice(8, 10));
+        const atual = (mapa[dia] ??= {
+          atrasado: false,
+          aVencer: false,
+          pago: false,
+          quantidade: 0,
+        });
+        atual.quantidade += 1;
+        if (v.status === 'pago') atual.pago = true;
+        else if (v.dataVencimento < hoje) atual.atrasado = true;
+        else atual.aVencer = true;
+      });
     return mapa;
   });
+
+  /** Quantos prazos o mês na grade tem — vai ao lado do nome do mês. */
+  readonly prazosNoMes = computed(
+    () =>
+      this.vencimentos().filter((v) =>
+        v.dataVencimento.startsWith(this.chaveDoMes(this.mesAtual())),
+      ).length,
+  );
+
+  /** A grade está em outro mês que não o de hoje? Aí vale oferecer a volta. */
+  readonly foraDoMesCorrente = computed(
+    () => this.chaveDoMes(this.mesAtual()) !== this.hoje().slice(0, 7),
+  );
 
   /**
    * **A janela da lista, em meses para trás e para a frente de hoje.**
@@ -188,23 +217,23 @@ export class CalendarioPage implements OnInit {
   });
 
   /**
-   * A legenda só lista o que o mês realmente tem.
+   * A legenda lista as situações que o mês realmente tem.
    *
-   * Ela era fixa com três tipos, mas o backend hoje só emite `imposto` — as outras duas bolinhas
-   * explicavam cores que nunca apareciam na grade. Quando `obrigacao`, `declaracao` e
-   * `solicitacao` passarem a vir, elas entram sozinhas.
+   * Era por tipo e fixa em três cores; o backend só emite `imposto`, então duas bolinhas
+   * explicavam cores que nunca apareciam. Agora explica o que a grade de fato usa para colorir —
+   * atrasado, a vencer, pago — e só o que está lá.
    */
   readonly legenda = computed(() => {
-    const presentes = new Set(this.vencimentosDoMes().map((v) => v.tipo));
+    const dias = Object.values(this.diasComPrazo());
     const linhas: { chave: string; cor: string; texto: string }[] = [];
-    if (presentes.has('imposto')) {
-      linhas.push({ chave: 'imposto', cor: 'bg-aviso', texto: 'Imposto a pagar' });
+    if (dias.some((d) => d.atrasado)) {
+      linhas.push({ chave: 'atrasado', cor: 'bg-perigo-soft border-perigo/40', texto: 'Atrasado' });
     }
-    if (presentes.has('obrigacao') || presentes.has('declaracao')) {
-      linhas.push({ chave: 'obrigacao', cor: 'bg-info', texto: 'Obrigação ou declaração' });
+    if (dias.some((d) => d.aVencer)) {
+      linhas.push({ chave: 'a-vencer', cor: 'bg-aviso-soft border-aviso/40', texto: 'A vencer' });
     }
-    if (presentes.has('solicitacao')) {
-      linhas.push({ chave: 'solicitacao', cor: 'bg-accent', texto: 'Pedido do contador' });
+    if (dias.some((d) => d.pago)) {
+      linhas.push({ chave: 'pago', cor: 'bg-sucesso-soft border-sucesso/30', texto: 'Pago' });
     }
     return linhas;
   });
@@ -532,28 +561,49 @@ export class CalendarioPage implements OnInit {
     return { pago: 'Pago', vencido: 'Vencido', pendente: 'Pendente' }[status] ?? status;
   }
 
+  /**
+   * A cara do dia na grade.
+   *
+   * Ordem de precedência: o que está selecionado, depois o atraso, depois o que vai vencer, e
+   * por último o que já foi pago. Um dia com guia atrasada **e** guia paga é um dia com guia
+   * atrasada — o alívio não apaga o problema.
+   */
   diaClass(dia: number): string {
-    if (this.ehSelecionado(dia)) return 'bg-primary text-primary-foreground font-semibold';
-    if (this.ehHoje(dia)) return 'bg-muted font-bold ring-2 ring-primary/40 text-foreground';
-    return 'hover:bg-muted text-foreground';
+    if (this.ehSelecionado(dia)) return 'bg-primary font-semibold text-primary-foreground';
+
+    const prazo = this.diasComPrazo()[dia];
+    const hoje = this.ehHoje(dia) ? ' ring-2 ring-primary/50' : '';
+
+    if (prazo?.atrasado) {
+      return 'border border-perigo/40 bg-perigo-soft font-semibold text-perigo-ink' + hoje;
+    }
+    if (prazo?.aVencer) {
+      return 'border border-aviso/40 bg-aviso-soft font-semibold text-aviso-ink' + hoje;
+    }
+    if (prazo?.pago) {
+      return 'border border-sucesso/30 bg-sucesso-soft text-sucesso-ink' + hoje;
+    }
+    if (this.ehHoje(dia)) return 'bg-muted font-bold text-foreground ring-2 ring-primary/50';
+    return 'text-foreground hover:bg-muted';
   }
 
-  dotColor(dia: number, tipo: 'imposto' | 'obrigacao' | 'solicitacao'): string {
-    const eventos = this.eventosPorDia()[dia];
-    if (!eventos) return '';
-    const selected = this.ehSelecionado(dia);
-    if (tipo === 'imposto' && eventos.imposto)
-      return selected ? 'bg-primary-foreground' : 'bg-aviso';
-    if (tipo === 'obrigacao' && eventos.obrigacao)
-      return selected ? 'bg-primary-foreground' : 'bg-info';
-    if (tipo === 'solicitacao' && eventos.solicitacao)
-      return selected ? 'bg-primary-foreground' : 'bg-accent';
-    return '';
+  /** Para o leitor de tela: o dia 20 não é só "20". */
+  rotuloDoDia(dia: number): string {
+    const prazo = this.diasComPrazo()[dia];
+    if (!prazo) return `${dia}`;
+    const quantos = prazo.quantidade === 1 ? '1 prazo' : `${prazo.quantidade} prazos`;
+    if (prazo.atrasado) return `${dia}, ${quantos}, há atraso`;
+    if (prazo.aVencer) return `${dia}, ${quantos} a vencer`;
+    return `${dia}, ${quantos}, pago`;
   }
 
   temEvento(dia: number): boolean {
-    const e = this.eventosPorDia()[dia];
-    return !!e && (e.imposto || e.obrigacao || e.solicitacao);
+    return !!this.diasComPrazo()[dia];
+  }
+
+  /** Volta a grade para o mês de hoje e seleciona o dia de hoje. */
+  irParaHoje(): void {
+    this.irParaData(this.hoje());
   }
 
   private buildCalendar(mes: Date): (number | null)[] {

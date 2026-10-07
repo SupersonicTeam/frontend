@@ -392,6 +392,112 @@ describe('CalendarioPage', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('O próximo prazo');
   });
 
+  it('o dia com prazo vira célula colorida pela situação, não um ponto de 6px', () => {
+    const fixture = TestBed.createComponent(CalendarioPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const hoje = new Date();
+    const mes = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    const guia = (id: string, dia: string, status: string) => ({
+      id,
+      evento: `Guia ${id}`,
+      descricao: null,
+      dataVencimento: `${mes}-${dia}`,
+      tipo: 'imposto',
+      status,
+      valor: 100,
+    });
+    httpMock
+      .expectOne((r) => r.url.includes('/calendario-fiscal'))
+      .flush([guia('paga', '05', 'pago'), guia('futura', '28', 'pendente')]);
+    flushContadorVazio();
+    fixture.detectChanges();
+
+    // O dia 28 ainda vai vencer (hoje é bem antes, no pior caso o teste roda dia 28 e ele é
+    // "a vencer" do mesmo jeito, porque a comparação inclui hoje).
+    expect(cmp.diaClass(28)).toContain('aviso');
+    expect(cmp.diaClass(5)).toContain('sucesso');
+    // Dia sem nada não ganha cor nenhuma.
+    expect(cmp.diaClass(14)).not.toContain('aviso');
+    expect(cmp.diaClass(14)).not.toContain('sucesso');
+    expect(cmp.diaClass(14)).not.toContain('perigo');
+  });
+
+  it('o atraso manda na cor do dia, mesmo com uma guia paga no mesmo dia', () => {
+    // O alívio de ter pago uma não apaga o problema da outra.
+    const fixture = TestBed.createComponent(CalendarioPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const ontem = new Date();
+    ontem.setDate(ontem.getDate() - 1);
+    const data = `${ontem.getFullYear()}-${String(ontem.getMonth() + 1).padStart(2, '0')}-${String(ontem.getDate()).padStart(2, '0')}`;
+    const dia = ontem.getDate();
+
+    httpMock
+      .expectOne((r) => r.url.includes('/calendario-fiscal'))
+      .flush([
+        {
+          id: 'a',
+          evento: 'GPS',
+          descricao: null,
+          dataVencimento: data,
+          tipo: 'imposto',
+          status: 'pendente',
+          valor: 10,
+        },
+        {
+          id: 'b',
+          evento: 'FUNRURAL',
+          descricao: null,
+          dataVencimento: data,
+          tipo: 'imposto',
+          status: 'pago',
+          valor: 20,
+        },
+      ]);
+    flushContadorVazio();
+    fixture.detectChanges();
+
+    expect(cmp.diaClass(dia)).toContain('perigo');
+    expect(cmp.diasComPrazo()[dia].quantidade).toBe(2);
+    expect(cmp.rotuloDoDia(dia)).toContain('2 prazos');
+    expect(cmp.rotuloDoDia(dia)).toContain('atraso');
+  });
+
+  it('o cabeçalho da grade diz quantos prazos o mês tem', () => {
+    const fixture = TestBed.createComponent(CalendarioPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush([]);
+    flushContadorVazio();
+    fixture.detectChanges();
+
+    expect(cmp.prazosNoMes()).toBe(0);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('nada vence aqui');
+  });
+
+  it('"Voltar para hoje" só aparece quando a grade saiu do mês corrente', () => {
+    const fixture = TestBed.createComponent(CalendarioPage);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush([]);
+    flushContadorVazio();
+    fixture.detectChanges();
+
+    expect(cmp.foraDoMesCorrente()).toBe(false);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Voltar para hoje');
+
+    cmp.mesAnterior();
+    fixture.detectChanges();
+    expect(cmp.foraDoMesCorrente()).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Voltar para hoje');
+
+    cmp.irParaHoje();
+    expect(cmp.foraDoMesCorrente()).toBe(false);
+  });
+
   it('o nome do mês não vira Title Case', () => {
     const fixture = TestBed.createComponent(CalendarioPage);
     const cmp = fixture.componentInstance;
