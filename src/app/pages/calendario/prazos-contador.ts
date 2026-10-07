@@ -1,0 +1,255 @@
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import {
+  LucideCheck,
+  LucideFileText,
+  LucideHandCoins,
+  LucidePlus,
+  LucideTriangleAlert,
+} from '@lucide/angular';
+import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { ToastService } from '@core/services/toast.service';
+import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
+import { ContadorApi } from '@services/contador/data-access/contador.service';
+import { UiButton } from '@shared/ui/ui-button';
+import { UiEmptyState } from '@shared/ui/ui-empty-state';
+import { UiModal } from '@shared/ui/ui-modal';
+import { UiSkeleton } from '@shared/ui/ui-skeleton';
+import { UiStat } from '@shared/ui/ui-stat';
+import { UiTable } from '@shared/ui/ui-table';
+
+const TIPOS_GUIA: TipoGuia[] = ['ICMS', 'FUNRURAL', 'DARF', 'GPS', 'OUTRO'];
+
+/** Dias à frente que contam como "cobrar agora". */
+const JANELA_COBRANCA = 7;
+
+type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
+
+/**
+ * Prazos na visão do **contador** — a cobrança.
+ *
+ * ## Por que não é a mesma tela do produtor
+ *
+ * O produtor abre Prazos para saber *o que ele deve e quando*. O contador abre para saber *o que ele
+ * precisa cobrar, de quem, e o que já pode dar baixa*. É o outro lado do mesmo balcão: um recebe o
+ * aviso, o outro emite a guia.
+ *
+ * Por isso aqui não há calendário mensal, nem "o próximo prazo", nem conselho de procurar o escritório
+ * — o escritório é quem está lendo. Há a fila de cobrança, o lançamento e a baixa.
+ *
+ * **As guias vivem aqui, e não no Acompanhamento.** A tela de Acompanhamento é a triagem ("o que
+ * impede fechar"); ela aponta para cá em vez de repetir a tabela. Antes as mesmas guias apareciam
+ * inteiras nas duas.
+ */
+@Component({
+  selector: 'app-prazos-contador',
+  standalone: true,
+  imports: [
+    UiButton,
+    UiEmptyState,
+    UiModal,
+    UiSkeleton,
+    UiStat,
+    UiTable,
+    LucideCheck,
+    LucideFileText,
+    LucideHandCoins,
+    LucidePlus,
+    LucideTriangleAlert,
+  ],
+  templateUrl: './prazos-contador.html',
+})
+export class PrazosContador implements OnInit {
+  private readonly contadorApi = inject(ContadorApi);
+  private readonly toast = inject(ToastService);
+
+  readonly carregando = signal(false);
+  readonly guias = signal<GuiaFiscal[]>([]);
+  readonly situacao = signal<Situacao>('todas');
+
+  /** Hoje em `AAAA-MM-DD`, fixado na carga: a data não pode mudar no meio de um computed. */
+  private readonly hoje = signal(PrazosContador.hojeISO());
+
+  readonly tiposGuia = TIPOS_GUIA;
+
+  /** Da que vence primeiro para a que vence por último — é uma fila de cobrança. */
+  private readonly ordenadas = computed(() =>
+    [...this.guias()].sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento)),
+  );
+
+  /**
+   * Atrasado é o que não foi pago e tem data no passado.
+   *
+   * Não basta confiar no `status`: quem vira a guia para `vencido` é um job diário, então entre a
+   * meia-noite e a rodada do job uma guia vencida ainda chega como `pendente`. A data não mente.
+   */
+  readonly atrasadas = computed(() =>
+    this.ordenadas().filter((g) => g.status !== 'pago' && g.dataVencimento < this.hoje()),
+  );
+
+  /** Vence nos próximos dias — ainda dá tempo de avisar o produtor. */
+  readonly vencendo = computed(() => {
+    const limite = new Date(`${this.hoje()}T12:00:00`);
+    limite.setDate(limite.getDate() + JANELA_COBRANCA);
+    const ate = limite.toISOString().slice(0, 10);
+    return this.ordenadas().filter(
+      (g) => g.status !== 'pago' && g.dataVencimento >= this.hoje() && g.dataVencimento <= ate,
+    );
+  });
+
+  /** A fila de trabalho: o atrasado primeiro, depois o que está para vencer. */
+  readonly aCobrar = computed(() => [...this.atrasadas(), ...this.vencendo()]);
+
+  readonly totalACobrar = computed(() =>
+    this.aCobrar().reduce((soma, g) => soma + (g.valor ?? 0), 0),
+  );
+
+  readonly totalEmAberto = computed(() =>
+    this.ordenadas()
+      .filter((g) => g.status !== 'pago')
+      .reduce((soma, g) => soma + (g.valor ?? 0), 0),
+  );
+
+  readonly filtros: { valor: Situacao; rotulo: string }[] = [
+    { valor: 'todas', rotulo: 'Todas' },
+    { valor: 'cobrar', rotulo: 'A cobrar' },
+    { valor: 'pendente', rotulo: 'Em aberto' },
+    { valor: 'pago', rotulo: 'Pagas' },
+  ];
+
+  readonly guiasFiltradas = computed(() => {
+    const s = this.situacao();
+    if (s === 'todas') return this.ordenadas();
+    if (s === 'pago') return this.ordenadas().filter((g) => g.status === 'pago');
+    if (s === 'pendente') return this.ordenadas().filter((g) => g.status !== 'pago');
+    const naFila = new Set(this.aCobrar().map((g) => g.id));
+    return this.ordenadas().filter((g) => naFila.has(g.id));
+  });
+
+  // ── Lançar guia ──
+  readonly showNovaGuia = signal(false);
+  readonly salvando = signal(false);
+  readonly formTipo = signal<TipoGuia>('ICMS');
+  readonly formVencimento = signal('');
+  readonly formValor = signal('');
+  readonly formObs = signal('');
+  readonly formValido = computed(() => !!this.formVencimento() && Number(this.formValor()) > 0);
+
+  ngOnInit(): void {
+    this.carregar();
+  }
+
+  carregar(): void {
+    this.carregando.set(true);
+    this.hoje.set(PrazosContador.hojeISO());
+    this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
+      next: (lista) => {
+        this.guias.set(lista);
+        this.carregando.set(false);
+      },
+      error: () => {
+        this.guias.set([]);
+        this.carregando.set(false);
+      },
+    });
+  }
+
+  abrirNovaGuia(): void {
+    this.formTipo.set('ICMS');
+    this.formVencimento.set('');
+    this.formValor.set('');
+    this.formObs.set('');
+    this.showNovaGuia.set(true);
+  }
+
+  salvarGuia(): void {
+    if (!this.formValido()) return;
+    this.salvando.set(true);
+    this.contadorApi
+      .anexarGuia({
+        produtorId: LOGGED_PRODUCER_ID,
+        tipoGuia: this.formTipo(),
+        dataVencimento: this.formVencimento(),
+        valor: Number(this.formValor()),
+        observacoes: this.formObs().trim() || undefined,
+      })
+      .subscribe({
+        next: (guia) => {
+          this.salvando.set(false);
+          if (!guia) {
+            this.toast.error('Não foi possível criar a guia. Tente novamente.');
+            return;
+          }
+          this.showNovaGuia.set(false);
+          this.toast.success('Guia lançada.');
+          this.carregar();
+        },
+        error: () => {
+          this.salvando.set(false);
+          this.toast.error('Não foi possível criar a guia. Tente novamente.');
+        },
+      });
+  }
+
+  marcarPaga(guia: GuiaFiscal): void {
+    this.contadorApi.marcarGuiaPaga(guia.id).subscribe({
+      next: () => {
+        this.toast.success(`Guia de ${guia.tipoGuia} marcada como paga.`);
+        this.carregar();
+      },
+      error: () => this.toast.error('Não foi possível marcar a guia como paga.'),
+    });
+  }
+
+  /** Dias de hoje até a data (negativo = já passou). */
+  diasAte(iso: string): number {
+    const alvo = new Date(`${iso}T12:00:00`).getTime();
+    const hoje = new Date(`${this.hoje()}T12:00:00`).getTime();
+    return Math.round((alvo - hoje) / 86_400_000);
+  }
+
+  /** "venceu há 27 dias" é o que faz o contador pegar o telefone; "20/09" não. */
+  rotuloPrazo(guia: GuiaFiscal): string {
+    if (guia.status === 'pago') return 'paga';
+    const dias = this.diasAte(guia.dataVencimento);
+    if (dias === 0) return 'vence hoje';
+    if (dias === 1) return 'vence amanhã';
+    if (dias === -1) return 'venceu ontem';
+    return dias > 0 ? `em ${dias} dias` : `venceu há ${-dias} dias`;
+  }
+
+  classeRotulo(guia: GuiaFiscal): string {
+    if (guia.status === 'pago') return 'text-sucesso-ink';
+    const dias = this.diasAte(guia.dataVencimento);
+    if (dias < 0) return 'font-semibold text-perigo-ink';
+    if (dias <= 3) return 'font-semibold text-aviso-ink';
+    return 'text-muted-foreground';
+  }
+
+  rotuloStatus(status: GuiaFiscal['status']): string {
+    return { pendente: 'Em aberto', pago: 'Paga', vencido: 'Vencida' }[status] ?? status;
+  }
+
+  classeStatus(status: GuiaFiscal['status']): string {
+    const tons: Record<GuiaFiscal['status'], string> = {
+      pendente: 'bg-aviso-soft text-aviso-ink border-aviso/30',
+      pago: 'bg-sucesso-soft text-sucesso-ink border-sucesso/30',
+      vencido: 'bg-perigo-soft text-perigo-ink border-perigo/30',
+    };
+    return `inline-flex items-center rounded-full border px-2.5 py-1 text-apoio font-medium ${tons[status]}`;
+  }
+
+  formatCurrency(valor?: number): string {
+    return (valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  }
+
+  formatDate(iso?: string): string {
+    if (!iso) return '—';
+    return new Date(`${iso.split('T')[0]}T12:00:00`).toLocaleDateString('pt-BR');
+  }
+
+  private static hojeISO(): string {
+    const d = new Date();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${mes}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+}

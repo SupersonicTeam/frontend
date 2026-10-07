@@ -1,0 +1,169 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { PrazosContador } from './prazos-contador';
+import { ToastService } from '@core/services/toast.service';
+import type { GuiaFiscal } from '@models/solicitacao-contador.model';
+
+/**
+ * Prazos na visão do contador: a fila de cobrança.
+ *
+ * Os testes de lançar guia e dar baixa vieram da tela de Acompanhamento, junto com a própria
+ * funcionalidade — as guias eram mostradas inteiras nas duas telas.
+ */
+describe('PrazosContador', () => {
+  let httpMock: HttpTestingController;
+
+  /** `AAAA-MM-DD` de `n` dias a partir de hoje (negativo para trás). */
+  function emDias(n: number) {
+    const d = new Date();
+    d.setDate(d.getDate() + n);
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${mes}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  const guia = (over: Partial<GuiaFiscal> = {}): GuiaFiscal => ({
+    id: 'g1',
+    produtorId: 'p1',
+    tipoGuia: 'ICMS',
+    dataVencimento: emDias(30),
+    valor: 1250.5,
+    status: 'pendente',
+    createdAt: '2026-09-01T10:00:00Z',
+    ...over,
+  });
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [PrazosContador],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    }).compileComponents();
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  function montar(guias: GuiaFiscal[] = []) {
+    const fixture = TestBed.createComponent(PrazosContador);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === '/contador/guias').flush(guias);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('a fila de cobrança é o que venceu mais o que vence em sete dias, nessa ordem', () => {
+    const cmp = montar([
+      guia({ id: 'longe', dataVencimento: emDias(40) }),
+      guia({ id: 'semana', dataVencimento: emDias(3), valor: 100 }),
+      guia({ id: 'atrasada', dataVencimento: emDias(-20), valor: 890 }),
+      guia({ id: 'paga', dataVencimento: emDias(-5), status: 'pago', valor: 9999 }),
+    ]).componentInstance;
+
+    expect(cmp.atrasadas().map((g) => g.id)).toEqual(['atrasada']);
+    expect(cmp.vencendo().map((g) => g.id)).toEqual(['semana']);
+    expect(cmp.aCobrar().map((g) => g.id)).toEqual(['atrasada', 'semana']);
+    expect(cmp.totalACobrar()).toBe(990);
+    // A paga não entra em nada disso, mesmo com data no passado.
+    expect(cmp.totalEmAberto()).toBe(990 + 1250.5);
+  });
+
+  it('data no passado e sem pagamento é atraso, mesmo com o status ainda em pendente', () => {
+    // Quem vira a guia para `vencido` é um job diário; entre a meia-noite e a rodada do job ela
+    // ainda chega como `pendente`.
+    const cmp = montar([guia({ id: 'a', dataVencimento: emDias(-1), status: 'pendente' })])
+      .componentInstance;
+
+    expect(cmp.atrasadas().map((g) => g.id)).toEqual(['a']);
+    expect(cmp.rotuloPrazo(cmp.atrasadas()[0])).toBe('venceu ontem');
+    expect(cmp.classeRotulo(cmp.atrasadas()[0])).toContain('perigo');
+  });
+
+  it('sem nada vencido nem vencendo, diz que não há o que cobrar', () => {
+    const fixture = montar([guia({ dataVencimento: emDias(40) })]);
+    expect(fixture.componentInstance.aCobrar()).toEqual([]);
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Nada para cobrar agora');
+  });
+
+  it('o filtro de situação recorta a tabela sem refazer requisição', () => {
+    const fixture = montar([
+      guia({ id: 'aberta', dataVencimento: emDias(40) }),
+      guia({ id: 'atrasada', dataVencimento: emDias(-2) }),
+      guia({ id: 'paga', status: 'pago' }),
+    ]);
+    const cmp = fixture.componentInstance;
+
+    expect(cmp.guiasFiltradas().map((g) => g.id)).toEqual(['atrasada', 'paga', 'aberta']);
+
+    cmp.situacao.set('cobrar');
+    expect(cmp.guiasFiltradas().map((g) => g.id)).toEqual(['atrasada']);
+
+    cmp.situacao.set('pago');
+    expect(cmp.guiasFiltradas().map((g) => g.id)).toEqual(['paga']);
+
+    cmp.situacao.set('pendente');
+    expect(cmp.guiasFiltradas().map((g) => g.id)).toEqual(['atrasada', 'aberta']);
+  });
+
+  it('o formulário de guia só habilita com vencimento e valor positivo', () => {
+    const cmp = montar().componentInstance;
+
+    cmp.abrirNovaGuia();
+    expect(cmp.formValido()).toBe(false);
+
+    cmp.formVencimento.set('2026-11-20');
+    expect(cmp.formValido()).toBe(false);
+
+    cmp.formValor.set('0');
+    expect(cmp.formValido()).toBe(false);
+
+    cmp.formValor.set('1200.90');
+    expect(cmp.formValido()).toBe(true);
+  });
+
+  it('lançar guia manda o POST e recarrega a lista', () => {
+    const cmp = montar().componentInstance;
+    cmp.abrirNovaGuia();
+    cmp.formVencimento.set('2026-11-20');
+    cmp.formValor.set('500');
+    cmp.salvarGuia();
+
+    const req = httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'POST');
+    expect(req.request.body).toMatchObject({ tipoGuia: 'ICMS', valor: 500 });
+    req.flush(guia({ id: 'nova' }));
+
+    expect(cmp.showNovaGuia()).toBe(false);
+    httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'GET').flush([]);
+  });
+
+  it('dar baixa chama PATCH e recarrega a lista', () => {
+    const toasts: string[] = [];
+    TestBed.inject(ToastService).success = (m: string) => void toasts.push(m);
+
+    const cmp = montar([guia({ id: 'g9' })]).componentInstance;
+    cmp.marcarPaga(cmp.guias()[0]);
+
+    httpMock.expectOne((r) => r.url === '/contador/guias/g9/pagar').flush({});
+    httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'GET').flush([]);
+
+    expect(toasts[0]).toContain('ICMS');
+  });
+
+  it('traduz o status da guia para linguagem de quem lê, não a do banco', () => {
+    const cmp = montar().componentInstance;
+    expect(cmp.rotuloStatus('pendente')).toBe('Em aberto');
+    expect(cmp.rotuloStatus('vencido')).toBe('Vencida');
+    expect(cmp.rotuloStatus('pago')).toBe('Paga');
+  });
+
+  it('em erro ao listar, mostra lista vazia — nunca dados de exemplo', () => {
+    const fixture = TestBed.createComponent(PrazosContador);
+    fixture.detectChanges();
+    httpMock
+      .expectOne((r) => r.url === '/contador/guias')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.guias()).toEqual([]);
+  });
+});

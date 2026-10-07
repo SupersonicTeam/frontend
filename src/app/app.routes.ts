@@ -25,20 +25,10 @@ export const routes: Routes = [
         loadComponent: () => import('@pages/dashboard/dashboard').then((m) => m.DashboardPage),
       },
       {
-        path: 'calendario',
-        canActivate: [produtorGuard],
-        loadComponent: () => import('@pages/calendario/calendario').then((m) => m.CalendarioPage),
-      },
-      {
         // A Ceres atende produtor (403 PAPEL_NAO_AUTORIZADO para contador).
         path: 'chat',
         canActivate: [produtorGuard],
         loadComponent: () => import('@pages/chat/chat').then((m) => m.ChatPage),
-      },
-      {
-        path: 'tributario',
-        canActivate: [produtorGuard],
-        loadComponent: () => import('@pages/tributario/tributario').then((m) => m.TributarioPage),
       },
 
       // ── Do contador.
@@ -48,7 +38,17 @@ export const routes: Routes = [
         loadComponent: () => import('@pages/contador/contador').then((m) => m.ContadorPage),
       },
 
-      // ── Dos dois. A lista de notas é a mesma; o título e a voz trocam com o papel.
+      // ── Dos dois, com **telas diferentes** por papel. Não é o mesmo componente com textos
+      // trocados: `/tributario` escolhe entre dois componentes próprios, porque produtor e contador
+      // perguntam coisas diferentes ao mesmo dado. `/documentos` ainda compartilha a lista.
+      {
+        path: 'tributario',
+        loadComponent: () => import('@pages/tributario/tributario').then((m) => m.TributarioPage),
+      },
+      {
+        path: 'calendario',
+        loadComponent: () => import('@pages/calendario/calendario').then((m) => m.CalendarioPage),
+      },
       {
         path: 'documentos',
         loadComponent: () => import('@pages/documentos/documentos').then((m) => m.DocumentosPage),

@@ -95,15 +95,22 @@ link do menu não protege. O contador chegava em `/calendario` e `/tributario` e
 produtor, inclusive "procure o seu escritório de contabilidade" mostrado para o escritório. O que ele
 precisa de apuração e de prazos está em `/contador`. `app.routes.spec.ts` reprova se um guard cair fora.
 
-| Rota | Classe | Papel | Arquivos |
-|---|---|---|---|
-| `/dashboard` | DashboardPage | produtor | `pages/dashboard/dashboard.{ts,html}` |
-| `/calendario` | CalendarioPage | produtor | `pages/calendario/calendario.{ts,html}` |
-| `/tributario` | TributarioPage | produtor | `pages/tributario/tributario.{ts,html}` |
-| `/chat` | ChatPage | produtor | `pages/chat/chat.{ts,html}` |
-| `/contador` | ContadorPage | **contador** | `pages/contador/contador.{ts,html}` |
-| `/documentos` | DocumentosPage | os dois | `pages/documentos/documentos.{ts,html}` — mesma lista, título e voz trocam |
-| `/configuracoes` | ConfiguracoesPage | os dois | `pages/configuracoes/configuracoes.{ts,html}` |
+**Onde a tela só faz sentido para um papel, o guard devolve o outro. Onde os dois precisam dela, a
+rota despacha para componentes diferentes** — não é o mesmo template com textos trocados, que é
+exatamente o que produziu o bug acima.
+
+| Rota | Papel | Componente |
+|---|---|---|
+| `/dashboard` | produtor (`produtorGuard`) | `pages/dashboard/dashboard.{ts,html}` |
+| `/chat` | produtor (`produtorGuard`) | `pages/chat/chat.{ts,html}` |
+| `/contador` | **contador** (`contadorGuard`) | `pages/contador/contador.{ts,html}` — a **triagem**: o que impede fechar, o titular dos números, e atalhos |
+| `/tributario` | **os dois** | `tributario.ts` escolhe: `ImpostosProdutor` (quanto eu pago, de onde vem, 6 meses) ou `ImpostosContador` (**Fechamento**: matriz IBS/CBS, notas que ficaram fora da apuração, variação decomposta) |
+| `/calendario` | **os dois** | `calendario.ts` escolhe: `PrazosProdutor` (o que vence pra mim + calendário) ou `PrazosContador` (**cobrança**: fila do que cobrar, lançar guia, dar baixa) |
+| `/documentos` | os dois | `pages/documentos/documentos.{ts,html}` — mesma lista, título e voz trocam |
+| `/configuracoes` | os dois | `pages/configuracoes/configuracoes.{ts,html}` |
+
+**As guias moram em `/calendario` (contador), não no Acompanhamento.** Elas apareciam inteiras nas
+duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá baixa.
 
 ## Services
 

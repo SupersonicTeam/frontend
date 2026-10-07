@@ -6,15 +6,15 @@ import {
   LucideChevronRight,
   LucideDownload,
   LucideFileText,
+  LucideHandCoins,
   LucideLoaderCircle,
-  LucidePlus,
   LucideTriangleAlert,
 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
 import { ToastService } from '@core/services/toast.service';
-import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
+import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
@@ -26,12 +26,8 @@ import { TributarioApi } from '@services/tributario/data-access/tributario.servi
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
-import { UiModal } from '@shared/ui/ui-modal';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { UiStat } from '@shared/ui/ui-stat';
-import { UiTable } from '@shared/ui/ui-table';
-
-const TIPOS_GUIA: TipoGuia[] = ['ICMS', 'FUNRURAL', 'DARF', 'GPS', 'OUTRO'];
 
 const MESES = [
   { v: 1, l: 'Janeiro' },
@@ -80,7 +76,8 @@ const MESES = [
  * 1. **O que impede fechar** o período escolhido — nota com inconsistência (com o que o fisco
  *    apontou, de verdade, ao expandir) e guia vencida.
  * 2. **Os números do período** — a apuração e o relatório de conformidade na tela, não só no PDF.
- * 3. **As guias**, que é o trabalho contínuo.
+ * 3. **O atalho para a cobrança** — as guias moraram aqui por um tempo, em tabela inteira, e
+ *    passaram a morar em Prazos, que é a tela delas. Esta aponta para lá em vez de repetir.
  *
  * **O seletor de período governa 1 e 2, mas não as guias.** Guia atrasada de agosto não pode
  * sumir da tela porque o contador está olhando outubro — ela continua sendo problema dele hoje.
@@ -95,17 +92,15 @@ const MESES = [
     LucideChevronRight,
     LucideDownload,
     LucideFileText,
+    LucideHandCoins,
     LucideLoaderCircle,
-    LucidePlus,
     LucideTriangleAlert,
     RouterLink,
     UiBadgeStatus,
     UiButton,
     UiEmptyState,
-    UiModal,
     UiSkeleton,
     UiStat,
-    UiTable,
   ],
   templateUrl: './contador.html',
 })
@@ -133,16 +128,6 @@ export class ContadorPage implements OnInit {
   readonly guiasVencidas = computed(() => this.guias().filter((g) => g.status === 'vencido'));
 
   // ── Nova guia ──
-  readonly tiposGuia = TIPOS_GUIA;
-  readonly showNovaGuia = signal(false);
-  readonly salvandoGuia = signal(false);
-  readonly formTipo = signal<TipoGuia>('ICMS');
-  readonly formVencimento = signal('');
-  readonly formValor = signal('');
-  readonly formObs = signal('');
-
-  readonly formValido = computed(() => !!this.formVencimento() && Number(this.formValor()) > 0);
-
   // ── Período: governa os impedimentos e os números, nunca as guias ──
   readonly mes = signal(new Date().getMonth() + 1);
   readonly ano = signal(new Date().getFullYear());
@@ -303,53 +288,6 @@ export class ContadorPage implements OnInit {
     });
   }
 
-  abrirNovaGuia(): void {
-    this.formTipo.set('ICMS');
-    this.formVencimento.set('');
-    this.formValor.set('');
-    this.formObs.set('');
-    this.showNovaGuia.set(true);
-  }
-
-  salvarGuia(): void {
-    if (!this.formValido()) return;
-    this.salvandoGuia.set(true);
-    this.contadorApi
-      .anexarGuia({
-        produtorId: LOGGED_PRODUCER_ID,
-        tipoGuia: this.formTipo(),
-        dataVencimento: this.formVencimento(),
-        valor: Number(this.formValor()),
-        observacoes: this.formObs().trim() || undefined,
-      })
-      .subscribe({
-        next: (guia) => {
-          this.salvandoGuia.set(false);
-          if (!guia) {
-            this.toast.error('Não foi possível criar a guia. Tente novamente.');
-            return;
-          }
-          this.showNovaGuia.set(false);
-          this.toast.success('Guia criada.');
-          this.carregarGuias();
-        },
-        error: () => {
-          this.salvandoGuia.set(false);
-          this.toast.error('Não foi possível criar a guia. Tente novamente.');
-        },
-      });
-  }
-
-  marcarPaga(guia: GuiaFiscal): void {
-    this.contadorApi.marcarGuiaPaga(guia.id).subscribe({
-      next: () => {
-        this.toast.success(`Guia de ${guia.tipoGuia} marcada como paga.`);
-        this.carregarGuias();
-      },
-      error: () => this.toast.error('Não foi possível marcar a guia como paga.'),
-    });
-  }
-
   baixarRelatorio(): void {
     this.baixandoRelatorio.set(true);
     const periodo = this.periodo();
@@ -367,20 +305,6 @@ export class ContadorPage implements OnInit {
         this.toast.error('Não foi possível baixar o relatório.');
       },
     });
-  }
-
-  /** Guia nao e NF-e: tem status proprio (pendente/pago/vencido), sobre os mesmos tokens. */
-  rotuloStatusGuia(status: GuiaFiscal['status']): string {
-    return { pendente: 'Em aberto', pago: 'Paga', vencido: 'Vencida' }[status] ?? status;
-  }
-
-  classeStatusGuia(status: GuiaFiscal['status']): string {
-    const tons: Record<GuiaFiscal['status'], string> = {
-      pendente: 'bg-aviso-soft text-aviso-ink border-aviso/30',
-      pago: 'bg-sucesso-soft text-sucesso-ink border-sucesso/30',
-      vencido: 'bg-perigo-soft text-perigo-ink border-perigo/30',
-    };
-    return `inline-flex items-center rounded-full border px-2.5 py-1 text-apoio font-medium ${tons[status]}`;
   }
 
   formatCurrency(valor: number): string {

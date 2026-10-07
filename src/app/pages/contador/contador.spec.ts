@@ -315,49 +315,17 @@ describe('ContadorPage (#50)', () => {
     expect(fixture.componentInstance.notasComProblema().map((n) => n.numero)).toEqual([2, 3]);
   });
 
-  it('o formulário de guia só habilita com vencimento e valor positivo', () => {
+  it('as guias saíram daqui e viraram um caminho para Prazos', () => {
+    // A tabela inteira morava nesta tela e na de Prazos. A triagem aponta para a cobrança em vez
+    // de repeti-la; o que fica aqui é o alerta de guia vencida, que é impedimento de fechamento.
     const fixture = TestBed.createComponent(ContadorPage);
     fixture.detectChanges();
-    flushInit();
-    const cmp = fixture.componentInstance;
-
-    expect(cmp.formValido()).toBe(false);
-
-    cmp.formVencimento.set('2026-10-20');
-    expect(cmp.formValido()).toBe(false);
-
-    cmp.formValor.set('0');
-    expect(cmp.formValido()).toBe(false);
-
-    cmp.formValor.set('820.35');
-    expect(cmp.formValido()).toBe(true);
-  });
-
-  it('dar baixa chama PATCH e recarrega a lista', () => {
-    const fixture = TestBed.createComponent(ContadorPage);
+    flushInit([guia({ id: 'g1', status: 'pendente' })]);
     fixture.detectChanges();
-    flushInit([guia({ id: 'g9' })]);
 
-    fixture.componentInstance.marcarPaga(guia({ id: 'g9' }));
-
-    const patch = httpMock.expectOne((r) => r.url === '/contador/guias/g9/pagar');
-    expect(patch.request.method).toBe('PATCH');
-    patch.flush({});
-
-    httpMock
-      .expectOne((r) => r.url === '/contador/guias')
-      .flush([guia({ id: 'g9', status: 'pago' })]);
-    expect(fixture.componentInstance.guiasPendentes().length).toBe(0);
-  });
-
-  it('traduz o status da guia para linguagem de quem lê, não a do banco', () => {
-    const fixture = TestBed.createComponent(ContadorPage);
-    fixture.detectChanges();
-    flushInit();
-    const cmp = fixture.componentInstance;
-
-    expect(cmp.rotuloStatusGuia('pendente')).toBe('Em aberto');
-    expect(cmp.rotuloStatusGuia('pago')).toBe('Paga');
-    expect(cmp.rotuloStatusGuia('vencido')).toBe('Vencida');
+    const raiz = fixture.nativeElement as HTMLElement;
+    expect(raiz.querySelector('ui-table')).toBeNull();
+    expect(raiz.querySelector('ui-modal')).toBeNull();
+    expect(raiz.querySelector('a[href="/calendario"]')).not.toBeNull();
   });
 });

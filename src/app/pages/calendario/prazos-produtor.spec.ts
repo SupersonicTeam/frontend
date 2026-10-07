@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { CalendarioPage } from './calendario';
+import { PrazosProdutor } from './prazos-produtor';
 
 /**
  * O calendário tinha **duas fontes para a mesma guia**: `/calendario-fiscal/{id}/vencimentos` e
@@ -12,7 +12,7 @@ import { CalendarioPage } from './calendario';
  * Agora a fonte é uma só. O que estes testes protegem: o status real chega inteiro, o servidor é
  * quem recorta a janela, e a falha de uma fonte não apaga a outra.
  */
-describe('CalendarioPage', () => {
+describe('PrazosProdutor', () => {
   let httpMock: HttpTestingController;
 
   /** Uma pendência do contador com prazo — a outra fonte do calendário. */
@@ -31,7 +31,7 @@ describe('CalendarioPage', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CalendarioPage],
+      imports: [PrazosProdutor],
       providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
@@ -59,7 +59,7 @@ describe('CalendarioPage', () => {
   }
 
   it('pede ao servidor a janela inteira de −3/+3 meses, numa requisição só', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     fixture.detectChanges();
 
     // A tela só pedia o mês corrente, e por isso não mostrava guia vencida em mês anterior —
@@ -76,7 +76,7 @@ describe('CalendarioPage', () => {
   it('uma guia paga aparece como paga — não como pendente', () => {
     // Era o bug: o mapeamento só reconhecia "vencido" e jogava todo o resto em "pendente", então
     // guia quitada seguia cobrando atenção no calendário. O próprio DTO do backend registra isso.
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -102,7 +102,7 @@ describe('CalendarioPage', () => {
   });
 
   it('guia vencida continua vencida', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -125,7 +125,7 @@ describe('CalendarioPage', () => {
   });
 
   it('a mesma guia não aparece duas vezes — o ContadorApi não é mais consultado para guias', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -149,7 +149,7 @@ describe('CalendarioPage', () => {
   });
 
   it('item sem id ou sem data é descartado — nada de prazo fiscal inventado', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -182,7 +182,7 @@ describe('CalendarioPage', () => {
   });
 
   it('falha em /calendario-fiscal não esconde as solicitações do contador', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -206,7 +206,7 @@ describe('CalendarioPage', () => {
   });
 
   it('a resiliência não depende de quem responde primeiro', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -221,7 +221,7 @@ describe('CalendarioPage', () => {
   });
 
   it('em sucesso, vencimentosErro fica false', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -232,7 +232,7 @@ describe('CalendarioPage', () => {
   });
 
   it('retry() limpa o erro e busca o mês de novo', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -265,7 +265,7 @@ describe('CalendarioPage', () => {
   });
 
   it('andar dentro da janela não custa requisição; sair dela, sim', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -292,7 +292,7 @@ describe('CalendarioPage', () => {
   });
 
   it('ordena por data e separa o atrasado do que ainda vai vencer', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -327,7 +327,7 @@ describe('CalendarioPage', () => {
   it('data no passado e sem pagamento é atraso, mesmo que o status ainda diga pendente', () => {
     // Quem vira a guia para `vencido` é um job diário: entre a meia-noite e a rodada do job,
     // uma guia vencida ainda chega como `pendente`. A data não mente.
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -351,7 +351,7 @@ describe('CalendarioPage', () => {
   });
 
   it('o próximo prazo é o primeiro que ainda vai vencer, e diz em quantos dias', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -393,7 +393,7 @@ describe('CalendarioPage', () => {
   });
 
   it('o dia com prazo vira célula colorida pela situação, não um ponto de 6px', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -426,7 +426,7 @@ describe('CalendarioPage', () => {
 
   it('o atraso manda na cor do dia, mesmo com uma guia paga no mesmo dia', () => {
     // O alívio de ter pago uma não apaga o problema da outra.
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
@@ -467,7 +467,7 @@ describe('CalendarioPage', () => {
   });
 
   it('o cabeçalho da grade diz quantos prazos o mês tem', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
     httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush([]);
@@ -479,7 +479,7 @@ describe('CalendarioPage', () => {
   });
 
   it('"Voltar para hoje" só aparece quando a grade saiu do mês corrente', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
     httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush([]);
@@ -499,7 +499,7 @@ describe('CalendarioPage', () => {
   });
 
   it('o nome do mês não vira Title Case', () => {
-    const fixture = TestBed.createComponent(CalendarioPage);
+    const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
     httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush([]);

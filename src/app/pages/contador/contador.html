@@ -15,10 +15,14 @@
         <svg lucideDownload [size]="16" />
         Relatório de conformidade
       </ui-button>
-      <ui-button (click)="abrirNovaGuia()">
-        <svg lucidePlus [size]="16" />
-        Nova guia
-      </ui-button>
+      <!-- Lancar guia e dar baixa moram em Prazos, que e a tela da cobranca. -->
+      <a
+        routerLink="/calendario"
+        class="tap-target inline-flex items-center gap-2 rounded-controle bg-primary px-4 text-apoio font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+      >
+        <svg lucideHandCoins [size]="16" aria-hidden="true" />
+        Prazos e cobrança
+      </a>
     </div>
   </header>
 
@@ -175,6 +179,12 @@
           </li>
         }
       </ul>
+      <a
+        routerLink="/calendario"
+        class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
+      >
+        Cobrar em Prazos
+      </a>
     }
   </section>
 
@@ -239,76 +249,20 @@
         IBS {{ formatCurrency(c.debitoIbs) }} e CBS {{ formatCurrency(c.debitoCbs) }} no débito; IBS
         {{ formatCurrency(c.creditoIbs) }} e CBS {{ formatCurrency(c.creditoCbs) }} no crédito.
       </p>
+      <!-- A triagem da o titular; a conferencia inteira (matriz, notas de fora, variacao) e em
+           Fechamento. Esta tela aponta, nao repete. -->
+      <a
+        routerLink="/tributario"
+        class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
+      >
+        Conferir o fechamento
+      </a>
     } @else if (erroNumeros()) {
       <p class="text-apoio text-muted-foreground">
         Não foi possível carregar os números do período.
       </p>
     } @else if (!carregandoNumeros()) {
       <p class="text-apoio text-muted-foreground">Sem movimento no período.</p>
-    }
-  </section>
-
-  <!-- Guias fiscais: listar, criar e dar baixa. Tudo em endpoint real. -->
-  <section class="flex flex-col gap-2">
-    <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-      <svg lucideFileText [size]="18" class="text-primary" />
-      Guias fiscais
-    </h2>
-
-    @if (carregandoGuias()) {
-      <ui-skeleton [linhas]="3" formato="bloco" altura="3.5rem" />
-    } @else if (guias().length === 0) {
-      <ui-empty-state
-        titulo="Nenhuma guia lançada"
-        descricao="Lance as guias de ICMS, FUNRURAL, DARF ou GPS para acompanhar prazos e pagamentos por aqui."
-      >
-        <svg icone lucideFileText [size]="22" />
-        <button
-          acao
-          class="tap-target inline-flex items-center gap-1.5 rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
-          (click)="abrirNovaGuia()"
-        >
-          <svg lucidePlus [size]="15" /> Lançar primeira guia
-        </button>
-      </ui-empty-state>
-    } @else {
-      <ui-table compacto>
-        <table class="w-full">
-          <thead>
-            <tr>
-              <th scope="col">Tipo</th>
-              <th scope="col">Vencimento</th>
-              <th scope="col">Valor</th>
-              <th scope="col">Situação</th>
-              <th scope="col"><span class="sr-only">Ações</span></th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (guia of guias(); track guia.id) {
-              <tr>
-                <td class="font-medium text-foreground">{{ guia.tipoGuia }}</td>
-                <td class="tabular-nums">{{ formatDate(guia.dataVencimento) }}</td>
-                <td class="tabular-nums">{{ formatCurrency(guia.valor) }}</td>
-                <td>
-                  <span [class]="classeStatusGuia(guia.status)">{{
-                    rotuloStatusGuia(guia.status)
-                  }}</span>
-                </td>
-                <td class="text-right">
-                  @if (guia.status !== 'pago') {
-                    <button
-                      class="tap-target inline-flex items-center gap-1.5 rounded-controle border border-border px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
-                      (click)="marcarPaga(guia)"
-                    >
-                      <svg lucideCheck [size]="15" /> Dar baixa
-                    </button>
-                  }
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </ui-table>
     }
   </section>
 
@@ -320,81 +274,3 @@
     pendências reais.
   </p>
 </div>
-
-<ui-modal
-  [aberto]="showNovaGuia()"
-  titulo="Nova guia fiscal"
-  descricao="Lance a guia para acompanhar o prazo e dar baixa quando for paga."
-  tamanho="sm"
-  [travado]="salvandoGuia()"
-  (fechar)="showNovaGuia.set(false)"
->
-  <div class="flex flex-col gap-3">
-    <div>
-      <label for="guia-tipo" class="mb-1.5 block text-apoio font-medium text-foreground"
-        >Tipo</label
-      >
-      <select
-        id="guia-tipo"
-        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
-        [value]="formTipo()"
-        (change)="formTipo.set($any($event.target).value)"
-      >
-        @for (tipo of tiposGuia; track tipo) {
-          <option [value]="tipo">{{ tipo }}</option>
-        }
-      </select>
-    </div>
-
-    <div>
-      <label for="guia-venc" class="mb-1.5 block text-apoio font-medium text-foreground">
-        Vence em
-      </label>
-      <input
-        id="guia-venc"
-        type="date"
-        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
-        [value]="formVencimento()"
-        (input)="formVencimento.set($any($event.target).value)"
-      />
-    </div>
-
-    <div>
-      <label for="guia-valor" class="mb-1.5 block text-apoio font-medium text-foreground">
-        Valor (R$)
-      </label>
-      <input
-        id="guia-valor"
-        type="number"
-        min="0"
-        step="0.01"
-        placeholder="0,00"
-        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
-        [value]="formValor()"
-        (input)="formValor.set($any($event.target).value)"
-      />
-    </div>
-
-    <div>
-      <label for="guia-obs" class="mb-1.5 block text-apoio font-medium text-foreground">
-        Observação (opcional)
-      </label>
-      <textarea
-        id="guia-obs"
-        rows="2"
-        class="w-full resize-none rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground"
-        [value]="formObs()"
-        (input)="formObs.set($any($event.target).value)"
-      ></textarea>
-    </div>
-  </div>
-
-  <div rodape>
-    <ui-button variant="ghost" [disabled]="salvandoGuia()" (click)="showNovaGuia.set(false)">
-      Cancelar
-    </ui-button>
-    <ui-button [disabled]="!formValido()" [carregando]="salvandoGuia()" (click)="salvarGuia()">
-      Lançar guia
-    </ui-button>
-  </div>
-</ui-modal>

@@ -1,0 +1,261 @@
+<div class="page-container flex flex-col gap-4">
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div>
+      <h1
+        class="flex items-center gap-2 font-heading text-xl font-bold tracking-tight text-foreground sm:text-2xl"
+      >
+        <svg lucideHandCoins [size]="24" class="text-primary" aria-hidden="true" />
+        Prazos e cobrança
+      </h1>
+      <p class="text-apoio text-muted-foreground">as guias que você lançou para o produtor</p>
+    </div>
+    <ui-button (click)="abrirNovaGuia()">
+      <svg lucidePlus [size]="16" />
+      Lançar guia
+    </ui-button>
+  </header>
+
+  <!--
+    ── O QUE COBRAR AGORA ──
+    A fila de trabalho do contador: o atrasado primeiro, depois o que vence nos proximos dias.
+    Nao e o calendario do produtor -- aqui a pergunta e "de quem eu cobro hoje".
+  -->
+  @if (!carregando() && aCobrar().length) {
+    <section class="rounded-card border border-aviso/40 bg-aviso-soft p-5">
+      <h2 class="flex items-center gap-2 font-heading text-base font-semibold text-aviso-ink">
+        <svg lucideTriangleAlert [size]="18" aria-hidden="true" />
+        {{
+          aCobrar().length === 1 ? '1 guia para cobrar' : aCobrar().length + ' guias para cobrar'
+        }}
+        <span class="font-normal tabular-nums">— {{ formatCurrency(totalACobrar()) }}</span>
+      </h2>
+      <p class="mt-0.5 text-apoio text-aviso-ink/90">
+        O que já venceu, e o que vence nos próximos sete dias.
+      </p>
+
+      <ul class="mt-3 flex flex-col gap-1">
+        @for (guia of aCobrar(); track guia.id) {
+          <li class="flex flex-wrap items-center justify-between gap-2 text-apoio">
+            <span class="text-foreground">
+              <span class="font-medium">{{ guia.tipoGuia }}</span>
+              <span [class]="classeRotulo(guia)"> · {{ rotuloPrazo(guia) }}</span>
+              <span class="text-muted-foreground"> · {{ formatDate(guia.dataVencimento) }}</span>
+            </span>
+            <span class="flex items-center gap-3">
+              <span class="font-semibold tabular-nums text-foreground">
+                {{ formatCurrency(guia.valor) }}
+              </span>
+              <button
+                type="button"
+                class="tap-target inline-flex items-center gap-1.5 rounded-controle border border-border bg-card px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
+                (click)="marcarPaga(guia)"
+              >
+                <svg lucideCheck [size]="15" aria-hidden="true" /> Dar baixa
+              </button>
+            </span>
+          </li>
+        }
+      </ul>
+    </section>
+  } @else if (!carregando() && guias().length) {
+    <section class="rounded-card border border-sucesso/30 bg-sucesso-soft p-5">
+      <h2 class="flex items-center gap-2 font-heading text-base font-semibold text-sucesso-ink">
+        <svg lucideCheck [size]="18" aria-hidden="true" />
+        Nada para cobrar agora
+      </h2>
+      <p class="mt-0.5 text-apoio text-sucesso-ink">
+        Nenhuma guia vencida, e nada vencendo nos próximos sete dias.
+      </p>
+    </section>
+  }
+
+  <!-- Os dois numeros que o contador repassa ao cliente. -->
+  @if (!carregando() && guias().length) {
+    <section class="grid gap-3 sm:grid-cols-2">
+      <ui-stat
+        compacto
+        rotulo="Em aberto, no total"
+        [valor]="formatCurrency(totalEmAberto())"
+        apoio="todas as guias não pagas, de qualquer mês"
+        [tom]="totalEmAberto() > 0 ? 'negativo' : 'positivo'"
+      />
+      <ui-stat
+        compacto
+        rotulo="Atrasadas"
+        [valor]="atrasadas().length"
+        apoio="passaram do prazo e não foram pagas"
+        [tom]="atrasadas().length ? 'negativo' : 'positivo'"
+      />
+    </section>
+  }
+
+  <!-- ── TODAS AS GUIAS ── -->
+  <section class="flex flex-col gap-2">
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h2 class="flex items-center gap-2 font-heading text-base font-semibold text-foreground">
+        <svg lucideFileText [size]="18" class="text-primary" aria-hidden="true" />
+        Guias lançadas
+      </h2>
+
+      @if (guias().length) {
+        <div class="flex flex-wrap gap-1" role="group" aria-label="Filtrar por situação">
+          @for (f of filtros; track f.valor) {
+            <button
+              type="button"
+              class="tap-target rounded-controle border px-3 text-apoio font-medium transition-colors"
+              [class]="
+                situacao() === f.valor
+                  ? 'border-primary bg-primary text-primary-foreground'
+                  : 'border-border bg-card text-foreground hover:bg-muted'
+              "
+              [attr.aria-pressed]="situacao() === f.valor"
+              (click)="situacao.set(f.valor)"
+            >
+              {{ f.rotulo }}
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    @if (carregando()) {
+      <ui-skeleton [linhas]="3" formato="bloco" altura="3.5rem" />
+    } @else if (guias().length === 0) {
+      <ui-empty-state
+        titulo="Nenhuma guia lançada"
+        descricao="Lance as guias de ICMS, FUNRURAL, DARF ou GPS para acompanhar prazos e pagamentos por aqui."
+      >
+        <svg icone lucideFileText [size]="22" />
+        <button
+          acao
+          class="tap-target inline-flex items-center gap-1.5 rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          (click)="abrirNovaGuia()"
+        >
+          <svg lucidePlus [size]="15" /> Lançar primeira guia
+        </button>
+      </ui-empty-state>
+    } @else if (guiasFiltradas().length === 0) {
+      <p class="text-apoio text-muted-foreground">Nenhuma guia nesta situação.</p>
+    } @else {
+      <ui-table compacto>
+        <table class="w-full">
+          <thead>
+            <tr>
+              <th scope="col">Tipo</th>
+              <th scope="col">Vencimento</th>
+              <th scope="col" class="text-right">Valor</th>
+              <th scope="col">Situação</th>
+              <th scope="col"><span class="sr-only">Ações</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (guia of guiasFiltradas(); track guia.id) {
+              <tr>
+                <td class="font-medium text-foreground">{{ guia.tipoGuia }}</td>
+                <td class="tabular-nums">
+                  {{ formatDate(guia.dataVencimento) }}
+                  <span class="block text-apoio" [class]="classeRotulo(guia)">
+                    {{ rotuloPrazo(guia) }}
+                  </span>
+                </td>
+                <td class="text-right tabular-nums">{{ formatCurrency(guia.valor) }}</td>
+                <td>
+                  <span [class]="classeStatus(guia.status)">{{ rotuloStatus(guia.status) }}</span>
+                </td>
+                <td class="text-right">
+                  @if (guia.status !== 'pago') {
+                    <button
+                      type="button"
+                      class="tap-target inline-flex items-center gap-1.5 rounded-controle border border-border px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
+                      (click)="marcarPaga(guia)"
+                    >
+                      <svg lucideCheck [size]="15" aria-hidden="true" /> Dar baixa
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </ui-table>
+    }
+  </section>
+</div>
+
+<ui-modal
+  [aberto]="showNovaGuia()"
+  titulo="Nova guia fiscal"
+  descricao="Lance a guia para acompanhar o prazo e dar baixa quando for paga."
+  tamanho="sm"
+  [travado]="salvando()"
+  (fechar)="showNovaGuia.set(false)"
+>
+  <div class="flex flex-col gap-3">
+    <div>
+      <label for="guia-tipo" class="mb-1.5 block text-apoio font-medium text-foreground"
+        >Tipo</label
+      >
+      <select
+        id="guia-tipo"
+        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+        [value]="formTipo()"
+        (change)="formTipo.set($any($event.target).value)"
+      >
+        @for (tipo of tiposGuia; track tipo) {
+          <option [value]="tipo" [selected]="tipo === formTipo()">{{ tipo }}</option>
+        }
+      </select>
+    </div>
+
+    <div>
+      <label for="guia-venc" class="mb-1.5 block text-apoio font-medium text-foreground">
+        Vence em
+      </label>
+      <input
+        id="guia-venc"
+        type="date"
+        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+        [value]="formVencimento()"
+        (input)="formVencimento.set($any($event.target).value)"
+      />
+    </div>
+
+    <div>
+      <label for="guia-valor" class="mb-1.5 block text-apoio font-medium text-foreground">
+        Valor (R$)
+      </label>
+      <input
+        id="guia-valor"
+        type="number"
+        min="0"
+        step="0.01"
+        placeholder="0,00"
+        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+        [value]="formValor()"
+        (input)="formValor.set($any($event.target).value)"
+      />
+    </div>
+
+    <div>
+      <label for="guia-obs" class="mb-1.5 block text-apoio font-medium text-foreground">
+        Observação (opcional)
+      </label>
+      <textarea
+        id="guia-obs"
+        rows="2"
+        class="w-full resize-none rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground"
+        [value]="formObs()"
+        (input)="formObs.set($any($event.target).value)"
+      ></textarea>
+    </div>
+  </div>
+
+  <div rodape>
+    <ui-button variant="ghost" [disabled]="salvando()" (click)="showNovaGuia.set(false)">
+      Cancelar
+    </ui-button>
+    <ui-button [disabled]="!formValido()" [carregando]="salvando()" (click)="salvarGuia()">
+      Lançar guia
+    </ui-button>
+  </div>
+</ui-modal>
