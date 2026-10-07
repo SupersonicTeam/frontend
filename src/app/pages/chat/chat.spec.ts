@@ -139,7 +139,7 @@ describe('ChatPage (#51, ligada à Ceres na #76)', () => {
     expect(texto).toContain('Calculado a partir das suas notas');
     expect(texto).toContain('Guias a vencer');
     expect(texto).toContain('próximos dias: 30');
-    expect(texto).toContain('Resposta das suas notas');
+    expect(texto).toContain('resposta das suas notas');
   });
 
   it('avisa que a Ceres não substitui o contador', () => {
@@ -151,6 +151,33 @@ describe('ChatPage (#51, ligada à Ceres na #76)', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'não substitui a análise do seu contador',
     );
+  });
+
+  it('a resposta diz que foi a Ceres e que é IA, antes do texto', () => {
+    // Quem lê vai agir sobre isto. Saber que uma máquina escreveu não é detalhe de rodapé:
+    // vem junto com o nome, antes do conteúdo.
+    const store = TestBed.inject(AssistenteStore);
+    store.mensagens.set([
+      {
+        autor: 'ceres',
+        texto: 'A guia vence em 20/10/2026.',
+        rota: 'DADOS',
+        citacoes: [],
+        fontesDados: [],
+        modoFallback: false,
+      },
+    ]);
+
+    const fixture = TestBed.createComponent(ChatPage);
+    fixture.detectChanges();
+    flushContexto();
+    fixture.detectChanges();
+
+    const raiz = fixture.nativeElement as HTMLElement;
+    expect(raiz.textContent).toContain('Ceres');
+    expect(raiz.textContent).toContain('IA');
+    // E ela tem rosto: a marca *dela*, não a do produto nem um ícone genérico.
+    expect(raiz.querySelector('img[src="/ceres-avatar.svg"]')).not.toBeNull();
   });
 
   it('sair da tela aborta a pergunta em andamento', () => {

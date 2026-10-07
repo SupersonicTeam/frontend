@@ -252,6 +252,13 @@ html {
   --color-topbar: hsl(150 16% 11%);
   --color-topbar-foreground: hsl(80 12% 90%);
 
+  /* A barra inferior do celular nao tinha contraparte escura: ficava BRANCA sobre o app
+     escuro, e e justamente a navegacao que o produtor usa no telefone. Acompanha a topbar,
+     que e a outra barra fixa do shell. */
+  --color-bottomnav: hsl(150 16% 11%);
+  --color-bottomnav-foreground: hsl(140 8% 62%);
+  --color-bottomnav-active: hsl(142 50% 58%);
+
   --sombra-fraca: hsl(0 0% 0% / 0.40);
   --sombra-forte: hsl(0 0% 0% / 0.70);
   --sombra-media-cor: hsl(0 0% 0% / 0.50);

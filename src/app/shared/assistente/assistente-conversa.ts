@@ -10,7 +10,6 @@ import {
 import {
   LucideCircleStop,
   LucideSend,
-  LucideSparkles,
   LucideTriangleAlert,
   LucideUser,
 } from '@lucide/angular';
@@ -18,6 +17,7 @@ import { rotuloRota } from '@core/utils/ceres';
 import type { AssistenteMensagem } from '@models/assistente-mensagem.model';
 import { UiButton } from '@shared/ui/ui-button';
 import { AssistenteStore } from './assistente.store';
+import { CeresAvatar } from './ceres-avatar';
 import { CeresCitacoes } from './ceres-citacoes';
 import { CeresFontes } from './ceres-fontes';
 
@@ -37,11 +37,11 @@ import { CeresFontes } from './ceres-fontes';
   selector: 'app-assistente-conversa',
   standalone: true,
   imports: [
+    CeresAvatar,
     CeresCitacoes,
     CeresFontes,
     LucideCircleStop,
     LucideSend,
-    LucideSparkles,
     LucideTriangleAlert,
     LucideUser,
     UiButton,

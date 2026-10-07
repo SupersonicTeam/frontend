@@ -59,17 +59,22 @@
       </div>
     } @else {
       <div class="flex gap-2">
-        <span
-          class="mt-1 flex size-8 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground"
-        >
-          <svg lucideSparkles [size]="16" aria-hidden="true" />
-        </span>
+        <span class="mt-1"><app-ceres-avatar tamanho="sm" /></span>
         <div
           class="max-w-[85%] rounded-destaque rounded-tl-md border border-assistente-borda bg-card px-4 py-3"
         >
-          @if (selo(msg); as origem) {
-            <p class="mb-1.5 text-apoio font-medium text-assistente-ink">Resposta {{ origem }}</p>
-          }
+          <!-- Dizer que foi a maquina que escreveu nao e enfeite: o produtor vai agir sobre
+               isto, e precisa saber de onde veio antes de ler. -->
+          <p class="mb-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <span class="text-apoio font-semibold text-foreground">Ceres</span>
+            <span
+              class="rounded-full border border-assistente-borda bg-assistente-soft px-1.5 text-apoio font-medium text-assistente-ink"
+              >IA</span
+            >
+            @if (selo(msg); as origem) {
+              <span class="text-apoio text-muted-foreground">resposta {{ origem }}</span>
+            }
+          </p>
 
           <p class="text-apoio leading-relaxed whitespace-pre-line text-foreground">
             {{ msg.texto }}
@@ -90,11 +95,7 @@
 
   @if (store.etapa(); as etapa) {
     <div class="flex items-center gap-2" aria-live="polite">
-      <span
-        class="flex size-8 shrink-0 items-center justify-center rounded-full bg-assistente text-assistente-foreground"
-      >
-        <svg lucideSparkles [size]="16" aria-hidden="true" />
-      </span>
+      <app-ceres-avatar tamanho="sm" />
       <span class="animate-pulse text-apoio text-muted-foreground">{{ etapa }}</span>
       <button
         type="button"

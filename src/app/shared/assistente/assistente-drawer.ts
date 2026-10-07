@@ -3,13 +3,13 @@ import { RouterLink } from '@angular/router';
 import {
   LucideExternalLink,
   LucideFileText,
-  LucideSparkles,
   LucideTriangleAlert,
   LucideX,
 } from '@lucide/angular';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { AssistenteConversa } from './assistente-conversa';
 import { AssistenteStore } from './assistente.store';
+import { CeresAvatar } from './ceres-avatar';
 
 /**
  * Gaveta flutuante do assistente (a visão descrita pelo dono do projeto: "a
@@ -33,9 +33,9 @@ import { AssistenteStore } from './assistente.store';
   standalone: true,
   imports: [
     AssistenteConversa,
+    CeresAvatar,
     LucideExternalLink,
     LucideFileText,
-    LucideSparkles,
     LucideTriangleAlert,
     LucideX,
     RouterLink,
