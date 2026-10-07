@@ -31,6 +31,141 @@ describe('DocumentosPage', () => {
     httpMock.match((r) => r.url.includes('/contador')).forEach((r) => r.flush([]));
   }
 
+  /** Uma página do Spring Data com as notas dadas. */
+  function pagina(notas: Record<string, unknown>[]) {
+    return {
+      content: notas,
+      totalElements: notas.length,
+      totalPages: 1,
+      number: 0,
+      size: 100,
+      first: true,
+      last: true,
+      numberOfElements: notas.length,
+      empty: notas.length === 0,
+    };
+  }
+
+  function nota(id: string, dataEmissao: string, over: Record<string, unknown> = {}) {
+    return {
+      id,
+      numero: Number(id.replace(/\D/g, '')) || 1,
+      dataEmissao,
+      status: 'AUTORIZADA',
+      destinatarioNome: 'Cerealista Sorriso Ltda',
+      naturezaOperacao: 'Venda de produção',
+      valorTotalNota: 1000,
+      tipoDocumento: 'NFE',
+      ...over,
+    };
+  }
+
+  /** Cria a tela já com as notas carregadas. */
+  function comNotas(notas: Record<string, unknown>[]) {
+    const fixture = TestBed.createComponent(DocumentosPage);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === '/notas').flush(pagina(notas));
+    flushPendencias();
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  /** `AAAA-MM-DD` de `n` dias atrás. */
+  function diasAtras(n: number) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${mes}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  it('as opções de período saem das notas que existem, com a contagem de cada mês', () => {
+    // Antes as opções eram relativas a hoje ("Este mês", "Mês anterior") e, com notas de abril
+    // a setembro, a maioria devolvia lista vazia: um filtro que só sabe dizer "nada aqui".
+    const cmp = comNotas([
+      nota('n1', '2026-09-10'),
+      nota('n2', '2026-09-04'),
+      nota('n3', '2026-06-20'),
+      nota('n4', '2025-12-01'),
+    ]).componentInstance;
+
+    const anos = cmp.periodosPorAno();
+    expect(anos.map((a) => a.ano)).toEqual(['2026', '2025']);
+    expect(anos[0].total).toBe(3);
+    expect(anos[0].meses.map((m) => m.value)).toEqual(['2026-09', '2026-06']);
+    expect(anos[0].meses[0].label).toBe('Setembro (2)');
+    expect(anos[1].meses.map((m) => m.label)).toEqual(['Dezembro (1)']);
+  });
+
+  it('escolher um mês deixa só as notas daquele mês; o ano inteiro, as do ano', () => {
+    const cmp = comNotas([
+      nota('n1', '2026-09-10'),
+      nota('n2', '2026-06-20'),
+      nota('n3', '2025-12-01'),
+    ]).componentInstance;
+
+    cmp.periodo.set('2026-09');
+    expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
+
+    cmp.periodo.set('2026');
+    expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1', 'n2']);
+
+    cmp.periodo.set('todos');
+    expect(cmp.notasFiltradas()).toHaveLength(3);
+  });
+
+  it('a data é comparada como texto: o mês não escorrega por causa do fuso', () => {
+    // `new Date('2026-09-01')` é meia-noite em UTC e, no horário de Brasília, cai em 31/08 —
+    // a nota do dia 1º sairia do filtro de setembro.
+    const cmp = comNotas([
+      nota('primeiro', '2026-09-01'),
+      nota('ultimo', '2026-09-30'),
+    ]).componentInstance;
+
+    cmp.periodo.set('2026-09');
+    expect(
+      cmp
+        .notasFiltradas()
+        .map((n) => n.id)
+        .sort(),
+    ).toEqual(['primeiro', 'ultimo']);
+  });
+
+  it('"Últimos 30 dias" só aparece quando há nota nesse intervalo', () => {
+    const recente = comNotas([nota('r', diasAtras(5))]).componentInstance;
+    expect(recente.temNotasRecentes()).toBe(true);
+
+    const antiga = comNotas([nota('a', diasAtras(120))]).componentInstance;
+    expect(antiga.temNotasRecentes()).toBe(false);
+  });
+
+  it('o filtro de situação ganhou controle na tela — antes só existia no componente', () => {
+    const fixture = comNotas([
+      nota('auth', '2026-09-10', { status: 'AUTORIZADA' }),
+      nota('rasc', '2026-09-11', { status: 'RASCUNHO' }),
+    ]);
+    const cmp = fixture.componentInstance;
+
+    const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
+      'select[aria-label="Situação da nota"]',
+    );
+    expect(select).not.toBeNull();
+
+    cmp.statusFilter.set('RASCUNHO');
+    expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['rasc']);
+  });
+
+  it('o nome do destinatário tem a largura do card, em vez de dividir com o selo', () => {
+    // "Com inconsistências" é um selo largo e dividia a linha com o nome: sobrava "Coope...".
+    const fixture = comNotas([
+      nota('n1', '2026-09-10', {
+        destinatarioNome: 'Cooperativa Cafeeira XYZ Ltda',
+        status: 'COM_INCONSISTENCIAS',
+      }),
+    ]);
+    const texto = ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+    expect(texto).toContain('Cooperativa Cafeeira XYZ Ltda');
+  });
+
   it('DASH-11: em falha do GET /api/notas, mostra notasErro(true) e lista vazia — sem mockNotas', () => {
     const fixture = TestBed.createComponent(DocumentosPage);
     const cmp = fixture.componentInstance;

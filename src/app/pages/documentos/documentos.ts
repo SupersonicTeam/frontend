@@ -99,12 +99,19 @@ const UFS = [
   'TO',
 ];
 
-const PERIODO_OPTIONS = [
-  { value: 'todos', label: 'Todos' },
-  { value: '7', label: 'Últimos 7 dias' },
-  { value: '30', label: 'Últimos 30 dias' },
-  { value: 'mes', label: 'Este mês' },
-  { value: 'mesAnterior', label: 'Mês anterior' },
+const MESES_PT = [
+  'Janeiro',
+  'Fevereiro',
+  'Março',
+  'Abril',
+  'Maio',
+  'Junho',
+  'Julho',
+  'Agosto',
+  'Setembro',
+  'Outubro',
+  'Novembro',
+  'Dezembro',
 ];
 
 /** Só os dígitos de um CPF/CNPJ (remove máscara). */
@@ -287,29 +294,81 @@ export class DocumentosPage implements OnInit {
   /** Erros de validação devolvidos pelo backend (400/422), exibidos campo a campo. */
   erroNota = signal<FiscalError[]>([]);
 
-  readonly periodoOptions = PERIODO_OPTIONS;
   readonly ufs = UFS;
+
+  /**
+   * **Os períodos que existem de verdade.**
+   *
+   * As opções eram relativas a hoje — "Últimos 7 dias", "Este mês", "Mês anterior" — e, com as
+   * notas indo de abril a setembro, três das cinco devolviam lista vazia. Um filtro cujas opções
+   * em geral não têm nada atrás não é filtro: é um jeito de a tela dizer "nada aqui".
+   *
+   * Agora as opções saem das próprias notas: cada mês que tem nota vira uma entrada, com a
+   * contagem, agrupada por ano — e o ano inteiro também é escolhível. Escolher um período vazio
+   * deixa de ser possível.
+   *
+   * "Últimos 30 dias" fica, porque responde a outra pergunta ("o que saiu agora"), e some quando
+   * não há nota nesse intervalo.
+   *
+   * Como todo filtro desta tela, isto roda sobre o que veio na página — ver `pageSize`.
+   */
+  readonly periodosPorAno = computed(() => {
+    const porMes = new Map<string, number>();
+    for (const n of this.notas()) {
+      const mes = (n.dataEmissao ?? '').slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(mes)) porMes.set(mes, (porMes.get(mes) ?? 0) + 1);
+    }
+
+    const anos = new Map<string, { value: string; label: string }[]>();
+    for (const mes of [...porMes.keys()].sort().reverse()) {
+      const ano = mes.slice(0, 4);
+      const nome = MESES_PT[Number(mes.slice(5, 7)) - 1] ?? mes;
+      const lista = anos.get(ano) ?? [];
+      lista.push({ value: mes, label: `${nome} (${porMes.get(mes)})` });
+      anos.set(ano, lista);
+    }
+
+    return [...anos.entries()].map(([ano, meses]) => ({
+      ano,
+      total: meses.reduce((soma, m) => soma + Number(m.label.match(/\((\d+)\)/)?.[1] ?? 0), 0),
+      meses,
+    }));
+  });
+
+  /** Há nota nos últimos 30 dias? Sem isso a opção não aparece. */
+  readonly temNotasRecentes = computed(() => {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - 30);
+    const corte = limite.toISOString().slice(0, 10);
+    return this.notas().some((n) => (n.dataEmissao ?? '').slice(0, 10) >= corte);
+  });
+
+  /** O que está escrito no seletor quando alguém volta a olhar para ele. */
+  readonly rotuloDoPeriodo = computed(() => {
+    const p = this.periodo();
+    if (p === 'todos') return 'Todo o período';
+    if (p === 'ultimos30') return 'Últimos 30 dias';
+    if (/^\d{4}$/.test(p)) return p;
+    const nome = MESES_PT[Number(p.slice(5, 7)) - 1];
+    return nome ? `${nome} de ${p.slice(0, 4)}` : p;
+  });
 
   readonly notasFiltradas = computed(() => {
     let lista = this.notas().slice();
     const busca = this.busca().toLowerCase();
     const now = new Date();
 
-    // Período
-    if (this.periodo() !== 'todos') {
-      lista = lista.filter((n) => {
-        const d = new Date(n.dataEmissao?.split('T')[0] + 'T12:00:00' || '');
-        const diff = (now.getTime() - d.getTime()) / 86400000;
-        if (this.periodo() === '7') return diff >= 0 && diff <= 7;
-        if (this.periodo() === '30') return diff >= 0 && diff <= 30;
-        if (this.periodo() === 'mes')
-          return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-        if (this.periodo() === 'mesAnterior') {
-          const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-          return d.getMonth() === prev.getMonth() && d.getFullYear() === prev.getFullYear();
-        }
-        return true;
-      });
+    // Período: `AAAA-MM` (um mês), `AAAA` (o ano) ou `ultimos30`. Comparação por prefixo de
+    // string, que não passa por fuso nenhum — `new Date('2026-09-10')` é meia-noite em UTC e, no
+    // horário de Brasília, cai no dia 9.
+    const periodo = this.periodo();
+    if (periodo === 'ultimos30') {
+      const limite = new Date(now);
+      limite.setDate(limite.getDate() - 30);
+      const corte = limite.toISOString().slice(0, 10);
+      lista = lista.filter((n) => (n.dataEmissao ?? '').slice(0, 10) >= corte);
+    } else if (/^\d{4}(-\d{2})?$/.test(periodo)) {
+      lista = lista.filter((n) => (n.dataEmissao ?? '').startsWith(periodo));
     }
 
     // Tipo do documento (NFE/NFA)
