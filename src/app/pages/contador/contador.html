@@ -1,7 +1,9 @@
 <div class="page-container flex flex-col gap-5">
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
-      <h1 class="flex items-center gap-2 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+      <h1
+        class="flex items-center gap-2 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
+      >
         <svg lucideCalculator [size]="26" class="text-primary" />
         Acompanhamento
       </h1>
@@ -20,66 +22,231 @@
     </div>
   </header>
 
-  <!-- O que o contador precisa saber antes de qualquer lista -->
-  <section class="grid gap-3 sm:grid-cols-3">
-    <ui-stat
-      compacto
-      rotulo="A pagar em guias"
-      [valor]="formatCurrency(totalAPagar())"
-      [apoio]="guiasPendentes().length + ' guia(s) em aberto'"
-      [tom]="totalAPagar() > 0 ? 'negativo' : 'neutro'"
-    />
-    <ui-stat
-      compacto
-      rotulo="Guias vencidas"
-      [valor]="guiasVencidas().length"
-      apoio="passaram do prazo"
-      [tom]="guiasVencidas().length ? 'negativo' : 'positivo'"
-    />
-    <ui-stat
-      compacto
-      rotulo="Notas a corrigir"
-      [valor]="notasComProblema().length"
-      apoio="com inconsistência ou rejeitadas"
-      [tom]="notasComProblema().length ? 'negativo' : 'positivo'"
-    />
+  <!-- Seletor de periodo. Governa os dois blocos abaixo; as guias ficam de fora de proposito. -->
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="text-apoio text-muted-foreground">Fechando</span>
+    <select
+      class="tap-target rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+      aria-label="Mês"
+      [value]="mes()"
+      (change)="mudarMes($any($event.target).value)"
+    >
+      @for (m of meses; track m.v) {
+        <option [value]="m.v" [selected]="m.v === mes()">{{ m.l }}</option>
+      }
+    </select>
+    <select
+      class="tap-target rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+      aria-label="Ano"
+      [value]="ano()"
+      (change)="mudarAno($any($event.target).value)"
+    >
+      @for (a of anos(); track a) {
+        <option [value]="a" [selected]="a === ano()">{{ a }}</option>
+      }
+    </select>
+  </div>
+
+  <!--
+    ── 1. O QUE IMPEDE FECHAR ──
+    Primeiro bloco porque e a pergunta do contador. Antes a tela abria com tres numeros soltos
+    ("a pagar", "vencidas", "a corrigir") que nao diziam se o mes fecha ou nao.
+  -->
+  <section
+    class="rounded-card border p-5"
+    [class]="podeFechar() ? 'border-sucesso/30 bg-sucesso-soft' : 'border-aviso/40 bg-aviso-soft'"
+  >
+    <h2 class="flex items-center gap-2 font-heading text-lg font-semibold">
+      @if (podeFechar()) {
+        <svg lucideCheck [size]="18" class="text-sucesso-ink" aria-hidden="true" />
+        <span class="text-sucesso-ink">Nada impede fechar {{ formatPeriodo(periodo()) }}</span>
+      } @else {
+        <svg lucideTriangleAlert [size]="18" class="text-aviso-ink" aria-hidden="true" />
+        <span class="text-aviso-ink">O que impede fechar {{ formatPeriodo(periodo()) }}</span>
+      }
+    </h2>
+
+    @if (podeFechar()) {
+      <p class="mt-1 text-apoio text-sucesso-ink">
+        Sem nota pendente de correção no período e sem guia vencida.
+      </p>
+    }
+
+    <!-- Notas do periodo com inconsistencia. Expandir busca o que o fisco apontou de verdade. -->
+    @if (notasDoPeriodo().length) {
+      <h3 class="mt-4 text-apoio font-semibold tracking-wide text-aviso-ink uppercase">
+        {{
+          notasDoPeriodo().length === 1
+            ? '1 nota precisa de correção'
+            : notasDoPeriodo().length + ' notas precisam de correção'
+        }}
+      </h3>
+      <ul class="mt-1 flex flex-col">
+        @for (nota of notasDoPeriodo(); track nota.id) {
+          <li class="border-b border-aviso/20 last:border-0">
+            <button
+              type="button"
+              class="tap-target flex w-full items-center gap-2 py-2 text-left"
+              [attr.aria-expanded]="notaExpandida() === nota.id"
+              (click)="alternarNota(nota)"
+            >
+              @if (notaExpandida() === nota.id) {
+                <svg
+                  lucideChevronDown
+                  [size]="16"
+                  class="shrink-0 text-aviso-ink"
+                  aria-hidden="true"
+                />
+              } @else {
+                <svg
+                  lucideChevronRight
+                  [size]="16"
+                  class="shrink-0 text-aviso-ink"
+                  aria-hidden="true"
+                />
+              }
+              <span class="min-w-0 flex-1 text-apoio text-foreground">
+                <span class="font-medium">Nota {{ nota.numero }}</span>
+                · {{ nota.destinatarioNome }}
+                <span class="text-muted-foreground">· {{ formatDate(nota.dataEmissao) }}</span>
+              </span>
+              <ui-badge-status [status]="nota.status" />
+            </button>
+
+            @if (notaExpandida() === nota.id) {
+              <div class="pb-3 pl-6">
+                @if (carregandoValidacoes()) {
+                  <p class="flex items-center gap-2 text-apoio text-muted-foreground">
+                    <svg lucideLoaderCircle [size]="14" class="animate-spin" aria-hidden="true" />
+                    Buscando o que o fisco apontou…
+                  </p>
+                } @else if (validacoes().length) {
+                  <ul class="flex flex-col gap-1.5">
+                    @for (v of validacoes(); track v.code + (v.field ?? '')) {
+                      <li class="text-apoio leading-relaxed text-foreground">
+                        @if (v.field) {
+                          <span class="font-medium">{{ rotuloCampo(v.field) }}:</span>
+                        }
+                        {{ v.message }}
+                        @if (v.suggestion) {
+                          <span class="block text-muted-foreground">{{ v.suggestion }}</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="text-apoio text-muted-foreground">
+                    O backend não registrou validações para esta nota.
+                  </p>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+      <p class="mt-2 text-apoio text-muted-foreground">
+        A correção é feita em
+        <a routerLink="/documentos" class="font-medium text-primary underline">Notas do produtor</a
+        >.
+      </p>
+    }
+
+    <!-- Guia vencida fica fora do filtro de periodo de proposito: atraso de agosto nao some
+         porque o contador esta olhando outubro. -->
+    @if (guiasVencidas().length) {
+      <h3 class="mt-4 text-apoio font-semibold tracking-wide text-aviso-ink uppercase">
+        {{
+          guiasVencidas().length === 1
+            ? '1 guia vencida'
+            : guiasVencidas().length + ' guias vencidas'
+        }}
+        <span class="font-normal normal-case">— de qualquer mês</span>
+      </h3>
+      <ul class="mt-1 flex flex-col gap-1">
+        @for (guia of guiasVencidas(); track guia.id) {
+          <li class="flex flex-wrap items-center justify-between gap-2 text-apoio">
+            <span class="text-foreground">
+              <span class="font-medium">{{ guia.tipoGuia }}</span>
+              · venceu {{ formatDate(guia.dataVencimento) }}
+            </span>
+            <span class="font-semibold tabular-nums text-foreground">
+              {{ formatCurrency(guia.valor) }}
+            </span>
+          </li>
+        }
+      </ul>
+    }
   </section>
 
-  <!-- Notas que exigem acao: dado real de /api/notas, nao lista inventada -->
-  @if (notasComProblema().length) {
-    <section class="flex flex-col gap-2">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideTriangleAlert [size]="18" class="text-aviso" />
-        Notas que precisam de correção
-      </h2>
-      <ui-table compacto>
-        <table class="w-full">
-          <thead>
-            <tr>
-              <th scope="col">Nota</th>
-              <th scope="col">Destinatário</th>
-              <th scope="col">Emissão</th>
-              <th scope="col">Situação</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (nota of notasComProblema(); track nota.id) {
-              <tr>
-                <td class="font-medium text-foreground">{{ nota.numero }}</td>
-                <td>{{ nota.destinatarioNome }}</td>
-                <td class="tabular-nums">{{ formatDate(nota.dataEmissao) }}</td>
-                <td><ui-badge-status [status]="nota.status" /></td>
-              </tr>
+  <!--
+    ── 2. OS NUMEROS DO PERIODO ──
+    O relatorio de conformidade na tela, nao so no PDF: o contador nao deveria precisar baixar um
+    arquivo para saber quanto deu o mes.
+  -->
+  <section class="rounded-card border border-border bg-card p-5 shadow-suave">
+    <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h2 class="font-heading text-lg font-semibold text-foreground">
+          Os números de {{ formatPeriodo(periodo()) }}
+        </h2>
+        @if (apuracaoDoPeriodo(); as ap) {
+          <p class="text-apoio text-muted-foreground">
+            Apuração
+            {{
+              ap.status === 'FECHADO'
+                ? 'fechada'
+                : ap.status === 'EM_PROCESSAMENTO'
+                  ? 'em processamento'
+                  : 'aberta'
+            }}
+            @if (ap.dataFechamento) {
+              <span>em {{ formatDate(ap.dataFechamento) }}</span>
+            } @else {
+              <span>— os valores ainda mudam a cada nota autorizada</span>
             }
-          </tbody>
-        </table>
-      </ui-table>
-      <p class="text-apoio text-muted-foreground">
-        A correção é feita em
-        <a routerLink="/documentos" class="font-medium text-primary underline">Notas do produtor</a>.
+          </p>
+        }
+      </div>
+      @if (carregandoNumeros()) {
+        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+      }
+    </div>
+
+    @if (conta(); as c) {
+      <div class="grid gap-3 sm:grid-cols-3">
+        <ui-stat
+          compacto
+          rotulo="Débito das saídas"
+          [valor]="formatCurrency(c.debitoTotal)"
+          [apoio]="c.quantidadeSaidas + ' nota(s) autorizada(s)'"
+        />
+        <ui-stat
+          compacto
+          rotulo="Crédito das entradas"
+          [valor]="formatCurrency(c.creditoTotal)"
+          [apoio]="c.quantidadeEntradas + ' nota(s) de entrada'"
+          tom="positivo"
+        />
+        <ui-stat
+          compacto
+          [rotulo]="saldoCredor() ? 'Saldo credor' : 'Saldo a pagar'"
+          [valor]="formatCurrency(c.saldoAPagar)"
+          apoio="débito menos crédito"
+          [tom]="saldoCredor() ? 'positivo' : 'negativo'"
+        />
+      </div>
+      <p class="mt-3 text-apoio text-muted-foreground">
+        IBS {{ formatCurrency(c.debitoIbs) }} e CBS {{ formatCurrency(c.debitoCbs) }} no débito; IBS
+        {{ formatCurrency(c.creditoIbs) }} e CBS {{ formatCurrency(c.creditoCbs) }} no crédito.
       </p>
-    </section>
-  }
+    } @else if (erroNumeros()) {
+      <p class="text-apoio text-muted-foreground">
+        Não foi possível carregar os números do período.
+      </p>
+    } @else if (!carregandoNumeros()) {
+      <p class="text-apoio text-muted-foreground">Sem movimento no período.</p>
+    }
+  </section>
 
   <!-- Guias fiscais: listar, criar e dar baixa. Tudo em endpoint real. -->
   <section class="flex flex-col gap-2">
@@ -123,7 +290,9 @@
                 <td class="tabular-nums">{{ formatDate(guia.dataVencimento) }}</td>
                 <td class="tabular-nums">{{ formatCurrency(guia.valor) }}</td>
                 <td>
-                  <span [class]="classeStatusGuia(guia.status)">{{ rotuloStatusGuia(guia.status) }}</span>
+                  <span [class]="classeStatusGuia(guia.status)">{{
+                    rotuloStatusGuia(guia.status)
+                  }}</span>
                 </td>
                 <td class="text-right">
                   @if (guia.status !== 'pago') {
@@ -146,8 +315,9 @@
   <!-- O que saiu da tela, dito com todas as letras (#50) -->
   <p class="rounded-card border border-border bg-surface p-4 text-apoio text-muted-foreground">
     Solicitações de documentos ao produtor, anexos e o checklist de fechamento
-    <strong class="text-foreground">ainda não existem no backend</strong> e por isso saíram desta tela. Antes
-    eles apareciam preenchidos com dados de exemplo, o que dava a impressão de haver pendências reais.
+    <strong class="text-foreground">ainda não existem no backend</strong> e por isso saíram desta
+    tela. Antes eles apareciam preenchidos com dados de exemplo, o que dava a impressão de haver
+    pendências reais.
   </p>
 </div>
 
@@ -161,7 +331,9 @@
 >
   <div class="flex flex-col gap-3">
     <div>
-      <label for="guia-tipo" class="mb-1.5 block text-apoio font-medium text-foreground">Tipo</label>
+      <label for="guia-tipo" class="mb-1.5 block text-apoio font-medium text-foreground"
+        >Tipo</label
+      >
       <select
         id="guia-tipo"
         class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"

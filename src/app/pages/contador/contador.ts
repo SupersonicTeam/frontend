@@ -2,8 +2,11 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import {
   LucideCalculator,
   LucideCheck,
+  LucideChevronDown,
+  LucideChevronRight,
   LucideDownload,
   LucideFileText,
+  LucideLoaderCircle,
   LucidePlus,
   LucideTriangleAlert,
 } from '@lucide/angular';
@@ -13,6 +16,9 @@ import { filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
 import { ToastService } from '@core/services/toast.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
+import type { Apuracao, RelatorioConformidade } from '@models/tributario.model';
+import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
+import { apenasUltimaChecagem, rotuloDoCampo } from '@core/utils/validacoes';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
@@ -26,6 +32,21 @@ import { UiStat } from '@shared/ui/ui-stat';
 import { UiTable } from '@shared/ui/ui-table';
 
 const TIPOS_GUIA: TipoGuia[] = ['ICMS', 'FUNRURAL', 'DARF', 'GPS', 'OUTRO'];
+
+const MESES = [
+  { v: 1, l: 'Janeiro' },
+  { v: 2, l: 'Fevereiro' },
+  { v: 3, l: 'Março' },
+  { v: 4, l: 'Abril' },
+  { v: 5, l: 'Maio' },
+  { v: 6, l: 'Junho' },
+  { v: 7, l: 'Julho' },
+  { v: 8, l: 'Agosto' },
+  { v: 9, l: 'Setembro' },
+  { v: 10, l: 'Outubro' },
+  { v: 11, l: 'Novembro' },
+  { v: 12, l: 'Dezembro' },
+];
 
 /**
  * Acompanhamento do contador (#50).
@@ -49,6 +70,20 @@ const TIPOS_GUIA: TipoGuia[] = ['ICMS', 'FUNRURAL', 'DARF', 'GPS', 'OUTRO'];
  *
  * A densidade aqui é de desktop, ao contrário do dashboard do produtor: o
  * contador trabalha em tela grande e com muitos registros de uma vez.
+ *
+ * ## A tela foi organizada em volta de fechar o mês (caminho A)
+ *
+ * A versão anterior era uma pilha de listas sem pergunta: três números no topo, as notas com
+ * problema, as guias. O contador não abre isto para "ver dados" — ele abre para saber **se dá
+ * para fechar o mês e o que falta**. Então a ordem é essa:
+ *
+ * 1. **O que impede fechar** o período escolhido — nota com inconsistência (com o que o fisco
+ *    apontou, de verdade, ao expandir) e guia vencida.
+ * 2. **Os números do período** — a apuração e o relatório de conformidade na tela, não só no PDF.
+ * 3. **As guias**, que é o trabalho contínuo.
+ *
+ * **O seletor de período governa 1 e 2, mas não as guias.** Guia atrasada de agosto não pode
+ * sumir da tela porque o contador está olhando outubro — ela continua sendo problema dele hoje.
  */
 @Component({
   selector: 'app-contador',
@@ -56,8 +91,11 @@ const TIPOS_GUIA: TipoGuia[] = ['ICMS', 'FUNRURAL', 'DARF', 'GPS', 'OUTRO'];
   imports: [
     LucideCalculator,
     LucideCheck,
+    LucideChevronDown,
+    LucideChevronRight,
     LucideDownload,
     LucideFileText,
+    LucideLoaderCircle,
     LucidePlus,
     LucideTriangleAlert,
     RouterLink,
@@ -84,7 +122,9 @@ export class ContadorPage implements OnInit {
   readonly baixandoRelatorio = signal(false);
 
   /** Nome do produtor vem do payload real do dashboard, não de constante no código. */
-  readonly produtorNome = computed(() => this.dashboardApi.dashboard()?.produtor.nome ?? 'Produtor');
+  readonly produtorNome = computed(
+    () => this.dashboardApi.dashboard()?.produtor.nome ?? 'Produtor',
+  );
 
   readonly guiasPendentes = computed(() => this.guias().filter((g) => g.status !== 'pago'));
   readonly totalAPagar = computed(() =>
@@ -101,14 +141,142 @@ export class ContadorPage implements OnInit {
   readonly formValor = signal('');
   readonly formObs = signal('');
 
-  readonly formValido = computed(
-    () => !!this.formVencimento() && Number(this.formValor()) > 0,
+  readonly formValido = computed(() => !!this.formVencimento() && Number(this.formValor()) > 0);
+
+  // ── Período: governa os impedimentos e os números, nunca as guias ──
+  readonly mes = signal(new Date().getMonth() + 1);
+  readonly ano = signal(new Date().getFullYear());
+  readonly periodo = computed(() => `${this.ano()}-${String(this.mes()).padStart(2, '0')}`);
+  readonly meses = MESES;
+  readonly anos = computed(() => {
+    const atual = new Date().getFullYear();
+    return [atual, atual - 1, atual - 2];
+  });
+
+  // ── Os números do período ──
+  readonly apuracao = signal<Apuracao | null>(null);
+  readonly relatorio = signal<RelatorioConformidade | null>(null);
+  readonly carregandoNumeros = signal(false);
+  readonly erroNumeros = signal(false);
+
+  /**
+   * Só usa o que é **deste** período. Trocar de mês dispara duas requisições que chegam uma de
+   * cada vez; sem isto a tela cruza o débito de um mês com o saldo de outro por um instante.
+   * Protege também de resposta fora de ordem.
+   */
+  private doPeriodo<T extends { periodo: string }>(valor: T | null): T | null {
+    return valor && valor.periodo === this.periodo() ? valor : null;
+  }
+
+  readonly conta = computed(() => this.doPeriodo(this.relatorio()));
+  readonly apuracaoDoPeriodo = computed(() => this.doPeriodo(this.apuracao()));
+  readonly saldoCredor = computed(() => (this.conta()?.saldoAPagar ?? 0) < 0);
+
+  // ── O que impede fechar ──
+
+  /**
+   * Nota com inconsistência **do período escolhido**.
+   *
+   * Uma nota de junho não impede fechar outubro: ela nunca foi autorizada, então nunca entrou na
+   * apuração de mês nenhum. O impedimento é do mês dela.
+   */
+  readonly notasDoPeriodo = computed(() =>
+    this.notasComProblema().filter((n) => (n.dataEmissao ?? '').startsWith(this.periodo())),
   );
 
-  readonly periodoAtual = new Date().toISOString().slice(0, 7);
+  readonly podeFechar = computed(
+    () => this.notasDoPeriodo().length === 0 && this.guiasVencidas().length === 0,
+  );
+
+  // ── O que o fisco apontou, ao expandir a nota ──
+  readonly notaExpandida = signal<string | null>(null);
+  readonly validacoes = signal<NotaValidacaoResponse[]>([]);
+  readonly carregandoValidacoes = signal(false);
+
+  /**
+   * Abre (ou fecha) uma nota e busca o que impede emitir.
+   *
+   * O texto vem de `GET /notas/{id}/validacoes` — `code`, `field` e `message` do backend. Não é
+   * frase minha: o contador precisa ver o que o validador fiscal disse, para saber o que pedir
+   * ao produtor.
+   */
+  alternarNota(nota: NotaFiscal): void {
+    if (this.notaExpandida() === nota.id) {
+      this.notaExpandida.set(null);
+      return;
+    }
+
+    this.notaExpandida.set(nota.id);
+    this.validacoes.set([]);
+    this.carregandoValidacoes.set(true);
+    this.notasApi.listarValidacoes(nota.id).subscribe({
+      next: (lista) => {
+        this.validacoes.set(apenasUltimaChecagem(lista));
+        this.carregandoValidacoes.set(false);
+      },
+      error: () => {
+        this.validacoes.set([]);
+        this.carregandoValidacoes.set(false);
+      },
+    });
+  }
+
+  /** O campo em português; identificador desconhecido cai nele mesmo. */
+  rotuloCampo(campo?: string): string {
+    return campo ? rotuloDoCampo(campo) : '';
+  }
+
+  /** `2026-10` -> "outubro de 2026". */
+  formatPeriodo(periodo: string): string {
+    const [ano, mes] = periodo.split('-');
+    const d = new Date(Number(ano), Number(mes) - 1, 1);
+    return Number.isNaN(d.getTime())
+      ? periodo
+      : d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  }
+
+  mudarMes(m: string | number): void {
+    this.mes.set(Number(m));
+    this.carregarNumeros();
+  }
+
+  mudarAno(a: string | number): void {
+    this.ano.set(Number(a));
+    this.carregarNumeros();
+  }
+
+  /**
+   * Apuração e relatório do período, independentes entre si: a falha de um não apaga o outro.
+   * Os valores anteriores são limpos na hora — melhor um instante vazio que o número do mês
+   * passado passando por deste.
+   */
+  carregarNumeros(): void {
+    this.carregandoNumeros.set(true);
+    this.erroNumeros.set(false);
+    this.apuracao.set(null);
+    this.relatorio.set(null);
+    this.notaExpandida.set(null);
+
+    const periodo = this.periodo();
+    this.tributarioApi.apuracao(periodo).subscribe({
+      next: (a) => {
+        this.apuracao.set(a);
+        this.carregandoNumeros.set(false);
+      },
+      error: () => {
+        this.erroNumeros.set(true);
+        this.carregandoNumeros.set(false);
+      },
+    });
+    this.tributarioApi.relatorioConformidade(periodo).subscribe({
+      next: (r) => this.relatorio.set(r),
+      error: () => this.erroNumeros.set(true),
+    });
+  }
 
   ngOnInit(): void {
     this.carregarGuias();
+    this.carregarNumeros();
     this.dashboardApi.carregar().subscribe({ error: () => undefined });
     this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
       next: (pagina) =>
@@ -184,12 +352,13 @@ export class ContadorPage implements OnInit {
 
   baixarRelatorio(): void {
     this.baixandoRelatorio.set(true);
-    this.tributarioApi.relatorioConformidadePdf(this.periodoAtual).subscribe({
+    const periodo = this.periodo();
+    this.tributarioApi.relatorioConformidadePdf(periodo).subscribe({
       next: (resposta) => {
         this.baixandoRelatorio.set(false);
         const nome = filenameDeContentDisposition(
           resposta.headers.get('Content-Disposition'),
-          `conformidade-${this.periodoAtual}.pdf`,
+          `conformidade-${periodo}.pdf`,
         );
         if (resposta.body) salvarBlob(resposta.body, nome);
       },
