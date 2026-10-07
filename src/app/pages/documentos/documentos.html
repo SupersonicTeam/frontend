@@ -22,18 +22,46 @@
 
   <!-- ── FILTROS ── -->
   <div class="flex flex-wrap gap-2">
+    <!-- Periodo: as opcoes saem das notas que existem, agrupadas por ano. Ver `periodosPorAno`. -->
     <select
-      class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+      aria-label="Período"
       [value]="periodo()"
       (change)="periodo.set($any($event.target).value)"
     >
-      @for (o of periodoOptions; track o.value) {
-        <option [value]="o.value">{{ o.label }}</option>
+      <option value="todos">Todo o período</option>
+      @if (temNotasRecentes()) {
+        <option value="ultimos30">Últimos 30 dias</option>
+      }
+      @for (grupo of periodosPorAno(); track grupo.ano) {
+        <optgroup [label]="grupo.ano">
+          <option [value]="grupo.ano">O ano de {{ grupo.ano }} ({{ grupo.total }})</option>
+          @for (mes of grupo.meses; track mes.value) {
+            <option [value]="mes.value">{{ mes.label }}</option>
+          }
+        </optgroup>
       }
     </select>
 
+    <!-- O filtro de status existia no componente sem nenhum controle na tela: dava para
+         filtrar por rascunho/autorizada pelo codigo, mas nao pela interface. -->
     <select
-      class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+      aria-label="Situação da nota"
+      [value]="statusFilter()"
+      (change)="statusFilter.set($any($event.target).value)"
+    >
+      <option value="todos">Qualquer situação</option>
+      <option value="RASCUNHO">Rascunho</option>
+      <option value="COM_INCONSISTENCIAS">Com inconsistências</option>
+      <option value="AUTORIZADA">Autorizada</option>
+      <option value="REJEITADA">Rejeitada</option>
+      <option value="CANCELADA">Cancelada</option>
+    </select>
+
+    <select
+      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+      aria-label="Tipo de documento"
       [value]="tipo()"
       (change)="tipo.set($any($event.target).value)"
     >
@@ -62,6 +90,7 @@
       class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
       [value]="ordenacao()"
       (change)="ordenacao.set($any($event.target).value)"
+      aria-label="Ordenar"
       title="Ordenar"
     >
       <option value="data">Mais recentes</option>
@@ -217,27 +246,30 @@
                       podeVerValidacoes(nota) ? 'border-aviso/50 bg-aviso-soft/30' : 'border-border'
                     "
                   >
+                    <!-- O selo e o valor dividiam a coluna da direita e ela e `shrink-0`:
+                     "Com inconsistencias" empurrava o nome do destinatario para ~90px e
+                     sobrava "Coope...". O selo sobe para a linha do numero, que e curta, e
+                     nome e valor passam a ter a largura inteira do card.
+                     `span` e nao `p`: o conteudo de um <button> e phrasing content. -->
                     <button
                       type="button"
-                      class="flex w-full items-start justify-between gap-3 text-left"
+                      class="flex w-full flex-col gap-0.5 text-left"
                       (click)="abrirPreview(nota)"
                     >
-                      <div class="min-w-0 flex-1">
-                        <p class="text-apoio text-muted-foreground">
+                      <span class="flex w-full items-start justify-between gap-2">
+                        <span class="text-apoio text-muted-foreground">
                           Nº {{ nota.numero }} · {{ formatDate(nota.dataEmissao) }}
-                        </p>
-                        <p class="truncate font-heading text-valor font-semibold text-foreground">
-                          {{ nota.destinatarioNome }}
-                        </p>
-                      </div>
-                      <div class="flex shrink-0 flex-col items-end gap-1.5">
-                        <ui-badge-status [status]="nota.status" />
-                        <span
-                          class="font-heading text-valor font-semibold tabular-nums text-foreground"
-                        >
-                          {{ formatCurrency(nota.valorTotalNota) }}
                         </span>
-                      </div>
+                        <ui-badge-status [status]="nota.status" />
+                      </span>
+                      <span
+                        class="block w-full truncate font-heading text-valor font-semibold text-foreground"
+                      >
+                        {{ nota.destinatarioNome }}
+                      </span>
+                      <span class="font-heading text-lg font-semibold tabular-nums text-foreground">
+                        {{ formatCurrency(nota.valorTotalNota) }}
+                      </span>
                     </button>
 
                     <!-- A natureza divide a linha com as acoes: sozinhas elas deixavam uma
