@@ -304,4 +304,69 @@
       }
     </section>
   </div>
+
+  <!--
+    A faixa dos seis meses. Fora da grade porque ela quer largura, nao altura: e uma linha do
+    tempo, nao um card de numero. Cada mes e um botao -- a faixa tambem serve para navegar.
+  -->
+  @if (temHistorico()) {
+    <section class="bg-card rounded-card border border-border shadow-suave p-5">
+      <h2 class="text-base font-semibold text-foreground">Como vem sendo</h2>
+      <p class="text-apoio text-muted-foreground">
+        os últimos seis meses, para situar o valor acima
+      </p>
+
+      <ul class="mt-3 flex flex-col gap-1">
+        @for (mes of historico(); track mes.periodo) {
+          <li>
+            <button
+              type="button"
+              class="tap-target flex w-full items-center gap-3 rounded-controle px-2 text-left hover:bg-muted/60"
+              [class.bg-muted]="mes.atual"
+              [attr.aria-current]="mes.atual ? 'true' : null"
+              [attr.aria-label]="
+                formatPeriodo(mes.periodo) +
+                ': ' +
+                (mes.valor === null ? 'sem resposta do servidor' : formatCurrency(mes.valor))
+              "
+              (click)="mudarParaPeriodo(mes.periodo)"
+            >
+              <span
+                class="w-16 shrink-0 text-apoio tabular-nums"
+                [class.font-semibold]="mes.atual"
+                [class.text-foreground]="mes.atual"
+                [class.text-muted-foreground]="!mes.atual"
+              >
+                {{ formatMesCurto(mes.periodo) }}
+              </span>
+
+              @if (mes.valor === null) {
+                <span class="flex-1 text-apoio text-muted-foreground"
+                  >sem resposta do servidor</span
+                >
+              } @else {
+                <!-- A barra e so desenho: o valor ao lado ja diz tudo a quem usa leitor de tela. -->
+                <span class="h-2 min-w-0 flex-1 rounded-full bg-muted" aria-hidden="true">
+                  <span
+                    class="block h-2 rounded-full"
+                    [class.bg-perigo]="mes.valor > 0"
+                    [class.bg-sucesso]="mes.valor < 0"
+                    [style.width.%]="larguraDaBarra(mes.valor)"
+                  ></span>
+                </span>
+                <span
+                  class="w-28 shrink-0 text-right text-apoio tabular-nums"
+                  [class.font-semibold]="mes.atual"
+                  [class.text-foreground]="mes.atual"
+                  [class.text-muted-foreground]="!mes.atual"
+                >
+                  {{ formatCurrency(mes.valor) }}
+                </span>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
 </div>

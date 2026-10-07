@@ -1,7 +1,11 @@
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  TestRequest,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
 import { TributarioPage } from './tributario';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import { ToastService } from '@core/services/toast.service';
@@ -65,7 +69,7 @@ describe('TributarioPage', () => {
    * @param anterior dados do mês anterior, ou `null` para "não há com o que comparar" (404)
    */
   function flushApuracao(o: Partial<Apuracao> = {}, anterior: Partial<Apuracao> | null = null) {
-    const { atual, anterior: reqAnterior } = apuracoesAbertas(periodoAtual());
+    const { atual, anterior: reqAnterior, resto } = apuracoesAbertas(periodoAtual());
     expect(atual).toBeTruthy();
     atual!.flush(buildApuracao({ periodo: periodoAtual(), ...o }));
     if (anterior === null) {
@@ -73,21 +77,41 @@ describe('TributarioPage', () => {
     } else {
       reqAnterior?.flush(buildApuracao({ periodo: periodoAnteriorStr(), ...anterior }));
     }
+    // Os outros quatro meses da faixa não interessam a quem chamou.
+    semDado(resto);
     flushGuias();
   }
   /**
-   * As duas requisições de `/apuracao` que a tela dispara por carga: a do período na tela e a do
-   * mês anterior (comparação).
+   * As requisições de `/apuracao` que a tela dispara por carga: a do período na tela e as cinco
+   * anteriores (faixa dos seis meses, de onde sai também a comparação com o mês passado).
    *
    * **Tem de ser uma chamada só.** `httpMock.match()` esvazia a fila: pegar uma e depois procurar
-   * a outra devolve vazio, porque a primeira chamada já levou as duas embora.
+   * as outras devolve vazio, porque a primeira chamada já levou todas embora. Por isso `resto`
+   * vem junto — quem não se importa com o histórico fecha essas com 404.
    */
   function apuracoesAbertas(periodo: string) {
     const reqs = httpMock.match((r) => r.url === '/apuracao');
+    const de = (p: string) => reqs.find((r) => r.request.params.get('periodo') === p);
+    const anteriorA = mesAtras(periodo, 1);
     return {
-      atual: reqs.find((r) => r.request.params.get('periodo') === periodo),
-      anterior: reqs.find((r) => r.request.params.get('periodo') !== periodo),
+      atual: de(periodo),
+      anterior: de(anteriorA),
+      de,
+      resto: reqs.filter((r) => {
+        const p = r.request.params.get('periodo');
+        return p !== periodo && p !== anteriorA;
+      }),
     };
+  }
+  /** `AAAA-MM` de `n` meses antes de `periodo`. */
+  function mesAtras(periodo: string, n: number) {
+    const [ano, mes] = periodo.split('-').map(Number);
+    const d = new Date(ano, mes - 1 - n, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+  /** Fecha sem dado os meses da faixa que o teste não examina. */
+  function semDado(reqs: TestRequest[]) {
+    reqs.forEach((r) => r.flush('sem apuracao', { status: 404, statusText: 'Not Found' }));
   }
   function flushGuias(lista: unknown[] = []) {
     httpMock.match((r) => r.url === '/contador/guias').forEach((r) => r.flush(lista));
@@ -122,10 +146,11 @@ describe('TributarioPage', () => {
     const cmp = f.componentInstance;
     f.detectChanges();
 
-    const { atual, anterior } = apuracoesAbertas(cmp.periodo());
+    const { atual, anterior, resto } = apuracoesAbertas(cmp.periodo());
     expect(atual!.request.params.get('periodo')).toBe(cmp.periodo());
     atual!.flush(buildApuracao());
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    semDado(resto);
     flushGuias();
     const reqR = httpMock.expectOne((r) => r.url === '/relatorios/conformidade');
     expect(reqR.request.params.get('periodo')).toBe(cmp.periodo());
@@ -142,12 +167,13 @@ describe('TributarioPage', () => {
     flushTodos();
 
     cmp.mudarMes(3);
-    const { atual, anterior } = apuracoesAbertas(`${cmp.ano()}-03`);
+    const { atual, anterior, resto } = apuracoesAbertas(`${cmp.ano()}-03`);
     expect(atual!.request.params.get('periodo')).toBe(`${cmp.ano()}-03`);
     atual!.flush(buildApuracao({ periodo: `${cmp.ano()}-03` }));
     // Fevereiro é o mês anterior a março: a comparação vem junto.
     expect(anterior!.request.params.get('periodo')).toBe(`${cmp.ano()}-02`);
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    semDado(resto);
     flushGuias();
     const reqR = httpMock.expectOne((r) => r.url === '/relatorios/conformidade');
     expect(reqR.request.params.get('periodo')).toBe(`${cmp.ano()}-03`);
@@ -193,9 +219,10 @@ describe('TributarioPage', () => {
     const f = TestBed.createComponent(TributarioPage);
     const cmp = f.componentInstance;
     f.detectChanges();
-    const { atual, anterior } = apuracoesAbertas(cmp.periodo());
+    const { atual, anterior, resto } = apuracoesAbertas(cmp.periodo());
     atual!.flush('erro', { status: 500, statusText: 'Server Error' });
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    semDado(resto);
     flushGuias();
     flushRelatorio();
 
@@ -501,9 +528,10 @@ describe('TributarioPage', () => {
 
     cmp.mudarMes(3);
     const alvo = `${cmp.ano()}-03`;
-    const { atual, anterior } = apuracoesAbertas(alvo);
+    const { atual, anterior, resto } = apuracoesAbertas(alvo);
     atual!.flush(buildApuracao({ periodo: alvo }));
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    semDado(resto);
     flushGuias();
 
     // O relatório de março ainda está no ar: a conta cai para a apuração de março em vez de
@@ -524,9 +552,10 @@ describe('TributarioPage', () => {
 
     cmp.mudarMes(3);
     const alvo = `${cmp.ano()}-03`;
-    const { atual, anterior } = apuracoesAbertas(alvo);
+    const { atual, anterior, resto } = apuracoesAbertas(alvo);
     atual!.flush(buildApuracao({ periodo: alvo }));
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    semDado(resto);
     flushGuias();
     // Chega atrasada a resposta de fevereiro, com outro saldo.
     httpMock
@@ -564,6 +593,102 @@ describe('TributarioPage', () => {
     expect(perguntas[0]).toContain('Como foi calculada a minha apuração de');
     // Nada de "2026-07" na cara do produtor.
     expect(perguntas[0]).not.toMatch(/\d{4}-\d{2}/);
+  });
+
+  it('a faixa cobre seis meses, do mais antigo ao da tela, e marca qual é o da tela', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    const periodo = cmp.periodo();
+    f.detectChanges();
+
+    const { atual, de, resto } = apuracoesAbertas(periodo);
+    atual!.flush(buildApuracao({ periodo, saldoIbs: 10, saldoCbs: 90 }));
+    de(mesAtras(periodo, 1))!.flush(
+      buildApuracao({ periodo: mesAtras(periodo, 1), saldoIbs: 20, saldoCbs: 180 }),
+    );
+    semDado(resto.filter((r) => r.request.params.get('periodo') !== mesAtras(periodo, 1)));
+    flushGuias();
+    flushRelatorio();
+    f.detectChanges();
+
+    const faixa = cmp.historico();
+    expect(faixa).toHaveLength(6);
+    expect(faixa.map((m) => m.periodo)).toEqual([
+      mesAtras(periodo, 5),
+      mesAtras(periodo, 4),
+      mesAtras(periodo, 3),
+      mesAtras(periodo, 2),
+      mesAtras(periodo, 1),
+      periodo,
+    ]);
+    expect(faixa.at(-1)).toMatchObject({ periodo, valor: 100, atual: true });
+    expect(faixa.at(-2)).toMatchObject({ periodo: mesAtras(periodo, 1), valor: 200 });
+    // A barra mais comprida é a do maior valor; a outra sai proporcional.
+    expect(cmp.maiorDoHistorico()).toBe(200);
+    expect(cmp.larguraDaBarra(100)).toBe(50);
+  });
+
+  it('mês sem resposta é lacuna na faixa, não um mês de imposto zero', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    const periodo = cmp.periodo();
+    f.detectChanges();
+    flushApuracao({}, { saldoIbs: 20, saldoCbs: 180 });
+    flushRelatorio();
+    f.detectChanges();
+
+    const semResposta = cmp.historico().filter((m) => m.valor === null);
+    expect(semResposta).toHaveLength(4);
+    expect(semResposta.map((m) => m.periodo)).toEqual([
+      mesAtras(periodo, 5),
+      mesAtras(periodo, 4),
+      mesAtras(periodo, 3),
+      mesAtras(periodo, 2),
+    ]);
+    // Zero teria virado barra; lacuna vira texto.
+    expect((f.nativeElement as HTMLElement).textContent).toContain('sem resposta do servidor');
+    expect(cmp.larguraDaBarra(null)).toBe(0);
+  });
+
+  it('clicar num mês da faixa leva a tela para aquele mês', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushTodos();
+
+    cmp.mudarParaPeriodo('2025-02');
+
+    expect(cmp.ano()).toBe(2025);
+    expect(cmp.mes()).toBe(2);
+    expect(cmp.periodo()).toBe('2025-02');
+
+    const { atual, anterior, resto } = apuracoesAbertas('2025-02');
+    expect(atual).toBeTruthy();
+    expect(anterior!.request.params.get('periodo')).toBe('2025-01');
+    atual!.flush(buildApuracao({ periodo: '2025-02' }));
+    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    semDado(resto);
+    flushGuias();
+    httpMock
+      .expectOne((r) => r.url === '/relatorios/conformidade')
+      .flush(buildRelatorio({ periodo: '2025-02' }));
+  });
+
+  it('com um mês só respondendo, a faixa não aparece — não há o que comparar', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    const periodo = cmp.periodo();
+    f.detectChanges();
+
+    const { atual, resto } = apuracoesAbertas(periodo);
+    atual!.flush(buildApuracao({ periodo }));
+    semDado(resto);
+    flushGuias();
+    flushRelatorio();
+    f.detectChanges();
+
+    expect(cmp.temHistorico()).toBe(false);
+    expect((f.nativeElement as HTMLElement).textContent).not.toContain('Como vem sendo');
   });
 
   it('data só com dia não anda um dia para trás por causa do fuso', () => {

@@ -123,10 +123,66 @@ export class TributarioPage implements OnInit {
   readonly reabrindo = signal(false);
 
   /**
-   * Apuração do mês anterior, só para a comparação. Falha em silêncio: sem ela a tela perde a
-   * frase "quanto variou", não o número principal.
+   * Os cinco meses **antes** do selecionado, por período (`AAAA-MM`). O valor é `null` quando a
+   * consulta falhou — um mês sem resposta é um buraco no histórico, não um mês de imposto zero.
+   *
+   * São cinco requisições a `/apuracao`, uma por mês, porque **não existe endpoint de
+   * histórico**: `GET /apuracao` só aceita um período. Está pedido em
+   * SupersonicTeam/backend#179; com ele isto vira uma chamada só. Falham em silêncio: sem elas a
+   * tela perde a faixa dos seis meses, não o número principal.
    */
-  private readonly apuracaoAnterior = signal<Apuracao | null>(null);
+  private readonly mesesAnteriores = signal<Record<string, Apuracao | null>>({});
+
+  /** Quantos meses a faixa mostra, contando o da tela. */
+  private static readonly MESES_NO_HISTORICO = 6;
+
+  /**
+   * A apuração do mês anterior, para a frase de comparação — tirada do mesmo histórico, para não
+   * pedir ao servidor duas vezes o mesmo mês.
+   */
+  private readonly apuracaoAnterior = computed(
+    () => this.mesesAnteriores()[this.periodoAnterior()] ?? null,
+  );
+
+  /**
+   * A faixa dos seis meses, do mais antigo ao mês na tela.
+   *
+   * **Por que ela existe:** "R$ 1.809,50" sozinho não diz se é muito ou pouco. A frase de
+   * comparação responde por um mês; a faixa responde pelo semestre — é onde o produtor vê que
+   * dezembro sempre pesa, ou que o imposto vem subindo desde a colheita.
+   *
+   * Mês sem resposta entra como `valor: null` e aparece como lacuna. Zerar seria afirmar que
+   * não houve movimento, que é coisa diferente de não ter conseguido olhar.
+   */
+  readonly historico = computed(() => {
+    const anteriores = this.mesesAnteriores();
+    const selecionado = this.periodo();
+    const meses: { periodo: string; valor: number | null; atual: boolean }[] = [];
+
+    for (let atras = TributarioPage.MESES_NO_HISTORICO - 1; atras >= 1; atras--) {
+      const periodo = this.periodoDeslocado(-atras);
+      const a = anteriores[periodo];
+      meses.push({ periodo, valor: a ? a.saldoIbs + a.saldoCbs : null, atual: false });
+    }
+
+    const atual = this.apuracao();
+    meses.push({
+      periodo: selecionado,
+      valor: atual ? atual.saldoIbs + atual.saldoCbs : null,
+      atual: true,
+    });
+    return meses;
+  });
+
+  /** Maior valor absoluto da faixa — é ele que define o comprimento das barras. */
+  readonly maiorDoHistorico = computed(() =>
+    Math.max(0, ...this.historico().map((m) => Math.abs(m.valor ?? 0))),
+  );
+
+  /** A faixa só vale a pena quando há mais de um mês com resposta. */
+  readonly temHistorico = computed(
+    () => this.historico().filter((m) => m.valor !== null).length > 1,
+  );
 
   /**
    * Quanto o saldo variou em relação ao mês anterior. `null` quando não há com o que comparar —
@@ -242,23 +298,36 @@ export class TributarioPage implements OnInit {
   /** Recarrega todas as seções para o período atual (fetches independentes). */
   carregar(): void {
     this.carregarApuracao();
-    this.carregarApuracaoAnterior();
+    this.carregarMesesAnteriores();
     this.carregarRelatorio();
     this.carregarGuias();
   }
 
   /** Mês anterior ao selecionado, em `AAAA-MM`. */
   private periodoAnterior(): string {
-    const d = new Date(this.ano(), this.mes() - 2, 1);
+    return this.periodoDeslocado(-1);
+  }
+
+  /** O período `meses` à frente (negativo para trás) do selecionado, em `AAAA-MM`. */
+  private periodoDeslocado(meses: number): string {
+    const d = new Date(this.ano(), this.mes() - 1 + meses, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  private carregarApuracaoAnterior(): void {
-    this.apuracaoAnterior.set(null);
-    this.api.apuracao(this.periodoAnterior()).subscribe({
-      next: (a) => this.apuracaoAnterior.set(a),
-      error: () => this.apuracaoAnterior.set(null),
-    });
+  /**
+   * Busca os cinco meses anteriores, um a um. Cada resposta entra no mapa pela chave do período
+   * que **ela** declara, e não pela ordem de chegada: trocar de mês rápido faz respostas se
+   * cruzarem, e um saldo no mês errado é pior que um buraco.
+   */
+  private carregarMesesAnteriores(): void {
+    this.mesesAnteriores.set({});
+    for (let atras = 1; atras < TributarioPage.MESES_NO_HISTORICO; atras++) {
+      const periodo = this.periodoDeslocado(-atras);
+      this.api.apuracao(periodo).subscribe({
+        next: (a) => this.mesesAnteriores.update((m) => ({ ...m, [a.periodo ?? periodo]: a })),
+        error: () => this.mesesAnteriores.update((m) => ({ ...m, [periodo]: null })),
+      });
+    }
   }
 
   private carregarGuias(): void {
@@ -406,6 +475,15 @@ export class TributarioPage implements OnInit {
     this.carregar();
   }
 
+  /** Vai para um `AAAA-MM` inteiro — é por aqui que a faixa dos seis meses navega. */
+  mudarParaPeriodo(periodo: string): void {
+    const [ano, mes] = periodo.split('-').map(Number);
+    if (!ano || !mes) return;
+    this.ano.set(ano);
+    this.mes.set(mes);
+    this.carregar();
+  }
+
   /** `2026-08` -> "agosto de 2026". O produtor nao fala AAAA-MM. */
   formatPeriodo(periodo: string): string {
     const [ano, mes] = periodo.split('-');
@@ -413,6 +491,24 @@ export class TributarioPage implements OnInit {
     return Number.isNaN(d.getTime())
       ? periodo
       : d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  }
+
+  /** `2026-08` -> "ago/26". Rotulo curto, para caber na faixa dos seis meses. */
+  formatMesCurto(periodo: string): string {
+    const [ano, mes] = periodo.split('-');
+    const d = new Date(Number(ano), Number(mes) - 1, 1);
+    if (Number.isNaN(d.getTime())) return periodo;
+    const nome = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+    return `${nome}/${ano.slice(2)}`;
+  }
+
+  /** Comprimento da barra do mes, em porcentagem do maior da faixa. */
+  larguraDaBarra(valor: number | null): number {
+    const maior = this.maiorDoHistorico();
+    // Mes zerado nao ganha barra: o piso abaixo existe para o movimento pequeno nao sumir,
+    // e dar um tracinho ao zero seria inventar movimento que nao houve.
+    if (valor === null || valor === 0 || maior === 0) return 0;
+    return Math.max(2, (Math.abs(valor) / maior) * 100);
   }
 
   /** Sempre com sinal explicito: "+18%" e "-7%" leem melhor que "18%" solto. */
