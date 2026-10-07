@@ -2,15 +2,22 @@ import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
-  LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
-  LucideTrendingUp, LucideTrendingDown, LucideMinus,
+  LucideReceipt,
+  LucideLoaderCircle,
+  LucideRefreshCw,
+  LucideLockOpen,
+  LucideDownload,
+  LucideTrendingUp,
+  LucideTrendingDown,
+  LucideMinus,
+  LucideMessageCircleQuestion,
 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
-import { Apuracao, CreditoSaldo, RelatorioConformidade } from '@models/tributario.model';
+import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
 import { ToastService } from '@core/services/toast.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
@@ -18,6 +25,7 @@ import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiStat } from '@shared/ui/ui-stat';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
 
 /**
  * Rótulo + classe de badge por status de apuração (RN004/RN005).
@@ -32,20 +40,37 @@ const STATUS_APURACAO: Record<StatusApuracao, { label: string; classe: string }>
     label: 'Em processamento',
     classe: 'bg-aviso-soft text-aviso-ink border border-aviso/30',
   },
-  FECHADO: { label: 'Fechado', classe: 'bg-sucesso-soft text-sucesso-ink border border-sucesso/30' },
+  FECHADO: {
+    label: 'Fechado',
+    classe: 'bg-sucesso-soft text-sucesso-ink border border-sucesso/30',
+  },
 };
 
 const MESES = [
-  { v: 1, l: 'Janeiro' }, { v: 2, l: 'Fevereiro' }, { v: 3, l: 'Março' },
-  { v: 4, l: 'Abril' }, { v: 5, l: 'Maio' }, { v: 6, l: 'Junho' },
-  { v: 7, l: 'Julho' }, { v: 8, l: 'Agosto' }, { v: 9, l: 'Setembro' },
-  { v: 10, l: 'Outubro' }, { v: 11, l: 'Novembro' }, { v: 12, l: 'Dezembro' },
+  { v: 1, l: 'Janeiro' },
+  { v: 2, l: 'Fevereiro' },
+  { v: 3, l: 'Março' },
+  { v: 4, l: 'Abril' },
+  { v: 5, l: 'Maio' },
+  { v: 6, l: 'Junho' },
+  { v: 7, l: 'Julho' },
+  { v: 8, l: 'Agosto' },
+  { v: 9, l: 'Setembro' },
+  { v: 10, l: 'Outubro' },
+  { v: 11, l: 'Novembro' },
+  { v: 12, l: 'Dezembro' },
 ];
 
 /**
- * Tela Tributário (issue #27) — consome `TributarioApi` para exibir, no período selecionado, a
- * apuração mensal de IBS/CBS, o saldo de créditos e o relatório de conformidade (JSON + PDF em T14).
- * Os fetches são **independentes**: a falha de um não esconde os outros (TRIB-09).
+ * Tela Impostos (issue #27) — a apuração mensal de IBS/CBS do período, a conta que a produz e o
+ * relatório de conformidade em PDF. Os fetches são **independentes**: a falha de um não esconde
+ * os outros (TRIB-09).
+ *
+ * **Saiu o card "Saldo de créditos".** `GET /creditos` e a metade de crédito de
+ * `GET /relatorios/conformidade` são a mesma query no backend (`somarCreditosPorPeriodo`, mesma
+ * janela de mês): a tela mostrava o mesmo crédito em três lugares e fazia uma requisição a mais
+ * para isso. O crédito agora aparece uma vez, dentro da conta, onde ele significa alguma coisa —
+ * é o que abate o débito.
  */
 @Component({
   selector: 'app-tributario',
@@ -53,9 +78,17 @@ const MESES = [
   imports: [
     UiButton,
     UiStat,
-    FormsModule, RouterLink,
-    LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
-    LucideTrendingUp, LucideTrendingDown, LucideMinus,
+    FormsModule,
+    RouterLink,
+    LucideReceipt,
+    LucideLoaderCircle,
+    LucideRefreshCw,
+    LucideLockOpen,
+    LucideDownload,
+    LucideTrendingUp,
+    LucideTrendingDown,
+    LucideMinus,
+    LucideMessageCircleQuestion,
   ],
   templateUrl: './tributario.html',
 })
@@ -63,6 +96,7 @@ export class TributarioPage implements OnInit {
   private readonly api = inject(TributarioApi);
   private readonly contadorApi = inject(ContadorApi);
   private readonly toast = inject(ToastService);
+  protected readonly assistente = inject(AssistenteStore);
 
   // ── Período (mês/ano) — default mês corrente (America/Sao_Paulo assumido pelo ambiente) ──
   readonly mes = signal(new Date().getMonth() + 1);
@@ -133,18 +167,73 @@ export class TributarioPage implements OnInit {
 
   readonly guiasCarregadas = signal(false);
 
-  // ── Créditos ──
-  readonly creditos = signal<CreditoSaldo | null>(null);
-  readonly loadingCreditos = signal(false);
-  readonly erroCreditos = signal(false);
-
   // ── Relatório de conformidade ──
   readonly relatorio = signal<RelatorioConformidade | null>(null);
   readonly loadingRelatorio = signal(false);
   readonly erroRelatorio = signal(false);
   readonly baixandoPdf = signal(false);
+
+  /**
+   * **A conta que produz o número**: saídas − entradas = saldo, com o IBS/CBS por dentro.
+   *
+   * Vem do relatório de conformidade porque é ele que diz **quantas** notas entraram de cada
+   * lado — e é a mesma agregação que alimenta a apuração no backend (`somarDebitosPorPeriodo` /
+   * `somarCreditosPorPeriodo`), então os dois números batem. Se o relatório falhar, cai para a
+   * própria apuração: perde-se a contagem, não a conta (TRIB-09).
+   */
+  readonly conta = computed(() => {
+    const rel = this.doPeriodo(this.relatorio());
+    if (rel) {
+      return {
+        debito: { ibs: rel.debitoIbs, cbs: rel.debitoCbs, total: rel.debitoTotal },
+        credito: { ibs: rel.creditoIbs, cbs: rel.creditoCbs, total: rel.creditoTotal },
+        saldo: rel.saldoAPagar,
+        saidas: rel.quantidadeSaidas as number | null,
+        entradas: rel.quantidadeEntradas as number | null,
+      };
+    }
+
+    const ap = this.doPeriodo(this.apuracao());
+    if (!ap) return null;
+    return {
+      debito: { ibs: ap.debitoIbs, cbs: ap.debitoCbs, total: ap.debitoIbs + ap.debitoCbs },
+      credito: { ibs: ap.creditoIbs, cbs: ap.creditoCbs, total: ap.creditoIbs + ap.creditoCbs },
+      saldo: ap.saldoIbs + ap.saldoCbs,
+      saidas: null,
+      entradas: null,
+    };
+  });
+
   /** `saldoAPagar` negativo = saldo credor (contrato 8.8) — muda apenas o rótulo, não o valor. */
-  readonly saldoCredor = computed(() => (this.relatorio()?.saldoAPagar ?? 0) < 0);
+  readonly saldoCredor = computed(() => (this.conta()?.saldo ?? 0) < 0);
+
+  /**
+   * A apuração FECHADA é um retrato: o job a congelou e nenhum evento de nota a recalcula — só a
+   * reabertura auditada corrige (RN005). O relatório, não: ele soma as notas de agora. Quando os
+   * dois discordam, alguma nota do mês mudou depois do fechamento, e quem lê precisa saber disso
+   * em vez de escolher sozinho em qual dos dois números acreditar.
+   */
+  readonly contaDivergeDaApuracao = computed(() => {
+    const ap = this.doPeriodo(this.apuracao());
+    const rel = this.doPeriodo(this.relatorio());
+    // Sem fechamento não há retrato congelado: aí divergência é coisa de carregamento, não
+    // notícia para o produtor.
+    if (!ap || !rel || !ap.dataFechamento) return false;
+    return Math.abs(ap.saldoIbs + ap.saldoCbs - rel.saldoAPagar) >= 0.01;
+  });
+
+  /**
+   * Só usa o que é **deste** período.
+   *
+   * Cruzar apuração e relatório no mesmo bloco trouxe um problema que, enquanto cada um morava
+   * no seu card, ninguém via: ao trocar de mês as respostas chegam uma de cada vez, e por um
+   * instante a tela mostrava o débito de um mês ao lado do saldo de outro — com a conta acusando
+   * uma divergência que não existe. Respostas fora de ordem (trocar de mês duas vezes rápido)
+   * fariam o mesmo. Ambos os contratos carregam o `periodo`; é ele quem decide.
+   */
+  private doPeriodo<T extends { periodo: string }>(valor: T | null): T | null {
+    return valor && valor.periodo === this.periodo() ? valor : null;
+  }
 
   ngOnInit(): void {
     this.carregar();
@@ -154,7 +243,6 @@ export class TributarioPage implements OnInit {
   carregar(): void {
     this.carregarApuracao();
     this.carregarApuracaoAnterior();
-    this.carregarCreditos();
     this.carregarRelatorio();
     this.carregarGuias();
   }
@@ -204,6 +292,7 @@ export class TributarioPage implements OnInit {
   carregarApuracao(): void {
     this.loadingApuracao.set(true);
     this.erroApuracao.set(false);
+    this.apuracao.set(null);
     this.api.apuracao(this.periodo()).subscribe({
       next: (a) => {
         this.apuracao.set(a);
@@ -217,25 +306,10 @@ export class TributarioPage implements OnInit {
     });
   }
 
-  carregarCreditos(): void {
-    this.loadingCreditos.set(true);
-    this.erroCreditos.set(false);
-    this.api.saldoCredito(this.periodo()).subscribe({
-      next: (c) => {
-        this.creditos.set(c);
-        this.loadingCreditos.set(false);
-      },
-      error: () => {
-        this.creditos.set(null);
-        this.erroCreditos.set(true);
-        this.loadingCreditos.set(false);
-      },
-    });
-  }
-
   carregarRelatorio(): void {
     this.loadingRelatorio.set(true);
     this.erroRelatorio.set(false);
+    this.relatorio.set(null);
     this.api.relatorioConformidade(this.periodo()).subscribe({
       next: (r) => {
         this.relatorio.set(r);
@@ -268,7 +342,9 @@ export class TributarioPage implements OnInit {
       error: async (err: HttpErrorResponse) => {
         this.baixandoPdf.set(false);
         const env = err?.error instanceof Blob ? await apiErrorDeBlob(err.error) : null;
-        this.toast.error(env ? mensagemDeEnvelope(env, err?.status ?? 0) : 'Não foi possível baixar o PDF.');
+        this.toast.error(
+          env ? mensagemDeEnvelope(env, err?.status ?? 0) : 'Não foi possível baixar o PDF.',
+        );
       },
     });
   }
@@ -302,6 +378,20 @@ export class TributarioPage implements OnInit {
         }
       },
     });
+  }
+
+  /**
+   * Abre a Ceres já perguntando sobre a apuração na tela.
+   *
+   * A pergunta vai pronta porque o produtor não precisa redigir o que a tela já sabe — e porque
+   * "como foi calculada" é exatamente o que a função `consultarApuracao` dela responde, com as
+   * notas e a lei por trás. O botão só aparece quando ela atende (`disponivel`): para o contador
+   * a conversa não existe.
+   */
+  perguntarACeres(): void {
+    this.assistente.abrirPerguntando(
+      `Como foi calculada a minha apuração de ${this.formatPeriodo(this.periodo())}?`,
+    );
   }
 
   /** Atualiza o mês do período e recarrega. */

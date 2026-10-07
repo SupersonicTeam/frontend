@@ -172,6 +172,18 @@ export class AssistenteStore {
     this.abrir();
   }
 
+  /**
+   * Abre a gaveta com a pergunta já enviada — o atalho de "me explica isto aqui" das telas.
+   *
+   * Existe porque a tela sabe sobre o que o produtor está olhando (o período, a nota, a guia) e
+   * fazê-lo redigir isso de novo é trabalho jogado fora. A pergunta entra pelo mesmo `enviar`,
+   * então respeita limite de caracteres, papel e fila igual a qualquer outra.
+   */
+  abrirPerguntando(pergunta: string): void {
+    this.abrir();
+    this.enviar(pergunta);
+  }
+
   fechar(): void {
     this.aberto.set(false);
   }
