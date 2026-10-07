@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TributarioPage } from './tributario';
-import { Apuracao, CreditoSaldo, RelatorioConformidade } from '@models/tributario.model';
+import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import { ToastService } from '@core/services/toast.service';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
 
 function buildApuracao(o: Partial<Apuracao> = {}): Apuracao {
   return {
@@ -21,16 +23,20 @@ function buildApuracao(o: Partial<Apuracao> = {}): Apuracao {
   };
 }
 
-function buildCreditos(o: Partial<CreditoSaldo> = {}): CreditoSaldo {
-  return { periodo: '2026-07', creditoIbs: 12.5, creditoCbs: 112.5, creditoTotal: 125, quantidadeNotas: 3, ...o };
-}
-
 function buildRelatorio(o: Partial<RelatorioConformidade> = {}): RelatorioConformidade {
   return {
     periodo: '2026-07',
-    debitoIbs: 10, debitoCbs: 90, debitoTotal: 100, quantidadeSaidas: 5,
-    creditoIbs: 4, creditoCbs: 36, creditoTotal: 40, quantidadeEntradas: 2,
-    saldoIbs: 6, saldoCbs: 54, saldoAPagar: 60,
+    debitoIbs: 10,
+    debitoCbs: 90,
+    debitoTotal: 100,
+    quantidadeSaidas: 5,
+    creditoIbs: 4,
+    creditoCbs: 36,
+    creditoTotal: 40,
+    quantidadeEntradas: 2,
+    saldoIbs: 6,
+    saldoCbs: 54,
+    saldoAPagar: 60,
     ...o,
   };
 }
@@ -41,7 +47,7 @@ describe('TributarioPage', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [TributarioPage],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
   });
@@ -77,14 +83,14 @@ describe('TributarioPage', () => {
    * a outra devolve vazio, porque a primeira chamada já levou as duas embora.
    */
   function apuracoesAbertas(periodo: string) {
-    const reqs = httpMock.match(r => r.url === '/apuracao');
+    const reqs = httpMock.match((r) => r.url === '/apuracao');
     return {
-      atual: reqs.find(r => r.request.params.get('periodo') === periodo),
-      anterior: reqs.find(r => r.request.params.get('periodo') !== periodo),
+      atual: reqs.find((r) => r.request.params.get('periodo') === periodo),
+      anterior: reqs.find((r) => r.request.params.get('periodo') !== periodo),
     };
   }
   function flushGuias(lista: unknown[] = []) {
-    httpMock.match(r => r.url === '/contador/guias').forEach(r => r.flush(lista));
+    httpMock.match((r) => r.url === '/contador/guias').forEach((r) => r.flush(lista));
   }
   /** `AAAA-MM` do mês corrente e do anterior, como a tela os calcula. */
   function periodoAtual() {
@@ -96,20 +102,22 @@ describe('TributarioPage', () => {
     const d = new Date(h.getFullYear(), h.getMonth() - 1, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
-  function flushCreditos(o: Partial<CreditoSaldo> = {}) {
-    httpMock.expectOne(r => r.url === '/creditos').flush(buildCreditos(o));
-  }
+  /**
+   * O relatório sai **com o período que foi pedido**, como o backend faz. A tela descarta
+   * resposta de outro mês (ver `doPeriodo`), então um fixture com período fixo sumiria da conta.
+   */
   function flushRelatorio(o: Partial<RelatorioConformidade> = {}) {
-    httpMock.expectOne(r => r.url === '/relatorios/conformidade').flush(buildRelatorio(o));
+    httpMock
+      .expectOne((r) => r.url === '/relatorios/conformidade')
+      .flush(buildRelatorio({ periodo: periodoAtual(), ...o }));
   }
-  /** Consome os cinco fetches disparados por carregar()/ngOnInit. */
+  /** Consome os quatro fetches disparados por carregar()/ngOnInit. */
   function flushTodos() {
     flushApuracao();
-    flushCreditos();
     flushRelatorio();
   }
 
-  it('TRIB-01/02: ngOnInit busca apuração, créditos e relatório do período corrente', () => {
+  it('TRIB-01/02: ngOnInit busca a apuração e o relatório do período corrente', () => {
     const f = TestBed.createComponent(TributarioPage);
     const cmp = f.componentInstance;
     f.detectChanges();
@@ -119,17 +127,15 @@ describe('TributarioPage', () => {
     atual!.flush(buildApuracao());
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
     flushGuias();
-    flushCreditos();
-    const reqR = httpMock.expectOne(r => r.url === '/relatorios/conformidade');
+    const reqR = httpMock.expectOne((r) => r.url === '/relatorios/conformidade');
     expect(reqR.request.params.get('periodo')).toBe(cmp.periodo());
-    reqR.flush(buildRelatorio());
+    reqR.flush(buildRelatorio({ periodo: cmp.periodo() }));
 
     expect(cmp.apuracao()?.saldoIbs).toBe(120);
-    expect(cmp.creditos()?.creditoTotal).toBe(125);
     expect(cmp.relatorio()?.debitoTotal).toBe(100);
   });
 
-  it('TRIB-03: trocar o mês refaz os 3 fetches com o novo periodo YYYY-MM', () => {
+  it('TRIB-03: trocar o mês refaz os fetches com o novo periodo YYYY-MM', () => {
     const f = TestBed.createComponent(TributarioPage);
     const cmp = f.componentInstance;
     f.detectChanges();
@@ -142,24 +148,33 @@ describe('TributarioPage', () => {
     // Fevereiro é o mês anterior a março: a comparação vem junto.
     expect(anterior!.request.params.get('periodo')).toBe(`${cmp.ano()}-02`);
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
-    flushCreditos();
     flushGuias();
-    const reqR = httpMock.expectOne(r => r.url === '/relatorios/conformidade');
+    const reqR = httpMock.expectOne((r) => r.url === '/relatorios/conformidade');
     expect(reqR.request.params.get('periodo')).toBe(`${cmp.ano()}-03`);
-    reqR.flush(buildRelatorio());
+    reqR.flush(buildRelatorio({ periodo: `${cmp.ano()}-03` }));
   });
 
-  it('TRIB-06: créditos zerados (sem notas de entrada) → estado zerado, não erro', () => {
+  it('TRIB-06: sem notas de entrada, a conta mostra crédito zero — não some nem vira erro', () => {
     const f = TestBed.createComponent(TributarioPage);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao();
-    flushCreditos({ creditoIbs: 0, creditoCbs: 0, creditoTotal: 0, quantidadeNotas: 0 });
+    flushRelatorio({ creditoIbs: 0, creditoCbs: 0, creditoTotal: 0, quantidadeEntradas: 0 });
+
+    expect(cmp.erroRelatorio()).toBe(false);
+    expect(cmp.conta()?.credito.total).toBe(0);
+    expect(cmp.conta()?.entradas).toBe(0);
+  });
+
+  it('a tela não busca mais /creditos: é a mesma soma que já vem no relatório', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    f.detectChanges();
+    flushApuracao();
     flushRelatorio();
 
-    expect(cmp.erroCreditos()).toBe(false);
-    expect(cmp.creditos()?.creditoTotal).toBe(0);
-    expect(cmp.creditos()?.quantidadeNotas).toBe(0);
+    // `httpMock.verify()` no afterEach reprova qualquer requisição a mais; esta é explícita
+    // para que a remoção do card de créditos não volte sem querer junto com a chamada.
+    expect(httpMock.match((r) => r.url === '/creditos').length).toBe(0);
   });
 
   it('edge: apuração ABERTO com dataFechamento null (projeção ao vivo) não é tratada como erro', () => {
@@ -167,7 +182,6 @@ describe('TributarioPage', () => {
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao({ status: 'ABERTO', dataFechamento: null });
-    flushCreditos();
     flushRelatorio();
 
     expect(cmp.erroApuracao()).toBe(false);
@@ -175,7 +189,7 @@ describe('TributarioPage', () => {
     expect(cmp.statusApuracao()?.label).toBe('Aberto');
   });
 
-  it('TRIB-09: falha da apuração não esconde créditos nem relatório (fetches independentes)', () => {
+  it('TRIB-09: falha da apuração não esconde o relatório (fetches independentes)', () => {
     const f = TestBed.createComponent(TributarioPage);
     const cmp = f.componentInstance;
     f.detectChanges();
@@ -183,15 +197,14 @@ describe('TributarioPage', () => {
     atual!.flush('erro', { status: 500, statusText: 'Server Error' });
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
     flushGuias();
-    flushCreditos();
     flushRelatorio();
 
     expect(cmp.erroApuracao()).toBe(true);
     expect(cmp.apuracao()).toBeNull();
-    expect(cmp.erroCreditos()).toBe(false);
-    expect(cmp.creditos()?.creditoTotal).toBe(125);
     expect(cmp.erroRelatorio()).toBe(false);
     expect(cmp.relatorio()?.debitoTotal).toBe(100);
+    // E a conta continua de pé: ela se monta a partir do relatório.
+    expect(cmp.conta()?.saldo).toBe(60);
   });
 
   it('TRIB-04: podeReabrir só quando status FECHADO', () => {
@@ -199,7 +212,6 @@ describe('TributarioPage', () => {
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao({ status: 'ABERTO', dataFechamento: null });
-    flushCreditos();
     flushRelatorio();
     expect(cmp.podeReabrir()).toBe(false);
 
@@ -215,17 +227,21 @@ describe('TributarioPage', () => {
     flushTodos();
 
     cmp.reabrir('ap-1');
-    httpMock.expectOne(r => r.url === '/apuracao/ap-1/reabrir').flush(
-      { errors: [{ code: 'APURACAO_NAO_REABRIVEL', message: 'x' }] },
-      { status: 409, statusText: 'Conflict' },
-    );
+    httpMock
+      .expectOne((r) => r.url === '/apuracao/ap-1/reabrir')
+      .flush(
+        { errors: [{ code: 'APURACAO_NAO_REABRIVEL', message: 'x' }] },
+        { status: 409, statusText: 'Conflict' },
+      );
     expect(toast.toasts().at(-1)?.message).toBe('A apuração não está fechada.');
 
     cmp.reabrir('ap-1');
-    httpMock.expectOne(r => r.url === '/apuracao/ap-1/reabrir').flush(
-      { errors: [{ code: 'REABERTURA_FORA_PRAZO', message: 'x' }] },
-      { status: 422, statusText: 'Unprocessable Entity' },
-    );
+    httpMock
+      .expectOne((r) => r.url === '/apuracao/ap-1/reabrir')
+      .flush(
+        { errors: [{ code: 'REABERTURA_FORA_PRAZO', message: 'x' }] },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
     expect(toast.toasts().at(-1)?.message).toBe('Reabertura fora do prazo de 3 meses (RN005).');
   });
 
@@ -234,7 +250,6 @@ describe('TributarioPage', () => {
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao();
-    flushCreditos();
     flushRelatorio({ saldoAPagar: -60 });
 
     expect(cmp.saldoCredor()).toBe(true);
@@ -252,15 +267,18 @@ describe('TributarioPage', () => {
     const revogar = URL.revokeObjectURL;
     URL.createObjectURL = () => 'blob:x';
     URL.revokeObjectURL = () => undefined;
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
       salvos.push(this.download);
     });
 
     cmp.baixarPdf();
-    httpMock.expectOne(r => r.url === '/relatorios/conformidade/pdf').flush(
-      new Blob(['%PDF-1.4'], { type: 'application/pdf' }),
-      { headers: { 'Content-Disposition': 'attachment; filename="conformidade-2026-05.pdf"' } },
-    );
+    httpMock
+      .expectOne((r) => r.url === '/relatorios/conformidade/pdf')
+      .flush(new Blob(['%PDF-1.4'], { type: 'application/pdf' }), {
+        headers: { 'Content-Disposition': 'attachment; filename="conformidade-2026-05.pdf"' },
+      });
 
     expect(salvos).toContain('conformidade-2026-05.pdf');
     clickSpy.mockRestore();
@@ -276,11 +294,17 @@ describe('TributarioPage', () => {
     flushTodos();
 
     cmp.baixarPdf();
-    const envelope = { status: 400, message: 'Período inválido', errors: [{ code: 'VALIDATION_ERROR', message: 'Período inválido' }] };
-    httpMock.expectOne(r => r.url === '/relatorios/conformidade/pdf').flush(
-      new Blob([JSON.stringify(envelope)], { type: 'application/json' }),
-      { status: 400, statusText: 'Bad Request' },
-    );
+    const envelope = {
+      status: 400,
+      message: 'Período inválido',
+      errors: [{ code: 'VALIDATION_ERROR', message: 'Período inválido' }],
+    };
+    httpMock
+      .expectOne((r) => r.url === '/relatorios/conformidade/pdf')
+      .flush(new Blob([JSON.stringify(envelope)], { type: 'application/json' }), {
+        status: 400,
+        statusText: 'Bad Request',
+      });
 
     // apiErrorDeBlob é assíncrono (FileReader) — aguarda o toast aparecer (polling).
     await vi.waitFor(() => expect(toast.toasts().at(-1)?.message).toBe('Período inválido'));
@@ -306,9 +330,7 @@ describe('TributarioPage', () => {
     flushTodos();
     f.detectChanges();
 
-    const botoes = Array.from(
-      (f.nativeElement as HTMLElement).querySelectorAll('button'),
-    );
+    const botoes = Array.from((f.nativeElement as HTMLElement).querySelectorAll('button'));
     expect(botoes.length).toBeGreaterThan(0);
     for (const b of botoes) {
       expect(b.className).toContain('tap-target');
@@ -322,7 +344,6 @@ describe('TributarioPage', () => {
     f.detectChanges();
     // Atual 1.200 (120+1080); anterior 600 (60+540) -> 600 a mais, +100%.
     flushApuracao({}, { saldoIbs: 60, saldoCbs: 540 });
-    flushCreditos();
     flushRelatorio();
     f.detectChanges();
 
@@ -336,7 +357,6 @@ describe('TributarioPage', () => {
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao(); // anterior responde 404
-    flushCreditos();
     flushRelatorio();
     f.detectChanges();
 
@@ -352,7 +372,6 @@ describe('TributarioPage', () => {
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao({}, { saldoIbs: 0, saldoCbs: 0 });
-    flushCreditos();
     flushRelatorio();
 
     expect(cmp.variacao()?.percentual).toBeNull();
@@ -369,11 +388,34 @@ describe('TributarioPage', () => {
     atual!.flush(buildApuracao({ periodo }));
     anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
     flushGuias([
-      { id: 'g1', produtorId: 'p1', tipoGuia: 'ICMS', dataVencimento: `${periodo}-20`, valor: 300, status: 'PENDENTE', createdAt: '2026-09-01T00:00:00Z' },
-      { id: 'g2', produtorId: 'p1', tipoGuia: 'GPS', dataVencimento: `${periodo}-05`, valor: 100, status: 'PAGA', createdAt: '2026-09-01T00:00:00Z' },
-      { id: 'fora', produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2020-01-10', valor: 999, status: 'PENDENTE', createdAt: '2020-01-01T00:00:00Z' },
+      {
+        id: 'g1',
+        produtorId: 'p1',
+        tipoGuia: 'ICMS',
+        dataVencimento: `${periodo}-20`,
+        valor: 300,
+        status: 'PENDENTE',
+        createdAt: '2026-09-01T00:00:00Z',
+      },
+      {
+        id: 'g2',
+        produtorId: 'p1',
+        tipoGuia: 'GPS',
+        dataVencimento: `${periodo}-05`,
+        valor: 100,
+        status: 'PAGA',
+        createdAt: '2026-09-01T00:00:00Z',
+      },
+      {
+        id: 'fora',
+        produtorId: 'p1',
+        tipoGuia: 'DARF',
+        dataVencimento: '2020-01-10',
+        valor: 999,
+        status: 'PENDENTE',
+        createdAt: '2020-01-01T00:00:00Z',
+      },
     ]);
-    flushCreditos();
     flushRelatorio();
 
     // A de outro mês fica de fora; as do mês saem da mais próxima para a mais distante.
@@ -384,13 +426,144 @@ describe('TributarioPage', () => {
     const f = TestBed.createComponent(TributarioPage);
     f.detectChanges();
     flushApuracao();
-    flushCreditos();
     flushRelatorio();
     f.detectChanges();
 
     expect((f.nativeElement as HTMLElement).textContent).toContain(
       'Nenhuma guia lançada para este período',
     );
+  });
+
+  it('a conta mostra as duas parcelas com quantas notas cada uma tem', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushApuracao();
+    flushRelatorio();
+    f.detectChanges();
+
+    const c = cmp.conta()!;
+    expect(c.debito.total).toBe(100);
+    expect(c.saidas).toBe(5);
+    expect(c.credito.total).toBe(40);
+    expect(c.entradas).toBe(2);
+    expect(c.saldo).toBe(60);
+
+    const texto = (f.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('Saídas autorizadas');
+    expect(texto).toContain('5 notas');
+    expect(texto).toContain('Entradas com crédito');
+    expect(texto).toContain('2 notas');
+  });
+
+  it('sem o relatório, a conta se monta pela apuração — perde a contagem, não a conta', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushApuracao();
+    httpMock
+      .expectOne((r) => r.url === '/relatorios/conformidade')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
+    f.detectChanges();
+
+    const c = cmp.conta()!;
+    expect(c.debito.total).toBe(1500);
+    expect(c.credito.total).toBe(300);
+    expect(c.saldo).toBe(1200);
+    // Quantas notas de cada lado só o relatório sabe: sem ele, a tela não chuta um número.
+    expect(c.saidas).toBeNull();
+    expect(c.entradas).toBeNull();
+    const texto = ((f.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+    expect(texto).toContain('Saídas autorizadas');
+    expect(texto).not.toMatch(/Saídas autorizadas ·/);
+    expect(texto).not.toMatch(/Entradas com crédito ·/);
+  });
+
+  it('apuração fechada que não bate com a conta de hoje avisa, em vez de escolher um número', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    // Fechada em 1200; o relatório soma as notas de agora e dá 60: alguma nota mudou depois.
+    flushApuracao({ status: 'FECHADO' });
+    flushRelatorio();
+    f.detectChanges();
+
+    expect(cmp.contaDivergeDaApuracao()).toBe(true);
+    expect((f.nativeElement as HTMLElement).textContent).toContain('alguma nota do mês mudou');
+  });
+
+  it('ao trocar de mês, a conta não mistura o débito de um com o saldo do outro', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushTodos();
+    expect(cmp.conta()?.saldo).toBe(60);
+
+    cmp.mudarMes(3);
+    const alvo = `${cmp.ano()}-03`;
+    const { atual, anterior } = apuracoesAbertas(alvo);
+    atual!.flush(buildApuracao({ periodo: alvo }));
+    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    flushGuias();
+
+    // O relatório de março ainda está no ar: a conta cai para a apuração de março em vez de
+    // repetir o saldo do mês anterior — e não acusa divergência por causa disso.
+    expect(cmp.conta()?.saldo).toBe(1200);
+    expect(cmp.contaDivergeDaApuracao()).toBe(false);
+
+    httpMock
+      .expectOne((r) => r.url === '/relatorios/conformidade')
+      .flush(buildRelatorio({ periodo: alvo }));
+  });
+
+  it('relatório que chega de outro mês (resposta fora de ordem) é descartado', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushTodos();
+
+    cmp.mudarMes(3);
+    const alvo = `${cmp.ano()}-03`;
+    const { atual, anterior } = apuracoesAbertas(alvo);
+    atual!.flush(buildApuracao({ periodo: alvo }));
+    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    flushGuias();
+    // Chega atrasada a resposta de fevereiro, com outro saldo.
+    httpMock
+      .expectOne((r) => r.url === '/relatorios/conformidade')
+      .flush(buildRelatorio({ periodo: `${cmp.ano()}-02`, saldoAPagar: 999 }));
+
+    expect(cmp.conta()?.saldo).toBe(1200);
+  });
+
+  it('quando os dois batem, não há aviso de divergência', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushApuracao({ saldoIbs: 6, saldoCbs: 54 });
+    flushRelatorio();
+    f.detectChanges();
+
+    expect(cmp.contaDivergeDaApuracao()).toBe(false);
+    expect((f.nativeElement as HTMLElement).textContent).not.toContain('alguma nota do mês mudou');
+  });
+
+  it('o botão da Ceres manda a pergunta já com o período da tela, por extenso', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushTodos();
+
+    const store = TestBed.inject(AssistenteStore);
+    const perguntas: string[] = [];
+    vi.spyOn(store, 'abrirPerguntando').mockImplementation((p) => void perguntas.push(p));
+
+    cmp.perguntarACeres();
+
+    expect(perguntas).toHaveLength(1);
+    expect(perguntas[0]).toContain('Como foi calculada a minha apuração de');
+    // Nada de "2026-07" na cara do produtor.
+    expect(perguntas[0]).not.toMatch(/\d{4}-\d{2}/);
   });
 
   it('data só com dia não anda um dia para trás por causa do fuso', () => {

@@ -37,7 +37,9 @@
         @if (loadingApuracao()) {
           <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
         } @else if (statusApuracao(); as st) {
-          <span class="text-apoio px-2 py-1 rounded-full font-medium" [class]="st.classe">{{ st.label }}</span>
+          <span class="text-apoio px-2 py-1 rounded-full font-medium" [class]="st.classe">{{
+            st.label
+          }}</span>
         }
       </div>
 
@@ -58,12 +60,6 @@
           [tom]="ap.saldoIbs + ap.saldoCbs > 0 ? 'negativo' : 'positivo'"
         />
 
-        <div class="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
-          <ui-stat compacto rotulo="Débito IBS" [valor]="formatCurrency(ap.debitoIbs)" apoio="pelas vendas" />
-          <ui-stat compacto rotulo="Débito CBS" [valor]="formatCurrency(ap.debitoCbs)" apoio="pelas vendas" />
-          <ui-stat compacto rotulo="Crédito IBS" [valor]="formatCurrency(ap.creditoIbs)" apoio="pelas compras" tom="positivo" />
-          <ui-stat compacto rotulo="Crédito CBS" [valor]="formatCurrency(ap.creditoCbs)" apoio="pelas compras" tom="positivo" />
-        </div>
         <!-- "Quanto eu pago" sozinho nao diz nada: a comparacao com o mes anterior e o que
              transforma um numero em noticia. Sem apuracao anterior, a frase nao aparece. -->
         @if (variacao(); as v) {
@@ -71,7 +67,9 @@
             @if (v.diferenca > 0) {
               <svg lucideTrendingUp [size]="15" class="text-perigo" aria-hidden="true" />
               <span>
-                <span class="font-medium text-foreground">{{ formatCurrency(v.diferenca) }} a mais</span>
+                <span class="font-medium text-foreground"
+                  >{{ formatCurrency(v.diferenca) }} a mais</span
+                >
                 que em {{ formatPeriodo(v.periodoAnterior) }}
                 @if (v.percentual !== null) {
                   <span>({{ formatPercentual(v.percentual) }})</span>
@@ -80,7 +78,9 @@
             } @else if (v.diferenca < 0) {
               <svg lucideTrendingDown [size]="15" class="text-sucesso" aria-hidden="true" />
               <span>
-                <span class="font-medium text-foreground">{{ formatCurrency(-v.diferenca) }} a menos</span>
+                <span class="font-medium text-foreground"
+                  >{{ formatCurrency(-v.diferenca) }} a menos</span
+                >
                 que em {{ formatPeriodo(v.periodoAnterior) }}
                 @if (v.percentual !== null) {
                   <span>({{ formatPercentual(v.percentual) }})</span>
@@ -93,8 +93,13 @@
           </p>
         }
 
-        <div class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-apoio text-muted-foreground">
-          <span>Notas no período: <span class="font-semibold text-foreground">{{ ap.totalNotas }}</span></span>
+        <div
+          class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-apoio text-muted-foreground"
+        >
+          <span
+            >Notas no período:
+            <span class="font-semibold text-foreground">{{ ap.totalNotas }}</span></span
+          >
           @if (ap.dataFechamento) {
             <span>
               Fechada em:
@@ -152,111 +157,151 @@
             </a>
           } @else {
             <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
-              Nenhuma guia lançada para este período. Quem lança é o seu escritório de
-              contabilidade — até lá, o valor acima é a apuração, não uma cobrança com prazo.
+              Nenhuma guia lançada para este período. Quem lança é o seu escritório de contabilidade
+              — até lá, o valor acima é a apuração, não uma cobrança com prazo.
             </p>
           }
         </div>
       }
     </section>
 
-    <!-- Card: Saldo de créditos -->
+    <!--
+      "De onde vem este número": o card que antes repetia a apuração agora a explica.
+
+      Era "Relatório de conformidade" e mostrava débito, crédito e saldo — os mesmos valores do
+      card de cima, em outra caixa. Vira a conta: saídas menos entradas igual ao saldo, com o
+      IBS/CBS por dentro e a contagem de notas de cada lado, que é o que o relatório tem de
+      diferente. O PDF continua aqui, que é a única coisa que só ele entrega.
+    -->
     <section class="bg-card rounded-card border border-border shadow-suave p-5">
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-base font-semibold text-foreground">Saldo de créditos</h2>
-        @if (loadingCreditos()) {
-          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-        }
+      <div class="mb-4 flex items-start justify-between gap-3">
+        <div>
+          <h2 class="text-base font-semibold text-foreground">De onde vem este número</h2>
+          <p class="text-apoio text-muted-foreground">a conta do período, pelas suas notas</p>
+        </div>
+        <div class="flex shrink-0 items-center gap-2">
+          @if (loadingRelatorio()) {
+            <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+          }
+          <ui-button
+            variant="ghost"
+            [disabled]="loadingRelatorio() || erroRelatorio()"
+            [carregando]="baixandoPdf()"
+            (click)="baixarPdf()"
+          >
+            @if (!baixandoPdf()) {
+              <svg lucideDownload [size]="14" />
+            }
+            Baixar PDF
+          </ui-button>
+        </div>
       </div>
 
-      @if (erroCreditos()) {
+      @if (conta(); as c) {
+        <!-- Tres linhas em grade de tres colunas (sinal, parcela, valor): a conta tem de se ler
+             de cima para baixo como conta, nao como tres numeros empilhados. -->
+        <dl class="grid grid-cols-[1.25rem_1fr_auto] items-baseline gap-x-2 gap-y-1">
+          <dt class="col-span-2 text-apoio">
+            <span class="font-medium text-foreground">Saídas autorizadas</span>
+            @if (c.saidas !== null) {
+              <span class="whitespace-nowrap text-muted-foreground">
+                · {{ c.saidas }} {{ c.saidas === 1 ? 'nota' : 'notas' }}
+              </span>
+            }
+            <span class="block text-muted-foreground">
+              IBS {{ formatCurrency(c.debito.ibs) }} · CBS {{ formatCurrency(c.debito.cbs) }}
+            </span>
+          </dt>
+          <dd class="text-valor font-semibold tabular-nums text-foreground">
+            {{ formatCurrency(c.debito.total) }}
+          </dd>
+
+          <dt aria-hidden="true" class="text-valor font-semibold text-muted-foreground">−</dt>
+          <dt class="text-apoio">
+            <span class="font-medium text-foreground">Entradas com crédito</span>
+            @if (c.entradas !== null) {
+              <span class="whitespace-nowrap text-muted-foreground">
+                · {{ c.entradas }} {{ c.entradas === 1 ? 'nota' : 'notas' }}
+              </span>
+            }
+            <span class="block text-muted-foreground">
+              IBS {{ formatCurrency(c.credito.ibs) }} · CBS {{ formatCurrency(c.credito.cbs) }}
+            </span>
+          </dt>
+          <dd class="text-valor font-semibold tabular-nums text-sucesso-ink">
+            {{ formatCurrency(c.credito.total) }}
+          </dd>
+
+          <dt
+            aria-hidden="true"
+            class="mt-2 border-t border-border pt-2 text-valor font-semibold text-muted-foreground"
+          >
+            =
+          </dt>
+          <dt class="mt-2 border-t border-border pt-2 text-valor font-semibold text-foreground">
+            {{ saldoCredor() ? 'Saldo credor' : 'Saldo a pagar' }}
+          </dt>
+          <dd
+            class="mt-2 border-t border-border pt-2 font-heading text-lg font-bold tabular-nums"
+            [class.text-sucesso-ink]="saldoCredor()"
+            [class.text-perigo-ink]="!saldoCredor()"
+          >
+            {{ formatCurrency(c.saldo) }}
+          </dd>
+        </dl>
+
+        <!-- A regra em palavra de produtor. Nao e texto que eu inventei: e o filtro das queries
+             que o backend usa para somar (origem PROPRIA/IMPORTADA, status AUTORIZADA, dataEmissao
+             dentro do mes no fuso de Brasilia). -->
+        <p class="mt-3 text-apoio leading-relaxed text-muted-foreground">
+          Entra nesta conta a nota <span class="font-medium text-foreground">autorizada</span> com
+          emissão dentro de {{ formatPeriodo(periodo()) }}. Rascunho, nota cancelada e nota com
+          inconsistência ficam de fora.
+        </p>
+
+        @if (apuracao()?.status === 'ABERTO') {
+          <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
+            O mês ainda está aberto: a conta é parcial e muda a cada nota autorizada.
+          </p>
+        }
+
+        <!-- So aparece quando os dois numeros realmente discordam. Ver `contaDivergeDaApuracao`. -->
+        @if (contaDivergeDaApuracao() && apuracao(); as ap) {
+          <p
+            class="mt-2 rounded-controle bg-aviso-soft px-3 py-2 text-apoio leading-relaxed text-aviso-ink"
+          >
+            Esta conta soma as suas notas de agora. A apuração foi fechada em
+            {{ formatDate(ap.dataFechamento) }} com
+            {{ formatCurrency(ap.saldoIbs + ap.saldoCbs) }} — alguma nota do mês mudou depois disso.
+          </p>
+        }
+
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+          <!-- Sem "deste periodo" no rotulo: GET /notas ainda nao filtra por data e a tela nao
+               promete um recorte que nao entrega. Vira "deste periodo" quando o #174 sair. -->
+          <a
+            routerLink="/notas"
+            class="tap-target inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
+          >
+            Ver as minhas notas
+          </a>
+          @if (assistente.disponivel()) {
+            <ui-button variant="ghost" (click)="perguntarACeres()">
+              <svg lucideMessageCircleQuestion [size]="14" />
+              Perguntar à Ceres sobre esta apuração
+            </ui-button>
+          }
+        </div>
+      } @else if (erroRelatorio() && !loadingApuracao() && !apuracao()) {
         <div class="flex items-center justify-between gap-3 text-apoio text-muted-foreground">
-          <span>Não foi possível carregar os créditos.</span>
-          <ui-button variant="ghost" (click)="carregarCreditos()">
+          <span>Não foi possível montar a conta do período.</span>
+          <ui-button variant="ghost" (click)="carregarRelatorio()">
             <svg lucideRefreshCw [size]="14" /> Tentar novamente
           </ui-button>
         </div>
-      } @else if (creditos(); as cr) {
-        <div class="grid grid-cols-2 gap-2 sm:gap-3">
-          <div class="p-3 rounded-controle bg-muted/60">
-            <p class="text-apoio sm:text-apoio text-muted-foreground">Crédito IBS</p>
-            <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(cr.creditoIbs) }}</p>
-          </div>
-          <div class="p-3 rounded-controle bg-muted/60">
-            <p class="text-apoio sm:text-apoio text-muted-foreground">Crédito CBS</p>
-            <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(cr.creditoCbs) }}</p>
-          </div>
-          <div class="p-3 rounded-controle bg-primary/10">
-            <p class="text-apoio sm:text-apoio text-muted-foreground">Crédito total</p>
-            <p class="text-valor sm:text-lg font-heading font-bold text-primary">{{ formatCurrency(cr.creditoTotal) }}</p>
-          </div>
-          <div class="p-3 rounded-controle bg-muted/60">
-            <p class="text-apoio sm:text-apoio text-muted-foreground">Notas de entrada</p>
-            <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ cr.quantidadeNotas }}</p>
-          </div>
-        </div>
-      } @else if (!loadingCreditos()) {
-        <p class="text-apoio text-muted-foreground">Sem créditos no período.</p>
+      } @else if (!loadingRelatorio() && !loadingApuracao()) {
+        <p class="text-apoio text-muted-foreground">Sem movimento no período.</p>
       }
     </section>
   </div>
-
-  <!-- Card: Relatório de conformidade (débitos × créditos) -->
-  <section class="bg-card rounded-card border border-border shadow-suave p-5">
-    <div class="flex items-center justify-between mb-4 gap-3">
-      <h2 class="text-base font-semibold text-foreground">Relatório de conformidade</h2>
-      <div class="flex items-center gap-2">
-        @if (loadingRelatorio()) {
-          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-        }
-        <ui-button
-          variant="ghost"
-          [disabled]="loadingRelatorio() || erroRelatorio()"
-          [carregando]="baixandoPdf()"
-          (click)="baixarPdf()"
-        >
-          @if (!baixandoPdf()) {
-            <svg lucideDownload [size]="14" />
-          }
-          Baixar PDF
-        </ui-button>
-      </div>
-    </div>
-
-    @if (erroRelatorio()) {
-      <div class="flex items-center justify-between gap-3 text-apoio text-muted-foreground">
-        <span>Não foi possível carregar o relatório.</span>
-        <ui-button variant="ghost" (click)="carregarRelatorio()">
-          <svg lucideRefreshCw [size]="14" /> Tentar novamente
-        </ui-button>
-      </div>
-    } @else if (relatorio(); as rel) {
-      <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-3">
-        <div class="p-3 rounded-controle bg-muted/60">
-          <p class="text-apoio sm:text-apoio text-muted-foreground">Débitos ({{ rel.quantidadeSaidas }} saídas)</p>
-          <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.debitoTotal) }}</p>
-        </div>
-        <div class="p-3 rounded-controle bg-muted/60">
-          <p class="text-apoio sm:text-apoio text-muted-foreground">Créditos ({{ rel.quantidadeEntradas }} entradas)</p>
-          <p class="text-valor sm:text-lg font-heading font-bold text-foreground">{{ formatCurrency(rel.creditoTotal) }}</p>
-        </div>
-        <!-- Tokens semanticos no lugar de emerald-100/950: o par soft/ink ja
-             tem a versao escura, sem precisar de variante `dark:` a mao. -->
-        <div class="p-3 rounded-controle" [class]="saldoCredor() ? 'bg-sucesso-soft' : 'bg-primary/10'">
-          <p class="text-apoio sm:text-apoio text-muted-foreground">
-            {{ saldoCredor() ? 'Saldo credor' : 'Saldo a pagar' }}
-          </p>
-          <p
-            class="text-valor sm:text-lg font-heading font-bold"
-            [class.text-sucesso-ink]="saldoCredor()"
-            [class.text-primary]="!saldoCredor()"
-          >
-            {{ formatCurrency(rel.saldoAPagar) }}
-          </p>
-        </div>
-      </div>
-    } @else if (!loadingRelatorio()) {
-      <p class="text-apoio text-muted-foreground">Sem relatório para o período.</p>
-    }
-  </section>
 </div>

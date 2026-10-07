@@ -294,7 +294,15 @@
     }
 
     <!-- Conteúdo principal -->
-    <main id="conteudo" tabindex="-1" class="flex-1 overflow-y-auto overflow-x-hidden pb-24 lg:pb-8 p-3 sm:p-4 lg:p-6 flex flex-col">
+    <!--
+      A folga de baixo (`pb-24`) vem **depois** dos paddings gerais e repetida em `sm:`. O
+      Tailwind ordena `p-*` antes de `pb-*` dentro de cada breakpoint, mas `sm:p-4` entra numa
+      camada posterior ao `pb-24` sem variante -- e ganhava dele. Resultado: entre 640px e
+      1023px sobravam 16px de folga para uma barra inferior de 64px, e os ultimos 64px de
+      **toda** tela ficavam atras da navegacao. Abaixo de 640px e a partir de 1024px (onde a
+      barra some) o problema nao aparecia, que e por que ele passou.
+    -->
+    <main id="conteudo" tabindex="-1" class="flex-1 overflow-y-auto overflow-x-hidden p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-8 flex flex-col">
       <router-outlet />
     </main>
   </div>
