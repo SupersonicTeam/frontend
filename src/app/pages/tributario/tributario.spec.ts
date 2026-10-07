@@ -48,8 +48,53 @@ describe('TributarioPage', () => {
 
   afterEach(() => httpMock.verify());
 
-  function flushApuracao(o: Partial<Apuracao> = {}) {
-    httpMock.expectOne(r => r.url === '/apuracao').flush(buildApuracao(o));
+  /**
+   * A tela busca **duas** apurações: a do período escolhido e a do mês anterior, para a
+   * comparação. Casar por URL só não basta — os helpers separam pelo parâmetro `periodo`.
+   */
+  /**
+   * Carrega a apuração do período corrente e, junto, o contexto que a tela sempre busca: a
+   * apuração do mês anterior (comparação) e as guias. A maioria dos testes não examina esses dois.
+   *
+   * @param anterior dados do mês anterior, ou `null` para "não há com o que comparar" (404)
+   */
+  function flushApuracao(o: Partial<Apuracao> = {}, anterior: Partial<Apuracao> | null = null) {
+    const { atual, anterior: reqAnterior } = apuracoesAbertas(periodoAtual());
+    expect(atual).toBeTruthy();
+    atual!.flush(buildApuracao({ periodo: periodoAtual(), ...o }));
+    if (anterior === null) {
+      reqAnterior?.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    } else {
+      reqAnterior?.flush(buildApuracao({ periodo: periodoAnteriorStr(), ...anterior }));
+    }
+    flushGuias();
+  }
+  /**
+   * As duas requisições de `/apuracao` que a tela dispara por carga: a do período na tela e a do
+   * mês anterior (comparação).
+   *
+   * **Tem de ser uma chamada só.** `httpMock.match()` esvazia a fila: pegar uma e depois procurar
+   * a outra devolve vazio, porque a primeira chamada já levou as duas embora.
+   */
+  function apuracoesAbertas(periodo: string) {
+    const reqs = httpMock.match(r => r.url === '/apuracao');
+    return {
+      atual: reqs.find(r => r.request.params.get('periodo') === periodo),
+      anterior: reqs.find(r => r.request.params.get('periodo') !== periodo),
+    };
+  }
+  function flushGuias(lista: unknown[] = []) {
+    httpMock.match(r => r.url === '/contador/guias').forEach(r => r.flush(lista));
+  }
+  /** `AAAA-MM` do mês corrente e do anterior, como a tela os calcula. */
+  function periodoAtual() {
+    const h = new Date();
+    return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`;
+  }
+  function periodoAnteriorStr() {
+    const h = new Date();
+    const d = new Date(h.getFullYear(), h.getMonth() - 1, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
   function flushCreditos(o: Partial<CreditoSaldo> = {}) {
     httpMock.expectOne(r => r.url === '/creditos').flush(buildCreditos(o));
@@ -57,7 +102,7 @@ describe('TributarioPage', () => {
   function flushRelatorio(o: Partial<RelatorioConformidade> = {}) {
     httpMock.expectOne(r => r.url === '/relatorios/conformidade').flush(buildRelatorio(o));
   }
-  /** Consome os 3 fetches disparados por carregar()/ngOnInit. */
+  /** Consome os cinco fetches disparados por carregar()/ngOnInit. */
   function flushTodos() {
     flushApuracao();
     flushCreditos();
@@ -69,9 +114,11 @@ describe('TributarioPage', () => {
     const cmp = f.componentInstance;
     f.detectChanges();
 
-    const reqA = httpMock.expectOne(r => r.url === '/apuracao');
-    expect(reqA.request.params.get('periodo')).toBe(cmp.periodo());
-    reqA.flush(buildApuracao());
+    const { atual, anterior } = apuracoesAbertas(cmp.periodo());
+    expect(atual!.request.params.get('periodo')).toBe(cmp.periodo());
+    atual!.flush(buildApuracao());
+    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    flushGuias();
     flushCreditos();
     const reqR = httpMock.expectOne(r => r.url === '/relatorios/conformidade');
     expect(reqR.request.params.get('periodo')).toBe(cmp.periodo());
@@ -89,10 +136,14 @@ describe('TributarioPage', () => {
     flushTodos();
 
     cmp.mudarMes(3);
-    const reqA = httpMock.expectOne(r => r.url === '/apuracao');
-    expect(reqA.request.params.get('periodo')).toBe(`${cmp.ano()}-03`);
-    reqA.flush(buildApuracao({ periodo: `${cmp.ano()}-03` }));
+    const { atual, anterior } = apuracoesAbertas(`${cmp.ano()}-03`);
+    expect(atual!.request.params.get('periodo')).toBe(`${cmp.ano()}-03`);
+    atual!.flush(buildApuracao({ periodo: `${cmp.ano()}-03` }));
+    // Fevereiro é o mês anterior a março: a comparação vem junto.
+    expect(anterior!.request.params.get('periodo')).toBe(`${cmp.ano()}-02`);
+    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
     flushCreditos();
+    flushGuias();
     const reqR = httpMock.expectOne(r => r.url === '/relatorios/conformidade');
     expect(reqR.request.params.get('periodo')).toBe(`${cmp.ano()}-03`);
     reqR.flush(buildRelatorio());
@@ -115,7 +166,7 @@ describe('TributarioPage', () => {
     const f = TestBed.createComponent(TributarioPage);
     const cmp = f.componentInstance;
     f.detectChanges();
-    httpMock.expectOne(r => r.url === '/apuracao').flush(buildApuracao({ status: 'ABERTO', dataFechamento: null }));
+    flushApuracao({ status: 'ABERTO', dataFechamento: null });
     flushCreditos();
     flushRelatorio();
 
@@ -128,7 +179,10 @@ describe('TributarioPage', () => {
     const f = TestBed.createComponent(TributarioPage);
     const cmp = f.componentInstance;
     f.detectChanges();
-    httpMock.expectOne(r => r.url === '/apuracao').flush('erro', { status: 500, statusText: 'Server Error' });
+    const { atual, anterior } = apuracoesAbertas(cmp.periodo());
+    atual!.flush('erro', { status: 500, statusText: 'Server Error' });
+    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    flushGuias();
     flushCreditos();
     flushRelatorio();
 
@@ -259,5 +313,97 @@ describe('TributarioPage', () => {
     for (const b of botoes) {
       expect(b.className).toContain('tap-target');
     }
+  });
+
+  // ── O mês com saída: comparação e guias ───────────────────────────────────────────────
+
+  it('compara com o mês anterior em dinheiro e em porcentagem', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    f.detectChanges();
+    // Atual 1.200 (120+1080); anterior 600 (60+540) -> 600 a mais, +100%.
+    flushApuracao({}, { saldoIbs: 60, saldoCbs: 540 });
+    flushCreditos();
+    flushRelatorio();
+    f.detectChanges();
+
+    const texto = (f.nativeElement as HTMLElement).textContent?.replace(/\u00a0/g, ' ') ?? '';
+    expect(texto).toContain('R$ 600,00 a mais');
+    expect(texto).toContain('+100%');
+  });
+
+  it('sem apuração no mês anterior, não inventa comparação', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushApuracao(); // anterior responde 404
+    flushCreditos();
+    flushRelatorio();
+    f.detectChanges();
+
+    expect(cmp.variacao()).toBeNull();
+    const texto = (f.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).not.toContain('a mais');
+    expect(texto).not.toContain('a menos');
+  });
+
+  it('saindo de zero, mostra o valor mas não a porcentagem', () => {
+    // De R$ 0,00 para R$ 1.200 não é "infinito por cento" — o percentual fica de fora.
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushApuracao({}, { saldoIbs: 0, saldoCbs: 0 });
+    flushCreditos();
+    flushRelatorio();
+
+    expect(cmp.variacao()?.percentual).toBeNull();
+    expect(cmp.variacao()?.diferenca).toBe(1200);
+  });
+
+  it('mostra só as guias do período escolhido, ordenadas por vencimento', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    const periodo = cmp.periodo();
+    f.detectChanges();
+
+    const { atual, anterior } = apuracoesAbertas(periodo);
+    atual!.flush(buildApuracao({ periodo }));
+    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    flushGuias([
+      { id: 'g1', produtorId: 'p1', tipoGuia: 'ICMS', dataVencimento: `${periodo}-20`, valor: 300, status: 'PENDENTE', createdAt: '2026-09-01T00:00:00Z' },
+      { id: 'g2', produtorId: 'p1', tipoGuia: 'GPS', dataVencimento: `${periodo}-05`, valor: 100, status: 'PAGA', createdAt: '2026-09-01T00:00:00Z' },
+      { id: 'fora', produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2020-01-10', valor: 999, status: 'PENDENTE', createdAt: '2020-01-01T00:00:00Z' },
+    ]);
+    flushCreditos();
+    flushRelatorio();
+
+    // A de outro mês fica de fora; as do mês saem da mais próxima para a mais distante.
+    expect(cmp.guiasDoPeriodo().map((g) => g.id)).toEqual(['g2', 'g1']);
+  });
+
+  it('sem guia no período, diz que a apuração ainda não virou cobrança', () => {
+    const f = TestBed.createComponent(TributarioPage);
+    f.detectChanges();
+    flushApuracao();
+    flushCreditos();
+    flushRelatorio();
+    f.detectChanges();
+
+    expect((f.nativeElement as HTMLElement).textContent).toContain(
+      'Nenhuma guia lançada para este período',
+    );
+  });
+
+  it('data só com dia não anda um dia para trás por causa do fuso', () => {
+    // `new Date('2026-09-10')` é meia-noite em UTC; em Brasília (UTC−3) vira 09/09. A guia
+    // aparecia vencendo um dia antes do que o backend informou.
+    const f = TestBed.createComponent(TributarioPage);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushTodos();
+
+    expect(cmp.formatDate('2026-09-10')).toBe('10/09/2026');
+    expect(cmp.formatDate('2026-01-01')).toBe('01/01/2026');
+    // Instante completo continua formatado como antes.
+    expect(cmp.formatDate('2026-08-01T03:00:00-03:00')).toBe('01/08/2026');
   });
 });

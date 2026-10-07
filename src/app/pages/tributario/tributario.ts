@@ -3,8 +3,13 @@ import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
+  LucideTrendingUp, LucideTrendingDown, LucideMinus,
 } from '@lucide/angular';
+import { RouterLink } from '@angular/router';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
+import { ContadorApi } from '@services/contador/data-access/contador.service';
+import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { Apuracao, CreditoSaldo, RelatorioConformidade } from '@models/tributario.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
 import { ToastService } from '@core/services/toast.service';
@@ -48,12 +53,15 @@ const MESES = [
   imports: [
     UiButton,
     UiStat,
-    FormsModule, LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
+    FormsModule, RouterLink,
+    LucideReceipt, LucideLoaderCircle, LucideRefreshCw, LucideLockOpen, LucideDownload,
+    LucideTrendingUp, LucideTrendingDown, LucideMinus,
   ],
   templateUrl: './tributario.html',
 })
 export class TributarioPage implements OnInit {
   private readonly api = inject(TributarioApi);
+  private readonly contadorApi = inject(ContadorApi);
   private readonly toast = inject(ToastService);
 
   // ── Período (mês/ano) — default mês corrente (America/Sao_Paulo assumido pelo ambiente) ──
@@ -80,6 +88,51 @@ export class TributarioPage implements OnInit {
   readonly podeReabrir = computed(() => this.apuracao()?.status === 'FECHADO');
   readonly reabrindo = signal(false);
 
+  /**
+   * Apuração do mês anterior, só para a comparação. Falha em silêncio: sem ela a tela perde a
+   * frase "quanto variou", não o número principal.
+   */
+  private readonly apuracaoAnterior = signal<Apuracao | null>(null);
+
+  /**
+   * Quanto o saldo variou em relação ao mês anterior. `null` quando não há com o que comparar —
+   * e aí a tela não diz nada, em vez de insinuar estabilidade que ninguém apurou.
+   */
+  readonly variacao = computed(() => {
+    const atual = this.apuracao();
+    const anterior = this.apuracaoAnterior();
+    if (!atual || !anterior) return null;
+
+    const hoje = atual.saldoIbs + atual.saldoCbs;
+    const antes = anterior.saldoIbs + anterior.saldoCbs;
+    const diferenca = hoje - antes;
+    if (antes === 0 && diferenca === 0) return null;
+
+    return {
+      diferenca,
+      // Sem base não há percentual: de zero para qualquer coisa não é "infinito por cento".
+      percentual: antes === 0 ? null : (diferenca / Math.abs(antes)) * 100,
+      periodoAnterior: anterior.periodo,
+    };
+  });
+
+  /**
+   * Guias lançadas pelo escritório para este período — é o que transforma "você deve R$ X" em
+   * "vence dia 20". Antes o valor ficava órfão aqui e a guia morava só na tela de Prazos.
+   *
+   * O recorte por período é feito aqui porque `GET /contador/guias` só aceita `produtorId`
+   * (sem filtro de data). Com filtro no servidor isto sai — ver SupersonicTeam/backend#174.
+   */
+  private readonly guias = signal<GuiaFiscal[]>([]);
+
+  readonly guiasDoPeriodo = computed(() =>
+    this.guias()
+      .filter((g) => (g.dataVencimento ?? '').startsWith(this.periodo()))
+      .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento)),
+  );
+
+  readonly guiasCarregadas = signal(false);
+
   // ── Créditos ──
   readonly creditos = signal<CreditoSaldo | null>(null);
   readonly loadingCreditos = signal(false);
@@ -100,8 +153,52 @@ export class TributarioPage implements OnInit {
   /** Recarrega todas as seções para o período atual (fetches independentes). */
   carregar(): void {
     this.carregarApuracao();
+    this.carregarApuracaoAnterior();
     this.carregarCreditos();
     this.carregarRelatorio();
+    this.carregarGuias();
+  }
+
+  /** Mês anterior ao selecionado, em `AAAA-MM`. */
+  private periodoAnterior(): string {
+    const d = new Date(this.ano(), this.mes() - 2, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  private carregarApuracaoAnterior(): void {
+    this.apuracaoAnterior.set(null);
+    this.api.apuracao(this.periodoAnterior()).subscribe({
+      next: (a) => this.apuracaoAnterior.set(a),
+      error: () => this.apuracaoAnterior.set(null),
+    });
+  }
+
+  private carregarGuias(): void {
+    this.guiasCarregadas.set(false);
+    this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
+      next: (lista) => {
+        this.guias.set(lista);
+        this.guiasCarregadas.set(true);
+      },
+      error: () => {
+        this.guias.set([]);
+        this.guiasCarregadas.set(true);
+      },
+    });
+  }
+
+  /** `pago`/`vencido`/`pendente` em palavra de produtor. */
+  rotuloGuia(status: GuiaFiscal['status']): string {
+    return { pago: 'Paga', vencido: 'Vencida', pendente: 'Em aberto' }[status] ?? status;
+  }
+
+  classeGuia(status: GuiaFiscal['status']): string {
+    const tons: Record<GuiaFiscal['status'], string> = {
+      pendente: 'bg-aviso-soft text-aviso-ink border-aviso/30',
+      pago: 'bg-sucesso-soft text-sucesso-ink border-sucesso/30',
+      vencido: 'bg-perigo-soft text-perigo-ink border-perigo/30',
+    };
+    return `inline-flex items-center rounded-full border px-2 py-0.5 text-apoio font-medium ${tons[status]}`;
   }
 
   carregarApuracao(): void {
@@ -219,17 +316,38 @@ export class TributarioPage implements OnInit {
     this.carregar();
   }
 
+  /** `2026-08` -> "agosto de 2026". O produtor nao fala AAAA-MM. */
+  formatPeriodo(periodo: string): string {
+    const [ano, mes] = periodo.split('-');
+    const d = new Date(Number(ano), Number(mes) - 1, 1);
+    return Number.isNaN(d.getTime())
+      ? periodo
+      : d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  }
+
+  /** Sempre com sinal explicito: "+18%" e "-7%" leem melhor que "18%" solto. */
+  formatPercentual(valor: number): string {
+    const sinal = valor > 0 ? '+' : '';
+    return `${sinal}${valor.toFixed(0)}%`;
+  }
+
   formatCurrency(v?: number | null): string {
     return (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
   /**
-   * `dataFechamento` vem como instante ISO (`2026-08-01T03:00:00Z`). Sem isto a tela mostrava a
-   * string crua ao produtor — que é a cara de um dado que vazou da API para a interface.
+   * Formata as duas coisas que esta tela mostra: instante completo (`dataFechamento`,
+   * `2026-08-01T03:00:00Z`) e data pura (`dataVencimento` da guia, `2026-09-10`).
+   *
+   * **A data pura precisa do meio-dia.** `new Date('2026-09-10')` é lido como meia-noite em
+   * **UTC**; renderizado no fuso de Brasília (UTC−3) vira 09/09 — a guia aparecia vencendo um dia
+   * antes do que o backend informou. Ancorar ao meio-dia local tira a data do alcance de qualquer
+   * fuso entre −11 e +12.
    */
   formatDate(iso?: string | null): string {
     if (!iso) return '—';
-    const d = new Date(iso);
+    const soData = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+    const d = new Date(soData ? `${iso}T12:00:00` : iso);
     return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR');
   }
 }
