@@ -1,6 +1,6 @@
 <!-- pb generoso: os dois botoes flutuantes empilhados (Nova nota + assistente)
      chegam a ~190px do fundo e cobriam o valor do ultimo card. -->
-<div class="page-container flex flex-col gap-5 pb-52">
+<div class="page-container animate-entra-subindo flex flex-col gap-5 pb-52">
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -151,9 +151,9 @@
             Limpar filtros
           </button>
         }
-        <!-- So faz sentido com mais de um mes na tela; com filtro ligado tudo
-             fica aberto e o botao sairia do ar sozinho. -->
-        @if (notasPorMes().length > 1 && !temFiltroAtivo()) {
+        <!-- So faz sentido com mais de um mes na tela; durante a busca tudo fica
+             aberto e o botao sairia do ar sozinho. -->
+        @if (notasPorMes().length > 1 && !busca().trim()) {
           <button
             class="tap-target ml-auto inline-flex items-center gap-1.5 rounded-controle px-3 text-apoio font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             (click)="alternarTodosOsMeses()"
@@ -194,20 +194,28 @@
               <!-- O cabecalho e o proprio controle de abrir/fechar. A soma do mes
                    fica nele para o grupo continuar dizendo algo quando fechado. -->
               <h3 class="border-b border-border">
+                <!-- O recolher POR MES ja existia, e o grupo reclamou que ele nao
+                     existia: a linha era texto puro, sem nada dizendo "me clique".
+                     Agora o chevron mora num alvo redondo que acende no hover, e a
+                     linha inteira ganha fundo -- o controle passa a se anunciar. -->
                 <button
                   type="button"
-                  class="tap-target flex w-full items-center gap-2 pb-1.5 text-left transition-colors hover:text-primary"
+                  class="tap-target group/mes -mx-1 flex w-full items-center gap-2 rounded-controle px-1 pb-1.5 text-left transition-colors hover:bg-surface-2"
                   [attr.aria-expanded]="mesAberto(grupo.chave)"
                   [attr.aria-controls]="'notas-' + grupo.chave"
                   (click)="alternarMes(grupo.chave)"
                 >
-                  <svg
-                    lucideChevronDown
-                    [size]="16"
-                    class="shrink-0 text-muted-foreground transition-transform"
-                    [class.-rotate-90]="!mesAberto(grupo.chave)"
-                    aria-hidden="true"
-                  />
+                  <span
+                    class="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted-foreground transition-colors group-hover/mes:bg-primary/10 group-hover/mes:text-primary"
+                  >
+                    <svg
+                      lucideChevronDown
+                      [size]="15"
+                      class="giro"
+                      [class.-rotate-90]="!mesAberto(grupo.chave)"
+                      aria-hidden="true"
+                    />
+                  </span>
                   <span class="font-heading text-apoio font-semibold text-foreground">
                     {{ grupo.rotulo }}
                   </span>
@@ -228,8 +236,14 @@
             <!-- O conteudo some do DOM quando o mes esta fechado. `[hidden]` nao
                  serviria: a utility `.grid` tem a mesma especificidade e vem
                  depois na folha, entao o `display: none` perderia. -->
-            <div [id]="'notas-' + grupo.chave" class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-              @if (mesAberto(grupo.chave)) {
+            @if (mesAberto(grupo.chave)) {
+              <!-- `animate.leave` segura o bloco no DOM ate a saida terminar; sem ele o
+                   mes fechado some no corte e ninguem ve que foi dobrado. -->
+              <div
+                [id]="'notas-' + grupo.chave"
+                class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3"
+                animate.leave="animate-sai"
+              >
                 @for (nota of grupo.notas; track nota.id) {
                   <!-- Hierarquia invertida antes: a natureza da operacao vinha grande e
                    se repetia em 7 dos 12 cards ("Venda de producao do
@@ -241,7 +255,8 @@
                    quase iguais o selo sozinho nao bastava para ela saltar -- e ela e
                    justamente a que exige acao. -->
                   <div
-                    class="rounded-card border bg-card p-4 transition-shadow hover:ring-2 hover:ring-primary/20"
+                    class="animate-entra-subindo escalonado rounded-card border bg-card p-4 transition-[box-shadow,transform] duration-150 hover:-translate-y-px hover:ring-2 hover:ring-primary/20 active:translate-y-0"
+                    [style.--passo]="$index"
                     [class]="
                       podeVerValidacoes(nota) ? 'border-aviso/50 bg-aviso-soft/30' : 'border-border'
                     "
@@ -312,8 +327,8 @@
                     </div>
                   </div>
                 }
-              }
-            </div>
+              </div>
+            }
           </section>
         }
       }

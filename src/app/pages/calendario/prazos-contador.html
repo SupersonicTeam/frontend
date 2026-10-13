@@ -1,4 +1,4 @@
-<div class="page-container flex flex-col gap-4">
+<div class="page-container animate-entra-subindo flex flex-col gap-4">
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
       <h1
@@ -35,7 +35,10 @@
 
       <ul class="mt-3 flex flex-col gap-1">
         @for (guia of aCobrar(); track guia.id) {
-          <li class="flex flex-wrap items-center justify-between gap-2 text-apoio">
+          <li
+            class="animate-entra-subindo escalonado flex flex-wrap items-center justify-between gap-2 text-apoio"
+            [style.--passo]="$index"
+          >
             <span class="text-foreground">
               <span class="font-medium">{{ guia.tipoGuia }}</span>
               <span [class]="classeRotulo(guia)"> · {{ rotuloPrazo(guia) }}</span>
@@ -150,7 +153,7 @@
           </thead>
           <tbody>
             @for (guia of guiasFiltradas(); track guia.id) {
-              <tr>
+              <tr class="animate-entra-subindo escalonado" [style.--passo]="$index">
                 <td class="font-medium text-foreground">{{ guia.tipoGuia }}</td>
                 <td class="tabular-nums">
                   {{ formatDate(guia.dataVencimento) }}

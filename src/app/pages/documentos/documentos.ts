@@ -449,12 +449,17 @@ export class DocumentosPage implements OnInit {
   private readonly mesesFechados = signal<ReadonlySet<string>>(new Set());
 
   /**
-   * Com filtro ligado, tudo fica aberto -- quem esta procurando nao pode ter o
+   * Com BUSCA ligada, tudo fica aberto -- quem digitou um nome nao pode ter o
    * resultado escondido atras de um mes fechado. O que ele fechou nao se perde:
-   * `mesesFechados` continua intacto e volta a valer quando o filtro sai.
+   * `mesesFechados` continua intacto e volta a valer quando a busca sai.
+   *
+   * Antes isto valia para `temFiltroAtivo()` inteiro, e era demais: filtrar por
+   * tipo ou situacao continua devolvendo uma lista longa, de varios meses, e
+   * justamente ali o produtor perdia o recolher sem entender por que. Filtro de
+   * periodo entao nem se discute -- ele ja reduziu a lista a um mes so.
    */
   mesAberto(chave: string): boolean {
-    if (this.temFiltroAtivo()) return true;
+    if (this.busca().trim().length > 0) return true;
     return !this.mesesFechados().has(chave);
   }
 

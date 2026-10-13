@@ -807,7 +807,7 @@ describe('DocumentosPage', () => {
       expect(texto).toContain('R$ 2.000,00');
     });
 
-    it('com filtro ativo tudo reabre — resultado nao pode ficar escondido', () => {
+    it('com busca ativa tudo reabre — resultado nao pode ficar escondido', () => {
       const fixture = comNotas(doisMeses());
       const cmp = fixture.componentInstance;
 
@@ -822,6 +822,36 @@ describe('DocumentosPage', () => {
       cmp.limparFiltros();
       fixture.detectChanges();
       expect(cmp.mesAberto('2026-09')).toBe(false);
+    });
+
+    // O grupo reclamou que "nao da opcao de ir ocultando por mes". Ele dava -- ate
+    // alguem mexer em qualquer filtro: `temFiltroAtivo()` forcava tudo aberto, e
+    // filtrar por tipo ou situacao continua devolvendo lista longa de varios meses.
+    // Agora so a busca reabre.
+    it('filtro de tipo nao tira o recolher — a lista continua com varios meses', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.tipo.set('NFE');
+      fixture.detectChanges();
+      expect(cmp.temFiltroAtivo()).toBe(true);
+
+      cmp.alternarMes('2026-09');
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+      expect(cmp.mesAberto('2026-08')).toBe(true);
+    });
+
+    it('filtro de periodo tambem nao tira o recolher', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.periodo.set('2026');
+      fixture.detectChanges();
+
+      cmp.alternarMes('2026-08');
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-08')).toBe(false);
     });
 
     it('o botao global fecha todos e depois reabre todos', () => {

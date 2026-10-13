@@ -56,7 +56,11 @@ export class UiButton {
     };
     return [
       'tap-target inline-flex items-center justify-center gap-2 rounded-controle',
-      'text-apoio font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+      // O `active:scale` e o unico retorno de toque que existe no celular, onde nao ha
+      // hover nenhum: sem ele o produtor aperta e nao sabe se pegou (#90).
+      'text-apoio font-medium transition-[color,background-color,border-color,transform]',
+      '[transition-duration:var(--duracao-toque)] active:scale-[0.98]',
+      'disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
       this.tamanho() === 'lg' ? 'px-6 py-3' : 'px-4 py-2',
       this.blocoCompleto() ? 'w-full' : '',
       variantes[this.variant()],

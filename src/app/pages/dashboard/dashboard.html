@@ -1,4 +1,4 @@
-<div class="page-container flex flex-col gap-5">
+<div class="page-container animate-entra-subindo flex flex-col gap-5">
 
   <!-- Cabeçalho -->
   <header class="flex flex-wrap items-end justify-between gap-3">
@@ -396,7 +396,7 @@
     } @else if (alertas().length) {
       <ul class="space-y-2">
         @for (a of alertas(); track a.id) {
-          <li class="flex items-center gap-3 rounded-card bg-surface-2 p-3">
+          <li class="animate-entra-subindo escalonado flex items-center gap-3 rounded-card bg-surface-2 p-3" [style.--passo]="$index">
             <div
               class="w-2 h-2 rounded-full shrink-0"
               [class]="a.status === 'vencido' ? 'bg-destructive' : 'bg-accent'"
@@ -450,7 +450,7 @@
       } @else {
         <ul class="divide-y divide-border">
           @for (doc of documentos(); track doc.id) {
-            <li class="flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-2">
+            <li class="animate-entra-subindo escalonado flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-2" [style.--passo]="$index">
               <div class="min-w-0 flex-1">
                 <p class="text-apoio font-medium text-foreground truncate">{{ doc.nome }}</p>
                 <div class="flex items-center gap-2 mt-1">

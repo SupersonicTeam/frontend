@@ -1,7 +1,8 @@
 @if (store.aberto()) {
   <!-- Fundo. Clicar fora fecha, como em qualquer gaveta. -->
   <div
-    class="fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
+    class="animate-entra fixed inset-0 z-[60] bg-black/40 backdrop-blur-[2px]"
+    animate.leave="animate-sai"
     (click)="store.fechar()"
     aria-hidden="true"
   ></div>
@@ -11,12 +12,11 @@
     role="dialog"
     aria-modal="true"
     aria-labelledby="assistente-titulo"
-    class="fixed inset-x-0 bottom-0 z-[61] flex h-[85vh] flex-col overflow-hidden rounded-t-destaque border border-assistente-borda bg-background shadow-alta sm:inset-y-4 sm:right-4 sm:left-auto sm:h-auto sm:w-[min(58rem,calc(100vw-2rem))] sm:rounded-destaque"
+    class="animate-entra-subindo fixed inset-x-0 bottom-0 z-[61] flex h-[85vh] flex-col overflow-hidden rounded-t-destaque border border-assistente-borda bg-background shadow-alta sm:animate-entra-lateral sm:inset-y-4 sm:right-4 sm:left-auto sm:h-auto sm:w-[min(58rem,calc(100vw-2rem))] sm:rounded-destaque"
+    animate.leave="animate-sai"
   >
     <!-- Cabeçalho -->
-    <header
-      class="flex items-center gap-2 border-b border-border bg-assistente-soft px-4 py-3"
-    >
+    <header class="flex items-center gap-2 border-b border-border bg-assistente-soft px-4 py-3">
       <app-ceres-avatar />
       <div class="min-w-0 flex-1">
         <h2 id="assistente-titulo" class="font-heading font-semibold text-foreground">Ceres</h2>

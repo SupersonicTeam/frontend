@@ -5,7 +5,6 @@ import {
   LucideChevronDown,
   LucideChevronRight,
   LucideDownload,
-  LucideFileText,
   LucideHandCoins,
   LucideLoaderCircle,
   LucideTriangleAlert,
@@ -25,8 +24,6 @@ import { NotasApi } from '@services/notas/data-access/notas.service';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
-import { UiEmptyState } from '@shared/ui/ui-empty-state';
-import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { UiStat } from '@shared/ui/ui-stat';
 
 const MESES = [
@@ -91,15 +88,12 @@ const MESES = [
     LucideChevronDown,
     LucideChevronRight,
     LucideDownload,
-    LucideFileText,
     LucideHandCoins,
     LucideLoaderCircle,
     LucideTriangleAlert,
     RouterLink,
     UiBadgeStatus,
     UiButton,
-    UiEmptyState,
-    UiSkeleton,
     UiStat,
   ],
   templateUrl: './contador.html',
