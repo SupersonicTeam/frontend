@@ -20,6 +20,48 @@
     </button>
   </div>
 
+  <!-- ── A TRIAGEM DO CONTADOR ── -->
+  @if (perfilService.ehContador()) {
+    <!--
+      O contador abria a MESMA lista do produtor, com outro título, e não tinha como saber o que
+      estava vendo nem por onde começar. Cada caixa aqui é uma pergunta do trabalho dele, e a
+      contagem não muda quando ele escolhe uma: ela conta sobre o período e a busca, não sobre a
+      situação escolhida.
+    -->
+    <div class="flex flex-col gap-2">
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Triagem das notas">
+        @for (caixa of triagemDoContador(); track caixa.chave) {
+          <button
+            type="button"
+            class="tap-target flex items-center gap-2 rounded-controle border px-3 text-apoio font-medium transition-colors"
+            [class]="
+              statusFilter() === caixa.chave
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+            "
+            [attr.aria-pressed]="statusFilter() === caixa.chave"
+            (click)="statusFilter.set(caixa.chave)"
+          >
+            {{ caixa.rotulo }}
+            <span
+              class="rounded-full px-1.5 tabular-nums"
+              [class]="statusFilter() === caixa.chave ? 'bg-primary-foreground/20' : 'bg-surface-2'"
+            >
+              {{ caixa.quantidade }}
+            </span>
+          </button>
+        }
+      </div>
+
+      <!-- Dizer o que NÃO existe evita que ele procure. A aprovação do rascunho antes da emissão
+           está pedida em SupersonicTeam/backend#178 e ainda não existe no servidor. -->
+      <p class="text-apoio text-muted-foreground">
+        Tudo que o produtor emitiu. Ainda não existe "enviar para a sua aprovação" antes da emissão
+        — quando existir, vira uma caixa aqui.
+      </p>
+    </div>
+  }
+
   <!-- ── FILTROS ── -->
   <div class="flex flex-wrap gap-2">
     <!-- Periodo: as opcoes saem das notas que existem, agrupadas por ano. Ver `periodosPorAno`. -->

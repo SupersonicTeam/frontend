@@ -353,7 +353,15 @@ export class DocumentosPage implements OnInit {
     return nome ? `${nome} de ${p.slice(0, 4)}` : p;
   });
 
-  readonly notasFiltradas = computed(() => {
+  /**
+   * A lista com tudo aplicado **menos a situacao**.
+   *
+   * Existe separada da `notasFiltradas` por causa da triagem do contador: ela conta quantas
+   * notas ha em cada situacao, e essa conta nao pode depender da situacao escolhida -- senao,
+   * no instante em que ele clicasse em "Autorizadas", todas as outras caixas zerariam e a
+   * triagem deixaria de servir para triar.
+   */
+  private readonly notasAntesDaSituacao = computed(() => {
     let lista = this.notas().slice();
     const busca = this.busca().toLowerCase();
     const now = new Date();
@@ -375,10 +383,6 @@ export class DocumentosPage implements OnInit {
     if (this.tipo() !== 'todos')
       lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
 
-    // Status
-    if (this.statusFilter() !== 'todos')
-      lista = lista.filter((n) => n.status === this.statusFilter());
-
     // Busca (natureza, número ou destinatário)
     if (busca)
       lista = lista.filter(
@@ -388,6 +392,18 @@ export class DocumentosPage implements OnInit {
           (n.destinatarioNome || '').toLowerCase().includes(busca),
       );
 
+    return lista;
+  });
+
+  readonly notasFiltradas = computed(() => {
+    let lista = this.notasAntesDaSituacao().slice();
+
+    // Situacao. `revisao` nao e um status do backend: e o trabalho do contador, que atravessa
+    // dois status (com inconsistencia e rejeitada) -- as duas notas que alguem precisa olhar.
+    const situacao = this.statusFilter();
+    if (situacao === 'revisao') lista = lista.filter((n) => this.podeVerValidacoes(n));
+    else if (situacao !== 'todos') lista = lista.filter((n) => n.status === situacao);
+
     // Ordenação
     lista.sort((a, b) => {
       if (this.ordenacao() === 'valor') return (b.valorTotalNota ?? 0) - (a.valorTotalNota ?? 0);
@@ -395,6 +411,46 @@ export class DocumentosPage implements OnInit {
     });
 
     return lista;
+  });
+
+  /**
+   * A triagem do contador.
+   *
+   * Ele abria a MESMA lista do produtor, com outro titulo, e nao tinha como saber o que estava
+   * olhando -- foi a reclamacao dele em 13/10: "preciso saber o que exatamente estou enxergando
+   * ali". Cada caixa e uma pergunta do trabalho dele: o que exige revisao, o que ainda nem foi
+   * emitido, o que ja entrou na apuracao, o que saiu dela.
+   *
+   * Nao existe caixa de "enviada para a sua aprovacao": esse estado nao existe no backend
+   * (SupersonicTeam/backend#178). Inventar a caixa seria prometer um fluxo que ninguem
+   * implementou.
+   */
+  readonly triagemDoContador = computed(() => {
+    const base = this.notasAntesDaSituacao();
+    const quantas = (teste: (n: NotaFiscal) => boolean) => base.filter(teste).length;
+    return [
+      {
+        chave: 'revisao',
+        rotulo: 'Precisam de revisão',
+        quantidade: quantas((n) => this.podeVerValidacoes(n)),
+      },
+      {
+        chave: 'RASCUNHO',
+        rotulo: 'Rascunhos do produtor',
+        quantidade: quantas((n) => n.status === 'RASCUNHO'),
+      },
+      {
+        chave: 'AUTORIZADA',
+        rotulo: 'Autorizadas',
+        quantidade: quantas((n) => n.status === 'AUTORIZADA'),
+      },
+      {
+        chave: 'CANCELADA',
+        rotulo: 'Canceladas',
+        quantidade: quantas((n) => n.status === 'CANCELADA'),
+      },
+      { chave: 'todos', rotulo: 'Todas', quantidade: base.length },
+    ];
   });
 
   /**

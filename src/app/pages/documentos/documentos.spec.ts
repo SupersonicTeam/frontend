@@ -876,4 +876,61 @@ describe('DocumentosPage', () => {
       expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Recolher todos');
     });
   });
+
+  describe('triagem do contador', () => {
+    const carteira = () => [
+      nota('n1', '2026-09-10T00:00:00Z', { status: 'COM_INCONSISTENCIAS' }),
+      nota('n2', '2026-09-11T00:00:00Z', { status: 'REJEITADA' }),
+      nota('n3', '2026-09-12T00:00:00Z', { status: 'RASCUNHO' }),
+      nota('n4', '2026-08-01T00:00:00Z', { status: 'AUTORIZADA' }),
+      nota('n5', '2026-08-02T00:00:00Z', { status: 'CANCELADA' }),
+    ];
+
+    it('"precisam de revisão" atravessa inconsistência e rejeição — é o trabalho, não o status', () => {
+      const cmp = comNotas(carteira()).componentInstance;
+
+      const caixas = Object.fromEntries(
+        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
+      );
+      expect(caixas['revisao']).toBe(2);
+      expect(caixas['RASCUNHO']).toBe(1);
+      expect(caixas['AUTORIZADA']).toBe(1);
+      expect(caixas['CANCELADA']).toBe(1);
+      expect(caixas['todos']).toBe(5);
+
+      cmp.statusFilter.set('revisao');
+      expect(
+        cmp
+          .notasFiltradas()
+          .map((n) => n.id)
+          .sort(),
+      ).toEqual(['n1', 'n2']);
+    });
+
+    it('escolher uma caixa não zera as outras — senão a triagem deixa de triar', () => {
+      const fixture = comNotas(carteira());
+      const cmp = fixture.componentInstance;
+
+      cmp.statusFilter.set('AUTORIZADA');
+      fixture.detectChanges();
+
+      const caixas = Object.fromEntries(
+        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
+      );
+      expect(caixas['revisao']).toBe(2);
+      expect(caixas['todos']).toBe(5);
+      expect(cmp.notasFiltradas()).toHaveLength(1);
+    });
+
+    it('o período continua valendo sobre a contagem — ela conta o que está na tela', () => {
+      const cmp = comNotas(carteira()).componentInstance;
+
+      cmp.periodo.set('2026-08');
+      const caixas = Object.fromEntries(
+        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
+      );
+      expect(caixas['todos']).toBe(2);
+      expect(caixas['revisao']).toBe(0);
+    });
+  });
 });
