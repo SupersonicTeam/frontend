@@ -112,7 +112,7 @@ export class PrazosProdutor implements OnInit {
   readonly diasComPrazo = computed(() => {
     const mapa: Record<
       number,
-      { atrasado: boolean; aVencer: boolean; pago: boolean; quantidade: number }
+      { atrasado: boolean; aVencer: boolean; pago: boolean; quantidade: number; rotulo: string }
     > = {};
     const mes = this.chaveDoMes(this.mesAtual());
     const hoje = this.hoje();
@@ -126,14 +126,30 @@ export class PrazosProdutor implements OnInit {
           aVencer: false,
           pago: false,
           quantidade: 0,
+          rotulo: '',
         });
         atual.quantidade += 1;
+        atual.rotulo ||= this.rotuloCurto(v.titulo);
         if (v.status === 'pago') atual.pago = true;
         else if (v.dataVencimento < hoje) atual.atrasado = true;
         else atual.aVencer = true;
       });
     return mapa;
   });
+
+  /**
+   * "Guia ICMS" vira "ICMS".
+   *
+   * A celula do calendario diz **o que** vence ali, nao so que algo vence. Era a reclamacao do
+   * grupo: a versao antiga da tela mostrava a data em que mandar cada coisa, e a atual pinta a
+   * celula e guarda o nome num painel ao lado -- que no dia de hoje, o dia aberto por padrao,
+   * costuma dizer "nada vence neste dia".
+   *
+   * A sigla e o que o produtor reconhece; "Guia" se repete em todas e nao distingue nenhuma.
+   */
+  private rotuloCurto(titulo: string): string {
+    return titulo.replace(/^guias?\s+/i, '').trim();
+  }
 
   /** Quantos prazos o mês na grade tem — vai ao lado do nome do mês. */
   readonly prazosNoMes = computed(

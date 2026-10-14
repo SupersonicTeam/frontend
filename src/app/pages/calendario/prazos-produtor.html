@@ -102,6 +102,181 @@
   }
 
   <!--
+    ── O MAPA DO MÊS ──
+    Subiu para cá, logo abaixo do próximo prazo. Ele ficava no fim da tela, depois de duas listas
+    que já tinham respondido a pergunta — chegava quando não restava pergunta nenhuma.
+
+    Também perdeu a coluna fixa do dia escolhido. O painel ocupava um terço da largura e dizia
+    "Nada vence neste dia" na maior parte do tempo, porque o dia aberto por padrão é hoje, e hoje
+    quase nunca é dia de vencimento. Agora o detalhe abre DEBAIXO da grade, só quando o dia tem
+    algo, e a grade fica com a largura inteira.
+  -->
+  <section class="rounded-card border border-border bg-card p-3 shadow-suave sm:p-5">
+    <!-- Navegação -->
+    <div class="flex items-center justify-between mb-4">
+      <button
+        type="button"
+        class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        aria-label="Mês anterior"
+        (click)="mesAnterior()"
+      >
+        <svg lucideChevronLeft [size]="20" aria-hidden="true" />
+      </button>
+      <h2 class="text-center font-heading text-base font-semibold text-foreground">
+        {{ nomeMes() }}
+        @if (prazosNoMes()) {
+          <span class="block text-apoio font-normal text-muted-foreground">
+            {{ prazosNoMes() === 1 ? '1 prazo' : prazosNoMes() + ' prazos' }}
+          </span>
+        } @else {
+          <span class="block text-apoio font-normal text-muted-foreground">nada vence aqui</span>
+        }
+      </h2>
+      <button
+        type="button"
+        class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        aria-label="Próximo mês"
+        (click)="proximoMes()"
+      >
+        <svg lucideChevronRight [size]="20" aria-hidden="true" />
+      </button>
+    </div>
+
+    <!-- Dias da semana -->
+    <div class="grid grid-cols-7 mb-2">
+      @for (d of diasSemana; track d) {
+        <div class="text-center text-apoio font-medium text-muted-foreground py-1">{{ d }}</div>
+      }
+    </div>
+
+    <!-- Grade do calendário -->
+    @if (loading()) {
+      <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
+        @for (
+          i of [
+            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+            25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+          ];
+          track i
+        ) {
+          <div
+            class="min-h-[3.25rem] animate-pulse rounded-controle bg-muted/40 sm:min-h-[4rem]"
+          ></div>
+        }
+      </div>
+    } @else {
+      <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
+        @for (dia of diasDoMes(); track $index) {
+          @if (dia === null) {
+            <div></div>
+          } @else {
+            <button
+              type="button"
+              class="relative flex min-h-[3.25rem] w-full flex-col items-center justify-start gap-0.5 overflow-hidden rounded-controle px-0.5 pt-1.5 pb-1 text-apoio font-medium transition-colors sm:min-h-[4rem] {{
+                diaClass(dia)
+              }}"
+              [attr.aria-pressed]="ehSelecionado(dia)"
+              [attr.aria-current]="ehHoje(dia) ? 'date' : null"
+              [attr.aria-label]="rotuloDoDia(dia)"
+              (click)="selecionarDia(dia)"
+            >
+              {{ dia }}
+              @if (diasComPrazo()[dia]; as prazo) {
+                <!-- O NOME do que vence, dentro da célula — era isto que o grupo sentia falta:
+                     a grade dizia que algo vencia, nunca o quê. No celular a coluna tem ~44px e o
+                     nome trunca ("FUNRU..."), o que já distingue uma guia da outra; inteiro ele
+                     está no detalhe, a um toque. -->
+                <span class="w-full truncate text-center text-apoio leading-none font-semibold">
+                  {{ prazo.rotulo }}
+                </span>
+                @if (prazo.quantidade > 1) {
+                  <span class="text-apoio leading-none font-semibold">
+                    +{{ prazo.quantidade - 1 }}
+                  </span>
+                }
+              }
+            </button>
+          }
+        }
+      </div>
+    }
+
+    <!-- Legenda: so o que o mes tem de verdade. Ver `legenda` no componente. -->
+    <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-4">
+      @for (l of legenda(); track l.chave) {
+        <span class="flex items-center gap-1.5">
+          <span class="h-3 w-3 rounded-[0.25rem] border {{ l.cor }}" aria-hidden="true"></span>
+          <span class="text-apoio text-muted-foreground">{{ l.texto }}</span>
+        </span>
+      }
+      <span class="flex items-center gap-1.5">
+        <span
+          class="h-3 w-3 rounded-[0.25rem] bg-muted ring-2 ring-primary/50"
+          aria-hidden="true"
+        ></span>
+        <span class="text-apoio text-muted-foreground">Hoje</span>
+      </span>
+      @if (foraDoMesCorrente()) {
+        <button
+          type="button"
+          class="tap-target ml-auto text-apoio font-medium text-primary underline"
+          (click)="irParaHoje()"
+        >
+          Voltar para hoje
+        </button>
+      }
+    </div>
+
+    <!--
+        ── O DIA ESCOLHIDO ──
+        Dentro do mesmo cartão, logo abaixo da grade: o detalhe pertence ao dia que acabou de ser
+        clicado, e atravessar a tela até uma coluna lateral quebrava essa ligação.
+        A `sanfona` anima a altura; fechada, não sobra nem a borda.
+      -->
+    <div class="sanfona" [class.sanfona-aberta]="vencimentosDia().length > 0" aria-live="polite">
+      <div>
+        <div class="mt-4 border-t border-border pt-4">
+          <h3 class="font-heading text-apoio font-semibold text-foreground">
+            {{ nomeDiaSelecionado() }}
+          </h3>
+          <ul class="mt-2 grid gap-2 sm:grid-cols-2">
+            @for (v of vencimentosDia(); track v.id) {
+              <li class="rounded-controle border border-border p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-apoio leading-tight font-medium text-foreground">{{ v.titulo }}</p>
+                  <span
+                    class="shrink-0 rounded-full px-1.5 py-0.5 text-apoio {{
+                      statusColor(v.status)
+                    }}"
+                  >
+                    {{ statusLabel(v.status) }}
+                  </span>
+                </div>
+                @if (v.descricao) {
+                  <p class="mt-0.5 text-apoio text-muted-foreground">{{ v.descricao }}</p>
+                }
+                @if (v.valor) {
+                  <p class="mt-1 text-apoio font-semibold tabular-nums text-foreground">
+                    {{ formatCurrency(v.valor) }}
+                  </p>
+                }
+                @if (v.tipo === 'solicitacao') {
+                  <a
+                    routerLink="/documentos"
+                    class="tap-target mt-1 inline-flex items-center gap-1 text-apoio font-medium text-accent hover:underline"
+                  >
+                    Anexar documento
+                  </a>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!--
     ── A LISTA ──
     Ordenada por data, que e o conteudo de uma tela chamada "Prazos". A lista antiga vinha na
     ordem em que o servidor mandou (31/10 antes de 20/10) e so cobria o mes corrente.
@@ -178,160 +353,4 @@
       }
     </section>
   }
-
-  <!-- ── O MAPA DO MÊS ── -->
-  <div class="grid gap-6 md:grid-cols-3">
-    <div class="rounded-card border border-border bg-card p-3 shadow-suave sm:p-5 md:col-span-2">
-      <!-- Navegação -->
-      <div class="flex items-center justify-between mb-4">
-        <button
-          type="button"
-          class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Mês anterior"
-          (click)="mesAnterior()"
-        >
-          <svg lucideChevronLeft [size]="20" aria-hidden="true" />
-        </button>
-        <h2 class="text-center font-heading text-base font-semibold text-foreground">
-          {{ nomeMes() }}
-          @if (prazosNoMes()) {
-            <span class="block text-apoio font-normal text-muted-foreground">
-              {{ prazosNoMes() === 1 ? '1 prazo' : prazosNoMes() + ' prazos' }}
-            </span>
-          } @else {
-            <span class="block text-apoio font-normal text-muted-foreground">nada vence aqui</span>
-          }
-        </h2>
-        <button
-          type="button"
-          class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          aria-label="Próximo mês"
-          (click)="proximoMes()"
-        >
-          <svg lucideChevronRight [size]="20" aria-hidden="true" />
-        </button>
-      </div>
-
-      <!-- Dias da semana -->
-      <div class="grid grid-cols-7 mb-2">
-        @for (d of diasSemana; track d) {
-          <div class="text-center text-apoio font-medium text-muted-foreground py-1">{{ d }}</div>
-        }
-      </div>
-
-      <!-- Grade do calendário -->
-      @if (loading()) {
-        <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
-          @for (
-            i of [
-              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-              25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-            ];
-            track i
-          ) {
-            <div class="aspect-square bg-muted/40 animate-pulse rounded-controle"></div>
-          }
-        </div>
-      } @else {
-        <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
-          @for (dia of diasDoMes(); track $index) {
-            @if (dia === null) {
-              <div></div>
-            } @else {
-              <button
-                type="button"
-                class="relative flex flex-col items-center justify-start w-full aspect-square rounded-controle text-apoio font-medium transition-colors pt-1.5 {{
-                  diaClass(dia)
-                }}"
-                [attr.aria-pressed]="ehSelecionado(dia)"
-                [attr.aria-current]="ehHoje(dia) ? 'date' : null"
-                [attr.aria-label]="rotuloDoDia(dia)"
-                (click)="selecionarDia(dia)"
-              >
-                {{ dia }}
-                <!-- A celula inteira ja e a marca; so falta dizer quantos, quando ha mais de um. -->
-                @if (diasComPrazo()[dia]; as prazo) {
-                  @if (prazo.quantidade > 1) {
-                    <span class="mt-0.5 text-apoio leading-none font-semibold">
-                      {{ prazo.quantidade }}
-                    </span>
-                  }
-                }
-              </button>
-            }
-          }
-        </div>
-      }
-
-      <!-- Legenda: so o que o mes tem de verdade. Ver `legenda` no componente. -->
-      <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-4">
-        @for (l of legenda(); track l.chave) {
-          <span class="flex items-center gap-1.5">
-            <span class="h-3 w-3 rounded-[0.25rem] border {{ l.cor }}" aria-hidden="true"></span>
-            <span class="text-apoio text-muted-foreground">{{ l.texto }}</span>
-          </span>
-        }
-        <span class="flex items-center gap-1.5">
-          <span
-            class="h-3 w-3 rounded-[0.25rem] bg-muted ring-2 ring-primary/50"
-            aria-hidden="true"
-          ></span>
-          <span class="text-apoio text-muted-foreground">Hoje</span>
-        </span>
-        @if (foraDoMesCorrente()) {
-          <button
-            type="button"
-            class="tap-target ml-auto text-apoio font-medium text-primary underline"
-            (click)="irParaHoje()"
-          >
-            Voltar para hoje
-          </button>
-        }
-      </div>
-    </div>
-
-    <!-- ── O DIA ESCOLHIDO ── -->
-    <div class="flex flex-col rounded-card border border-border bg-card p-5 shadow-suave">
-      <h3 class="font-heading text-apoio font-semibold text-foreground">
-        {{ nomeDiaSelecionado() }}
-      </h3>
-
-      @if (vencimentosDia().length === 0) {
-        <!-- Uma linha, nao um card inteiro com um check gigante: o conteudo aqui e a ausencia
-             de conteudo, e ele ocupava mais espaco que a lista de prazos de verdade. -->
-        <p class="mt-1 text-apoio text-muted-foreground">Nada vence neste dia.</p>
-      } @else {
-        <ul class="mt-2 flex flex-col gap-2">
-          @for (v of vencimentosDia(); track v.id) {
-            <li class="rounded-controle border border-border p-3">
-              <div class="flex items-start justify-between gap-2">
-                <p class="text-apoio leading-tight font-medium text-foreground">{{ v.titulo }}</p>
-                <span
-                  class="shrink-0 rounded-full px-1.5 py-0.5 text-apoio {{ statusColor(v.status) }}"
-                >
-                  {{ statusLabel(v.status) }}
-                </span>
-              </div>
-              @if (v.descricao) {
-                <p class="mt-0.5 text-apoio text-muted-foreground">{{ v.descricao }}</p>
-              }
-              @if (v.valor) {
-                <p class="mt-1 text-apoio font-semibold tabular-nums text-foreground">
-                  {{ formatCurrency(v.valor) }}
-                </p>
-              }
-              @if (v.tipo === 'solicitacao') {
-                <a
-                  routerLink="/documentos"
-                  class="tap-target mt-1 inline-flex items-center gap-1 text-apoio font-medium text-accent hover:underline"
-                >
-                  Anexar documento
-                </a>
-              }
-            </li>
-          }
-        </ul>
-      }
-    </div>
-  </div>
 </div>
