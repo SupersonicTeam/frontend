@@ -22,6 +22,7 @@ import { apiErrorDeBlob, filenameDeContentDisposition, salvarBlob } from '@core/
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiTable } from '@shared/ui/ui-table';
+import { mesDeFechamento } from '@core/utils/periodo';
 
 const MESES = [
   { v: 1, l: 'Janeiro' },
@@ -106,8 +107,9 @@ export class ImpostosContador implements OnInit {
   private readonly notasApi = inject(NotasApi);
   private readonly toast = inject(ToastService);
 
-  readonly mes = signal(new Date().getMonth() + 1);
-  readonly ano = signal(new Date().getFullYear());
+  // Abre no mes que ACABOU, nao no corrente: ver `mesDeFechamento`.
+  readonly mes = signal(mesDeFechamento().mes);
+  readonly ano = signal(mesDeFechamento().ano);
   readonly periodo = computed(() => `${this.ano()}-${String(this.mes()).padStart(2, '0')}`);
   readonly meses = MESES;
   readonly anos = computed(() => {

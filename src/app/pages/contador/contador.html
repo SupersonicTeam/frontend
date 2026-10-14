@@ -58,10 +58,21 @@
   -->
   <section
     class="rounded-card border p-5"
-    [class]="podeFechar() ? 'border-sucesso/30 bg-sucesso-soft' : 'border-aviso/40 bg-aviso-soft'"
+    [class]="
+      apurandoImpedimentos()
+        ? 'border-border bg-card'
+        : podeFechar()
+          ? 'border-sucesso/30 bg-sucesso-soft'
+          : 'border-aviso/40 bg-aviso-soft'
+    "
   >
     <h2 class="flex items-center gap-2 font-heading text-lg font-semibold">
-      @if (podeFechar()) {
+      @if (apurandoImpedimentos()) {
+        <!-- Enquanto nao sabe, a tela nao opina. Ver `apurandoImpedimentos`. -->
+        <span class="text-muted-foreground">
+          Conferindo o que impede fechar {{ formatPeriodo(periodo()) }}…
+        </span>
+      } @else if (podeFechar()) {
         <svg lucideCheck [size]="18" class="text-sucesso-ink" aria-hidden="true" />
         <span class="text-sucesso-ink">Nada impede fechar {{ formatPeriodo(periodo()) }}</span>
       } @else {
@@ -70,7 +81,9 @@
       }
     </h2>
 
-    @if (podeFechar()) {
+    @if (apurandoImpedimentos()) {
+      <ui-skeleton class="mt-2 block" [linhas]="2" />
+    } @else if (podeFechar()) {
       <p class="mt-1 text-apoio text-sucesso-ink">
         Sem nota pendente de correção no período e sem guia vencida.
       </p>
