@@ -484,7 +484,10 @@ export class PrazosProdutor implements OnInit {
     this.notificacaoService.notificarProximasObrigacoes(LOGGED_PRODUCER_ID).subscribe({
       next: (res) => {
         this.enviandoNotificacao.set(false);
-        if (res.enviados > 0) {
+        if (res.indisponivel) {
+          // Ver `NotificarResult.indisponivel`: dizer "nada pendente" aqui era mentira.
+          this.toastService.error('O envio de avisos ainda não existe no servidor.');
+        } else if (res.enviados > 0) {
           this.toastService.success(`${res.enviados} notificação(ões) enviada(s) via WhatsApp.`);
         } else {
           this.toastService.info('Nenhuma obrigação pendente para notificar.');
