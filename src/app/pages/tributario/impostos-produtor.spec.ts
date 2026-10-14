@@ -628,6 +628,41 @@ describe('ImpostosProdutor', () => {
     expect(cmp.larguraDaBarra(100)).toBe(50);
   });
 
+  // A faixa pintava os seis meses de `perigo`: seis barras vermelhas, que leem como seis
+  // alarmes. IBS e CBS sao identidade (as duas metades do mesmo imposto), nao estado -- e
+  // o empilhamento e o que mostra qual das duas pesa.
+  it('cada mês da faixa carrega a divisão entre IBS e CBS, e a média serve de referência', () => {
+    const f = TestBed.createComponent(ImpostosProdutor);
+    const cmp = f.componentInstance;
+    const periodo = cmp.periodo();
+    f.detectChanges();
+
+    const { atual, de, resto } = apuracoesAbertas(periodo);
+    atual!.flush(buildApuracao({ periodo, saldoIbs: 10, saldoCbs: 90 }));
+    de(mesAtras(periodo, 1))!.flush(
+      buildApuracao({ periodo: mesAtras(periodo, 1), saldoIbs: 60, saldoCbs: 240 }),
+    );
+    semDado(resto.filter((r) => r.request.params.get('periodo') !== mesAtras(periodo, 1)));
+    flushGuias();
+    flushRelatorio();
+    f.detectChanges();
+
+    expect(cmp.historico().at(-1)).toMatchObject({ ibs: 10, cbs: 90 });
+    expect(cmp.historico().at(-2)).toMatchObject({ ibs: 60, cbs: 240 });
+
+    // Os pedacos sao proporcionais ao MAIOR mes da faixa (300), nao ao proprio mes.
+    expect(cmp.larguraDoPedaco(90)).toBe(30);
+    expect(cmp.larguraDoPedaco(0)).toBe(0);
+
+    // Media dos meses que responderam: (100 + 300) / 2.
+    expect(cmp.mediaDoHistorico()).toBe(200);
+    expect(cmp.posicaoDaMedia()).toBeCloseTo(66.67, 1);
+
+    // E quem usa leitor de tela ouve a mesma divisao que a barra desenha.
+    expect(cmp.descricaoDoMes(cmp.historico().at(-1)!)).toContain('de IBS');
+    expect(cmp.descricaoDoMes(cmp.historico().at(-1)!)).toContain('de CBS');
+  });
+
   it('mês sem resposta é lacuna na faixa, não um mês de imposto zero', () => {
     const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;

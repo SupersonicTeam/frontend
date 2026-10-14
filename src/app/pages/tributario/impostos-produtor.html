@@ -60,6 +60,43 @@
           [tom]="ap.saldoIbs + ap.saldoCbs > 0 ? 'negativo' : 'positivo'"
         />
 
+        <!-- De que o número é feito, na mesma linguagem da faixa de seis meses logo abaixo:
+             azul é IBS, laranja é CBS. O produtor via o total e, para saber a divisão, tinha
+             que ler a conta no painel do lado. Só aparece quando há o que dividir. -->
+        @if (ap.saldoIbs + ap.saldoCbs > 0) {
+          <div class="mt-3">
+            <div
+              class="flex h-2 w-full gap-[2px] overflow-hidden rounded-full bg-surface-2"
+              aria-hidden="true"
+            >
+              <span
+                class="rounded-full bg-serie-ibs"
+                [style.width.%]="fatiaDoSaldo(ap.saldoIbs, ap.saldoIbs + ap.saldoCbs)"
+              ></span>
+              <span
+                class="rounded-full bg-serie-cbs"
+                [style.width.%]="fatiaDoSaldo(ap.saldoCbs, ap.saldoIbs + ap.saldoCbs)"
+              ></span>
+            </div>
+            <p class="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-apoio">
+              <span class="flex items-center gap-1.5">
+                <span class="size-2.5 rounded-[0.2rem] bg-serie-ibs" aria-hidden="true"></span>
+                <span class="text-muted-foreground">IBS</span>
+                <span class="font-medium tabular-nums text-foreground">
+                  {{ formatCurrency(ap.saldoIbs) }}
+                </span>
+              </span>
+              <span class="flex items-center gap-1.5">
+                <span class="size-2.5 rounded-[0.2rem] bg-serie-cbs" aria-hidden="true"></span>
+                <span class="text-muted-foreground">CBS</span>
+                <span class="font-medium tabular-nums text-foreground">
+                  {{ formatCurrency(ap.saldoCbs) }}
+                </span>
+              </span>
+            </p>
+          </div>
+        }
+
         <!-- "Quanto eu pago" sozinho nao diz nada: a comparacao com o mes anterior e o que
              transforma um numero em noticia. Sem apuracao anterior, a frase nao aparece. -->
         @if (variacao(); as v) {
@@ -314,24 +351,38 @@
   -->
   @if (temHistorico()) {
     <section class="bg-card rounded-card border border-border shadow-suave p-5">
-      <h2 class="text-base font-semibold text-foreground">Como vem sendo</h2>
-      <p class="text-apoio text-muted-foreground">
-        os últimos seis meses, para situar o valor acima
-      </p>
+      <div class="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
+        <div>
+          <h2 class="text-base font-semibold text-foreground">Como vem sendo</h2>
+          <p class="text-apoio text-muted-foreground">
+            os últimos seis meses, para situar o valor acima
+          </p>
+        </div>
+
+        <!-- Duas séries na barra, então a legenda é obrigatória: cor sozinha nunca carrega
+             identidade (quem não distingue azul de laranja fica sem o dado). O leitor de tela
+             recebe a mesma composição pelo rótulo de cada mês. -->
+        <ul class="flex items-center gap-3">
+          <li class="flex items-center gap-1.5">
+            <span class="size-2.5 rounded-[0.2rem] bg-serie-ibs" aria-hidden="true"></span>
+            <span class="text-apoio text-muted-foreground">IBS</span>
+          </li>
+          <li class="flex items-center gap-1.5">
+            <span class="size-2.5 rounded-[0.2rem] bg-serie-cbs" aria-hidden="true"></span>
+            <span class="text-apoio text-muted-foreground">CBS</span>
+          </li>
+        </ul>
+      </div>
 
       <ul class="mt-3 flex flex-col gap-1">
         @for (mes of historico(); track mes.periodo) {
           <li>
             <button
               type="button"
-              class="tap-target flex w-full items-center gap-3 rounded-controle px-2 text-left hover:bg-muted/60"
+              class="tap-target flex w-full items-center gap-3 rounded-controle px-2 text-left transition-colors hover:bg-muted/60"
               [class.bg-muted]="mes.atual"
               [attr.aria-current]="mes.atual ? 'true' : null"
-              [attr.aria-label]="
-                formatPeriodo(mes.periodo) +
-                ': ' +
-                (mes.valor === null ? 'sem resposta do servidor' : formatCurrency(mes.valor))
-              "
+              [attr.aria-label]="descricaoDoMes(mes)"
               (click)="mudarParaPeriodo(mes.periodo)"
             >
               <span
@@ -344,19 +395,49 @@
               </span>
 
               @if (mes.valor === null) {
-                <span class="flex-1 text-apoio text-muted-foreground"
-                  >sem resposta do servidor</span
-                >
-              } @else {
-                <!-- A barra e so desenho: o valor ao lado ja diz tudo a quem usa leitor de tela. -->
-                <span class="h-2 min-w-0 flex-1 rounded-full bg-muted" aria-hidden="true">
-                  <span
-                    class="block h-2 rounded-full"
-                    [class.bg-perigo]="mes.valor > 0"
-                    [class.bg-sucesso]="mes.valor < 0"
-                    [style.width.%]="larguraDaBarra(mes.valor)"
-                  ></span>
+                <span class="flex-1 text-apoio text-muted-foreground">
+                  sem resposta do servidor
                 </span>
+              } @else {
+                <!-- A barra é só desenho: o valor ao lado e o aria-label já dizem tudo a quem
+                     usa leitor de tela. -->
+                <span
+                  class="relative h-2.5 min-w-0 flex-1 rounded-full bg-surface-2"
+                  aria-hidden="true"
+                >
+                  @if (mes.valor < 0) {
+                    <!-- Saldo credor: não há o que dividir entre IBS e CBS a pagar, e verde aqui
+                         é situação (sobrou crédito), não identidade de série. -->
+                    <span
+                      class="absolute inset-y-0 left-0 rounded-full bg-sucesso"
+                      [style.width.%]="larguraDaBarra(mes.valor)"
+                    ></span>
+                  } @else {
+                    <!-- Os dois pedaços com 2px de respiro: a divisa deixa de depender só da
+                         diferença de cor, que é o que salva a leitura em impressão e em
+                         daltonismo. -->
+                    <span class="absolute inset-y-0 left-0 flex w-full gap-[2px]">
+                      <span
+                        class="h-2.5 rounded-full bg-serie-ibs"
+                        [style.width.%]="larguraDoPedaco(mes.ibs)"
+                      ></span>
+                      <span
+                        class="h-2.5 rounded-full bg-serie-cbs"
+                        [style.width.%]="larguraDoPedaco(mes.cbs)"
+                      ></span>
+                    </span>
+                  }
+
+                  <!-- A média, atravessando a faixa. Sem ela a barra mais comprida sempre parece
+                       cara: ela é o próprio teto da escala. -->
+                  @if (posicaoDaMedia(); as pos) {
+                    <span
+                      class="absolute inset-y-[-3px] w-0.5 rounded-full bg-foreground/30"
+                      [style.left.%]="pos"
+                    ></span>
+                  }
+                </span>
+
                 <span
                   class="w-28 shrink-0 text-right text-apoio tabular-nums"
                   [class.font-semibold]="mes.atual"
@@ -370,6 +451,12 @@
           </li>
         }
       </ul>
+
+      @if (mediaDoHistorico(); as media) {
+        <p class="mt-2 text-apoio text-muted-foreground">
+          A marca que atravessa as barras é a média do período: {{ formatCurrency(media) }}.
+        </p>
+      }
     </section>
   }
 </div>

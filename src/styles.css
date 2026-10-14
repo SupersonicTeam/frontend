@@ -105,6 +105,21 @@
   --shadow-assistente:
     0 2px 4px var(--sombra-fraca), 0 10px 28px -14px var(--sombra-assistente-cor);
 
+
+  /* --- Cores de série de gráfico (#90) -------------------------------------------
+     IBS e CBS são **identidade**, não estado: são as duas metades do mesmo imposto.
+     A faixa dos seis meses pintava tudo de `perigo`, e seis barras vermelhas leem como
+     seis alarmes -- imposto devido não é erro. Vermelho, âmbar e verde ficam reservados
+     para situação (vencido, a vencer, pago), como manda o resto do sistema.
+
+     Os valores não são escolhidos no olho: passaram no validador de paleta nos dois
+     temas (banda de luminosidade, piso de croma, separação sob protanopia/deuteranopia
+     e contraste contra a superfície do card). O par azul/laranja é o mais seguro para
+     daltonismo, e por isso o laranja aqui é mais escuro que o `--color-accent`: o
+     accent dá 2,91:1 contra o branco e reprovaria. */
+  --color-serie-ibs: hsl(210 66% 45%);
+  --color-serie-cbs: hsl(33 62% 44%);
+
   --radius-controle: 0.75rem;
   --radius-card: 1rem;
   --radius-destaque: 1.25rem;
@@ -335,6 +350,11 @@ html {
   --color-info: hsl(210 66% 64%);
   --color-info-soft: hsl(210 34% 17%);
   --color-info-ink: hsl(210 72% 80%);
+
+  /* Mesma validação, outra superfície: contra o card escuro os passos claros saem da
+     banda de luminosidade. Ver o comentário no @theme. */
+  --color-serie-ibs: hsl(210 60% 58%);
+  --color-serie-cbs: hsl(33 58% 48%);
   --color-perigo: hsl(0 68% 66%);
   --color-perigo-soft: hsl(0 30% 17%);
   --color-perigo-ink: hsl(0 72% 80%);
