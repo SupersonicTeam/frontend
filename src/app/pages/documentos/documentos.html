@@ -20,6 +20,67 @@
     </button>
   </div>
 
+  <!-- ── O RESUMO DO PRODUTOR ── -->
+  @if (!perfilService.ehContador() && notas().length) {
+    <!--
+      Duas perguntas que a tela nunca respondia: quanto saiu, e o que ainda falta de mim. O
+      faturamento estava espalhado por 15 cartões para somar de cabeça, e a nota com
+      inconsistência ficava na terceira tela de rolagem, do mesmo tamanho das outras.
+
+      As duas pendências não são repetidas aqui como lista: a faixa só diz quantas são e leva
+      até elas. Repetir cartão é o que fazia a tela de Prazos ter 1.400px de rolagem.
+    -->
+    <section class="grid gap-4 rounded-card border border-border bg-surface p-5 sm:grid-cols-2">
+      <div>
+        <p class="font-heading text-2xl font-bold tabular-nums text-foreground">
+          {{ formatCurrency(resumoDoPeriodo().faturado) }}
+        </p>
+        <p class="text-apoio text-muted-foreground">
+          em {{ resumoDoPeriodo().autorizadas }}
+          {{ resumoDoPeriodo().autorizadas === 1 ? 'nota autorizada' : 'notas autorizadas' }},
+          {{ rotuloDoPeriodo().toLowerCase() }}
+        </p>
+      </div>
+
+      @if (resumoDoPeriodo().esperando) {
+        <div class="sm:border-l sm:border-border sm:pl-4">
+          <p class="font-heading text-lg font-semibold text-aviso-ink">
+            {{ resumoDoPeriodo().esperando }}
+            {{
+              resumoDoPeriodo().esperando === 1 ? 'nota espera por você' : 'notas esperam por você'
+            }}
+          </p>
+          <p class="text-apoio text-muted-foreground">
+            @if (resumoDoPeriodo().comInconsistencia) {
+              {{ resumoDoPeriodo().comInconsistencia }} com inconsistência
+            }
+            @if (resumoDoPeriodo().comInconsistencia && resumoDoPeriodo().rascunhos) {
+              e
+            }
+            @if (resumoDoPeriodo().rascunhos) {
+              {{ resumoDoPeriodo().rascunhos }} em rascunho
+            }
+            — nenhuma delas virou documento fiscal ainda.
+          </p>
+          <button
+            type="button"
+            class="tap-target mt-1.5 inline-flex items-center rounded-controle border border-aviso/40 px-3 text-apoio font-medium text-aviso-ink transition-colors hover:bg-aviso-soft"
+            (click)="statusFilter.set('esperando')"
+          >
+            Ver essas notas
+          </button>
+        </div>
+      } @else {
+        <div class="sm:border-l sm:border-border sm:pl-4">
+          <p class="font-heading text-lg font-semibold text-sucesso-ink">Nada parado</p>
+          <p class="text-apoio text-muted-foreground">
+            Tudo que você emitiu no período está autorizado.
+          </p>
+        </div>
+      }
+    </section>
+  }
+
   <!-- ── A TRIAGEM DO CONTADOR ── -->
   @if (perfilService.ehContador()) {
     <!--
@@ -64,53 +125,81 @@
 
   <!-- ── FILTROS ── -->
   <div class="flex flex-wrap gap-2">
-    <!-- Periodo: as opcoes saem das notas que existem, agrupadas por ano. Ver `periodosPorAno`. -->
-    <select
-      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
-      aria-label="Período"
-      [value]="periodo()"
-      (change)="periodo.set($any($event.target).value)"
+    <!-- No celular os quatro seletores viram quatro linhas empilhadas, e a primeira nota so
+         aparecia depois de umas 300px de caixinha. Aqui eles ficam atras de um botao, que diz
+         quantos estao valendo para o que esta escondido nao ficar invisivel. Em tela larga o
+         botao some e o envoltorio vira `contents`: a fileira volta a ser a de sempre. -->
+    <button
+      type="button"
+      class="tap-target inline-flex items-center gap-2 rounded-controle border border-border bg-card px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted sm:hidden"
+      [attr.aria-expanded]="filtrosAbertos()"
+      (click)="filtrosAbertos.set(!filtrosAbertos())"
     >
-      <option value="todos">Todo o período</option>
-      @if (temNotasRecentes()) {
-        <option value="ultimos30">Últimos 30 dias</option>
+      <svg lucideListFilter [size]="15" aria-hidden="true" />
+      Filtros
+      @if (quantosFiltros()) {
+        <span class="rounded-full bg-primary px-1.5 text-primary-foreground">
+          {{ quantosFiltros() }}
+        </span>
       }
-      @for (grupo of periodosPorAno(); track grupo.ano) {
-        <optgroup [label]="grupo.ano">
-          <option [value]="grupo.ano">O ano de {{ grupo.ano }} ({{ grupo.total }})</option>
-          @for (mes of grupo.meses; track mes.value) {
-            <option [value]="mes.value">{{ mes.label }}</option>
-          }
-        </optgroup>
-      }
-    </select>
+    </button>
 
-    <!-- O filtro de status existia no componente sem nenhum controle na tela: dava para
+    <div class="flex w-full flex-wrap gap-2 sm:contents" [class.max-sm:hidden]="!filtrosAbertos()">
+      <!-- Periodo: as opcoes saem das notas que existem, agrupadas por ano. Ver `periodosPorAno`. -->
+      <select
+        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        aria-label="Período"
+        [value]="periodo()"
+        (change)="periodo.set($any($event.target).value)"
+      >
+        <option value="todos">Todo o período</option>
+        @if (temNotasRecentes()) {
+          <option value="ultimos30">Últimos 30 dias</option>
+        }
+        @for (grupo of periodosPorAno(); track grupo.ano) {
+          <optgroup [label]="grupo.ano">
+            <option [value]="grupo.ano">O ano de {{ grupo.ano }} ({{ grupo.total }})</option>
+            @for (mes of grupo.meses; track mes.value) {
+              <option [value]="mes.value">{{ mes.label }}</option>
+            }
+          </optgroup>
+        }
+      </select>
+
+      <!-- O filtro de status existia no componente sem nenhum controle na tela: dava para
          filtrar por rascunho/autorizada pelo codigo, mas nao pela interface. -->
-    <select
-      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
-      aria-label="Situação da nota"
-      [value]="statusFilter()"
-      (change)="statusFilter.set($any($event.target).value)"
-    >
-      <option value="todos">Qualquer situação</option>
-      <option value="RASCUNHO">Rascunho</option>
-      <option value="COM_INCONSISTENCIAS">Com inconsistências</option>
-      <option value="AUTORIZADA">Autorizada</option>
-      <option value="REJEITADA">Rejeitada</option>
-      <option value="CANCELADA">Cancelada</option>
-    </select>
+      <select
+        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        aria-label="Situação da nota"
+        [value]="statusFilter()"
+        (change)="statusFilter.set($any($event.target).value)"
+      >
+        <option value="todos">Qualquer situação</option>
+        <!-- O recorte de trabalho tambem mora aqui, senao o seletor fica EM BRANCO quando a faixa
+           de cima o aplica: o filtro esta valendo e o controle nao mostra qual. -->
+        @if (perfilService.ehContador()) {
+          <option value="revisao">Precisam de revisão</option>
+        } @else {
+          <option value="esperando">Esperando você</option>
+        }
+        <option value="RASCUNHO">Rascunho</option>
+        <option value="COM_INCONSISTENCIAS">Com inconsistências</option>
+        <option value="AUTORIZADA">Autorizada</option>
+        <option value="REJEITADA">Rejeitada</option>
+        <option value="CANCELADA">Cancelada</option>
+      </select>
 
-    <select
-      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
-      aria-label="Tipo de documento"
-      [value]="tipo()"
-      (change)="tipo.set($any($event.target).value)"
-    >
-      <option value="todos">Todos os tipos</option>
-      <option value="NFE">NF-e (modelo 55)</option>
-      <option value="NFA">NFA (avulsa)</option>
-    </select>
+      <select
+        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        aria-label="Tipo de documento"
+        [value]="tipo()"
+        (change)="tipo.set($any($event.target).value)"
+      >
+        <option value="todos">Todos os tipos</option>
+        <option value="NFE">NF-e (modelo 55)</option>
+        <option value="NFA">NFA (avulsa)</option>
+      </select>
+    </div>
 
     <div class="flex-1 min-w-[180px] relative">
       <svg

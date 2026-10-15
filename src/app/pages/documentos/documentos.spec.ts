@@ -933,4 +933,57 @@ describe('DocumentosPage', () => {
       expect(caixas['revisao']).toBe(0);
     });
   });
+
+  describe('resumo do produtor', () => {
+    const carteira = () => [
+      nota('n1', '2026-09-10T00:00:00Z', { status: 'AUTORIZADA', valorTotalNota: 1000 }),
+      nota('n2', '2026-09-11T00:00:00Z', { status: 'AUTORIZADA', valorTotalNota: 500 }),
+      nota('n3', '2026-09-12T00:00:00Z', { status: 'COM_INCONSISTENCIAS', valorTotalNota: 999 }),
+      nota('n4', '2026-08-01T00:00:00Z', { status: 'RASCUNHO', valorTotalNota: 777 }),
+    ];
+
+    it('só nota autorizada entra no faturamento — rascunho e inconsistência não são documento', () => {
+      const cmp = comNotas(carteira()).componentInstance;
+
+      // 1000 + 500. Somar as outras daria um numero que nao existe em lugar nenhum.
+      expect(cmp.resumoDoPeriodo().faturado).toBe(1500);
+      expect(cmp.resumoDoPeriodo().autorizadas).toBe(2);
+      expect(cmp.resumoDoPeriodo().esperando).toBe(2);
+      expect(cmp.resumoDoPeriodo().comInconsistencia).toBe(1);
+      expect(cmp.resumoDoPeriodo().rascunhos).toBe(1);
+    });
+
+    it('"ver essas notas" mostra as três situações que ainda dependem do produtor', () => {
+      const fixture = comNotas(carteira());
+      const cmp = fixture.componentInstance;
+
+      cmp.statusFilter.set('esperando');
+      fixture.detectChanges();
+
+      expect(
+        cmp
+          .notasFiltradas()
+          .map((n) => n.id)
+          .sort(),
+      ).toEqual(['n3', 'n4']);
+    });
+
+    it('o resumo não muda quando a situação é filtrada — ele descreve o período', () => {
+      const fixture = comNotas(carteira());
+      const cmp = fixture.componentInstance;
+
+      cmp.statusFilter.set('esperando');
+      fixture.detectChanges();
+
+      // Se mudasse, clicar em "ver essas notas" zeraria o faturamento que a faixa acabou de
+      // mostrar, e a pessoa pensaria que perdeu o dado.
+      expect(cmp.resumoDoPeriodo().faturado).toBe(1500);
+
+      // Mas o periodo entra na conta, porque e o recorte que ela escolheu.
+      cmp.periodo.set('2026-08');
+      fixture.detectChanges();
+      expect(cmp.resumoDoPeriodo().faturado).toBe(0);
+      expect(cmp.resumoDoPeriodo().rascunhos).toBe(1);
+    });
+  });
 });

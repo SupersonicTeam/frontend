@@ -4,6 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   LucideFileText,
+  LucideListFilter,
   LucideSearch,
   LucideUpload,
   LucideDownload,
@@ -170,6 +171,7 @@ function cpfCnpjValido(v: string): boolean {
     UiSkeleton,
     FormsModule,
     LucideFileText,
+    LucideListFilter,
     LucideSearch,
     LucideUpload,
     LucideDownload,
@@ -402,6 +404,11 @@ export class DocumentosPage implements OnInit {
     // dois status (com inconsistencia e rejeitada) -- as duas notas que alguem precisa olhar.
     const situacao = this.statusFilter();
     if (situacao === 'revisao') lista = lista.filter((n) => this.podeVerValidacoes(n));
+    // `esperando` e o recorte do produtor: o que ainda depende dele. Atravessa tres status
+    // (inconsistencia, rejeitada, rascunho) porque o que une os tres e a pendencia, nao a
+    // etiqueta -- nenhum deles virou documento fiscal ainda.
+    else if (situacao === 'esperando')
+      lista = lista.filter((n) => this.podeVerValidacoes(n) || n.status === 'RASCUNHO');
     else if (situacao !== 'todos') lista = lista.filter((n) => n.status === situacao);
 
     // Ordenação
@@ -411,6 +418,36 @@ export class DocumentosPage implements OnInit {
     });
 
     return lista;
+  });
+
+  /**
+   * O resumo do recorte que esta na tela, para o produtor.
+   *
+   * A tela abria com cinco controles e 15 cartoes iguais, e nunca respondia as duas perguntas
+   * que alguem faz ao abrir "Minhas notas": **quanto eu faturei** e **o que ainda falta de
+   * mim**. O faturamento estava espalhado por 15 cartoes para somar de cabeca, e a nota com
+   * inconsistencia de junho ficava na terceira tela de rolagem, do mesmo tamanho das outras.
+   *
+   * Conta sobre a `notasAntesDaSituacao`: periodo e busca entram, situacao nao -- o resumo
+   * descreve o recorte que a pessoa escolheu, e nao pode mudar quando ela clica em "ver essas
+   * notas", que e um filtro de situacao.
+   *
+   * So nota **autorizada** entra no faturamento: rascunho nao foi emitido e nota com
+   * inconsistencia nao vale documento fiscal. Somar as tres daria um numero que nao existe em
+   * lugar nenhum.
+   */
+  readonly resumoDoPeriodo = computed(() => {
+    const base = this.notasAntesDaSituacao();
+    const autorizadas = base.filter((n) => n.status === 'AUTORIZADA');
+    const comInconsistencia = base.filter((n) => this.podeVerValidacoes(n)).length;
+    const rascunhos = base.filter((n) => n.status === 'RASCUNHO').length;
+    return {
+      faturado: autorizadas.reduce((soma, n) => soma + (n.valorTotalNota ?? 0), 0),
+      autorizadas: autorizadas.length,
+      comInconsistencia,
+      rascunhos,
+      esperando: comInconsistencia + rascunhos,
+    };
   });
 
   /**
@@ -555,6 +592,24 @@ export class DocumentosPage implements OnInit {
   readonly tudoCarregado = computed(() => this.notas().length >= this.totalElements());
 
   /** Algum filtro esta ativo? Decide se vale oferecer "limpar". */
+  /**
+   * Os filtros recolhidos no celular.
+   *
+   * Sao quatro controles, e num telefone eles viram quatro linhas empilhadas -- umas 300px de
+   * caixinha antes da primeira nota. Em tela larga nao ha problema: eles cabem lado a lado e
+   * continuam sempre visiveis (`sm:contents` no envoltorio).
+   */
+  readonly filtrosAbertos = signal(false);
+
+  /** Quantos filtros estao valendo agora -- vai no rotulo do botao, para o que esta escondido
+   * nao ficar invisivel. */
+  readonly quantosFiltros = computed(
+    () =>
+      (this.periodo() !== 'todos' ? 1 : 0) +
+      (this.tipo() !== 'todos' ? 1 : 0) +
+      (this.statusFilter() !== 'todos' ? 1 : 0),
+  );
+
   readonly temFiltroAtivo = computed(
     () =>
       this.periodo() !== 'todos' ||
