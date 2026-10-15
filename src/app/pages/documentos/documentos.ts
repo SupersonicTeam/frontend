@@ -4,6 +4,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   LucideFileText,
+  LucideListFilter,
   LucideSearch,
   LucideUpload,
   LucideDownload,
@@ -170,6 +171,7 @@ function cpfCnpjValido(v: string): boolean {
     UiSkeleton,
     FormsModule,
     LucideFileText,
+    LucideListFilter,
     LucideSearch,
     LucideUpload,
     LucideDownload,
@@ -353,7 +355,15 @@ export class DocumentosPage implements OnInit {
     return nome ? `${nome} de ${p.slice(0, 4)}` : p;
   });
 
-  readonly notasFiltradas = computed(() => {
+  /**
+   * A lista com tudo aplicado **menos a situacao**.
+   *
+   * Existe separada da `notasFiltradas` por causa da triagem do contador: ela conta quantas
+   * notas ha em cada situacao, e essa conta nao pode depender da situacao escolhida -- senao,
+   * no instante em que ele clicasse em "Autorizadas", todas as outras caixas zerariam e a
+   * triagem deixaria de servir para triar.
+   */
+  private readonly notasAntesDaSituacao = computed(() => {
     let lista = this.notas().slice();
     const busca = this.busca().toLowerCase();
     const now = new Date();
@@ -375,10 +385,6 @@ export class DocumentosPage implements OnInit {
     if (this.tipo() !== 'todos')
       lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
 
-    // Status
-    if (this.statusFilter() !== 'todos')
-      lista = lista.filter((n) => n.status === this.statusFilter());
-
     // Busca (natureza, número ou destinatário)
     if (busca)
       lista = lista.filter(
@@ -388,6 +394,23 @@ export class DocumentosPage implements OnInit {
           (n.destinatarioNome || '').toLowerCase().includes(busca),
       );
 
+    return lista;
+  });
+
+  readonly notasFiltradas = computed(() => {
+    let lista = this.notasAntesDaSituacao().slice();
+
+    // Situacao. `revisao` nao e um status do backend: e o trabalho do contador, que atravessa
+    // dois status (com inconsistencia e rejeitada) -- as duas notas que alguem precisa olhar.
+    const situacao = this.statusFilter();
+    if (situacao === 'revisao') lista = lista.filter((n) => this.podeVerValidacoes(n));
+    // `esperando` e o recorte do produtor: o que ainda depende dele. Atravessa tres status
+    // (inconsistencia, rejeitada, rascunho) porque o que une os tres e a pendencia, nao a
+    // etiqueta -- nenhum deles virou documento fiscal ainda.
+    else if (situacao === 'esperando')
+      lista = lista.filter((n) => this.podeVerValidacoes(n) || n.status === 'RASCUNHO');
+    else if (situacao !== 'todos') lista = lista.filter((n) => n.status === situacao);
+
     // Ordenação
     lista.sort((a, b) => {
       if (this.ordenacao() === 'valor') return (b.valorTotalNota ?? 0) - (a.valorTotalNota ?? 0);
@@ -395,6 +418,76 @@ export class DocumentosPage implements OnInit {
     });
 
     return lista;
+  });
+
+  /**
+   * O resumo do recorte que esta na tela, para o produtor.
+   *
+   * A tela abria com cinco controles e 15 cartoes iguais, e nunca respondia as duas perguntas
+   * que alguem faz ao abrir "Minhas notas": **quanto eu faturei** e **o que ainda falta de
+   * mim**. O faturamento estava espalhado por 15 cartoes para somar de cabeca, e a nota com
+   * inconsistencia de junho ficava na terceira tela de rolagem, do mesmo tamanho das outras.
+   *
+   * Conta sobre a `notasAntesDaSituacao`: periodo e busca entram, situacao nao -- o resumo
+   * descreve o recorte que a pessoa escolheu, e nao pode mudar quando ela clica em "ver essas
+   * notas", que e um filtro de situacao.
+   *
+   * So nota **autorizada** entra no faturamento: rascunho nao foi emitido e nota com
+   * inconsistencia nao vale documento fiscal. Somar as tres daria um numero que nao existe em
+   * lugar nenhum.
+   */
+  readonly resumoDoPeriodo = computed(() => {
+    const base = this.notasAntesDaSituacao();
+    const autorizadas = base.filter((n) => n.status === 'AUTORIZADA');
+    const comInconsistencia = base.filter((n) => this.podeVerValidacoes(n)).length;
+    const rascunhos = base.filter((n) => n.status === 'RASCUNHO').length;
+    return {
+      faturado: autorizadas.reduce((soma, n) => soma + (n.valorTotalNota ?? 0), 0),
+      autorizadas: autorizadas.length,
+      comInconsistencia,
+      rascunhos,
+      esperando: comInconsistencia + rascunhos,
+    };
+  });
+
+  /**
+   * A triagem do contador.
+   *
+   * Ele abria a MESMA lista do produtor, com outro titulo, e nao tinha como saber o que estava
+   * olhando -- foi a reclamacao dele em 13/10: "preciso saber o que exatamente estou enxergando
+   * ali". Cada caixa e uma pergunta do trabalho dele: o que exige revisao, o que ainda nem foi
+   * emitido, o que ja entrou na apuracao, o que saiu dela.
+   *
+   * Nao existe caixa de "enviada para a sua aprovacao": esse estado nao existe no backend
+   * (SupersonicTeam/backend#178). Inventar a caixa seria prometer um fluxo que ninguem
+   * implementou.
+   */
+  readonly triagemDoContador = computed(() => {
+    const base = this.notasAntesDaSituacao();
+    const quantas = (teste: (n: NotaFiscal) => boolean) => base.filter(teste).length;
+    return [
+      {
+        chave: 'revisao',
+        rotulo: 'Precisam de revisão',
+        quantidade: quantas((n) => this.podeVerValidacoes(n)),
+      },
+      {
+        chave: 'RASCUNHO',
+        rotulo: 'Rascunhos do produtor',
+        quantidade: quantas((n) => n.status === 'RASCUNHO'),
+      },
+      {
+        chave: 'AUTORIZADA',
+        rotulo: 'Autorizadas',
+        quantidade: quantas((n) => n.status === 'AUTORIZADA'),
+      },
+      {
+        chave: 'CANCELADA',
+        rotulo: 'Canceladas',
+        quantidade: quantas((n) => n.status === 'CANCELADA'),
+      },
+      { chave: 'todos', rotulo: 'Todas', quantidade: base.length },
+    ];
   });
 
   /**
@@ -449,12 +542,17 @@ export class DocumentosPage implements OnInit {
   private readonly mesesFechados = signal<ReadonlySet<string>>(new Set());
 
   /**
-   * Com filtro ligado, tudo fica aberto -- quem esta procurando nao pode ter o
+   * Com BUSCA ligada, tudo fica aberto -- quem digitou um nome nao pode ter o
    * resultado escondido atras de um mes fechado. O que ele fechou nao se perde:
-   * `mesesFechados` continua intacto e volta a valer quando o filtro sai.
+   * `mesesFechados` continua intacto e volta a valer quando a busca sai.
+   *
+   * Antes isto valia para `temFiltroAtivo()` inteiro, e era demais: filtrar por
+   * tipo ou situacao continua devolvendo uma lista longa, de varios meses, e
+   * justamente ali o produtor perdia o recolher sem entender por que. Filtro de
+   * periodo entao nem se discute -- ele ja reduziu a lista a um mes so.
    */
   mesAberto(chave: string): boolean {
-    if (this.temFiltroAtivo()) return true;
+    if (this.busca().trim().length > 0) return true;
     return !this.mesesFechados().has(chave);
   }
 
@@ -494,6 +592,24 @@ export class DocumentosPage implements OnInit {
   readonly tudoCarregado = computed(() => this.notas().length >= this.totalElements());
 
   /** Algum filtro esta ativo? Decide se vale oferecer "limpar". */
+  /**
+   * Os filtros recolhidos no celular.
+   *
+   * Sao quatro controles, e num telefone eles viram quatro linhas empilhadas -- umas 300px de
+   * caixinha antes da primeira nota. Em tela larga nao ha problema: eles cabem lado a lado e
+   * continuam sempre visiveis (`sm:contents` no envoltorio).
+   */
+  readonly filtrosAbertos = signal(false);
+
+  /** Quantos filtros estao valendo agora -- vai no rotulo do botao, para o que esta escondido
+   * nao ficar invisivel. */
+  readonly quantosFiltros = computed(
+    () =>
+      (this.periodo() !== 'todos' ? 1 : 0) +
+      (this.tipo() !== 'todos' ? 1 : 0) +
+      (this.statusFilter() !== 'todos' ? 1 : 0),
+  );
+
   readonly temFiltroAtivo = computed(
     () =>
       this.periodo() !== 'todos' ||

@@ -157,21 +157,52 @@ export class ImpostosProdutor implements OnInit {
   readonly historico = computed(() => {
     const anteriores = this.mesesAnteriores();
     const selecionado = this.periodo();
-    const meses: { periodo: string; valor: number | null; atual: boolean }[] = [];
+    const meses: {
+      periodo: string;
+      valor: number | null;
+      ibs: number;
+      cbs: number;
+      atual: boolean;
+    }[] = [];
 
     for (let atras = ImpostosProdutor.MESES_NO_HISTORICO - 1; atras >= 1; atras--) {
       const periodo = this.periodoDeslocado(-atras);
       const a = anteriores[periodo];
-      meses.push({ periodo, valor: a ? a.saldoIbs + a.saldoCbs : null, atual: false });
+      meses.push({
+        periodo,
+        valor: a ? a.saldoIbs + a.saldoCbs : null,
+        ibs: a?.saldoIbs ?? 0,
+        cbs: a?.saldoCbs ?? 0,
+        atual: false,
+      });
     }
 
     const atual = this.apuracao();
     meses.push({
       periodo: selecionado,
       valor: atual ? atual.saldoIbs + atual.saldoCbs : null,
+      ibs: atual?.saldoIbs ?? 0,
+      cbs: atual?.saldoCbs ?? 0,
       atual: true,
     });
     return meses;
+  });
+
+  /**
+   * Media dos meses que responderam.
+   *
+   * E a referencia que faltava: a barra mais comprida sempre parece cara, porque ela e o
+   * proprio teto da escala. Com a media desenhada atravessando a faixa, o produtor ve se o
+   * mes ficou acima ou abaixo do normal dele -- que e a pergunta de verdade.
+   *
+   * Menos de dois meses com resposta nao tem media que signifique nada.
+   */
+  readonly mediaDoHistorico = computed(() => {
+    const valores = this.historico()
+      .map((m) => m.valor)
+      .filter((v): v is number => v !== null);
+    if (valores.length < 2) return null;
+    return valores.reduce((total, v) => total + v, 0) / valores.length;
   });
 
   /** Maior valor absoluto da faixa — é ele que define o comprimento das barras. */
@@ -510,6 +541,51 @@ export class ImpostosProdutor implements OnInit {
     if (valor === null || valor === 0 || maior === 0) return 0;
     return Math.max(2, (Math.abs(valor) / maior) * 100);
   }
+
+  /**
+   * O que o leitor de tela ouve em cada mes da faixa.
+   *
+   * A barra e desenho (`aria-hidden`), entao a composicao IBS/CBS so existe para quem enxerga
+   * -- a nao ser que ela entre aqui. Mes sem resposta diz isso, em vez de "R$ 0,00", que seria
+   * afirmar que nao houve movimento.
+   */
+  descricaoDoMes(mes: { periodo: string; valor: number | null; ibs: number; cbs: number }): string {
+    const quando = this.formatPeriodo(mes.periodo);
+    if (mes.valor === null) return `${quando}: sem resposta do servidor`;
+    const total = this.formatCurrency(mes.valor);
+    if (mes.valor < 0) return `${quando}: ${total} de credito`;
+    return (
+      `${quando}: ${total}, sendo ${this.formatCurrency(mes.ibs)} de IBS ` +
+      `e ${this.formatCurrency(mes.cbs)} de CBS`
+    );
+  }
+
+  /**
+   * Comprimento de UM PEDACO (IBS ou CBS) da barra, em % do maior mes da faixa.
+   *
+   * Sem piso minimo, ao contrario do `larguraDaBarra`: aqui o pedaco minusculo pode sumir
+   * sem prejuizo, porque o outro pedaco e a propria barra. Dar 2% ao IBS de um mes que foi
+   * quase todo CBS mentiria sobre a proporcao, que e justamente o que o empilhamento conta.
+   */
+  larguraDoPedaco(valor: number): number {
+    const maior = this.maiorDoHistorico();
+    if (!valor || maior === 0) return 0;
+    return (Math.abs(valor) / maior) * 100;
+  }
+
+  /** Quanto um pedaco representa do total, em %. Total zerado nao divide nada. */
+  fatiaDoSaldo(parte: number, total: number): number {
+    if (!total) return 0;
+    return Math.min(100, Math.max(0, (parte / total) * 100));
+  }
+
+  /** Onde a linha da media cruza a faixa, em % do maior mes. */
+  readonly posicaoDaMedia = computed(() => {
+    const media = this.mediaDoHistorico();
+    const maior = this.maiorDoHistorico();
+    if (media === null || maior === 0) return null;
+    return Math.min(100, (Math.abs(media) / maior) * 100);
+  });
 
   /** Sempre com sinal explicito: "+18%" e "-7%" leem melhor que "18%" solto. */
   formatPercentual(valor: number): string {

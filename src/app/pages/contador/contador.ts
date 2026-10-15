@@ -5,7 +5,6 @@ import {
   LucideChevronDown,
   LucideChevronRight,
   LucideDownload,
-  LucideFileText,
   LucideHandCoins,
   LucideLoaderCircle,
   LucideTriangleAlert,
@@ -25,9 +24,9 @@ import { NotasApi } from '@services/notas/data-access/notas.service';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
-import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { UiStat } from '@shared/ui/ui-stat';
+import { mesDeFechamento } from '@core/utils/periodo';
 
 const MESES = [
   { v: 1, l: 'Janeiro' },
@@ -91,14 +90,12 @@ const MESES = [
     LucideChevronDown,
     LucideChevronRight,
     LucideDownload,
-    LucideFileText,
     LucideHandCoins,
     LucideLoaderCircle,
     LucideTriangleAlert,
     RouterLink,
     UiBadgeStatus,
     UiButton,
-    UiEmptyState,
     UiSkeleton,
     UiStat,
   ],
@@ -114,6 +111,7 @@ export class ContadorPage implements OnInit {
   readonly carregandoGuias = signal(false);
   readonly guias = signal<GuiaFiscal[]>([]);
   readonly notasComProblema = signal<NotaFiscal[]>([]);
+  readonly carregandoNotas = signal(false);
   readonly baixandoRelatorio = signal(false);
 
   /** Nome do produtor vem do payload real do dashboard, não de constante no código. */
@@ -129,8 +127,9 @@ export class ContadorPage implements OnInit {
 
   // ── Nova guia ──
   // ── Período: governa os impedimentos e os números, nunca as guias ──
-  readonly mes = signal(new Date().getMonth() + 1);
-  readonly ano = signal(new Date().getFullYear());
+  // Abre no mes que ACABOU, nao no corrente: ver `mesDeFechamento`.
+  readonly mes = signal(mesDeFechamento().mes);
+  readonly ano = signal(mesDeFechamento().ano);
   readonly periodo = computed(() => `${this.ano()}-${String(this.mes()).padStart(2, '0')}`);
   readonly meses = MESES;
   readonly anos = computed(() => {
@@ -172,6 +171,16 @@ export class ContadorPage implements OnInit {
   readonly podeFechar = computed(
     () => this.notasDoPeriodo().length === 0 && this.guiasVencidas().length === 0,
   );
+
+  /**
+   * Enquanto notas e guias nao chegaram, a tela NAO sabe se o mes fecha.
+   *
+   * Sem isto ela afirmava "Nada impede fechar setembro" no instante em que abria -- as duas
+   * listas comecam vazias, e vazio e exatamente o que `podeFechar()` entende como "tudo certo".
+   * Um segundo depois a guia vencida chegava e a tela se contradizia. Dizer "esta tudo bem" e
+   * voltar atras e pior do que nao dizer nada: o contador pode ter ja fechado a aba.
+   */
+  readonly apurandoImpedimentos = computed(() => this.carregandoNotas() || this.carregandoGuias());
 
   // ── O que o fisco apontou, ao expandir a nota ──
   readonly notaExpandida = signal<string | null>(null);
@@ -263,14 +272,20 @@ export class ContadorPage implements OnInit {
     this.carregarGuias();
     this.carregarNumeros();
     this.dashboardApi.carregar().subscribe({ error: () => undefined });
+    this.carregandoNotas.set(true);
     this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
-      next: (pagina) =>
+      next: (pagina) => {
         this.notasComProblema.set(
           pagina.content.filter(
             (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
           ),
-        ),
-      error: () => this.notasComProblema.set([]),
+        );
+        this.carregandoNotas.set(false);
+      },
+      error: () => {
+        this.notasComProblema.set([]);
+        this.carregandoNotas.set(false);
+      },
     });
   }
 

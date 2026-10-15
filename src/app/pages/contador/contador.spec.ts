@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ContadorPage } from './contador';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
+import { mesDeFechamento } from '@core/utils/periodo';
 
 /**
  * Cobertura da tela do contador **depois** da #50.
@@ -38,12 +39,16 @@ describe('ContadorPage (#50)', () => {
   afterEach(() => httpMock.verify());
 
   /** `AAAA-MM` do mês corrente, que é o período com que a tela abre. */
-  function periodoAtual() {
-    const h = new Date();
-    return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}`;
+  /**
+   * O periodo em que a tela ABRE -- que nao e o mes corrente: o contador fecha o mes que
+   * acabou. Ver `mesDeFechamento`.
+   */
+  function periodoAberto() {
+    const { mes, ano } = mesDeFechamento();
+    return `${ano}-${String(mes).padStart(2, '0')}`;
   }
 
-  const apuracaoVazia = (periodo = periodoAtual()) => ({
+  const apuracaoVazia = (periodo = periodoAberto()) => ({
     periodo,
     status: 'ABERTO',
     debitoIbs: 0,
@@ -57,7 +62,7 @@ describe('ContadorPage (#50)', () => {
   });
 
   const relatorio = (over: Record<string, unknown> = {}) => ({
-    periodo: periodoAtual(),
+    periodo: periodoAberto(),
     debitoIbs: 10,
     debitoCbs: 90,
     debitoTotal: 100,
@@ -95,8 +100,37 @@ describe('ContadorPage (#50)', () => {
 
   /** `AAAA-MM-DD` dentro do período que está na tela. */
   function diaDoPeriodo(dia = '10') {
-    return `${periodoAtual()}-${dia}`;
+    return `${periodoAberto()}-${dia}`;
   }
+
+  // A tela comecava afirmando "Nada impede fechar": as listas nascem vazias, e vazio e
+  // exatamente o que `podeFechar()` entende como "tudo certo". A guia vencida chegava um
+  // segundo depois e a tela se contradizia -- e o contador podia ja ter fechado a aba.
+  it('não diz que está tudo certo antes de saber — enquanto carrega, não opina', () => {
+    const fixture = TestBed.createComponent(ContadorPage);
+    fixture.detectChanges();
+
+    const antes = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(fixture.componentInstance.apurandoImpedimentos()).toBe(true);
+    expect(antes).not.toContain('Nada impede fechar');
+    expect(antes).toContain('Conferindo o que impede fechar');
+
+    flushInit([
+      {
+        id: 'g1',
+        tipoGuia: 'GPS',
+        dataVencimento: '2026-09-10',
+        valor: 890,
+        status: 'vencido',
+      } as unknown as GuiaFiscal,
+    ]);
+    fixture.detectChanges();
+
+    const depois = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(fixture.componentInstance.apurandoImpedimentos()).toBe(false);
+    expect(depois).toContain('O que impede fechar');
+    expect(depois).not.toContain('Nada impede fechar');
+  });
 
   it('abre perguntando se dá para fechar o mês, e diz que sim quando nada impede', () => {
     const fixture = TestBed.createComponent(ContadorPage);

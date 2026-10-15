@@ -56,20 +56,28 @@ const FOCAVEIS =
   standalone: true,
   template: `
     @if (aberto()) {
-      <div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4">
+      <!-- O animate.leave segura o overlay no DOM ate a saida terminar: sem ele o
+           diálogo pisca para fora e a tela de baixo aparece no corte (#90). -->
+      <div
+        class="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-4"
+        animate.leave="animate-sai"
+      >
         <!-- Fundo: clicar fecha, salvo quando travado. aria-hidden porque o botão
              de fechar do cabeçalho já é a saída anunciada ao leitor de tela. -->
         <div
-          class="absolute inset-0 bg-foreground/40 backdrop-blur-[2px]"
+          class="animate-entra absolute inset-0 bg-foreground/40 backdrop-blur-[2px]"
           aria-hidden="true"
           (click)="solicitarFechar()"
         ></div>
 
+        <!-- No celular o diálogo e uma folha que sobe do rodape; no desktop ele cresce
+             do centro. Duas animacoes porque sao dois objetos diferentes. -->
         <div
           #caixa
           role="dialog"
           aria-modal="true"
           tabindex="-1"
+          class="animate-entra-subindo sm:animate-entra-escala"
           [attr.aria-labelledby]="idTitulo"
           [class]="classesCaixa()"
         >

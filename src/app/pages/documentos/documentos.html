@@ -1,6 +1,6 @@
 <!-- pb generoso: os dois botoes flutuantes empilhados (Nova nota + assistente)
      chegam a ~190px do fundo e cobriam o valor do ultimo card. -->
-<div class="page-container flex flex-col gap-5 pb-52">
+<div class="page-container animate-entra-subindo flex flex-col gap-5 pb-52">
   <!-- Header -->
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
@@ -20,55 +20,186 @@
     </button>
   </div>
 
+  <!-- ── O RESUMO DO PRODUTOR ── -->
+  @if (!perfilService.ehContador() && notas().length) {
+    <!--
+      Duas perguntas que a tela nunca respondia: quanto saiu, e o que ainda falta de mim. O
+      faturamento estava espalhado por 15 cartões para somar de cabeça, e a nota com
+      inconsistência ficava na terceira tela de rolagem, do mesmo tamanho das outras.
+
+      As duas pendências não são repetidas aqui como lista: a faixa só diz quantas são e leva
+      até elas. Repetir cartão é o que fazia a tela de Prazos ter 1.400px de rolagem.
+    -->
+    <section class="grid gap-4 rounded-card border border-border bg-surface p-5 sm:grid-cols-2">
+      <div>
+        <p class="font-heading text-2xl font-bold tabular-nums text-foreground">
+          {{ formatCurrency(resumoDoPeriodo().faturado) }}
+        </p>
+        <p class="text-apoio text-muted-foreground">
+          em {{ resumoDoPeriodo().autorizadas }}
+          {{ resumoDoPeriodo().autorizadas === 1 ? 'nota autorizada' : 'notas autorizadas' }},
+          {{ rotuloDoPeriodo().toLowerCase() }}
+        </p>
+      </div>
+
+      @if (resumoDoPeriodo().esperando) {
+        <div class="sm:border-l sm:border-border sm:pl-4">
+          <p class="font-heading text-lg font-semibold text-aviso-ink">
+            {{ resumoDoPeriodo().esperando }}
+            {{
+              resumoDoPeriodo().esperando === 1 ? 'nota espera por você' : 'notas esperam por você'
+            }}
+          </p>
+          <p class="text-apoio text-muted-foreground">
+            @if (resumoDoPeriodo().comInconsistencia) {
+              {{ resumoDoPeriodo().comInconsistencia }} com inconsistência
+            }
+            @if (resumoDoPeriodo().comInconsistencia && resumoDoPeriodo().rascunhos) {
+              e
+            }
+            @if (resumoDoPeriodo().rascunhos) {
+              {{ resumoDoPeriodo().rascunhos }} em rascunho
+            }
+            — nenhuma delas virou documento fiscal ainda.
+          </p>
+          <button
+            type="button"
+            class="tap-target mt-1.5 inline-flex items-center rounded-controle border border-aviso/40 px-3 text-apoio font-medium text-aviso-ink transition-colors hover:bg-aviso-soft"
+            (click)="statusFilter.set('esperando')"
+          >
+            Ver essas notas
+          </button>
+        </div>
+      } @else {
+        <div class="sm:border-l sm:border-border sm:pl-4">
+          <p class="font-heading text-lg font-semibold text-sucesso-ink">Nada parado</p>
+          <p class="text-apoio text-muted-foreground">
+            Tudo que você emitiu no período está autorizado.
+          </p>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ── A TRIAGEM DO CONTADOR ── -->
+  @if (perfilService.ehContador()) {
+    <!--
+      O contador abria a MESMA lista do produtor, com outro título, e não tinha como saber o que
+      estava vendo nem por onde começar. Cada caixa aqui é uma pergunta do trabalho dele, e a
+      contagem não muda quando ele escolhe uma: ela conta sobre o período e a busca, não sobre a
+      situação escolhida.
+    -->
+    <div class="flex flex-col gap-2">
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Triagem das notas">
+        @for (caixa of triagemDoContador(); track caixa.chave) {
+          <button
+            type="button"
+            class="tap-target flex items-center gap-2 rounded-controle border px-3 text-apoio font-medium transition-colors"
+            [class]="
+              statusFilter() === caixa.chave
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+            "
+            [attr.aria-pressed]="statusFilter() === caixa.chave"
+            (click)="statusFilter.set(caixa.chave)"
+          >
+            {{ caixa.rotulo }}
+            <span
+              class="rounded-full px-1.5 tabular-nums"
+              [class]="statusFilter() === caixa.chave ? 'bg-primary-foreground/20' : 'bg-surface-2'"
+            >
+              {{ caixa.quantidade }}
+            </span>
+          </button>
+        }
+      </div>
+
+      <!-- Dizer o que NÃO existe evita que ele procure. A aprovação do rascunho antes da emissão
+           está pedida em SupersonicTeam/backend#178 e ainda não existe no servidor. -->
+      <p class="text-apoio text-muted-foreground">
+        Tudo que o produtor emitiu. Ainda não existe "enviar para a sua aprovação" antes da emissão
+        — quando existir, vira uma caixa aqui.
+      </p>
+    </div>
+  }
+
   <!-- ── FILTROS ── -->
   <div class="flex flex-wrap gap-2">
-    <!-- Periodo: as opcoes saem das notas que existem, agrupadas por ano. Ver `periodosPorAno`. -->
-    <select
-      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
-      aria-label="Período"
-      [value]="periodo()"
-      (change)="periodo.set($any($event.target).value)"
+    <!-- No celular os quatro seletores viram quatro linhas empilhadas, e a primeira nota so
+         aparecia depois de umas 300px de caixinha. Aqui eles ficam atras de um botao, que diz
+         quantos estao valendo para o que esta escondido nao ficar invisivel. Em tela larga o
+         botao some e o envoltorio vira `contents`: a fileira volta a ser a de sempre. -->
+    <button
+      type="button"
+      class="tap-target inline-flex items-center gap-2 rounded-controle border border-border bg-card px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted sm:hidden"
+      [attr.aria-expanded]="filtrosAbertos()"
+      (click)="filtrosAbertos.set(!filtrosAbertos())"
     >
-      <option value="todos">Todo o período</option>
-      @if (temNotasRecentes()) {
-        <option value="ultimos30">Últimos 30 dias</option>
+      <svg lucideListFilter [size]="15" aria-hidden="true" />
+      Filtros
+      @if (quantosFiltros()) {
+        <span class="rounded-full bg-primary px-1.5 text-primary-foreground">
+          {{ quantosFiltros() }}
+        </span>
       }
-      @for (grupo of periodosPorAno(); track grupo.ano) {
-        <optgroup [label]="grupo.ano">
-          <option [value]="grupo.ano">O ano de {{ grupo.ano }} ({{ grupo.total }})</option>
-          @for (mes of grupo.meses; track mes.value) {
-            <option [value]="mes.value">{{ mes.label }}</option>
-          }
-        </optgroup>
-      }
-    </select>
+    </button>
 
-    <!-- O filtro de status existia no componente sem nenhum controle na tela: dava para
+    <div class="flex w-full flex-wrap gap-2 sm:contents" [class.max-sm:hidden]="!filtrosAbertos()">
+      <!-- Periodo: as opcoes saem das notas que existem, agrupadas por ano. Ver `periodosPorAno`. -->
+      <select
+        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        aria-label="Período"
+        [value]="periodo()"
+        (change)="periodo.set($any($event.target).value)"
+      >
+        <option value="todos">Todo o período</option>
+        @if (temNotasRecentes()) {
+          <option value="ultimos30">Últimos 30 dias</option>
+        }
+        @for (grupo of periodosPorAno(); track grupo.ano) {
+          <optgroup [label]="grupo.ano">
+            <option [value]="grupo.ano">O ano de {{ grupo.ano }} ({{ grupo.total }})</option>
+            @for (mes of grupo.meses; track mes.value) {
+              <option [value]="mes.value">{{ mes.label }}</option>
+            }
+          </optgroup>
+        }
+      </select>
+
+      <!-- O filtro de status existia no componente sem nenhum controle na tela: dava para
          filtrar por rascunho/autorizada pelo codigo, mas nao pela interface. -->
-    <select
-      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
-      aria-label="Situação da nota"
-      [value]="statusFilter()"
-      (change)="statusFilter.set($any($event.target).value)"
-    >
-      <option value="todos">Qualquer situação</option>
-      <option value="RASCUNHO">Rascunho</option>
-      <option value="COM_INCONSISTENCIAS">Com inconsistências</option>
-      <option value="AUTORIZADA">Autorizada</option>
-      <option value="REJEITADA">Rejeitada</option>
-      <option value="CANCELADA">Cancelada</option>
-    </select>
+      <select
+        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        aria-label="Situação da nota"
+        [value]="statusFilter()"
+        (change)="statusFilter.set($any($event.target).value)"
+      >
+        <option value="todos">Qualquer situação</option>
+        <!-- O recorte de trabalho tambem mora aqui, senao o seletor fica EM BRANCO quando a faixa
+           de cima o aplica: o filtro esta valendo e o controle nao mostra qual. -->
+        @if (perfilService.ehContador()) {
+          <option value="revisao">Precisam de revisão</option>
+        } @else {
+          <option value="esperando">Esperando você</option>
+        }
+        <option value="RASCUNHO">Rascunho</option>
+        <option value="COM_INCONSISTENCIAS">Com inconsistências</option>
+        <option value="AUTORIZADA">Autorizada</option>
+        <option value="REJEITADA">Rejeitada</option>
+        <option value="CANCELADA">Cancelada</option>
+      </select>
 
-    <select
-      class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
-      aria-label="Tipo de documento"
-      [value]="tipo()"
-      (change)="tipo.set($any($event.target).value)"
-    >
-      <option value="todos">Todos os tipos</option>
-      <option value="NFE">NF-e (modelo 55)</option>
-      <option value="NFA">NFA (avulsa)</option>
-    </select>
+      <select
+        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        aria-label="Tipo de documento"
+        [value]="tipo()"
+        (change)="tipo.set($any($event.target).value)"
+      >
+        <option value="todos">Todos os tipos</option>
+        <option value="NFE">NF-e (modelo 55)</option>
+        <option value="NFA">NFA (avulsa)</option>
+      </select>
+    </div>
 
     <div class="flex-1 min-w-[180px] relative">
       <svg
@@ -151,9 +282,9 @@
             Limpar filtros
           </button>
         }
-        <!-- So faz sentido com mais de um mes na tela; com filtro ligado tudo
-             fica aberto e o botao sairia do ar sozinho. -->
-        @if (notasPorMes().length > 1 && !temFiltroAtivo()) {
+        <!-- So faz sentido com mais de um mes na tela; durante a busca tudo fica
+             aberto e o botao sairia do ar sozinho. -->
+        @if (notasPorMes().length > 1 && !busca().trim()) {
           <button
             class="tap-target ml-auto inline-flex items-center gap-1.5 rounded-controle px-3 text-apoio font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             (click)="alternarTodosOsMeses()"
@@ -194,20 +325,28 @@
               <!-- O cabecalho e o proprio controle de abrir/fechar. A soma do mes
                    fica nele para o grupo continuar dizendo algo quando fechado. -->
               <h3 class="border-b border-border">
+                <!-- O recolher POR MES ja existia, e o grupo reclamou que ele nao
+                     existia: a linha era texto puro, sem nada dizendo "me clique".
+                     Agora o chevron mora num alvo redondo que acende no hover, e a
+                     linha inteira ganha fundo -- o controle passa a se anunciar. -->
                 <button
                   type="button"
-                  class="tap-target flex w-full items-center gap-2 pb-1.5 text-left transition-colors hover:text-primary"
+                  class="tap-target group/mes -mx-1 flex w-full items-center gap-2 rounded-controle px-1 pb-1.5 text-left transition-colors hover:bg-surface-2"
                   [attr.aria-expanded]="mesAberto(grupo.chave)"
                   [attr.aria-controls]="'notas-' + grupo.chave"
                   (click)="alternarMes(grupo.chave)"
                 >
-                  <svg
-                    lucideChevronDown
-                    [size]="16"
-                    class="shrink-0 text-muted-foreground transition-transform"
-                    [class.-rotate-90]="!mesAberto(grupo.chave)"
-                    aria-hidden="true"
-                  />
+                  <span
+                    class="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-2 text-muted-foreground transition-colors group-hover/mes:bg-primary/10 group-hover/mes:text-primary"
+                  >
+                    <svg
+                      lucideChevronDown
+                      [size]="15"
+                      class="giro"
+                      [class.-rotate-90]="!mesAberto(grupo.chave)"
+                      aria-hidden="true"
+                    />
+                  </span>
                   <span class="font-heading text-apoio font-semibold text-foreground">
                     {{ grupo.rotulo }}
                   </span>
@@ -228,8 +367,14 @@
             <!-- O conteudo some do DOM quando o mes esta fechado. `[hidden]` nao
                  serviria: a utility `.grid` tem a mesma especificidade e vem
                  depois na folha, entao o `display: none` perderia. -->
-            <div [id]="'notas-' + grupo.chave" class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3">
-              @if (mesAberto(grupo.chave)) {
+            @if (mesAberto(grupo.chave)) {
+              <!-- `animate.leave` segura o bloco no DOM ate a saida terminar; sem ele o
+                   mes fechado some no corte e ninguem ve que foi dobrado. -->
+              <div
+                [id]="'notas-' + grupo.chave"
+                class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-3"
+                animate.leave="animate-sai"
+              >
                 @for (nota of grupo.notas; track nota.id) {
                   <!-- Hierarquia invertida antes: a natureza da operacao vinha grande e
                    se repetia em 7 dos 12 cards ("Venda de producao do
@@ -241,7 +386,8 @@
                    quase iguais o selo sozinho nao bastava para ela saltar -- e ela e
                    justamente a que exige acao. -->
                   <div
-                    class="rounded-card border bg-card p-4 transition-shadow hover:ring-2 hover:ring-primary/20"
+                    class="animate-entra-subindo escalonado rounded-card border bg-card p-4 transition-[box-shadow,transform] duration-150 hover:-translate-y-px hover:ring-2 hover:ring-primary/20 active:translate-y-0"
+                    [style.--passo]="$index"
                     [class]="
                       podeVerValidacoes(nota) ? 'border-aviso/50 bg-aviso-soft/30' : 'border-border'
                     "
@@ -312,8 +458,8 @@
                     </div>
                   </div>
                 }
-              }
-            </div>
+              </div>
+            }
           </section>
         }
       }

@@ -1,4 +1,4 @@
-<div class="page-container flex flex-col gap-5">
+<div class="page-container animate-entra-subindo flex flex-col gap-5">
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
       <h1
@@ -58,10 +58,21 @@
   -->
   <section
     class="rounded-card border p-5"
-    [class]="podeFechar() ? 'border-sucesso/30 bg-sucesso-soft' : 'border-aviso/40 bg-aviso-soft'"
+    [class]="
+      apurandoImpedimentos()
+        ? 'border-border bg-card'
+        : podeFechar()
+          ? 'border-sucesso/30 bg-sucesso-soft'
+          : 'border-aviso/40 bg-aviso-soft'
+    "
   >
     <h2 class="flex items-center gap-2 font-heading text-lg font-semibold">
-      @if (podeFechar()) {
+      @if (apurandoImpedimentos()) {
+        <!-- Enquanto nao sabe, a tela nao opina. Ver `apurandoImpedimentos`. -->
+        <span class="text-muted-foreground">
+          Conferindo o que impede fechar {{ formatPeriodo(periodo()) }}…
+        </span>
+      } @else if (podeFechar()) {
         <svg lucideCheck [size]="18" class="text-sucesso-ink" aria-hidden="true" />
         <span class="text-sucesso-ink">Nada impede fechar {{ formatPeriodo(periodo()) }}</span>
       } @else {
@@ -70,7 +81,9 @@
       }
     </h2>
 
-    @if (podeFechar()) {
+    @if (apurandoImpedimentos()) {
+      <ui-skeleton class="mt-2 block" [linhas]="2" />
+    } @else if (podeFechar()) {
       <p class="mt-1 text-apoio text-sucesso-ink">
         Sem nota pendente de correção no período e sem guia vencida.
       </p>
@@ -87,7 +100,10 @@
       </h3>
       <ul class="mt-1 flex flex-col">
         @for (nota of notasDoPeriodo(); track nota.id) {
-          <li class="border-b border-aviso/20 last:border-0">
+          <li
+            class="animate-entra-subindo escalonado border-b border-aviso/20 last:border-0"
+            [style.--passo]="$index"
+          >
             <button
               type="button"
               class="tap-target flex w-full items-center gap-2 py-2 text-left"
@@ -168,7 +184,10 @@
       </h3>
       <ul class="mt-1 flex flex-col gap-1">
         @for (guia of guiasVencidas(); track guia.id) {
-          <li class="flex flex-wrap items-center justify-between gap-2 text-apoio">
+          <li
+            class="animate-entra-subindo escalonado flex flex-wrap items-center justify-between gap-2 text-apoio"
+            [style.--passo]="$index"
+          >
             <span class="text-foreground">
               <span class="font-medium">{{ guia.tipoGuia }}</span>
               · venceu {{ formatDate(guia.dataVencimento) }}

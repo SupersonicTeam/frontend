@@ -1,5 +1,5 @@
 /* As fontes sao carregadas no index.html com preconnect (#36) - o @import aqui bloqueia a renderizacao. */
-@import "tailwindcss";
+@import 'tailwindcss';
 
 /* O `dark:` do Tailwind v4 segue `prefers-color-scheme` por padrao - ou seja, o
    SISTEMA OPERACIONAL. Mas quem manda no tema aqui e o ThemeService, que alterna
@@ -102,14 +102,124 @@
   --shadow-suave: 0 1px 2px var(--sombra-fraca);
   --shadow-media: 0 2px 4px var(--sombra-fraca), 0 8px 24px -12px var(--sombra-forte);
   --shadow-alta: 0 4px 8px var(--sombra-media-cor), 0 24px 48px -20px var(--sombra-densa);
-  --shadow-assistente: 0 2px 4px var(--sombra-fraca), 0 10px 28px -14px var(--sombra-assistente-cor);
+  --shadow-assistente:
+    0 2px 4px var(--sombra-fraca), 0 10px 28px -14px var(--sombra-assistente-cor);
+
+
+  /* --- Cores de série de gráfico (#90) -------------------------------------------
+     IBS e CBS são **identidade**, não estado: são as duas metades do mesmo imposto.
+     A faixa dos seis meses pintava tudo de `perigo`, e seis barras vermelhas leem como
+     seis alarmes -- imposto devido não é erro. Vermelho, âmbar e verde ficam reservados
+     para situação (vencido, a vencer, pago), como manda o resto do sistema.
+
+     Os valores não são escolhidos no olho: passaram no validador de paleta nos dois
+     temas (banda de luminosidade, piso de croma, separação sob protanopia/deuteranopia
+     e contraste contra a superfície do card). O par azul/laranja é o mais seguro para
+     daltonismo, e por isso o laranja aqui é mais escuro que o `--color-accent`: o
+     accent dá 2,91:1 contra o branco e reprovaria. */
+  --color-serie-ibs: hsl(210 66% 45%);
+  --color-serie-cbs: hsl(33 62% 44%);
 
   --radius-controle: 0.75rem;
   --radius-card: 1rem;
   --radius-destaque: 1.25rem;
+
+  /* --- Movimento (#90) -----------------------------------------------------------
+     O grupo leu a interface como "seca": nada reage ao toque, nada chega, todo estado
+     troca no corte. Movimento aqui nao e enfeite -- e o que diz ao produtor que o
+     sistema recebeu o toque dele, e que o numero na tela acabou de mudar.
+
+     Tres duracoes, e so. Acima de ~300ms a pessoa espera a animacao em vez de ler o
+     conteudo; abaixo de ~100ms nem percebe que houve transicao.
+       toque   -- resposta a hover/press, quase imperceptivel
+       entrada -- conteudo chegando na tela
+       saida   -- sempre mais rapida que a entrada: o que vai embora nao merece espera
+
+     As curvas seguem a mesma logica: a entrada desacelera forte no fim (o elemento
+     "assenta"); a saida acelera e some. O bloco `prefers-reduced-motion` mais abaixo
+     zera tudo isso de uma vez, entao nenhuma animacao nova precisa se preocupar. */
+  --duracao-toque: 120ms;
+  --duracao-entrada: 240ms;
+  --duracao-saida: 160ms;
+  --ease-entrada: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-saida: cubic-bezier(0.4, 0, 1, 1);
+  --ease-padrao: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* As utilities `animate-*` saem destes tokens, e os @keyframes precisam morar
+     DENTRO do @theme para o Tailwind v4 enxerga-los. `both` preserva o estado final
+     -- e tambem o que faz a animacao terminar correta quando o movimento reduzido a
+     corta para 0.01ms. */
+  --animate-entra: entra var(--duracao-entrada) var(--ease-entrada) both;
+  --animate-entra-subindo: entra-subindo var(--duracao-entrada) var(--ease-entrada) both;
+  --animate-entra-escala: entra-escala var(--duracao-entrada) var(--ease-entrada) both;
+  --animate-entra-lateral: entra-lateral var(--duracao-entrada) var(--ease-entrada) both;
+  --animate-sai: sai var(--duracao-saida) var(--ease-saida) both;
+  --animate-destaque: destaque 1s var(--ease-padrao) both;
+
+  @keyframes entra {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes entra-subindo {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes entra-escala {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes entra-lateral {
+    from {
+      opacity: 0;
+      transform: translateX(1.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes sai {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  /* Marca o valor que ACABOU de mudar (troca de periodo, guia paga). O fundo acende e
+     apaga; nada se move, porque o olho ja esta lendo o numero. */
+  @keyframes destaque {
+    0% {
+      background-color: transparent;
+    }
+    15% {
+      background-color: var(--color-muted);
+    }
+    100% {
+      background-color: transparent;
+    }
+  }
 }
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   font-family: var(--font-family-body);
   box-sizing: border-box;
 }
@@ -121,7 +231,7 @@
   --sombra-forte: hsl(150 20% 12% / 0.18);
   --sombra-media-cor: hsl(150 20% 12% / 0.07);
   --sombra-densa: hsl(150 20% 12% / 0.35);
-  --sombra-assistente-cor: hsl(262 52% 40% / 0.30);
+  --sombra-assistente-cor: hsl(262 52% 40% / 0.3);
 }
 
 body {
@@ -133,7 +243,10 @@ body {
   font-family: var(--font-family-heading) !important;
 }
 
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   font-family: var(--font-family-heading);
 }
 
@@ -237,6 +350,11 @@ html {
   --color-info: hsl(210 66% 64%);
   --color-info-soft: hsl(210 34% 17%);
   --color-info-ink: hsl(210 72% 80%);
+
+  /* Mesma validação, outra superfície: contra o card escuro os passos claros saem da
+     banda de luminosidade. Ver o comentário no @theme. */
+  --color-serie-ibs: hsl(210 60% 58%);
+  --color-serie-cbs: hsl(33 58% 48%);
   --color-perigo: hsl(0 68% 66%);
   --color-perigo-soft: hsl(0 30% 17%);
   --color-perigo-ink: hsl(0 72% 80%);
@@ -259,10 +377,10 @@ html {
   --color-bottomnav-foreground: hsl(140 8% 62%);
   --color-bottomnav-active: hsl(142 50% 58%);
 
-  --sombra-fraca: hsl(0 0% 0% / 0.40);
-  --sombra-forte: hsl(0 0% 0% / 0.70);
-  --sombra-media-cor: hsl(0 0% 0% / 0.50);
-  --sombra-densa: hsl(0 0% 0% / 0.90);
+  --sombra-fraca: hsl(0 0% 0% / 0.4);
+  --sombra-forte: hsl(0 0% 0% / 0.7);
+  --sombra-media-cor: hsl(0 0% 0% / 0.5);
+  --sombra-densa: hsl(0 0% 0% / 0.9);
   --sombra-assistente-cor: hsl(262 60% 50% / 0.45);
 }
 
@@ -324,6 +442,65 @@ html {
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms ease;
+}
+
+/* --- Utilities de movimento (#90) ---------------------------------------------
+   Quem usa: ver o comentario dos tokens la em cima. Aqui so as formas de aplicar. */
+
+/* Entrada escalonada. Uma lista inteira surgindo de uma vez pisca; surgindo item a
+   item, o olho acompanha a ordem. O passo vem do indice do @for
+   (`[style.--passo]="$index"`), e o teto de 8 existe para a 40a nota da lista nao
+   esperar dois segundos para existir. */
+@utility escalonado {
+  animation-delay: calc(min(var(--passo, 0), 8) * 45ms);
+}
+
+/* Superficie que responde ao toque. Usar SOMENTE em card ou linha clicavel: num
+   bloco estatico o movimento promete uma acao que nao existe. */
+@utility interativo {
+  transition:
+    box-shadow var(--duracao-toque) var(--ease-padrao),
+    transform var(--duracao-toque) var(--ease-padrao),
+    border-color var(--duracao-toque) var(--ease-padrao),
+    background-color var(--duracao-toque) var(--ease-padrao);
+
+  &:hover {
+    box-shadow: var(--shadow-media);
+    transform: translateY(-1px);
+  }
+
+  /* O afundar no clique e o que da sensacao de botao fisico no celular, onde nao
+     existe hover nenhum -- e no celular que o produtor usa isto. */
+  &:active {
+    transform: translateY(0) scale(0.995);
+  }
+}
+
+/* Abre e fecha ate a altura do conteudo. O truque do grid `0fr -> 1fr` e a unica
+   forma em CSS puro de animar "ate o tamanho que o conteudo tiver" -- `height: auto`
+   nao e animavel, e altura fixa quebra quando o texto muda. O filho direto precisa
+   do `overflow: hidden`, por isso ele vem junto na utility. */
+@utility sanfona {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duracao-entrada) var(--ease-entrada);
+
+  & > * {
+    overflow: hidden;
+    min-height: 0;
+  }
+}
+@utility sanfona-aberta {
+  grid-template-rows: 1fr;
+}
+
+/* O chevron que gira ao abrir a sanfona. Fica aqui, e nao solto nos templates, para
+   as duas pontas usarem a mesma duracao. */
+@utility giro {
+  transition: transform var(--duracao-entrada) var(--ease-entrada);
+}
+@utility giro-aberto {
+  transform: rotate(180deg);
 }
 
 /* --- Foco visivel global (#36) ------------------------------------------------

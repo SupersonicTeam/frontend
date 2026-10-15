@@ -389,7 +389,12 @@ describe('PrazosProdutor', () => {
     // Dentro de três dias o rótulo já muda de tom.
     expect(cmp.classeRotulo(emDias(2), 'pendente')).toContain('aviso');
     expect(cmp.classeRotulo(emDias(-1), 'pendente')).toContain('perigo');
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('O próximo prazo');
+    // O card "O proximo prazo" saiu: ele repetia, num bloco proprio, o primeiro item da lista.
+    // Agora o proximo e simplesmente o primeiro prazo abaixo do eixo de hoje.
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('Hoje é');
+    expect(texto).toContain('em 2 dias');
+    expect(texto).not.toContain('O próximo prazo');
   });
 
   it('o dia com prazo vira célula colorida pela situação, não um ponto de 6px', () => {
@@ -422,6 +427,48 @@ describe('PrazosProdutor', () => {
     expect(cmp.diaClass(14)).not.toContain('aviso');
     expect(cmp.diaClass(14)).not.toContain('sucesso');
     expect(cmp.diaClass(14)).not.toContain('perigo');
+  });
+
+  // O grupo lembrava da versao antiga "mostrando em que data mandar cada coisa". A celula so
+  // pintava: o nome do que vencia morava num painel lateral, atras de um clique.
+  it('a célula diz o que vence, não só que algo vence', () => {
+    const fixture = TestBed.createComponent(PrazosProdutor);
+    const cmp = fixture.componentInstance;
+    fixture.detectChanges();
+
+    const hoje = new Date();
+    const mes = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+    httpMock
+      .expectOne((r) => r.url.includes('/calendario-fiscal'))
+      .flush([
+        {
+          id: 'g1',
+          evento: 'Guia ICMS',
+          descricao: null,
+          dataVencimento: `${mes}-20`,
+          tipo: 'imposto',
+          status: 'pendente',
+          valor: 2310,
+        },
+        {
+          id: 'g2',
+          evento: 'Guia DARF',
+          descricao: null,
+          dataVencimento: `${mes}-20`,
+          tipo: 'imposto',
+          status: 'pendente',
+          valor: 640,
+        },
+      ]);
+    flushContadorVazio();
+    fixture.detectChanges();
+
+    // "Guia ICMS" vira "ICMS": na celula cabe a sigla, e e ela que distingue uma guia da outra.
+    expect(cmp.diasComPrazo()[20].rotulo).toBe('ICMS');
+    expect(cmp.diasComPrazo()[20].quantidade).toBe(2);
+
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('ICMS');
   });
 
   it('o atraso manda na cor do dia, mesmo com uma guia paga no mesmo dia', () => {

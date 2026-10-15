@@ -807,7 +807,7 @@ describe('DocumentosPage', () => {
       expect(texto).toContain('R$ 2.000,00');
     });
 
-    it('com filtro ativo tudo reabre — resultado nao pode ficar escondido', () => {
+    it('com busca ativa tudo reabre — resultado nao pode ficar escondido', () => {
       const fixture = comNotas(doisMeses());
       const cmp = fixture.componentInstance;
 
@@ -822,6 +822,36 @@ describe('DocumentosPage', () => {
       cmp.limparFiltros();
       fixture.detectChanges();
       expect(cmp.mesAberto('2026-09')).toBe(false);
+    });
+
+    // O grupo reclamou que "nao da opcao de ir ocultando por mes". Ele dava -- ate
+    // alguem mexer em qualquer filtro: `temFiltroAtivo()` forcava tudo aberto, e
+    // filtrar por tipo ou situacao continua devolvendo lista longa de varios meses.
+    // Agora so a busca reabre.
+    it('filtro de tipo nao tira o recolher — a lista continua com varios meses', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.tipo.set('NFE');
+      fixture.detectChanges();
+      expect(cmp.temFiltroAtivo()).toBe(true);
+
+      cmp.alternarMes('2026-09');
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+      expect(cmp.mesAberto('2026-08')).toBe(true);
+    });
+
+    it('filtro de periodo tambem nao tira o recolher', () => {
+      const fixture = comNotas(doisMeses());
+      const cmp = fixture.componentInstance;
+
+      cmp.periodo.set('2026');
+      fixture.detectChanges();
+
+      cmp.alternarMes('2026-08');
+      fixture.detectChanges();
+      expect(cmp.mesAberto('2026-08')).toBe(false);
     });
 
     it('o botao global fecha todos e depois reabre todos', () => {
@@ -844,6 +874,116 @@ describe('DocumentosPage', () => {
       const fixture = comNotas([nota('n1', '2026-09-10T00:00:00Z')]);
 
       expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Recolher todos');
+    });
+  });
+
+  describe('triagem do contador', () => {
+    const carteira = () => [
+      nota('n1', '2026-09-10T00:00:00Z', { status: 'COM_INCONSISTENCIAS' }),
+      nota('n2', '2026-09-11T00:00:00Z', { status: 'REJEITADA' }),
+      nota('n3', '2026-09-12T00:00:00Z', { status: 'RASCUNHO' }),
+      nota('n4', '2026-08-01T00:00:00Z', { status: 'AUTORIZADA' }),
+      nota('n5', '2026-08-02T00:00:00Z', { status: 'CANCELADA' }),
+    ];
+
+    it('"precisam de revisão" atravessa inconsistência e rejeição — é o trabalho, não o status', () => {
+      const cmp = comNotas(carteira()).componentInstance;
+
+      const caixas = Object.fromEntries(
+        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
+      );
+      expect(caixas['revisao']).toBe(2);
+      expect(caixas['RASCUNHO']).toBe(1);
+      expect(caixas['AUTORIZADA']).toBe(1);
+      expect(caixas['CANCELADA']).toBe(1);
+      expect(caixas['todos']).toBe(5);
+
+      cmp.statusFilter.set('revisao');
+      expect(
+        cmp
+          .notasFiltradas()
+          .map((n) => n.id)
+          .sort(),
+      ).toEqual(['n1', 'n2']);
+    });
+
+    it('escolher uma caixa não zera as outras — senão a triagem deixa de triar', () => {
+      const fixture = comNotas(carteira());
+      const cmp = fixture.componentInstance;
+
+      cmp.statusFilter.set('AUTORIZADA');
+      fixture.detectChanges();
+
+      const caixas = Object.fromEntries(
+        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
+      );
+      expect(caixas['revisao']).toBe(2);
+      expect(caixas['todos']).toBe(5);
+      expect(cmp.notasFiltradas()).toHaveLength(1);
+    });
+
+    it('o período continua valendo sobre a contagem — ela conta o que está na tela', () => {
+      const cmp = comNotas(carteira()).componentInstance;
+
+      cmp.periodo.set('2026-08');
+      const caixas = Object.fromEntries(
+        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
+      );
+      expect(caixas['todos']).toBe(2);
+      expect(caixas['revisao']).toBe(0);
+    });
+  });
+
+  describe('resumo do produtor', () => {
+    const carteira = () => [
+      nota('n1', '2026-09-10T00:00:00Z', { status: 'AUTORIZADA', valorTotalNota: 1000 }),
+      nota('n2', '2026-09-11T00:00:00Z', { status: 'AUTORIZADA', valorTotalNota: 500 }),
+      nota('n3', '2026-09-12T00:00:00Z', { status: 'COM_INCONSISTENCIAS', valorTotalNota: 999 }),
+      nota('n4', '2026-08-01T00:00:00Z', { status: 'RASCUNHO', valorTotalNota: 777 }),
+    ];
+
+    it('só nota autorizada entra no faturamento — rascunho e inconsistência não são documento', () => {
+      const cmp = comNotas(carteira()).componentInstance;
+
+      // 1000 + 500. Somar as outras daria um numero que nao existe em lugar nenhum.
+      expect(cmp.resumoDoPeriodo().faturado).toBe(1500);
+      expect(cmp.resumoDoPeriodo().autorizadas).toBe(2);
+      expect(cmp.resumoDoPeriodo().esperando).toBe(2);
+      expect(cmp.resumoDoPeriodo().comInconsistencia).toBe(1);
+      expect(cmp.resumoDoPeriodo().rascunhos).toBe(1);
+    });
+
+    it('"ver essas notas" mostra as três situações que ainda dependem do produtor', () => {
+      const fixture = comNotas(carteira());
+      const cmp = fixture.componentInstance;
+
+      cmp.statusFilter.set('esperando');
+      fixture.detectChanges();
+
+      expect(
+        cmp
+          .notasFiltradas()
+          .map((n) => n.id)
+          .sort(),
+      ).toEqual(['n3', 'n4']);
+    });
+
+    it('o resumo não muda quando a situação é filtrada — ele descreve o período', () => {
+      const fixture = comNotas(carteira());
+      const cmp = fixture.componentInstance;
+
+      cmp.statusFilter.set('esperando');
+      fixture.detectChanges();
+
+      // Se mudasse, clicar em "ver essas notas" zeraria o faturamento que a faixa acabou de
+      // mostrar, e a pessoa pensaria que perdeu o dado.
+      expect(cmp.resumoDoPeriodo().faturado).toBe(1500);
+
+      // Mas o periodo entra na conta, porque e o recorte que ela escolheu.
+      cmp.periodo.set('2026-08');
+      fixture.detectChanges();
+      expect(cmp.resumoDoPeriodo().faturado).toBe(0);
+      expect(cmp.resumoDoPeriodo().rascunhos).toBe(1);
     });
   });
 });
