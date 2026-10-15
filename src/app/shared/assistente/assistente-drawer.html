@@ -27,6 +27,14 @@
             Consulta as suas notas e a legislação
           }
         </p>
+        <!-- A cota aparece como o que RESTA, nao como o que foi gasto: e o que resta que muda a
+             decisao de perguntar. Some quando a consulta falha -- ficar sem saber o saldo nao
+             pode virar erro vermelho no cabecalho por causa de um numero acessorio. -->
+        @if (store.uso(); as uso) {
+          <p class="truncate text-apoio text-muted-foreground">
+            {{ uso.restantes }} de {{ uso.creditosSemana }} créditos nesta semana
+          </p>
+        }
       </div>
 
       <a

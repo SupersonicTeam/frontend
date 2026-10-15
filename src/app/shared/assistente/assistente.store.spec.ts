@@ -1,5 +1,6 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Observable, of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
 import { PerfilService } from '@core/services/perfil.service';
 import type { CeresEvento, CeresResposta } from '@dtos/assistente/ceres.response';
@@ -58,14 +59,30 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
     store = TestBed.inject(AssistenteStore);
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => {
+    // A cota e recarregada depois de cada resposta, e isso e ruido para estes testes: o que
+    // eles protegem e a conversa. Drenar aqui mantem o `verify()` severo com todo o resto.
+    httpMock.match((r) => r.url === '/assistente/uso').forEach((r) => r.flush(usoPadrao));
+    httpMock.verify();
+  });
 
-  /** Drena as duas leituras de contexto: dashboard e notas. */
+  /** Drena as leituras de contexto: dashboard, notas e a cota. */
+  /** A cota da semana, drenada junto com o resto do contexto. */
+  const usoPadrao = {
+    plano: 'padrao',
+    habilitada: true,
+    creditosSemana: 1000,
+    consumidos: 0,
+    restantes: 1000,
+    renovaEm: '2026-10-19T00:00:00-03:00',
+  };
+
   function flushContexto(notas: unknown[] = []) {
     httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
     httpMock
       .match((r) => r.url === '/notas')
       .forEach((r) => r.flush({ content: notas, totalElements: notas.length }));
+    httpMock.match((r) => r.url === '/assistente/uso').forEach((r) => r.flush(usoPadrao));
   }
 
   it('monta o contexto com os dados reais do produtor, não com valores fixos', () => {
@@ -345,6 +362,11 @@ describe('AssistenteStore — streaming e reenvio quando a Ceres está ocupada',
 
     perguntar(): never {
       throw new Error('O streaming deveria ter sido usado.');
+    }
+
+    /** A cota (#166). O dublê precisa dela: o store a recarrega depois de cada resposta. */
+    uso(): Observable<null> {
+      return of(null);
     }
 
     async perguntarEmStream(

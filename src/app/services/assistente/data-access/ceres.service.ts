@@ -1,11 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, TimeoutError, catchError, throwError, timeout } from 'rxjs';
+import { Observable, TimeoutError, catchError, of, throwError, timeout } from 'rxjs';
 import { environment } from '@env/environment';
 import { ApiService } from '@core/services/api.service';
 import { IdentidadeService } from '@core/services/identidade.service';
 import type { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
-import type { CeresEvento, CeresResposta, RotaCeres } from '@dtos/assistente/ceres.response';
+import type {
+  CeresEvento,
+  CeresResposta,
+  CeresUso,
+  RotaCeres,
+} from '@dtos/assistente/ceres.response';
 
 /**
  * Códigos de erro da Ceres (seção 5 do contrato). A decisão na tela é **pelo
@@ -134,6 +139,17 @@ export class CeresApi {
       timeout(TIMEOUT_SINCRONO_MS),
       catchError((erro: unknown) => throwError(() => this.classificar(erro))),
     );
+  }
+
+  /**
+   * A cota da semana.
+   *
+   * Falha em silencio de proposito (`of(null)`): ficar sem saber quantos creditos restam nao
+   * pode impedir de perguntar, e um erro vermelho no cabecalho do chat por causa de um numero
+   * acessorio assusta mais do que informa.
+   */
+  uso(): Observable<CeresUso | null> {
+    return this.api.get<CeresUso>('/assistente/uso').pipe(catchError(() => of(null)));
   }
 
   /**

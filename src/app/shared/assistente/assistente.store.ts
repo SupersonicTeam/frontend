@@ -5,6 +5,7 @@ import { TAMANHO_MAXIMO_PERGUNTA, etapaDaRota } from '@core/utils/ceres';
 import { apenasUltimaChecagem } from '@core/utils/validacoes';
 import type { CeresResposta, RotaCeres } from '@dtos/assistente/ceres.response';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
+import type { CeresUso } from '@dtos/assistente/ceres.response';
 import type { AssistenteMensagem, AtalhoCeres } from '@models/assistente-mensagem.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import {
@@ -75,6 +76,8 @@ export class AssistenteStore {
   /** A gaveta flutuante está aberta? A página `/chat` não usa isto. */
   readonly aberto = signal(false);
   readonly mensagens = signal<AssistenteMensagem[]>([]);
+  /** Cota da semana. `null` enquanto nao chegou ou quando a consulta falhou. */
+  readonly uso = signal<CeresUso | null>(null);
   readonly enviando = signal(false);
   readonly entrada = signal('');
 
@@ -173,6 +176,12 @@ export class AssistenteStore {
         ),
       error: () => this.notasPendentes.set(0),
     });
+    this.ceres.uso().subscribe((u) => this.uso.set(u));
+  }
+
+  /** Recarrega a cota depois de cada pergunta -- e o unico momento em que ela muda. */
+  private atualizarUso(): void {
+    this.ceres.uso().subscribe((u) => this.uso.set(u));
   }
 
   abrir(): void {
@@ -286,6 +295,7 @@ export class AssistenteStore {
           atalhos: traduzirAtalhos(resposta.atalhos),
         },
       ]);
+      this.atualizarUso();
       this.encerrar(controle);
     } catch (erro) {
       if (erro instanceof CeresCancelada || controle.signal.aborted) return; // `cancelar()` cuidou.

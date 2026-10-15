@@ -83,3 +83,20 @@ export type CeresEvento =
   | { evento: 'rota'; dado: { rota: RotaCeres } }
   | { evento: 'resposta'; dado: CeresResposta }
   | { evento: 'fim'; dado: Record<string, never> };
+
+/**
+ * Cota semanal da Ceres (`GET /api/assistente/uso`, Sprint 7 do backend, #166).
+ *
+ * O credito e o custo real de cada pergunta (tokens x modelo), nao um contador de perguntas:
+ * uma pergunta longa consome mais que uma curta. Por isso a tela mostra o que RESTA, nao o que
+ * foi gasto -- o que resta e o que muda a decisao de perguntar.
+ */
+export interface CeresUso {
+  plano: string;
+  habilitada: boolean;
+  creditosSemana: number;
+  consumidos: number;
+  restantes: number;
+  /** ISO com fuso. Quando a cota volta ao cheio. */
+  renovaEm: string;
+}

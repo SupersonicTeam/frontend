@@ -31,13 +31,27 @@ describe('ChatPage (#51, ligada à Ceres na #76)', () => {
     TestBed.inject(PerfilService).entrar('produtor');
   });
 
-  afterEach(() => httpMock.verify());
+  /** A cota da semana (#166): o store a busca junto com o contexto e depois de cada resposta. */
+  const usoPadrao = {
+    plano: 'padrao',
+    habilitada: true,
+    creditosSemana: 1000,
+    consumidos: 0,
+    restantes: 1000,
+    renovaEm: '2026-10-19T00:00:00-03:00',
+  };
+
+  afterEach(() => {
+    httpMock.match((r) => r.url === '/assistente/uso').forEach((r) => r.flush(usoPadrao));
+    httpMock.verify();
+  });
 
   function flushContexto() {
     httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
     httpMock
       .match((r) => r.url === '/notas')
       .forEach((r) => r.flush({ content: [], totalElements: 0 }));
+    httpMock.match((r) => r.url === '/assistente/uso').forEach((r) => r.flush(usoPadrao));
   }
 
   it('mostra o contexto real do produtor no painel lateral', () => {
