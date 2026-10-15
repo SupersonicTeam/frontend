@@ -4,6 +4,7 @@ import {
   booleanAttribute,
   effect,
   inject,
+  signal,
   input,
   viewChild,
 } from '@angular/core';
@@ -43,11 +44,40 @@ import { CeresFontes } from './ceres-fontes';
     LucideUser,
     UiButton,
   ],
-  host: { class: 'flex min-h-0 flex-1 flex-col gap-3' },
+  host: {
+    class: 'flex min-h-0 flex-1 flex-col gap-3',
+    // O painel da cota fecha como qualquer coisa que abre por cima: Esc e clique fora. Sem
+    // isto ele so fecharia clicando de novo no anel, que ninguem adivinha.
+    '(document:keydown.escape)': 'cotaAberta.set(false)',
+    '(document:click)': 'fecharCotaForaDela($event)',
+  },
   templateUrl: './assistente-conversa.html',
 })
 export class AssistenteConversa {
   protected readonly store = inject(AssistenteStore);
+
+  private readonly hospedeiro = inject(ElementRef<HTMLElement>);
+
+  /** Fecha o painel quando o clique nasce fora do bloco do medidor. */
+  protected fecharCotaForaDela(evento: Event): void {
+    if (!this.cotaAberta()) return;
+    const alvo = evento.target as Node | null;
+    const medidor = (this.hospedeiro.nativeElement as HTMLElement).querySelector(
+      '[role="dialog"]',
+    )?.parentElement;
+    if (alvo && medidor?.contains(alvo)) return;
+    this.cotaAberta.set(false);
+  }
+
+  /** O painel de detalhe da cota esta aberto? Fecha no Esc e ao clicar fora (ver `host`). */
+  protected readonly cotaAberta = signal(false);
+
+  /** "19 de outubro" — a data em que a cota volta ao cheio. */
+  protected dataDaRenovacao(uso: { renovaEm: string }): string {
+    const d = new Date(uso.renovaEm);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+  }
 
   /**
    * Quanto da cota ainda resta, de 0 a 1 -- e o quanto do anel fica aceso.

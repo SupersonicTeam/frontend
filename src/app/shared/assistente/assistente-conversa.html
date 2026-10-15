@@ -174,41 +174,82 @@
            Ficava como uma linha de texto no cabecalho, longe de onde a decisao acontece. O
            lugar dele e aqui: quem vai perguntar olha para o campo, nao para o titulo.
 
-           E um anel que esvazia, nao um numero solto: a proporcao se le sem contar. O numero
-           continua no `title` e no `aria-label`, para quem quiser o valor exato e para o leitor
-           de tela -- que nao enxerga anel nenhum. -->
+           E um anel que esvazia, nao um numero solto: a proporcao se le sem contar. Mas anel
+           sozinho nao explica nada, e `title` so existe no mouse -- no celular, onde o produtor
+           usa isto, hover nao existe. Por isso ele ABRE: um toque mostra o detalhe. -->
       @if (store.uso(); as uso) {
-        <span
-          class="flex shrink-0 items-center"
-          [title]="uso.restantes + ' de ' + uso.creditosSemana + ' créditos nesta semana'"
-          [attr.aria-label]="uso.restantes + ' de ' + uso.creditosSemana + ' créditos nesta semana'"
-          role="img"
-        >
-          <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3"
-              class="text-border"
-            />
-            <circle
-              cx="12"
-              cy="12"
-              r="9"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="3"
-              stroke-linecap="round"
-              transform="rotate(-90 12 12)"
-              [class]="corDaCota(uso)"
-              [attr.stroke-dasharray]="56.5"
-              [attr.stroke-dashoffset]="56.5 - 56.5 * fracaoDaCota(uso)"
-            />
-          </svg>
-        </span>
+        <div class="relative shrink-0">
+          <button
+            type="button"
+            class="tap-target flex items-center justify-center rounded-full transition-colors hover:bg-muted"
+            [attr.aria-expanded]="cotaAberta()"
+            [attr.aria-label]="
+              uso.restantes + ' de ' + uso.creditosSemana + ' créditos nesta semana. Ver detalhes'
+            "
+            (click)="cotaAberta.set(!cotaAberta())"
+          >
+            <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                class="text-border"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                transform="rotate(-90 12 12)"
+                [class]="corDaCota(uso)"
+                [attr.stroke-dasharray]="56.5"
+                [attr.stroke-dashoffset]="56.5 - 56.5 * fracaoDaCota(uso)"
+              />
+            </svg>
+          </button>
+
+          @if (cotaAberta()) {
+            <!-- Abre para CIMA: o campo mora no rodape da tela, e para baixo o painel sairia
+                 pela borda. `right-0` ancora na direita porque o anel fica colado no Enviar. -->
+            <div
+              class="animate-entra-subindo absolute right-0 bottom-full z-20 mb-2 w-64 rounded-card border border-border bg-card p-4 shadow-alta"
+              role="dialog"
+              aria-label="Créditos da Ceres"
+            >
+              <p class="font-heading text-lg font-bold tabular-nums text-foreground">
+                {{ uso.restantes }} de {{ uso.creditosSemana }}
+              </p>
+              <p class="text-apoio text-muted-foreground">créditos nesta semana</p>
+
+              <dl class="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-apoio">
+                <div class="flex justify-between gap-2">
+                  <dt class="text-muted-foreground">Usados</dt>
+                  <dd class="tabular-nums text-foreground">{{ uso.consumidos }}</dd>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <dt class="text-muted-foreground">Renova em</dt>
+                  <dd class="text-foreground">{{ dataDaRenovacao(uso) }}</dd>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <dt class="text-muted-foreground">Plano</dt>
+                  <dd class="text-foreground">{{ uso.plano }}</dd>
+                </div>
+              </dl>
+
+              <!-- Dizer o que consome evita a leitura errada de "sobraram 994 perguntas". -->
+              <p class="mt-3 text-apoio leading-relaxed text-muted-foreground">
+                Cada pergunta gasta conforme o tamanho da conversa — uma longa consome mais que uma
+                curta.
+              </p>
+            </div>
+          }
+        </div>
       }
 
       <ui-button
