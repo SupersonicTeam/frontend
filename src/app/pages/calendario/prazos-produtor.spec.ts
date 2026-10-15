@@ -389,7 +389,12 @@ describe('PrazosProdutor', () => {
     // Dentro de três dias o rótulo já muda de tom.
     expect(cmp.classeRotulo(emDias(2), 'pendente')).toContain('aviso');
     expect(cmp.classeRotulo(emDias(-1), 'pendente')).toContain('perigo');
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain('O próximo prazo');
+    // O card "O proximo prazo" saiu: ele repetia, num bloco proprio, o primeiro item da lista.
+    // Agora o proximo e simplesmente o primeiro prazo abaixo do eixo de hoje.
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('Hoje é');
+    expect(texto).toContain('em 2 dias');
+    expect(texto).not.toContain('O próximo prazo');
   });
 
   it('o dia com prazo vira célula colorida pela situação, não um ponto de 6px', () => {

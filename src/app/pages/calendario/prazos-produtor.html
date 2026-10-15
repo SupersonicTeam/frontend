@@ -41,62 +41,129 @@
   </div>
 
   <!--
-    ── O QUE VENCE ──
-    Primeiro bloco da tela porque e a pergunta que traz o produtor aqui. Antes a resposta estava
-    enterrada numa grade de 35 celulas com dois pontinhos de 6px, e a guia vencida em outro mes
-    nao aparecia de jeito nenhum.
-  -->
-  @if (atrasados().length) {
-    <div class="rounded-card border border-perigo/30 bg-perigo-soft p-4">
-      <p class="font-heading font-semibold text-perigo-ink">
-        {{
-          atrasados().length === 1 ? '1 prazo atrasado' : atrasados().length + ' prazos atrasados'
-        }}
-        @if (totalAtrasado() > 0) {
-          <span class="tabular-nums">— {{ formatCurrency(totalAtrasado()) }}</span>
-        }
-      </p>
-      <p class="mt-0.5 text-apoio text-perigo-ink/90">
-        Procure o seu escritório de contabilidade: guia atrasada costuma ter multa e juros.
-      </p>
-    </div>
-  }
+    ── A LINHA DO TEMPO ──
+    Esta tela dizia as mesmas quatro coisas em tres lugares: a guia vencida aparecia na faixa
+    vermelha E na lista; a proxima guia aparecia no card "O proximo prazo", na celula do
+    calendario E na lista. Quatro prazos ocupavam uns 1.400px de rolagem.
 
-  @if (proximoPrazo(); as proximo) {
-    <section class="rounded-card border border-border bg-card p-5 shadow-suave">
-      <p class="text-apoio text-muted-foreground">O próximo prazo</p>
-      <div class="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 class="font-heading text-xl font-bold text-foreground">{{ proximo.titulo }}</h2>
-        @if (proximo.valor) {
-          <p class="font-heading text-xl font-bold tabular-nums text-foreground">
-            {{ formatCurrency(proximo.valor) }}
-          </p>
-        }
-      </div>
-      <p class="mt-1 text-valor">
-        <span [class]="classeRotulo(proximo.dataVencimento, proximo.status)">
-          {{ rotuloPrazo(proximo.dataVencimento) }}
-        </span>
-        <span class="text-muted-foreground">
-          · {{ formatDataCompleta(proximo.dataVencimento) }}
-        </span>
-      </p>
-      @if (proximo.descricao) {
-        <p class="text-apoio text-muted-foreground">{{ proximo.descricao }}</p>
+    Agora cada prazo aparece UMA vez, numa linha so, e a posicao em relacao a linha de hoje diz
+    se ja passou ou ainda vai vencer. Por isso tambem sumiram os titulos em caixa alta
+    ("ATRASADOS", "A VENCER", "JA PAGOS"): o eixo ja carrega essa informacao, e rotulo que
+    repete o que a estrutura diz e decoracao.
+
+    Fica fora de cartao, de proposito: o fluxo e a espinha da pagina, e a grade do mes logo
+    abaixo e que e um objeto contido. O contraste entre os dois e a hierarquia que faltava.
+  -->
+  @if (prazos().length) {
+    <!-- Largura de leitura: num monitor largo o valor ia parar a meio metro do nome da guia,
+         e o olho tinha que atravessar a tela para juntar as duas pontas da mesma linha. -->
+    <ol class="ml-[0.4375rem] max-w-3xl border-l border-border pl-0">
+      <!-- ── o que ja passou e nao foi pago ── -->
+      @for (v of atrasados(); track v.id) {
+        <li class="relative pb-6 pl-6">
+          <span
+            class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full bg-perigo ring-4 ring-background"
+            aria-hidden="true"
+          ></span>
+          <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+            <p class="font-heading text-lg font-bold text-perigo-ink">
+              {{ rotuloPrazo(v.dataVencimento) }}
+            </p>
+            @if (v.valor) {
+              <p class="font-heading text-lg font-bold tabular-nums text-perigo-ink">
+                {{ formatCurrency(v.valor) }}
+              </p>
+            }
+          </div>
+          <p class="text-valor font-medium text-foreground">{{ v.titulo }}</p>
+          <p class="text-apoio text-muted-foreground">{{ frasePrazo(v) }}</p>
+          <!-- O aviso vem colado no item que o provoca, e so no primeiro: antes ele era uma
+               faixa vermelha no topo da tela, longe da guia de que falava. -->
+          @if ($first) {
+            <p class="mt-1.5 text-apoio text-perigo-ink">
+              Guia atrasada costuma ter multa e juros. Procure o seu escritório de contabilidade.
+            </p>
+          }
+        </li>
       }
-      <button
-        type="button"
-        class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
-        (click)="irParaData(proximo.dataVencimento)"
-      >
-        Ver no mês
-      </button>
-    </section>
+
+      <!-- ── o eixo ── -->
+      <li class="relative pb-6 pl-6">
+        <span
+          class="absolute top-1 left-0 size-3.5 -translate-x-1/2 rounded-full bg-primary ring-4 ring-background"
+          aria-hidden="true"
+        ></span>
+        <p class="flex items-center gap-3 font-heading text-apoio font-semibold text-primary">
+          <span>Hoje é {{ hojePorExtenso() }}</span>
+          <span class="h-px flex-1 bg-primary/25" aria-hidden="true"></span>
+        </p>
+      </li>
+
+      <!-- ── o que ainda vai vencer ── -->
+      @for (v of aVencer(); track v.id) {
+        <li class="relative pb-6 pl-6">
+          <span
+            class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full ring-4 ring-background"
+            [class]="$first ? 'bg-aviso' : 'bg-border'"
+            aria-hidden="true"
+          ></span>
+          <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+            <!-- So o PROXIMO prazo recebe o tamanho de destaque. Dar o mesmo peso a todos seria
+                 dizer que tanto faz qual vence primeiro. -->
+            <p
+              class="font-heading font-bold"
+              [class]="$first ? 'text-2xl text-aviso-ink' : 'text-lg text-foreground'"
+            >
+              {{ rotuloPrazo(v.dataVencimento) }}
+            </p>
+            @if (v.valor) {
+              <p
+                class="font-heading font-bold tabular-nums"
+                [class]="$first ? 'text-2xl text-foreground' : 'text-lg text-foreground'"
+              >
+                {{ formatCurrency(v.valor) }}
+              </p>
+            }
+          </div>
+          <p class="text-valor font-medium text-foreground">{{ v.titulo }}</p>
+          <p class="text-apoio text-muted-foreground">{{ frasePrazo(v) }}</p>
+          @if (v.tipo === 'solicitacao') {
+            <a
+              routerLink="/documentos"
+              class="tap-target mt-1 inline-flex items-center text-apoio font-medium text-accent hover:underline"
+            >
+              Anexar documento
+            </a>
+          }
+        </li>
+      }
+
+      <!-- ── o que ja foi resolvido ── -->
+      @for (v of jaPagos(); track v.id) {
+        <li class="relative pb-6 pl-6">
+          <span
+            class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full border-2 border-sucesso bg-background ring-4 ring-background"
+            aria-hidden="true"
+          ></span>
+          <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+            <p class="text-apoio font-medium text-sucesso-ink">
+              Pago em {{ dataPorExtenso(v.dataVencimento) }}
+            </p>
+            @if (v.valor) {
+              <p class="text-apoio tabular-nums text-muted-foreground">
+                {{ formatCurrency(v.valor) }}
+              </p>
+            }
+          </div>
+          <p class="text-apoio text-muted-foreground">{{ v.titulo }}</p>
+        </li>
+      }
+    </ol>
   } @else if (!loading() && !vencimentosErro()) {
     <section class="rounded-card border border-border bg-card p-5 text-center shadow-suave">
       <svg lucideCheck [size]="28" class="mx-auto text-sucesso" aria-hidden="true" />
       <p class="mt-1 text-apoio text-muted-foreground">
-        Nenhum prazo a vencer nos próximos três meses.
+        Nenhum prazo nos três meses para trás nem nos três à frente.
       </p>
     </section>
   }
@@ -142,10 +209,16 @@
       </button>
     </div>
 
-    <!-- Dias da semana -->
-    <div class="grid grid-cols-7 mb-2">
+    <!-- Dias da semana. Inicial, não "Dom Seg Ter": a fileira de três letras em negrito
+         competia com os números da grade, e ninguém precisa que lhe ensinem a ordem da semana. -->
+    <div class="mb-1 grid grid-cols-7">
       @for (d of diasSemana; track d) {
-        <div class="text-center text-apoio font-medium text-muted-foreground py-1">{{ d }}</div>
+        <abbr
+          class="cursor-default text-center text-apoio text-muted-foreground/70 no-underline"
+          [title]="d"
+        >
+          {{ d.charAt(0) }}
+        </abbr>
       }
     </div>
 
@@ -170,30 +243,42 @@
           @if (dia === null) {
             <div></div>
           } @else {
+            <!-- A célula não tem fundo: a grade é uma treliça fraca e só os seus dias levam
+                 tinta. O número, a marca colorida e o nome da guia são o conteúdo; o resto do
+                 mês fica lá, legível, sem disputar atenção. -->
             <button
               type="button"
-              class="relative flex min-h-[3.25rem] w-full flex-col items-center justify-start gap-0.5 overflow-hidden rounded-controle px-0.5 pt-1.5 pb-1 text-apoio font-medium transition-colors sm:min-h-[4rem] {{
-                diaClass(dia)
-              }}"
+              class="group flex min-h-[3.25rem] w-full flex-col items-center gap-1 rounded-controle px-0.5 pt-1 pb-1 text-apoio sm:min-h-[4rem]"
               [attr.aria-pressed]="ehSelecionado(dia)"
               [attr.aria-current]="ehHoje(dia) ? 'date' : null"
               [attr.aria-label]="rotuloDoDia(dia)"
               (click)="selecionarDia(dia)"
             >
-              {{ dia }}
+              <span
+                class="transition-colors group-hover:bg-muted {{ diaClass(dia) }}"
+                [class.group-hover:bg-primary]="ehSelecionado(dia)"
+              >
+                {{ dia }}
+              </span>
+
               @if (diasComPrazo()[dia]; as prazo) {
-                <!-- O NOME do que vence, dentro da célula — era isto que o grupo sentia falta:
-                     a grade dizia que algo vencia, nunca o quê. No celular a coluna tem ~44px e o
-                     nome trunca ("FUNRU..."), o que já distingue uma guia da outra; inteiro ele
-                     está no detalhe, a um toque. -->
+                <!-- A marca é uma barra de 2px, não um retângulo colorido atrás do número: ela
+                     aponta o dia sem pintar a célula inteira. -->
+                <span
+                  class="h-0.5 w-5 rounded-full {{ marcaDoDia(dia) }}"
+                  aria-hidden="true"
+                ></span>
+                <!-- O NOME do que vence — era isto que o grupo sentia falta: a grade dizia que
+                     algo vencia, nunca o quê. No celular a coluna tem ~44px e o nome trunca
+                     ("FUNRU..."); inteiro ele está no detalhe, a um toque. -->
                 <span class="w-full truncate text-center text-apoio leading-none font-semibold">
                   {{ prazo.rotulo }}
+                  @if (prazo.quantidade > 1) {
+                    <span class="font-normal text-muted-foreground"
+                      >+{{ prazo.quantidade - 1 }}</span
+                    >
+                  }
                 </span>
-                @if (prazo.quantidade > 1) {
-                  <span class="text-apoio leading-none font-semibold">
-                    +{{ prazo.quantidade - 1 }}
-                  </span>
-                }
               }
             </button>
           }
@@ -201,31 +286,20 @@
       </div>
     }
 
-    <!-- Legenda: so o que o mes tem de verdade. Ver `legenda` no componente. -->
-    <div class="mt-4 flex flex-wrap items-center gap-4 border-t border-border pt-4">
-      @for (l of legenda(); track l.chave) {
-        <span class="flex items-center gap-1.5">
-          <span class="h-3 w-3 rounded-[0.25rem] border {{ l.cor }}" aria-hidden="true"></span>
-          <span class="text-apoio text-muted-foreground">{{ l.texto }}</span>
-        </span>
-      }
-      <span class="flex items-center gap-1.5">
-        <span
-          class="h-3 w-3 rounded-[0.25rem] bg-muted ring-2 ring-primary/50"
-          aria-hidden="true"
-        ></span>
-        <span class="text-apoio text-muted-foreground">Hoje</span>
-      </span>
-      @if (foraDoMesCorrente()) {
+    <!-- A legenda saiu. Ela explicava três cores -- atrasado, a vencer, pago -- numa grade onde
+         cada dia marcado já traz o nome da guia escrito, e onde a linha do tempo logo acima diz a
+         mesma coisa por extenso. Legenda que repete o que o conteúdo diz é decoração. -->
+    @if (foraDoMesCorrente()) {
+      <div class="mt-3 flex justify-end">
         <button
           type="button"
-          class="tap-target ml-auto text-apoio font-medium text-primary underline"
+          class="tap-target text-apoio font-medium text-primary underline"
           (click)="irParaHoje()"
         >
           Voltar para hoje
         </button>
-      }
-    </div>
+      </div>
+    }
 
     <!--
         ── O DIA ESCOLHIDO ──
@@ -275,82 +349,4 @@
       </div>
     </div>
   </section>
-
-  <!--
-    ── A LISTA ──
-    Ordenada por data, que e o conteudo de uma tela chamada "Prazos". A lista antiga vinha na
-    ordem em que o servidor mandou (31/10 antes de 20/10) e so cobria o mes corrente.
-  -->
-  @if (gruposDePrazo().length) {
-    <section class="rounded-card border border-border bg-card p-5 shadow-suave">
-      <h2 class="font-heading text-base font-semibold text-foreground">Os seus prazos</h2>
-      <p class="text-apoio text-muted-foreground">de três meses atrás até três meses à frente</p>
-
-      @for (grupo of gruposDePrazo(); track grupo.chave) {
-        <h3 class="mt-4 text-apoio font-semibold tracking-wide text-muted-foreground uppercase">
-          {{ grupo.titulo }}
-        </h3>
-        <ul class="mt-1 flex flex-col">
-          @for (v of grupo.itens; track v.id) {
-            <li
-              class="animate-entra-subindo escalonado border-b border-border last:border-0"
-              [style.--passo]="$index"
-            >
-              <button
-                type="button"
-                class="flex w-full items-center gap-3 py-3 text-left hover:bg-muted/50"
-                (click)="irParaData(v.dataVencimento)"
-              >
-                <span
-                  class="flex h-10 w-10 shrink-0 items-center justify-center rounded-controle {{
-                    tipoIconClass(v.tipo)
-                  }}"
-                  aria-hidden="true"
-                >
-                  @switch (v.tipo) {
-                    @case ('imposto') {
-                      <svg lucideCoins [size]="20" />
-                    }
-                    @case ('obrigacao') {
-                      <svg lucideClipboardList [size]="20" />
-                    }
-                    @case ('declaracao') {
-                      <svg lucideFileText [size]="20" />
-                    }
-                    @case ('solicitacao') {
-                      <svg lucideMail [size]="20" />
-                    }
-                    @default {
-                      <svg lucideCalendar [size]="20" />
-                    }
-                  }
-                </span>
-                <span class="min-w-0 flex-1">
-                  <span class="block text-apoio font-medium text-foreground">{{ v.titulo }}</span>
-                  <span class="block text-apoio">
-                    <span [class]="classeRotulo(v.dataVencimento, v.status)">
-                      {{ v.status === 'pago' ? 'pago' : rotuloPrazo(v.dataVencimento) }}
-                    </span>
-                    <span class="text-muted-foreground">
-                      · {{ formatDataCompleta(v.dataVencimento) }}
-                    </span>
-                  </span>
-                  @if (v.descricao) {
-                    <span class="block truncate text-apoio text-muted-foreground">
-                      {{ v.descricao }}
-                    </span>
-                  }
-                </span>
-                @if (v.valor) {
-                  <span class="shrink-0 text-apoio font-semibold tabular-nums text-foreground">
-                    {{ formatCurrency(v.valor) }}
-                  </span>
-                }
-              </button>
-            </li>
-          }
-        </ul>
-      }
-    </section>
-  }
 </div>

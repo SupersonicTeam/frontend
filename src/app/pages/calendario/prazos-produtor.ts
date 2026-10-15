@@ -7,10 +7,6 @@ import {
   LucideCheck,
   LucideMessageCircle,
   LucideLoaderCircle,
-  LucideCoins,
-  LucideClipboardList,
-  LucideFileText,
-  LucideMail,
   LucideRefreshCw,
 } from '@lucide/angular';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
@@ -32,10 +28,6 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
     LucideCheck,
     LucideMessageCircle,
     LucideLoaderCircle,
-    LucideCoins,
-    LucideClipboardList,
-    LucideFileText,
-    LucideMail,
     LucideRefreshCw,
   ],
   templateUrl: './prazos-produtor.html',
@@ -232,28 +224,6 @@ export class PrazosProdutor implements OnInit {
     return grupos;
   });
 
-  /**
-   * A legenda lista as situações que o mês realmente tem.
-   *
-   * Era por tipo e fixa em três cores; o backend só emite `imposto`, então duas bolinhas
-   * explicavam cores que nunca apareciam. Agora explica o que a grade de fato usa para colorir —
-   * atrasado, a vencer, pago — e só o que está lá.
-   */
-  readonly legenda = computed(() => {
-    const dias = Object.values(this.diasComPrazo());
-    const linhas: { chave: string; cor: string; texto: string }[] = [];
-    if (dias.some((d) => d.atrasado)) {
-      linhas.push({ chave: 'atrasado', cor: 'bg-perigo-soft border-perigo/40', texto: 'Atrasado' });
-    }
-    if (dias.some((d) => d.aVencer)) {
-      linhas.push({ chave: 'a-vencer', cor: 'bg-aviso-soft border-aviso/40', texto: 'A vencer' });
-    }
-    if (dias.some((d) => d.pago)) {
-      linhas.push({ chave: 'pago', cor: 'bg-sucesso-soft border-sucesso/30', texto: 'Pago' });
-    }
-    return linhas;
-  });
-
   /** Leva a grade para o mês da data e seleciona o dia — é como a lista conversa com o mapa. */
   irParaData(iso: string): void {
     const d = new Date(`${iso}T12:00:00`);
@@ -273,6 +243,47 @@ export class PrazosProdutor implements OnInit {
     const alvo = new Date(`${iso}T12:00:00`).getTime();
     const hoje = new Date(`${this.hoje()}T12:00:00`).getTime();
     return Math.round((alvo - hoje) / 86_400_000);
+  }
+
+  /**
+   * "quinta-feira, 15 de outubro" — o eixo da linha do tempo.
+   *
+   * Por extenso, e nao `15/10/2026`: a linha de hoje e o unico lugar da tela onde a data e lida
+   * como quem fala, nao conferida como quem confere numero.
+   */
+  readonly hojePorExtenso = computed(() => {
+    const d = new Date(`${this.hoje()}T12:00:00`);
+    return d.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+  });
+
+  /**
+   * A frase de data de um prazo, montada aqui e nao no template.
+   *
+   * No template ela virava `{{ data }}@if (desc) {, {{ desc }}}.` -- e o formatador quebrava
+   * aquilo em linhas, metendo espaco antes da virgula e do ponto ("10 de setembro , ... ."). Em
+   * TypeScript a frase e uma string so, e a pontuacao cola onde deve.
+   */
+  frasePrazo(v: VencimentoFiscal): string {
+    const quando = this.dataPorExtenso(v.dataVencimento);
+    const verbo =
+      v.status === 'pago'
+        ? 'Venceu em'
+        : this.diasAte(v.dataVencimento) < 0
+          ? 'Vencia em'
+          : 'Vence em';
+    const referencia = v.descricao ? `, ${v.descricao.toLowerCase()}` : '';
+    return `${verbo} ${quando}${referencia}.`;
+  }
+
+  /** "20 de outubro". Sem o ano, que na janela de seis meses so faz ruido. */
+  dataPorExtenso(iso: string): string {
+    const d = new Date(`${iso}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
   }
 
   /** "vence hoje", "em 13 dias", "venceu há 27 dias" — a conta que o produtor faria de cabeça. */
@@ -587,23 +598,39 @@ export class PrazosProdutor implements OnInit {
    * por último o que já foi pago. Um dia com guia atrasada **e** guia paga é um dia com guia
    * atrasada — o alívio não apaga o problema.
    */
+  /**
+   * As classes do NUMERO do dia -- nao da celula inteira.
+   *
+   * A grade pintava o fundo de celulas inteiras: num mes com dois prazos, dois retangulos
+   * coloridos num tabuleiro de 35 quadrados, com legenda embaixo explicando as cores. Isso e um
+   * seletor de data vestido de visualizacao, e ninguem esta escolhendo data aqui.
+   *
+   * Agora a celula nao tem fundo nenhum: o dia comum e so um numero em tinta fraca, e quem tem
+   * prazo ganha tinta forte, a marca colorida embaixo (ver `marcaDoDia`) e o nome da guia. Hoje
+   * e um anel em volta do numero, nao um bloco preenchido; o dia escolhido e o unico circulo
+   * cheio da grade, porque selecao precisa de retorno forte.
+   */
   diaClass(dia: number): string {
-    if (this.ehSelecionado(dia)) return 'bg-primary font-semibold text-primary-foreground';
+    const base = 'inline-flex size-7 items-center justify-center rounded-full';
+    if (this.ehSelecionado(dia)) return `${base} bg-primary font-semibold text-primary-foreground`;
 
+    const hoje = this.ehHoje(dia) ? ` ${base} ring-1 ring-primary font-semibold` : ` ${base}`;
     const prazo = this.diasComPrazo()[dia];
-    const hoje = this.ehHoje(dia) ? ' ring-2 ring-primary/50' : '';
 
-    if (prazo?.atrasado) {
-      return 'border border-perigo/40 bg-perigo-soft font-semibold text-perigo-ink' + hoje;
-    }
-    if (prazo?.aVencer) {
-      return 'border border-aviso/40 bg-aviso-soft font-semibold text-aviso-ink' + hoje;
-    }
-    if (prazo?.pago) {
-      return 'border border-sucesso/30 bg-sucesso-soft text-sucesso-ink' + hoje;
-    }
-    if (this.ehHoje(dia)) return 'bg-muted font-bold text-foreground ring-2 ring-primary/50';
-    return 'text-foreground hover:bg-muted';
+    if (prazo?.atrasado) return `${hoje} font-semibold text-perigo-ink`;
+    if (prazo?.aVencer) return `${hoje} font-semibold text-aviso-ink`;
+    if (prazo?.pago) return `${hoje} text-sucesso-ink`;
+    if (this.ehHoje(dia)) return `${hoje} text-foreground`;
+    return `${base} text-muted-foreground`;
+  }
+
+  /** A cor da marca embaixo do numero. Vazio no dia sem prazo -- e a maioria dos dias. */
+  marcaDoDia(dia: number): string {
+    const prazo = this.diasComPrazo()[dia];
+    if (prazo?.atrasado) return 'bg-perigo';
+    if (prazo?.aVencer) return 'bg-aviso';
+    if (prazo?.pago) return 'bg-sucesso';
+    return '';
   }
 
   /** Para o leitor de tela: o dia 20 não é só "20". */
