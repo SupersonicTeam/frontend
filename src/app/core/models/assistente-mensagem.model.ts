@@ -13,6 +13,12 @@ import type { CodigoCeres } from '@services/assistente/data-access/ceres.service
  * Falha não vira texto de assistente: vai em `falha`, com o código do backend, e
  * a tela escolhe o que dizer. Assistente nenhuma "responde" que está fora do ar.
  */
+/** Um atalho de tela sugerido pela Ceres, já traduzido do código do backend. */
+export interface AtalhoCeres {
+  rota: string;
+  rotulo: string;
+}
+
 export interface AssistenteMensagem {
   autor: 'produtor' | 'ceres';
   /** Texto puro, com `\n`. Nunca HTML — renderizar com interpolação. */
@@ -20,8 +26,10 @@ export interface AssistenteMensagem {
   rota?: RotaCeres;
   citacoes?: CeresCitacao[];
   fontesDados?: CeresFonteDado[];
-  /** Resposta montada só com texto de lei, sem geração (Sprint 7 do backend). */
+  /** Resposta montada sem o modelo: texto de lei e/ou atalhos (Sprint 7 do backend). */
   modoFallback?: boolean;
+  /** Telas que a Ceres sugere quando não pôde interpretar. Já resolvidas em rota e rótulo. */
+  atalhos?: AtalhoCeres[];
   /** Quando preenchido, a mensagem é um estado de falha — não uma resposta. */
   falha?: CodigoCeres | 'CANCELADA';
 }

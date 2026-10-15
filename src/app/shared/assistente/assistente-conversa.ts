@@ -7,12 +7,8 @@ import {
   input,
   viewChild,
 } from '@angular/core';
-import {
-  LucideCircleStop,
-  LucideSend,
-  LucideTriangleAlert,
-  LucideUser,
-} from '@lucide/angular';
+import { LucideCircleStop, LucideSend, LucideTriangleAlert, LucideUser } from '@lucide/angular';
+import { RouterLink } from '@angular/router';
 import { rotuloRota } from '@core/utils/ceres';
 import type { AssistenteMensagem } from '@models/assistente-mensagem.model';
 import { UiButton } from '@shared/ui/ui-button';
@@ -37,6 +33,7 @@ import { CeresFontes } from './ceres-fontes';
   selector: 'app-assistente-conversa',
   standalone: true,
   imports: [
+    RouterLink,
     CeresAvatar,
     CeresCitacoes,
     CeresFontes,

@@ -32,6 +32,7 @@ const resposta = (over: Partial<CeresResposta> = {}): CeresResposta => ({
   citacoes: [],
   fontesDados: [{ funcao: 'proximosVencimentos', parametros: { dias: '30' } }],
   modoFallback: false,
+  atalhos: [],
   ...over,
 });
 
@@ -106,26 +107,51 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
     await vi.waitFor(() => expect(store.enviando()).toBe(false));
   });
 
+  it('traduz os atalhos do modo fallback em telas, e descarta código que não conhece', async () => {
+    store.carregarContexto();
+    flushContexto();
+
+    store.enviar('qual a alíquota do IBS?');
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush(
+        resposta({
+          modoFallback: true,
+          // CREDITOS e APURACAO levam a mesma tela: dois botoes iguais lado a lado confundem.
+          atalhos: ['CALENDARIO', 'APURACAO', 'CREDITOS', 'TELA_QUE_NAO_EXISTE'],
+        }),
+      );
+
+    await vi.waitFor(() => expect(store.enviando()).toBe(false));
+
+    expect(store.mensagens().at(-1)?.atalhos).toEqual([
+      { rota: '/calendario', rotulo: 'Prazos' },
+      { rota: '/tributario', rotulo: 'Impostos' },
+    ]);
+  });
+
   it('guarda rota, citações e fontes da resposta — não só o texto', async () => {
     store.carregarContexto();
     flushContexto();
 
     store.enviar('Qual a redução para insumos?');
-    httpMock.expectOne((r) => r.url === '/assistente/chat').flush(
-      resposta({
-        resposta: 'A redução é de 60%. (LC 214/2025, art. 138, § 1º)',
-        rota: 'LEGISLACAO',
-        citacoes: [
-          {
-            norma: 'LC 214/2025',
-            dispositivo: 'art. 138, § 1º',
-            url: 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp214.htm',
-            trecho: 'Art. 138. Ficam reduzidas em 60%...',
-          },
-        ],
-        fontesDados: [],
-      }),
-    );
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush(
+        resposta({
+          resposta: 'A redução é de 60%. (LC 214/2025, art. 138, § 1º)',
+          rota: 'LEGISLACAO',
+          citacoes: [
+            {
+              norma: 'LC 214/2025',
+              dispositivo: 'art. 138, § 1º',
+              url: 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp214.htm',
+              trecho: 'Art. 138. Ficam reduzidas em 60%...',
+            },
+          ],
+          fontesDados: [],
+        }),
+      );
 
     await vi.waitFor(() => expect(store.mensagens().length).toBe(2));
     const ceres = store.mensagens()[1];
@@ -140,14 +166,16 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
     flushContexto();
 
     store.enviar('O que muda com o IBS?');
-    httpMock.expectOne((r) => r.url === '/assistente/chat').flush(
-      {
-        status: 503,
-        message: 'A assistente Ceres esta indisponivel no momento.',
-        errors: [{ code: 'ASSISTENTE_INDISPONIVEL', message: 'A Ceres esta indisponivel.' }],
-      },
-      { status: 503, statusText: 'Service Unavailable' },
-    );
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush(
+        {
+          status: 503,
+          message: 'A assistente Ceres esta indisponivel no momento.',
+          errors: [{ code: 'ASSISTENTE_INDISPONIVEL', message: 'A Ceres esta indisponivel.' }],
+        },
+        { status: 503, statusText: 'Service Unavailable' },
+      );
 
     await vi.waitFor(() => expect(store.mensagens().length).toBe(2));
     const ultima = store.mensagens()[1];
@@ -173,10 +201,16 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
     flushContexto();
 
     store.enviar('Qual a apuração do mês?');
-    httpMock.expectOne((r) => r.url === '/assistente/chat').flush(
-      { status: 403, message: 'sem acesso', errors: [{ code: 'PAPEL_NAO_AUTORIZADO', message: 'sem acesso' }] },
-      { status: 403, statusText: 'Forbidden' },
-    );
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush(
+        {
+          status: 403,
+          message: 'sem acesso',
+          errors: [{ code: 'PAPEL_NAO_AUTORIZADO', message: 'sem acesso' }],
+        },
+        { status: 403, statusText: 'Forbidden' },
+      );
 
     await vi.waitFor(() => expect(store.bloqueadoPorPapel()).toBe(true));
     expect(store.disponivel()).toBe(false);
@@ -245,22 +279,24 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
 
     // A nota 7 real traz o mesmo problema duas vezes, de tentativas em horarios
     // diferentes. Repetir na tela só confunde quem precisa corrigir.
-    httpMock.expectOne((r) => r.url === '/notas/n7/validacoes').flush([
-      {
-        loteValidacao: 'antigo',
-        code: 'NOTA_INVALIDA_EMISSAO',
-        field: 'destinatarioEndereco',
-        message: 'Endereço do destinatário é obrigatório',
-        validadoEm: '2026-07-02T21:42:42Z',
-      },
-      {
-        loteValidacao: 'atual',
-        code: 'NOTA_INVALIDA_EMISSAO',
-        field: 'destinatarioEndereco',
-        message: 'Endereço do destinatário é obrigatório',
-        validadoEm: '2026-07-02T22:00:18Z',
-      },
-    ]);
+    httpMock
+      .expectOne((r) => r.url === '/notas/n7/validacoes')
+      .flush([
+        {
+          loteValidacao: 'antigo',
+          code: 'NOTA_INVALIDA_EMISSAO',
+          field: 'destinatarioEndereco',
+          message: 'Endereço do destinatário é obrigatório',
+          validadoEm: '2026-07-02T21:42:42Z',
+        },
+        {
+          loteValidacao: 'atual',
+          code: 'NOTA_INVALIDA_EMISSAO',
+          field: 'destinatarioEndereco',
+          message: 'Endereço do destinatário é obrigatório',
+          validadoEm: '2026-07-02T22:00:18Z',
+        },
+      ]);
 
     expect(store.validacoesDaNota().length).toBe(1);
     expect(store.validacoesDaNota()[0].loteValidacao).toBe('atual');

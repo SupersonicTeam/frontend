@@ -82,8 +82,26 @@
 
           @if (msg.modoFallback) {
             <p class="mt-2 text-apoio leading-relaxed text-muted-foreground">
-              Resposta montada apenas com o texto da lei, sem interpretação.
+              Montei isto sem interpretar: é o texto da lei como está escrito.
             </p>
+
+            <!-- Os atalhos existem porque, sem o modelo, a Ceres ainda sabe ONDE está a
+                 resposta, mesmo sem poder formulá-la. Mandar a pessoa para a tela certa é
+                 melhor do que um pedido de desculpas. -->
+            @if (msg.atalhos?.length) {
+              <p class="mt-2 text-apoio text-muted-foreground">Onde ver isso agora:</p>
+              <div class="mt-1 flex flex-wrap gap-2">
+                @for (atalho of msg.atalhos; track atalho.rota) {
+                  <a
+                    [routerLink]="atalho.rota"
+                    class="tap-target inline-flex items-center rounded-controle border border-assistente-borda bg-assistente-soft px-3 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente/15"
+                    (click)="store.fechar()"
+                  >
+                    {{ atalho.rotulo }}
+                  </a>
+                }
+              </div>
+            }
           }
 
           <app-ceres-citacoes [citacoes]="msg.citacoes ?? []" />

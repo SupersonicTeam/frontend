@@ -243,6 +243,7 @@ export class CeresApi {
       citacoes: bruto?.citacoes ?? [],
       fontesDados: bruto?.fontesDados ?? [],
       modoFallback: bruto?.modoFallback ?? false,
+      atalhos: bruto?.atalhos ?? [],
     };
   }
 
