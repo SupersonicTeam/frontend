@@ -170,6 +170,47 @@
         (input)="store.entrada.set($any($event.target).value)"
         (keydown)="aoTeclar($event)"
       ></textarea>
+      <!-- ── O MEDIDOR DA COTA ──
+           Ficava como uma linha de texto no cabecalho, longe de onde a decisao acontece. O
+           lugar dele e aqui: quem vai perguntar olha para o campo, nao para o titulo.
+
+           E um anel que esvazia, nao um numero solto: a proporcao se le sem contar. O numero
+           continua no `title` e no `aria-label`, para quem quiser o valor exato e para o leitor
+           de tela -- que nao enxerga anel nenhum. -->
+      @if (store.uso(); as uso) {
+        <span
+          class="flex shrink-0 items-center"
+          [title]="uso.restantes + ' de ' + uso.creditosSemana + ' créditos nesta semana'"
+          [attr.aria-label]="uso.restantes + ' de ' + uso.creditosSemana + ' créditos nesta semana'"
+          role="img"
+        >
+          <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              class="text-border"
+            />
+            <circle
+              cx="12"
+              cy="12"
+              r="9"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              transform="rotate(-90 12 12)"
+              [class]="corDaCota(uso)"
+              [attr.stroke-dasharray]="56.5"
+              [attr.stroke-dashoffset]="56.5 - 56.5 * fracaoDaCota(uso)"
+            />
+          </svg>
+        </span>
+      }
+
       <ui-button
         type="submit"
         variant="assistente"

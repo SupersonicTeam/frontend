@@ -34,13 +34,6 @@
         <p class="text-apoio text-muted-foreground">
           Consulta as suas notas e a legislação — e mostra em que se baseou
         </p>
-        <!-- A mesma cota da gaveta (#166): quem abre a tela cheia tem o mesmo direito de saber
-             quanto resta antes de perguntar. -->
-        @if (store.uso(); as uso) {
-          <p class="text-apoio text-muted-foreground">
-            {{ uso.restantes }} de {{ uso.creditosSemana }} créditos nesta semana
-          </p>
-        }
       </div>
     </header>
 

@@ -49,6 +49,31 @@ import { CeresFontes } from './ceres-fontes';
 export class AssistenteConversa {
   protected readonly store = inject(AssistenteStore);
 
+  /**
+   * Quanto da cota ainda resta, de 0 a 1 -- e o quanto do anel fica aceso.
+   *
+   * Cota zerada no servidor devolve 0 creditos na semana; dividir por ela daria `NaN` e o anel
+   * sumiria em vez de aparecer vazio, que e justamente o estado que importa mostrar.
+   */
+  protected fracaoDaCota(uso: { restantes: number; creditosSemana: number }): number {
+    if (!uso.creditosSemana) return 0;
+    return Math.max(0, Math.min(1, uso.restantes / uso.creditosSemana));
+  }
+
+  /**
+   * A cor do anel: so muda quando a informacao muda de natureza.
+   *
+   * Acima de 20% e um dado neutro, e pintar de verde faria o olho conferir o saldo a cada
+   * pergunta sem necessidade. Abaixo de 20% vira aviso, e abaixo de 5%, urgencia -- ai sim a cor
+   * esta dizendo algo que o numero sozinho demoraria a dizer.
+   */
+  protected corDaCota(uso: { restantes: number; creditosSemana: number }): string {
+    const fracao = this.fracaoDaCota(uso);
+    if (fracao <= 0.05) return 'text-perigo';
+    if (fracao <= 0.2) return 'text-aviso';
+    return 'text-assistente';
+  }
+
   /** Na gaveta o espaço é curto: a saudação some e as sugestões ficam em uma linha. */
   readonly compacto = input(false, { transform: booleanAttribute });
 
