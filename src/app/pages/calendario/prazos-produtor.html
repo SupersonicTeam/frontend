@@ -54,121 +54,132 @@
     Fica fora de cartao, de proposito: o fluxo e a espinha da pagina, e a grade do mes logo
     abaixo e que e um objeto contido. O contraste entre os dois e a hierarquia que faltava.
   -->
-  @if (prazos().length) {
-    <!-- Largura de leitura: num monitor largo o valor ia parar a meio metro do nome da guia,
-         e o olho tinha que atravessar a tela para juntar as duas pontas da mesma linha. -->
-    <ol class="ml-[0.4375rem] max-w-3xl border-l border-border pl-0">
-      <!-- ── o que ja passou e nao foi pago ── -->
-      @for (v of atrasados(); track v.id) {
-        <li class="relative pb-6 pl-6">
-          <span
-            class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full bg-perigo ring-4 ring-background"
-            aria-hidden="true"
-          ></span>
-          <div class="flex flex-wrap items-baseline justify-between gap-x-4">
-            <p class="font-heading text-lg font-bold text-perigo-ink">
-              {{ rotuloPrazo(v.dataVencimento) }}
-            </p>
-            @if (v.valor) {
-              <p class="font-heading text-lg font-bold tabular-nums text-perigo-ink">
-                {{ formatCurrency(v.valor) }}
-              </p>
-            }
-          </div>
-          <p class="text-valor font-medium text-foreground">{{ v.titulo }}</p>
-          <p class="text-apoio text-muted-foreground">{{ frasePrazo(v) }}</p>
-          <!-- O aviso vem colado no item que o provoca, e so no primeiro: antes ele era uma
-               faixa vermelha no topo da tela, longe da guia de que falava. -->
-          @if ($first) {
-            <p class="mt-1.5 text-apoio text-perigo-ink">
-              Guia atrasada costuma ter multa e juros. Procure o seu escritório de contabilidade.
-            </p>
-          }
-        </li>
-      }
-
-      <!-- ── o eixo ── -->
-      <li class="relative pb-6 pl-6">
-        <span
-          class="absolute top-1 left-0 size-3.5 -translate-x-1/2 rounded-full bg-primary ring-4 ring-background"
-          aria-hidden="true"
-        ></span>
-        <p class="flex items-center gap-3 font-heading text-apoio font-semibold text-primary">
-          <span>Hoje é {{ hojePorExtenso() }}</span>
-          <span class="h-px flex-1 bg-primary/25" aria-hidden="true"></span>
-        </p>
-      </li>
-
-      <!-- ── o que ainda vai vencer ── -->
-      @for (v of aVencer(); track v.id) {
-        <li class="relative pb-6 pl-6">
-          <span
-            class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full ring-4 ring-background"
-            [class]="$first ? 'bg-aviso' : 'bg-border'"
-            aria-hidden="true"
-          ></span>
-          <div class="flex flex-wrap items-baseline justify-between gap-x-4">
-            <!-- So o PROXIMO prazo recebe o tamanho de destaque. Dar o mesmo peso a todos seria
-                 dizer que tanto faz qual vence primeiro. -->
-            <p
-              class="font-heading font-bold"
-              [class]="$first ? 'text-2xl text-aviso-ink' : 'text-lg text-foreground'"
-            >
-              {{ rotuloPrazo(v.dataVencimento) }}
-            </p>
-            @if (v.valor) {
-              <p
-                class="font-heading font-bold tabular-nums"
-                [class]="$first ? 'text-2xl text-foreground' : 'text-lg text-foreground'"
-              >
-                {{ formatCurrency(v.valor) }}
-              </p>
-            }
-          </div>
-          <p class="text-valor font-medium text-foreground">{{ v.titulo }}</p>
-          <p class="text-apoio text-muted-foreground">{{ frasePrazo(v) }}</p>
-          @if (v.tipo === 'solicitacao') {
-            <a
-              routerLink="/documentos"
-              class="tap-target mt-1 inline-flex items-center text-apoio font-medium text-accent hover:underline"
-            >
-              Anexar documento
-            </a>
-          }
-        </li>
-      }
-
-      <!-- ── o que ja foi resolvido ── -->
-      @for (v of jaPagos(); track v.id) {
-        <li class="relative pb-6 pl-6">
-          <span
-            class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full border-2 border-sucesso bg-background ring-4 ring-background"
-            aria-hidden="true"
-          ></span>
-          <div class="flex flex-wrap items-baseline justify-between gap-x-4">
-            <p class="text-apoio font-medium text-sucesso-ink">
-              Pago em {{ dataPorExtenso(v.dataVencimento) }}
-            </p>
-            @if (v.valor) {
-              <p class="text-apoio tabular-nums text-muted-foreground">
-                {{ formatCurrency(v.valor) }}
-              </p>
-            }
-          </div>
-          <p class="text-apoio text-muted-foreground">{{ v.titulo }}</p>
-        </li>
-      }
-    </ol>
-  } @else if (!loading() && !vencimentosErro()) {
-    <section class="rounded-card border border-border bg-card p-5 text-center shadow-suave">
-      <svg lucideCheck [size]="28" class="mx-auto text-sucesso" aria-hidden="true" />
-      <p class="mt-1 text-apoio text-muted-foreground">
-        Nenhum prazo nos três meses para trás nem nos três à frente.
-      </p>
-    </section>
-  }
-
   <!--
+    ── DUAS COLUNAS ──
+    O mês à esquerda, os prazos à direita, e as observações atravessando os dois lá embaixo.
+
+    No celular não existe esquerda nem direita: ali a linha do tempo vem primeiro, porque é ela
+    que responde "o que eu devo e quando". A grade desce para depois (`order`), e quem rola chega
+    nela sabendo o que procurar.
+  -->
+  <div class="grid gap-5 lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)] lg:items-start">
+    @if (prazos().length) {
+      <!-- Largura de leitura: num monitor largo o valor ia parar a meio metro do nome da guia,
+         e o olho tinha que atravessar a tela para juntar as duas pontas da mesma linha. -->
+      <ol class="order-1 ml-[0.4375rem] border-l border-border pl-0 lg:order-2">
+        <!-- ── o que ja passou e nao foi pago ── -->
+        @for (v of atrasados(); track v.id) {
+          <li class="relative pb-6 pl-6">
+            <span
+              class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full bg-perigo ring-4 ring-background"
+              aria-hidden="true"
+            ></span>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+              <p class="font-heading text-lg font-bold text-perigo-ink">
+                {{ rotuloPrazo(v.dataVencimento) }}
+              </p>
+              @if (v.valor) {
+                <p class="font-heading text-lg font-bold tabular-nums text-perigo-ink">
+                  {{ formatCurrency(v.valor) }}
+                </p>
+              }
+            </div>
+            <p class="text-valor font-medium text-foreground">{{ v.titulo }}</p>
+            <p class="text-apoio text-muted-foreground">{{ frasePrazo(v) }}</p>
+            <!-- O aviso vem colado no item que o provoca, e so no primeiro: antes ele era uma
+               faixa vermelha no topo da tela, longe da guia de que falava. -->
+            @if ($first) {
+              <p class="mt-1.5 text-apoio text-perigo-ink">
+                Guia atrasada costuma ter multa e juros. Procure o seu escritório de contabilidade.
+              </p>
+            }
+          </li>
+        }
+
+        <!-- ── o eixo ── -->
+        <li class="relative pb-6 pl-6">
+          <span
+            class="absolute top-1 left-0 size-3.5 -translate-x-1/2 rounded-full bg-primary ring-4 ring-background"
+            aria-hidden="true"
+          ></span>
+          <p class="flex items-center gap-3 font-heading text-apoio font-semibold text-primary">
+            <span>Hoje é {{ hojePorExtenso() }}</span>
+            <span class="h-px flex-1 bg-primary/25" aria-hidden="true"></span>
+          </p>
+        </li>
+
+        <!-- ── o que ainda vai vencer ── -->
+        @for (v of aVencer(); track v.id) {
+          <li class="relative pb-6 pl-6">
+            <span
+              class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full ring-4 ring-background"
+              [class]="$first ? 'bg-aviso' : 'bg-border'"
+              aria-hidden="true"
+            ></span>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+              <!-- So o PROXIMO prazo recebe o tamanho de destaque. Dar o mesmo peso a todos seria
+                 dizer que tanto faz qual vence primeiro. -->
+              <p
+                class="font-heading font-bold"
+                [class]="$first ? 'text-2xl text-aviso-ink' : 'text-lg text-foreground'"
+              >
+                {{ rotuloPrazo(v.dataVencimento) }}
+              </p>
+              @if (v.valor) {
+                <p
+                  class="font-heading font-bold tabular-nums"
+                  [class]="$first ? 'text-2xl text-foreground' : 'text-lg text-foreground'"
+                >
+                  {{ formatCurrency(v.valor) }}
+                </p>
+              }
+            </div>
+            <p class="text-valor font-medium text-foreground">{{ v.titulo }}</p>
+            <p class="text-apoio text-muted-foreground">{{ frasePrazo(v) }}</p>
+            @if (v.tipo === 'solicitacao') {
+              <a
+                routerLink="/documentos"
+                class="tap-target mt-1 inline-flex items-center text-apoio font-medium text-accent hover:underline"
+              >
+                Anexar documento
+              </a>
+            }
+          </li>
+        }
+
+        <!-- ── o que ja foi resolvido ── -->
+        @for (v of jaPagos(); track v.id) {
+          <li class="relative pb-6 pl-6">
+            <span
+              class="absolute top-1.5 left-0 size-3 -translate-x-1/2 rounded-full border-2 border-sucesso bg-background ring-4 ring-background"
+              aria-hidden="true"
+            ></span>
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+              <p class="text-apoio font-medium text-sucesso-ink">
+                Pago em {{ dataPorExtenso(v.dataVencimento) }}
+              </p>
+              @if (v.valor) {
+                <p class="text-apoio tabular-nums text-muted-foreground">
+                  {{ formatCurrency(v.valor) }}
+                </p>
+              }
+            </div>
+            <p class="text-apoio text-muted-foreground">{{ v.titulo }}</p>
+          </li>
+        }
+      </ol>
+    } @else if (!loading() && !vencimentosErro()) {
+      <section
+        class="order-1 rounded-card border border-border bg-card p-5 text-center shadow-suave lg:order-2"
+      >
+        <svg lucideCheck [size]="28" class="mx-auto text-sucesso" aria-hidden="true" />
+        <p class="mt-1 text-apoio text-muted-foreground">
+          Nenhum prazo nos três meses para trás nem nos três à frente.
+        </p>
+      </section>
+    }
+
+    <!--
     ── O MAPA DO MÊS ──
     Subiu para cá, logo abaixo do próximo prazo. Ele ficava no fim da tela, depois de duas listas
     que já tinham respondido a pergunta — chegava quando não restava pergunta nenhuma.
@@ -178,144 +189,154 @@
     quase nunca é dia de vencimento. Agora o detalhe abre DEBAIXO da grade, só quando o dia tem
     algo, e a grade fica com a largura inteira.
   -->
-  <section class="rounded-card border border-border bg-card p-3 shadow-suave sm:p-5">
-    <!-- Navegação -->
-    <div class="flex items-center justify-between mb-4">
-      <button
-        type="button"
-        class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        aria-label="Mês anterior"
-        (click)="mesAnterior()"
-      >
-        <svg lucideChevronLeft [size]="20" aria-hidden="true" />
-      </button>
-      <h2 class="text-center font-heading text-base font-semibold text-foreground">
-        {{ nomeMes() }}
-        @if (prazosNoMes()) {
-          <span class="block text-apoio font-normal text-muted-foreground">
-            {{ prazosNoMes() === 1 ? '1 prazo' : prazosNoMes() + ' prazos' }}
-          </span>
-        } @else {
-          <span class="block text-apoio font-normal text-muted-foreground">nada vence aqui</span>
-        }
-      </h2>
-      <button
-        type="button"
-        class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        aria-label="Próximo mês"
-        (click)="proximoMes()"
-      >
-        <svg lucideChevronRight [size]="20" aria-hidden="true" />
-      </button>
-    </div>
-
-    <!-- Dias da semana. Inicial, não "Dom Seg Ter": a fileira de três letras em negrito
-         competia com os números da grade, e ninguém precisa que lhe ensinem a ordem da semana. -->
-    <div class="mb-1 grid grid-cols-7">
-      @for (d of diasSemana; track d) {
-        <abbr
-          class="cursor-default text-center text-apoio text-muted-foreground/70 no-underline"
-          [title]="d"
-        >
-          {{ d.charAt(0) }}
-        </abbr>
-      }
-    </div>
-
-    <!-- Grade do calendário -->
-    @if (loading()) {
-      <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
-        @for (
-          i of [
-            1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
-            25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
-          ];
-          track i
-        ) {
-          <div
-            class="min-h-[3.25rem] animate-pulse rounded-controle bg-muted/40 sm:min-h-[4rem]"
-          ></div>
-        }
-      </div>
-    } @else {
-      <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
-        @for (dia of diasDoMes(); track $index) {
-          @if (dia === null) {
-            <div></div>
-          } @else {
-            <!-- A célula não tem fundo: a grade é uma treliça fraca e só os seus dias levam
-                 tinta. O número, a marca colorida e o nome da guia são o conteúdo; o resto do
-                 mês fica lá, legível, sem disputar atenção. -->
-            <button
-              type="button"
-              class="group flex min-h-[3.25rem] w-full flex-col items-center gap-1 rounded-controle px-0.5 pt-1 pb-1 text-apoio sm:min-h-[4rem]"
-              [attr.aria-pressed]="ehSelecionado(dia)"
-              [attr.aria-current]="ehHoje(dia) ? 'date' : null"
-              [attr.aria-label]="rotuloDoDia(dia)"
-              (click)="selecionarDia(dia)"
-            >
-              <span
-                class="transition-colors group-hover:bg-muted {{ diaClass(dia) }}"
-                [class.group-hover:bg-primary]="ehSelecionado(dia)"
-              >
-                {{ dia }}
-              </span>
-
-              @if (diasComPrazo()[dia]; as prazo) {
-                <!-- A marca é uma barra de 2px, não um retângulo colorido atrás do número: ela
-                     aponta o dia sem pintar a célula inteira. -->
-                <span
-                  class="h-0.5 w-5 rounded-full {{ marcaDoDia(dia) }}"
-                  aria-hidden="true"
-                ></span>
-                <!-- O NOME do que vence — era isto que o grupo sentia falta: a grade dizia que
-                     algo vencia, nunca o quê. No celular a coluna tem ~44px e o nome trunca
-                     ("FUNRU..."); inteiro ele está no detalhe, a um toque. -->
-                <span class="w-full truncate text-center text-apoio leading-none font-semibold">
-                  {{ prazo.rotulo }}
-                  @if (prazo.quantidade > 1) {
-                    <span class="font-normal text-muted-foreground"
-                      >+{{ prazo.quantidade - 1 }}</span
-                    >
-                  }
-                </span>
-              }
-            </button>
-          }
-        }
-      </div>
-    }
-
-    <!-- A legenda saiu. Ela explicava três cores -- atrasado, a vencer, pago -- numa grade onde
-         cada dia marcado já traz o nome da guia escrito, e onde a linha do tempo logo acima diz a
-         mesma coisa por extenso. Legenda que repete o que o conteúdo diz é decoração. -->
-    @if (foraDoMesCorrente()) {
-      <div class="mt-3 flex justify-end">
+    <section
+      class="order-2 rounded-card border border-border bg-card p-3 shadow-suave sm:p-4 lg:order-1"
+    >
+      <!-- Navegação -->
+      <div class="flex items-center justify-between mb-4">
         <button
           type="button"
-          class="tap-target text-apoio font-medium text-primary underline"
-          (click)="irParaHoje()"
+          class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Mês anterior"
+          (click)="mesAnterior()"
         >
-          Voltar para hoje
+          <svg lucideChevronLeft [size]="20" aria-hidden="true" />
+        </button>
+        <h2 class="text-center font-heading text-base font-semibold text-foreground">
+          {{ nomeMes() }}
+          @if (prazosNoMes()) {
+            <span class="block text-apoio font-normal text-muted-foreground">
+              {{ prazosNoMes() === 1 ? '1 prazo' : prazosNoMes() + ' prazos' }}
+            </span>
+          } @else {
+            <span class="block text-apoio font-normal text-muted-foreground">nada vence aqui</span>
+          }
+        </h2>
+        <button
+          type="button"
+          class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Próximo mês"
+          (click)="proximoMes()"
+        >
+          <svg lucideChevronRight [size]="20" aria-hidden="true" />
         </button>
       </div>
-    }
 
-    <!--
-        ── O DIA ESCOLHIDO ──
-        Dentro do mesmo cartão, logo abaixo da grade: o detalhe pertence ao dia que acabou de ser
-        clicado, e atravessar a tela até uma coluna lateral quebrava essa ligação.
-        A `sanfona` anima a altura; fechada, não sobra nem a borda.
-      -->
+      <!-- Dias da semana. Inicial, não "Dom Seg Ter": a fileira de três letras em negrito
+         competia com os números da grade, e ninguém precisa que lhe ensinem a ordem da semana. -->
+      <div class="mb-1 grid grid-cols-7">
+        @for (d of diasSemana; track d) {
+          <abbr
+            class="cursor-default text-center text-apoio text-muted-foreground/70 no-underline"
+            [title]="d"
+          >
+            {{ d.charAt(0) }}
+          </abbr>
+        }
+      </div>
+
+      <!-- Grade do calendário -->
+      @if (loading()) {
+        <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
+          @for (
+            i of [
+              1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+              25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
+            ];
+            track i
+          ) {
+            <div
+              class="min-h-[3.25rem] animate-pulse rounded-controle bg-muted/40 sm:min-h-[4rem]"
+            ></div>
+          }
+        </div>
+      } @else {
+        <div class="grid grid-cols-7 gap-0.5 sm:gap-1">
+          @for (dia of diasDoMes(); track $index) {
+            @if (dia === null) {
+              <div></div>
+            } @else {
+              <!-- A célula não tem fundo: a grade é uma treliça fraca e só os seus dias levam
+                 tinta. O número, a marca colorida e o nome da guia são o conteúdo; o resto do
+                 mês fica lá, legível, sem disputar atenção. -->
+              <button
+                type="button"
+                class="group flex min-h-[3.25rem] w-full flex-col items-center gap-1 rounded-controle px-0 pt-1 pb-1 text-apoio sm:min-h-[4rem]"
+                [attr.aria-pressed]="ehSelecionado(dia)"
+                [attr.aria-current]="ehHoje(dia) ? 'date' : null"
+                [attr.aria-label]="rotuloDoDia(dia)"
+                (click)="selecionarDia(dia)"
+              >
+                <span
+                  class="transition-colors group-hover:bg-muted {{ diaClass(dia) }}"
+                  [class.group-hover:bg-primary]="ehSelecionado(dia)"
+                >
+                  {{ dia }}
+                </span>
+
+                @if (diasComPrazo()[dia]; as prazo) {
+                  <!-- A marca é uma barra de 2px, não um retângulo colorido atrás do número: ela
+                     aponta o dia sem pintar a célula inteira. -->
+                  <span
+                    class="h-0.5 w-5 rounded-full {{ marcaDoDia(dia) }}"
+                    aria-hidden="true"
+                  ></span>
+                  <!-- O NOME do que vence — era isto que o grupo sentia falta: a grade dizia que
+                     algo vencia, nunca o quê. No celular a coluna tem ~44px e o nome trunca
+                     ("FUNRU..."); inteiro ele está no detalhe, a um toque. -->
+                  <span class="w-full truncate text-center text-apoio leading-none font-semibold">
+                    {{ prazo.rotulo }}
+                    @if (prazo.quantidade > 1) {
+                      <span class="font-normal text-muted-foreground"
+                        >+{{ prazo.quantidade - 1 }}</span
+                      >
+                    }
+                  </span>
+                }
+              </button>
+            }
+          }
+        </div>
+      }
+
+      <!-- A legenda saiu. Ela explicava três cores -- atrasado, a vencer, pago -- numa grade onde
+         cada dia marcado já traz o nome da guia escrito, e onde a linha do tempo logo acima diz a
+         mesma coisa por extenso. Legenda que repete o que o conteúdo diz é decoração. -->
+      @if (foraDoMesCorrente()) {
+        <div class="mt-3 flex justify-end">
+          <button
+            type="button"
+            class="tap-target text-apoio font-medium text-primary underline"
+            (click)="irParaHoje()"
+          >
+            Voltar para hoje
+          </button>
+        </div>
+      }
+    </section>
+  </div>
+
+  <!--
+    ── OBSERVAÇÕES ──
+    O detalhe do dia clicado morava dentro do cartão do mês. Com a grade ocupando uma coluna
+    estreita, ele não cabia mais ali -- e, pensando bem, ele nunca foi parte do calendário: é a
+    resposta a um toque, e resposta merece espaço próprio. Aqui embaixo ele tem a largura inteira.
+
+    Sem dia escolhido com prazo, a faixa explica o que a tela está mostrando, em vez de ficar
+    vazia esperando um clique.
+  -->
+  <section class="rounded-card border border-border bg-surface p-5">
+    <h2 class="font-heading text-base font-semibold text-foreground">Observações</h2>
+
     <div class="sanfona" [class.sanfona-aberta]="vencimentosDia().length > 0" aria-live="polite">
       <div>
-        <div class="mt-4 border-t border-border pt-4">
+        <div class="pt-3">
           <h3 class="font-heading text-apoio font-semibold text-foreground">
             {{ nomeDiaSelecionado() }}
           </h3>
-          <ul class="mt-2 grid gap-2 sm:grid-cols-2">
+          <ul class="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             @for (v of vencimentosDia(); track v.id) {
-              <li class="rounded-controle border border-border p-3">
+              <li class="rounded-controle border border-border bg-card p-3">
                 <div class="flex items-start justify-between gap-2">
                   <p class="text-apoio leading-tight font-medium text-foreground">{{ v.titulo }}</p>
                   <span
@@ -348,5 +369,12 @@
         </div>
       </div>
     </div>
+
+    @if (!vencimentosDia().length) {
+      <p class="mt-1 text-apoio text-muted-foreground">
+        A lista cobre de três meses atrás até três meses à frente. Toque num dia marcado do
+        calendário para ver o que vence nele.
+      </p>
+    }
   </section>
 </div>
