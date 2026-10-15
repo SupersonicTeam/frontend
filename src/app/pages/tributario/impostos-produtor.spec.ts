@@ -6,7 +6,7 @@ import {
   TestRequest,
   provideHttpClientTesting,
 } from '@angular/common/http/testing';
-import { TributarioPage } from './tributario';
+import { ImpostosProdutor } from './impostos-produtor';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import { ToastService } from '@core/services/toast.service';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
@@ -45,12 +45,12 @@ function buildRelatorio(o: Partial<RelatorioConformidade> = {}): RelatorioConfor
   };
 }
 
-describe('TributarioPage', () => {
+describe('ImpostosProdutor', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [TributarioPage],
+      imports: [ImpostosProdutor],
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
@@ -142,7 +142,7 @@ describe('TributarioPage', () => {
   }
 
   it('TRIB-01/02: ngOnInit busca a apuração e o relatório do período corrente', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
 
@@ -161,7 +161,7 @@ describe('TributarioPage', () => {
   });
 
   it('TRIB-03: trocar o mês refaz os fetches com o novo periodo YYYY-MM', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushTodos();
@@ -181,7 +181,7 @@ describe('TributarioPage', () => {
   });
 
   it('TRIB-06: sem notas de entrada, a conta mostra crédito zero — não some nem vira erro', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao();
@@ -193,7 +193,7 @@ describe('TributarioPage', () => {
   });
 
   it('a tela não busca mais /creditos: é a mesma soma que já vem no relatório', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     f.detectChanges();
     flushApuracao();
     flushRelatorio();
@@ -204,7 +204,7 @@ describe('TributarioPage', () => {
   });
 
   it('edge: apuração ABERTO com dataFechamento null (projeção ao vivo) não é tratada como erro', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao({ status: 'ABERTO', dataFechamento: null });
@@ -216,7 +216,7 @@ describe('TributarioPage', () => {
   });
 
   it('TRIB-09: falha da apuração não esconde o relatório (fetches independentes)', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     const { atual, anterior, resto } = apuracoesAbertas(cmp.periodo());
@@ -235,7 +235,7 @@ describe('TributarioPage', () => {
   });
 
   it('TRIB-04: podeReabrir só quando status FECHADO', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao({ status: 'ABERTO', dataFechamento: null });
@@ -247,7 +247,7 @@ describe('TributarioPage', () => {
   });
 
   it('TRIB-05: reabrir ramifica 409 APURACAO_NAO_REABRIVEL vs 422 REABERTURA_FORA_PRAZO por code', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     const toast = TestBed.inject(ToastService);
     f.detectChanges();
@@ -273,7 +273,7 @@ describe('TributarioPage', () => {
   });
 
   it('TRIB-07: saldoAPagar negativo → saldoCredor true (valor não é alterado)', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao();
@@ -284,7 +284,7 @@ describe('TributarioPage', () => {
   });
 
   it('TRIB-08: baixarPdf lê o filename do Content-Disposition e salva o blob', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushTodos();
@@ -314,7 +314,7 @@ describe('TributarioPage', () => {
   });
 
   it('TRIB-08: baixarPdf em erro-como-blob mostra a mensagem derivada do ApiError', async () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     const toast = TestBed.inject(ToastService);
     f.detectChanges();
@@ -339,7 +339,7 @@ describe('TributarioPage', () => {
   });
 
   it('mostra a data de fechamento em português, não o instante ISO da API', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     f.detectChanges();
     flushTodos();
     f.detectChanges();
@@ -352,7 +352,7 @@ describe('TributarioPage', () => {
   it('todo botão da tela respeita o alvo mínimo de 44×44 (WCAG 2.5.5)', () => {
     // Os botões eram `py-1.5` (~30px de altura). O `ui-button` é quem garante o piso de 44px e
     // o rótulo de 14px — por isso a tela usa ele em vez de `<button>` com classe à mão.
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     f.detectChanges();
     flushTodos();
     f.detectChanges();
@@ -367,7 +367,7 @@ describe('TributarioPage', () => {
   // ── O mês com saída: comparação e guias ───────────────────────────────────────────────
 
   it('compara com o mês anterior em dinheiro e em porcentagem', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     f.detectChanges();
     // Atual 1.200 (120+1080); anterior 600 (60+540) -> 600 a mais, +100%.
     flushApuracao({}, { saldoIbs: 60, saldoCbs: 540 });
@@ -380,7 +380,7 @@ describe('TributarioPage', () => {
   });
 
   it('sem apuração no mês anterior, não inventa comparação', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao(); // anterior responde 404
@@ -395,7 +395,7 @@ describe('TributarioPage', () => {
 
   it('saindo de zero, mostra o valor mas não a porcentagem', () => {
     // De R$ 0,00 para R$ 1.200 não é "infinito por cento" — o percentual fica de fora.
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao({}, { saldoIbs: 0, saldoCbs: 0 });
@@ -406,7 +406,7 @@ describe('TributarioPage', () => {
   });
 
   it('mostra só as guias do período escolhido, ordenadas por vencimento', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     const periodo = cmp.periodo();
     f.detectChanges();
@@ -450,7 +450,7 @@ describe('TributarioPage', () => {
   });
 
   it('sem guia no período, diz que a apuração ainda não virou cobrança', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     f.detectChanges();
     flushApuracao();
     flushRelatorio();
@@ -462,7 +462,7 @@ describe('TributarioPage', () => {
   });
 
   it('a conta mostra as duas parcelas com quantas notas cada uma tem', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao();
@@ -484,7 +484,7 @@ describe('TributarioPage', () => {
   });
 
   it('sem o relatório, a conta se monta pela apuração — perde a contagem, não a conta', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao();
@@ -507,7 +507,7 @@ describe('TributarioPage', () => {
   });
 
   it('apuração fechada que não bate com a conta de hoje avisa, em vez de escolher um número', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     // Fechada em 1200; o relatório soma as notas de agora e dá 60: alguma nota mudou depois.
@@ -520,7 +520,7 @@ describe('TributarioPage', () => {
   });
 
   it('ao trocar de mês, a conta não mistura o débito de um com o saldo do outro', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushTodos();
@@ -545,7 +545,7 @@ describe('TributarioPage', () => {
   });
 
   it('relatório que chega de outro mês (resposta fora de ordem) é descartado', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushTodos();
@@ -566,7 +566,7 @@ describe('TributarioPage', () => {
   });
 
   it('quando os dois batem, não há aviso de divergência', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushApuracao({ saldoIbs: 6, saldoCbs: 54 });
@@ -578,7 +578,7 @@ describe('TributarioPage', () => {
   });
 
   it('o botão da Ceres manda a pergunta já com o período da tela, por extenso', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushTodos();
@@ -596,7 +596,7 @@ describe('TributarioPage', () => {
   });
 
   it('a faixa cobre seis meses, do mais antigo ao da tela, e marca qual é o da tela', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     const periodo = cmp.periodo();
     f.detectChanges();
@@ -629,7 +629,7 @@ describe('TributarioPage', () => {
   });
 
   it('mês sem resposta é lacuna na faixa, não um mês de imposto zero', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     const periodo = cmp.periodo();
     f.detectChanges();
@@ -651,7 +651,7 @@ describe('TributarioPage', () => {
   });
 
   it('clicar num mês da faixa leva a tela para aquele mês', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushTodos();
@@ -675,7 +675,7 @@ describe('TributarioPage', () => {
   });
 
   it('com um mês só respondendo, a faixa não aparece — não há o que comparar', () => {
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     const periodo = cmp.periodo();
     f.detectChanges();
@@ -694,7 +694,7 @@ describe('TributarioPage', () => {
   it('data só com dia não anda um dia para trás por causa do fuso', () => {
     // `new Date('2026-09-10')` é meia-noite em UTC; em Brasília (UTC−3) vira 09/09. A guia
     // aparecia vencendo um dia antes do que o backend informou.
-    const f = TestBed.createComponent(TributarioPage);
+    const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
     flushTodos();

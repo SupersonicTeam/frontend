@@ -224,17 +224,18 @@
              class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
             <svg lucideFileText [size]="20" /><span>Notas do produtor</span>
           </a>
-          <!-- Apuracao e prazos sao o trabalho do contador, existem com dado real
-               e estavam fora da navegacao dele -- so o produtor os alcancava. -->
+          <!-- Mesmas rotas do produtor, telas diferentes: /tributario e /calendario despacham
+               para `ImpostosContador` (conferir e fechar) e `PrazosContador` (cobrar), em vez das
+               versoes do produtor. -->
           <a routerLink="/tributario" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
              [routerLinkActiveOptions]="{exact:false}"
              class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
-            <svg lucideReceipt [size]="20" /><span>Impostos</span>
+            <svg lucideReceipt [size]="20" /><span>Fechamento</span>
           </a>
           <a routerLink="/calendario" routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
              [routerLinkActiveOptions]="{exact:false}"
              class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent">
-            <svg lucideCalendar [size]="20" /><span>Prazos</span>
+            <svg lucideCalendar [size]="20" /><span>Prazos e cobrança</span>
           </a>
         }
       </nav>
@@ -330,6 +331,10 @@
       </a>
     }
     @if (perfilService.ehContador()) {
+      <a routerLink="/tributario" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
+         class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
+        <svg lucideReceipt [size]="22" /><span class="text-apoio font-medium leading-tight">Fechamento</span>
+      </a>
       <a routerLink="/calendario" routerLinkActive="text-bottomnav-active" [routerLinkActiveOptions]="{exact:false}"
          class="tap-target flex min-w-[3.5rem] flex-col items-center justify-center gap-0.5 rounded-controle px-2 py-1 text-bottomnav-foreground transition-colors">
         <svg lucideCalendar [size]="22" /><span class="text-apoio font-medium leading-tight">Prazos</span>
