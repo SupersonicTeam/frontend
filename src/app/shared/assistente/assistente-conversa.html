@@ -178,7 +178,7 @@
            sozinho nao explica nada, e `title` so existe no mouse -- no celular, onde o produtor
            usa isto, hover nao existe. Por isso ele ABRE: um toque mostra o detalhe. -->
       @if (store.uso(); as uso) {
-        <div class="relative shrink-0">
+        <div class="relative shrink-0" data-cota>
           <button
             type="button"
             class="tap-target flex items-center justify-center rounded-full transition-colors hover:bg-muted"
@@ -222,31 +222,43 @@
               role="dialog"
               aria-label="Créditos da Ceres"
             >
-              <p class="font-heading text-lg font-bold tabular-nums text-foreground">
-                {{ uso.restantes }} de {{ uso.creditosSemana }}
-              </p>
-              <p class="text-apoio text-muted-foreground">créditos nesta semana</p>
+              <p class="font-heading text-base font-semibold text-foreground">Uso</p>
 
-              <dl class="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-apoio">
-                <div class="flex justify-between gap-2">
-                  <dt class="text-muted-foreground">Usados</dt>
-                  <dd class="tabular-nums text-foreground">{{ uso.consumidos }}</dd>
+              <!-- Barra do que foi GASTO, como qualquer medidor de consumo: ela enche conforme a
+                   semana corre. O anel do lado de fora faz o contrario, esvazia -- por isso cada
+                   um diz em palavras o que mostra ("usado" aqui, "restantes" na linha abaixo),
+                   em vez de deixar a direcao do desenho no ar. -->
+              <div class="mt-3">
+                <div class="flex items-baseline justify-between gap-2">
+                  <span class="text-apoio font-medium text-foreground">Créditos da semana</span>
+                  <span class="text-apoio tabular-nums text-muted-foreground">
+                    {{ percentualUsado(uso) }}% usado
+                  </span>
                 </div>
-                <div class="flex justify-between gap-2">
-                  <dt class="text-muted-foreground">Renova em</dt>
-                  <dd class="text-foreground">{{ dataDaRenovacao(uso) }}</dd>
+                <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                  <div
+                    class="h-full rounded-full"
+                    [class]="corDaBarra(uso)"
+                    [style.width.%]="percentualUsado(uso)"
+                  ></div>
                 </div>
-                <div class="flex justify-between gap-2">
-                  <dt class="text-muted-foreground">Plano</dt>
-                  <dd class="text-foreground">{{ uso.plano }}</dd>
-                </div>
-              </dl>
+                <p class="mt-1.5 text-apoio text-muted-foreground">
+                  {{ uso.restantes }} de {{ uso.creditosSemana }} restantes
+                </p>
+                <p class="text-apoio text-muted-foreground">Renova em {{ dataDaRenovacao(uso) }}</p>
+              </div>
 
-              <!-- Dizer o que consome evita a leitura errada de "sobraram 994 perguntas". -->
-              <p class="mt-3 text-apoio leading-relaxed text-muted-foreground">
-                Cada pergunta gasta conforme o tamanho da conversa — uma longa consome mais que uma
-                curta.
-              </p>
+              <div class="mt-3 border-t border-border pt-3">
+                <div class="flex items-baseline justify-between gap-2">
+                  <span class="text-apoio text-muted-foreground">Plano</span>
+                  <span class="text-apoio text-foreground">{{ nomeDoPlano(uso) }}</span>
+                </div>
+                <!-- Dizer o que consome evita a leitura errada de "sobraram 994 perguntas". -->
+                <p class="mt-2 text-apoio leading-relaxed text-muted-foreground">
+                  Cada pergunta gasta conforme o tamanho da conversa — uma longa consome mais que
+                  uma curta.
+                </p>
+              </div>
             </div>
           }
         </div>
