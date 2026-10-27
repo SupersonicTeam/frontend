@@ -103,7 +103,8 @@ exatamente o que produziu o bug acima.
 |---|---|---|
 | `/dashboard` | produtor (`produtorGuard`) | `pages/dashboard/dashboard.{ts,html}` |
 | `/chat` | produtor (`produtorGuard`) | `pages/chat/chat.{ts,html}` |
-| `/contador` | **contador** (`contadorGuard`) | `pages/contador/contador.{ts,html}` — a **triagem**: o que impede fechar, o titular dos números, e atalhos |
+| `/contador` | **contador** (`contadorGuard`) | `pages/contador/contador.{ts,html}` — a **triagem da carteira**: quais clientes pedem atenção, em ordem de urgência (#95) |
+| `/contador/:produtorId` | **contador** (`contadorGuard`) | `pages/contador/cliente.{ts,html}` — **um cliente**: notas travadas (com as validações reais), guias a cobrar e documentos a conferir |
 | `/tributario` | **os dois** | `tributario.ts` escolhe: `ImpostosProdutor` (quanto eu pago, de onde vem, 6 meses) ou `ImpostosContador` (**Fechamento**: matriz IBS/CBS, notas que ficaram fora da apuração, variação decomposta) |
 | `/calendario` | **os dois** | `calendario.ts` escolhe: `PrazosProdutor` (o que vence pra mim + calendário) ou `PrazosContador` (**cobrança**: fila do que cobrar, lançar guia, dar baixa) |
 | `/documentos` | os dois | `pages/documentos/documentos.{ts,html}` — mesma lista, título e voz trocam |
@@ -122,7 +123,8 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | **Dashboard real** contra `GET /api/dashboard` (KPIs IBS/CBS, notas por mês, distribuição de impostos, últimas notas), com cache local em Signal (`dashboard`). Sem fallback mock — erro propaga para a página tratar (estado de erro + retry). Rascunhos (`/dashboard/rascunhos/*`) ainda com fallback silencioso. |
 | `CalendarioApi` | `@services/calendario/data-access/calendario.service` | Vencimentos/eventos fiscais (com fallback mock). |
 | `CeresApi` | `@services/assistente/data-access/ceres.service` | **A Ceres**, assistente fiscal (issue #76). `perguntarEmStream()` em `POST /api/assistente/chat/stream` (SSE via `fetch`, padrão) e `perguntar()` em `POST /api/assistente/chat` (síncrono, timeout de 6 min — fallback de navegador sem `TextDecoderStream`). Erros viram `CeresError` com `codigo` (`CodigoCeres`) e `retryAfterSegundos`; cancelamento vira `CeresCancelada`. Nunca inventa texto de assistente. |
-| `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. |
+| `CarteiraApi` | `@services/contador/data-access/carteira.service` | **A carteira do escritório** (backend#177): `GET /contador/produtores` (array + `X-Total-Count`, nunca `Page<T>`), e o que o contador alcança de um cliente — notas, validações, guias e pendências, todas em `/contador/produtores/{id}/...`. **Sem fallback silencioso**: 403 e 404 sobem para a tela. |
+| `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. O cliente antigo: `?produtorId=` na query e `catchError(() => of([]))`. `/contador/pendencias?produtorId=` ainda responde 404 — a rota real virou `/contador/produtores/{id}/pendencias` (#180, issue #95). |
 | `NotificacaoApi` | `@services/notificacao/data-access/notificacao.service` | Notificações externas (WhatsApp). |
 
 **Cross-cutting** — permanecem em `core/services/`, importados via `@core/services/...`:
@@ -133,9 +135,10 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `NotificacoesService` | Estado **local** de notificações da UI (signal). Não confundir com `NotificacaoApi`. |
 | `ToastService` | Toasts (auto-dismiss 4s), renderizados por `ToastContainer`. |
 | `ThemeService` | Tema claro/escuro. |
-| `IdentidadeService` | Fonte única do header **`X-Usuario-Id`** (interceptor **e** `fetch` do SSE). Hoje devolve `null` de propósito: sem header o backend resolve o produtor semente; com UUID inexistente ele responde **401 em toda chamada** (e o seed regenera o UUID). Escape hatch por `localStorage` (`agrocontabil.usuario-id`). Mesmo padrão do `TokenService`. |
+| `IdentidadeService` | Fonte única do header **`X-Usuario-Id`** (interceptor **e** `fetch` do SSE). Produtor: `null` de propósito — sem header o backend resolve o produtor semente, e UUID inexistente dá **401 em toda chamada**. Contador: desde a #95 manda `LOGGED_ACCOUNTANT_ID`, **mas só em `/api/contador/**`** (`paraRota`), porque `/dashboard`, `/notas`, `/apuracao` e `/relatorios` dão **403** para contador e não têm versão por cliente (backend#255) — mandar em tudo quebraria Fechamento, Notas e Prazos. Escape hatch por `localStorage` (`agrocontabil.usuario-id`), que vence o perfil. |
 
-`LOGGED_PRODUCER_ID` mora em `@core/config/produtor-logado`.
+`LOGGED_PRODUCER_ID` e `LOGGED_ACCOUNTANT_ID` moram em `@core/config/produtor-logado`. As duas morrem
+com a #93: com JWT o produtor vem do token e o papel vem do `/api/auth/me`.
 
 ## Models (`core/models/*.model.ts`, via `@models/...`)
 
@@ -143,7 +146,8 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
 `nota-fiscal.model.ts` (`NotaFiscal`, `ItemNotaFiscal`), `rascunho-nota.model.ts` (`RascunhoNota`,
 `ItemRascunhoNota`), `solicitacao-contador.model.ts` (`SolicitacaoContador`, `DocumentoContador`),
 `assistente-mensagem.model.ts` (`AssistenteMensagem` — texto, rota, citações, fontes e `falha`),
-`vencimento-fiscal.model.ts`, `notificacao.model.ts`, `fluxo-caixa.model.ts`.
+`vencimento-fiscal.model.ts`, `notificacao.model.ts`, `fluxo-caixa.model.ts`,
+`carteira.model.ts` (`ProdutorCarteira`, `AtencaoCarteira`, `FiltroCarteira`, `PendenciaCliente`).
 `StatusRascunho` em `@core/enums/status-rascunho.enum`. Envelope de erro da API (`ApiErrorEnvelope`,
 `FiscalError`) em `@dtos/shared/responses/api-error.response`. Campos de status são unions de string.
 
@@ -195,6 +199,7 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `validacoes.ts` | Inconsistências fiscais de `/notas/{id}/validacoes`. O endpoint devolve o **histórico inteiro** — `apenasUltimaChecagem()` fica só com o lote mais recente, sem repetir `code`+`field`. `rotuloDoCampo()` traduz os 17 campos que o `FiscalRulesValidator` emite. `ehCampoDoProdutor()` separa o que se corrige na nota do que está no cadastro (que o app **não** edita). Usado no modal da nota **e** na gaveta do assistente. |
 | `ceres.ts` | Vocabulário da Ceres em português: `rotuloRota()` (selo "das suas notas"), `etapaDaRota()` (o que mostrar enquanto ela trabalha), `rotuloFonte()`/`descreverFonte()` (as consultas de `fontesDados`) e `TAMANHO_MAXIMO_PERGUNTA` (1000). Função não documentada no contrato aparece com o nome cru — melhor que inventar rótulo. |
 | `chart-tokens.ts` | Cores do Chart.js a partir das custom properties do tema. O `<canvas>` não enxerga Tailwind. |
+| `guias.ts` | `statusDaGuia()` traduz `PENDENTE`/`PAGA`/`VENCIDA` para o vocabulário do modelo **e deriva o atraso da data** — o backend não devolve `VENCIDA` por conta própria em `/contador/guias`, mas a carteira conta a guia atrasada em `atencao.guiasVencidas`. Sem isso as duas telas discordavam sobre a mesma guia. |
 | `download.ts` · `nota-pdf.ts` | Salvar blob / DANFE. |
 
 ## Assistente — a Ceres (`shared/assistente/`, issue #76)
@@ -230,7 +235,8 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 - `noPropertyAccessFromIndexSignature`: acessar propriedades de index-signature com **bracket** `obj['x']`.
 - Prettier: `printWidth: 100`, `singleQuote: true` (config no `package.json`); HTML usa parser `angular`.
 - Budgets (`angular.json`): bundle inicial warn 500 kB / erro 1 MB; estilos warn 4 kB / erro 8 kB.
-  (Baseline atual: **457,67 kB** inicial / 112,42 kB gzip — folga de ~42 kB. A Ceres custou ~19 kB: a gaveta
+  (Baseline medido em 27/10 na `main`: **469,81 kB**; com a carteira (#95): **486,10 kB** / 118,81 kB gzip —
+  folga de ~14 kB para o teto de aviso. A Ceres custou ~19 kB: a gaveta
   entra no bundle inicial pelo `AppLayout`. Se apertar, o caminho é `@defer` na gaveta, não cortar a camada de IA.)
 - **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
   conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
@@ -248,8 +254,10 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 ## Estado das sprints (frontend)
 
 Frontend ~85-90% pronto. Gaps reais (em ordem de sprint): ~~gráficos ng2-charts no dashboard (S1)~~ ✅ feito ·
-filtros grupo/status em Documentos (S2) · ~~seletor multi-produtor no Contador~~ **bloqueado no backend**:
-`/apuracao`, `/notas`, `/dashboard` e `/relatorios/conformidade` dão **403** para contador (derivam o
-produtor da identidade), e não há endpoint de carteira — desenho pronto, issue aberta · download PDF/XML (S3) ·
+filtros grupo/status em Documentos (S2) · ~~seletor multi-produtor no Contador~~ ✅ **feito** (#95):
+a carteira (backend#177) existe e o Acompanhamento virou a triagem dela, com `/contador/:produtorId`
+por cliente. **O que continua bloqueado é só a leitura de números por cliente**: `/apuracao`,
+`/relatorios/conformidade`, `/creditos` e `/dashboard` dão **403** para contador e não têm versão por
+cliente — SupersonicTeam/backend#255 · download PDF/XML (S3) ·
 dialog inline de anexar no Calendário · polir estados loading/erro/vazio (S5) · WCAG + README (S10).
 Plano completo: `../../../.claude/plans/` (sessão de planejamento).
