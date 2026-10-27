@@ -8,6 +8,7 @@ import {
   CreateGuiaDto,
 } from '@models/solicitacao-contador.model';
 import { RascunhoNota } from '@models/rascunho-nota.model';
+import { statusDaGuia } from '@core/utils/guias';
 
 export interface CreateSolicitacaoDto {
   produtorId: string;
@@ -289,23 +290,15 @@ export class ContadorApi {
    * pagar, guia vencida nunca acendia o alerta, e o selo saia escrito "PAGA" sem cor nenhuma.
    *
    * Reparar aqui, na entrada, e o que mantem a tela comparando com o que o tipo promete.
+   *
+   * A traducao mora em `@core/utils/guias` desde a carteira (#95): a tela do cliente precisa dela
+   * tambem, e lá se acrescentou o atraso **derivado da data** — esta rota nunca devolve `VENCIDA`
+   * por conta propria, mas a carteira conta a guia atrasada em `atencao.guiasVencidas`.
    */
   private paraGuia(bruto: GuiaFiscalResponse): GuiaFiscal {
-    return { ...bruto, status: this.statusDaGuia(bruto.status) };
+    return { ...bruto, status: statusDaGuia(bruto.status, bruto.dataVencimento) };
   }
 
-  private statusDaGuia(status: string): GuiaFiscal['status'] {
-    switch ((status ?? '').toUpperCase()) {
-      case 'PAGA':
-      case 'PAGO':
-        return 'pago';
-      case 'VENCIDA':
-      case 'VENCIDO':
-        return 'vencido';
-      default:
-        return 'pendente';
-    }
-  }
 
   // PATCH /contador/guias/:id/pagar — endpoint REAL. Sem catchError: a falha tem
   // que chegar em quem chamou, senao a tela diz "paga" sem nada ter sido pago (#50).
