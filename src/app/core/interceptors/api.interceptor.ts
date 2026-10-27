@@ -70,7 +70,8 @@ export const apiInterceptor: HttpInterceptorFn = (req, next) => {
     req.url !== base &&
     !req.url.startsWith(`${base}/`);
 
-  const usuarioId = identidade.usuarioId();
+  // Por rota, nao global: ver `IdentidadeService.paraRota` para o porque.
+  const usuarioId = identidade.paraRota(req.url);
 
   const apiReq = req.clone({
     url: precisaBase ? `${base}${req.url}` : req.url,
