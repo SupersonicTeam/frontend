@@ -28,9 +28,17 @@ import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
 import { PerfilService } from '@core/services/perfil.service';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
-import { SolicitacaoContador } from '@models/solicitacao-contador.model';
+import {
+  type Pendencia,
+  STATUS_PENDENCIA_LABEL,
+  TIPO_DOCUMENTO_LABEL,
+  FORMATOS_ACEITOS,
+  TAMANHO_MAXIMO_ANEXO,
+  MAXIMO_ANEXOS,
+  temAnexoEmVerificacao,
+} from '@models/pendencia.model';
+import { PendenciasApi } from '@services/pendencias/data-access/pendencias.service';
 import { NotaFiscalRequest, NotaFiscalItemRequest } from '@dtos/notas/nota-fiscal.request';
 import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
@@ -207,11 +215,19 @@ export class DocumentosPage implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly contadorService = inject(ContadorApi);
+  private readonly pendenciasApi = inject(PendenciasApi);
   private readonly toastService = inject(ToastService);
 
   // Data
   notas = signal<NotaFiscal[]>([]);
-  solicitacoes = signal<SolicitacaoContador[]>([]);
+  /**
+   * Os pedidos de documento do escritorio (backend#180).
+   *
+   * Antes isto era `solicitacoes: SolicitacaoContador[]`, preenchido por uma rota que **nunca
+   * existiu** (`/contador/pendencias?produtorId=` responde 404 desde sempre) -- e por isso a secao
+   * nunca aparecia, mesmo havendo pedido de verdade no banco.
+   */
+  pendencias = signal<Pendencia[]>([]);
   loading = signal(false);
   salvando = signal(false);
 
@@ -269,11 +285,12 @@ export class DocumentosPage implements OnInit {
   /** Último retorno da SEFAZ (cStat/motivo/protocolo) exibido no preview. */
   sefazRetorno = signal<SefazRetorno | null>(null);
 
-  // Upload/Anexar dialog
-  showAnexar = signal(false);
-  solicitacaoSelecionada = signal('');
-  arquivoSelecionado = signal<File | null>(null);
-  enviandoAnexo = signal(false);
+  // ── Anexar na propria pendencia ──
+  // Nao ha modal: o cartao do pedido ja responde "para qual pedido e este arquivo", que era a
+  // unica pergunta que o modal fazia. `anexandoEm` guarda o id de quem esta enviando, para o
+  // botao girar so naquele cartao.
+  anexandoEm = signal<string | null>(null);
+  readonly formatosAceitos = FORMATOS_ACEITOS;
 
   // ── Formulário de nota (criar/editar) — alinhado ao NotaFiscalRequest ──
   showFormNota = signal(false);
@@ -625,22 +642,19 @@ export class DocumentosPage implements OnInit {
     this.busca.set('');
   }
 
-  readonly solicitacoesFiltradas = computed(() => {
+  readonly pendenciasFiltradas = computed(() => {
     const busca = this.busca().toLowerCase();
-    return this.solicitacoes().filter(
-      (s) =>
-        !busca ||
-        s.titulo.toLowerCase().includes(busca) ||
-        s.descricao.toLowerCase().includes(busca),
+    if (!busca) return this.pendencias();
+    return this.pendencias().filter(
+      (p) =>
+        p.titulo.toLowerCase().includes(busca) ||
+        (p.descricao ?? '').toLowerCase().includes(busca),
     );
   });
 
-  readonly solicitacoesPendentes = computed(() =>
-    this.solicitacoes().filter((s) => s.status === 'pendente'),
-  );
-
-  readonly solicitacaoInfo = computed(
-    () => this.solicitacoes().find((s) => s.id === this.solicitacaoSelecionada()) ?? null,
+  /** Quantos pedidos ainda dependem do produtor -- o numero que vale como chamado. */
+  readonly pendenciasEsperandoVoce = computed(
+    () => this.pendencias().filter((p) => p.status === 'PENDENTE').length,
   );
 
   /** Um item é válido quando tem os campos exigidos pelo backend (NCM 8 díg, CFOP 4 díg). */
@@ -762,9 +776,44 @@ export class DocumentosPage implements OnInit {
 
   carregarDados(): void {
     this.recarregarNotas();
-    this.contadorService
-      .getPendencias(LOGGED_PRODUCER_ID)
-      .subscribe({ next: (d) => this.solicitacoes.set(d), error: () => undefined });
+    // O produtor e o autenticado: a rota nao leva produtorId. Falha fica silenciosa de proposito
+    // -- esta e uma secao lateral da tela de notas, e um toast de erro aqui roubaria a atencao do
+    // que o produtor veio fazer.
+    this.pendenciasApi.listar().subscribe({
+      next: (d) => {
+        this.pendencias.set(d);
+        this.completarAnexosParados(d);
+      },
+      error: () => undefined,
+    });
+  }
+
+  /**
+   * Busca o detalhe de quem tem arquivo parado no antivirus.
+   *
+   * **A lista devolve `anexos: []`** -- so o `quantidadeAnexos`; os metadados (e com eles a
+   * `situacao` de cada arquivo) vem no detalhe. Sem isto o aviso de "em verificacao" aparecia no
+   * instante do upload e sumia ao recarregar a pagina: o produtor voltava, via "esperando voce"
+   * com o arquivo ja enviado e nenhuma explicacao, e mandava de novo.
+   *
+   * So pede o detalhe de quem precisa: `PENDENTE` **com** anexo. Quem nao anexou nada nao tem o
+   * que verificar, e quem ja esta `ENVIADA` passou pelo antivirus por definicao. Na pratica sao
+   * zero ou um pedido.
+   *
+   * A falha de um detalhe e silenciosa de proposito: o pedido continua na lista com o que a
+   * listagem deu. Perder o aviso e ruim; perder o pedido inteiro e pior.
+   */
+  private completarAnexosParados(pendencias: Pendencia[]): void {
+    for (const p of pendencias) {
+      if (p.status !== 'PENDENTE' || p.quantidadeAnexos === 0) continue;
+      this.pendenciasApi.detalhar(p.id).subscribe({
+        next: (completa) =>
+          this.pendencias.update((lista) =>
+            lista.map((atual) => (atual.id === completa.id ? completa : atual)),
+          ),
+        error: () => undefined,
+      });
+    }
   }
 
   /**
@@ -1318,40 +1367,103 @@ export class DocumentosPage implements OnInit {
     });
   }
 
-  // === Anexar documento ===
-  fecharAnexar(): void {
-    this.showAnexar.set(false);
-    this.solicitacaoSelecionada.set('');
-    this.arquivoSelecionado.set(null);
-  }
-  handleFileSelect(event: Event): void {
-    const file = (event.target as HTMLInputElement).files?.[0];
-    if (file) this.arquivoSelecionado.set(file);
-  }
-  salvarAnexo(): void {
-    const solicitacaoId = this.solicitacaoSelecionada();
-    const file = this.arquivoSelecionado();
-    if (!solicitacaoId || !file) return;
-    const categoria = this.solicitacaoInfo()?.categoria ?? 'Documento';
-    this.enviandoAnexo.set(true);
-    this.contadorService.anexarDocumento(solicitacaoId, file, categoria).subscribe({
-      next: (doc) => {
-        this.enviandoAnexo.set(false);
-        if (doc) {
-          this.solicitacoes.update((list) =>
-            list.map((s) => (s.id === solicitacaoId ? { ...s, status: 'enviado' as const } : s)),
-          );
-          this.toastService.success('Documento anexado com sucesso!');
-          this.fecharAnexar();
-        } else {
-          this.toastService.error('Não foi possível anexar o documento.');
-        }
+  // === Anexar na pendencia ===
+
+  /**
+   * Envia um arquivo para o pedido do escritorio.
+   *
+   * **Nao validamos o formato aqui, so o tamanho.** O servidor confere o tipo pelos *bytes*, nao
+   * pela extensao -- um `.pdf` que nao e PDF tem de ser recusado por ele, e repetir essa regra no
+   * cliente so criaria duas verdades. O teto de 5 MB, esse sim, vale conferir antes: evita gastar
+   * o upload inteiro (que pode ser o 4G da fazenda) para receber 400 no fim.
+   */
+  anexarNaPendencia(pendencia: Pendencia, evento: Event): void {
+    const input = evento.target as HTMLInputElement;
+    const arquivo = input.files?.[0];
+    // Zera o input para o mesmo arquivo poder ser escolhido de novo depois de um erro.
+    input.value = '';
+    if (!arquivo) return;
+
+    if (arquivo.size > TAMANHO_MAXIMO_ANEXO) {
+      this.toastService.error('O arquivo passa de 5 MB. Mande uma foto menor ou um PDF comprimido.');
+      return;
+    }
+    if (pendencia.quantidadeAnexos >= MAXIMO_ANEXOS) {
+      this.toastService.error(`Este pedido ja tem ${MAXIMO_ANEXOS} arquivos, que e o limite.`);
+      return;
+    }
+
+    this.anexandoEm.set(pendencia.id);
+    this.pendenciasApi.anexar(pendencia.id, arquivo).subscribe({
+      next: (atualizada) => {
+        this.anexandoEm.set(null);
+        this.pendencias.update((lista) =>
+          lista.map((p) => (p.id === atualizada.id ? atualizada : p)),
+        );
+        // A mensagem depende do antivirus, nao do upload: com ele fora do ar o arquivo sobe (201)
+        // e a pendencia **continua** PENDENTE. Dizer "enviado ao escritorio" ali seria mentira, e
+        // o produtor anexaria de novo achando que falhou.
+        this.toastService.success(
+          temAnexoEmVerificacao(atualizada)
+            ? 'Arquivo recebido. Ele chega ao escritorio quando a verificacao de seguranca terminar.'
+            : 'Arquivo enviado ao escritorio.',
+        );
       },
-      error: () => {
-        this.enviandoAnexo.set(false);
-        this.toastService.error('Erro ao anexar documento.');
+      error: (erro: HttpErrorResponse) => {
+        this.anexandoEm.set(null);
+        this.toastService.error(this.mensagemDoAnexo(erro));
       },
     });
+  }
+
+  /**
+   * Traduz a recusa do servidor em algo acionavel.
+   *
+   * Os quatro codigos do contrato pedem acoes **diferentes** do produtor; jogar todos num "erro ao
+   * anexar" obrigaria ele a adivinhar qual e o caso.
+   */
+  private mensagemDoAnexo(erro: HttpErrorResponse): string {
+    const codigo = (erro.error as ApiErrorEnvelope | null)?.errors?.[0]?.code;
+    switch (codigo) {
+      case 'ANEXO_INVALIDO':
+        return 'Arquivo recusado: aceita PDF, JPG, PNG ou XML ate 5 MB, e o tipo e conferido pelo conteudo, nao pelo nome.';
+      case 'ANEXO_INFECTADO':
+        return 'O antivirus recusou este arquivo por seguranca. Nada foi salvo.';
+      case 'LIMITE_ANEXOS':
+        return `Este pedido ja tem ${MAXIMO_ANEXOS} arquivos, que e o limite.`;
+      case 'TRANSICAO_PENDENCIA_INVALIDA':
+        return 'Este pedido nao esta mais aceitando arquivos. Recarregue para ver a situacao dele.';
+      default:
+        return 'Nao foi possivel enviar o arquivo. Tente de novo.';
+    }
+  }
+
+  /** Rotulo do status, na voz de quem le: o produtor. */
+  pendenciaStatusLabel(status: Pendencia['status']): string {
+    return STATUS_PENDENCIA_LABEL[status];
+  }
+
+  /** Cor do status sobre os tokens semanticos -- claro e escuro saem juntos. */
+  pendenciaStatusColor(status: Pendencia['status']): string {
+    const map: Record<Pendencia['status'], string> = {
+      PENDENTE: 'bg-aviso-soft text-aviso-ink',
+      ENVIADA: 'bg-info-soft text-info-ink',
+      CONCLUIDA: 'bg-sucesso-soft text-sucesso-ink',
+      CANCELADA: 'bg-surface-2 text-muted-foreground',
+    };
+    return map[status];
+  }
+
+  /** "nota fiscal ou comprovante de pagamento" -- o que este pedido aceita. */
+  tiposAceitos(pendencia: Pendencia): string {
+    const nomes = pendencia.tiposDocumento.map((t) => TIPO_DOCUMENTO_LABEL[t]);
+    if (nomes.length <= 1) return nomes[0] ?? 'qualquer documento';
+    return `${nomes.slice(0, -1).join(', ')} ou ${nomes[nomes.length - 1]}`;
+  }
+
+  /** Ha arquivo preso no antivirus neste pedido. */
+  emVerificacao(pendencia: Pendencia): boolean {
+    return temAnexoEmVerificacao(pendencia);
   }
 
   /**
@@ -1563,30 +1675,4 @@ export class DocumentosPage implements OnInit {
     return statusNotaLabel(status);
   }
 
-  solicitacaoStatusLabel(status: string): string {
-    const map: Record<string, string> = {
-      pendente: 'Pendente',
-      enviado: 'Enviado',
-      concluido: 'Concluído',
-      cancelado: 'Cancelado',
-      rejeitado: 'Rejeitado',
-    };
-    return map[status] ?? status;
-  }
-
-  solicitacaoStatusColor(status: string): string {
-    const map: Record<string, string> = {
-      pendente:
-        'bg-yellow-100 text-yellow-700 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
-      enviado:
-        'bg-blue-100 text-blue-700 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
-      concluido:
-        'bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
-      cancelado:
-        'bg-gray-100 text-gray-700 border border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
-      rejeitado:
-        'bg-red-100 text-red-700 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
-    };
-    return map[status] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
-  }
 }

@@ -490,37 +490,101 @@
       }
     </div>
 
-    <!-- ── SEÇÃO: Solicitações do Contador ── -->
-    @if (solicitacoesFiltradas().length > 0) {
+    <!-- ── SEÇÃO: o que o escritório pediu (backend#180) ──
+         Era "Solicitações do Contador" e nunca aparecia: a rota que a alimentava respondia 404.
+         Agora vem de `GET /api/pendencias` e o produtor anexa aqui mesmo — o cartão já responde
+         "para qual pedido é este arquivo", que era a única pergunta do modal que existia antes. -->
+    @if (pendenciasFiltradas().length > 0) {
       <div class="space-y-3">
         <div class="flex items-center gap-2">
-          <svg lucideClipboardList [size]="18" class="text-muted-foreground" />
-          <h2 class="text-base font-semibold text-foreground">Solicitações do Contador</h2>
-          <span class="text-apoio px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{{
-            solicitacoesFiltradas().length
-          }}</span>
+          <svg lucideClipboardList [size]="18" class="text-muted-foreground" aria-hidden="true" />
+          <h2 class="text-base font-semibold text-foreground">O que o escritório pediu</h2>
+          @if (pendenciasEsperandoVoce() > 0) {
+            <span class="text-apoio rounded-full bg-aviso-soft px-2 py-0.5 font-medium text-aviso-ink">
+              {{ pendenciasEsperandoVoce() }} esperando você
+            </span>
+          }
         </div>
+
         <div class="grid gap-3 sm:grid-cols-2">
-          @for (s of solicitacoesFiltradas(); track s.id) {
-            <div class="bg-card rounded-card border border-border p-4 space-y-2">
+          @for (p of pendenciasFiltradas(); track p.id) {
+            <div class="bg-card rounded-card border border-border p-4 space-y-3">
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0 flex-1">
-                  <p class="font-medium text-foreground leading-tight truncate">{{ s.titulo }}</p>
-                  <p class="text-apoio text-muted-foreground mt-0.5 truncate">{{ s.descricao }}</p>
+                  <p class="font-medium leading-tight text-foreground">{{ p.titulo }}</p>
+                  @if (p.descricao) {
+                    <p class="text-apoio text-muted-foreground mt-0.5">{{ p.descricao }}</p>
+                  }
                 </div>
                 <span
-                  class="text-apoio px-1.5 py-0.5 rounded-full shrink-0 {{
-                    solicitacaoStatusColor(s.status)
+                  class="text-apoio shrink-0 rounded-full px-2 py-0.5 font-medium {{
+                    pendenciaStatusColor(p.status)
                   }}"
-                  >{{ solicitacaoStatusLabel(s.status) }}</span
+                  >{{ pendenciaStatusLabel(p.status) }}</span
                 >
               </div>
-              <div class="flex items-center justify-between text-apoio text-muted-foreground">
-                <span>{{ s.categoria }}</span>
-                @if (s.prazo) {
-                  <span>Prazo: {{ formatDate(s.prazo) }}</span>
+
+              <p class="text-apoio text-muted-foreground">
+                Aceita {{ tiposAceitos(p) }}.
+                @if (p.dataLimite) {
+                  <span> Prazo: {{ formatDate(p.dataLimite) }}.</span>
                 }
-              </div>
+              </p>
+
+              @if (p.observacoes) {
+                <p class="text-apoio text-muted-foreground">{{ p.observacoes }}</p>
+              }
+
+              <!-- O motivo só existe quando o escritório devolveu ou cancelou; é o texto que diz
+                   o que refazer, então não pode ficar escondido atrás de um clique. -->
+              @if (p.motivo) {
+                <p class="text-apoio rounded-controle bg-perigo-soft px-3 py-2 text-perigo-ink">
+                  O escritório devolveu: {{ p.motivo }}
+                </p>
+              }
+
+              @if (p.quantidadeAnexos > 0) {
+                <p class="text-apoio text-muted-foreground">
+                  {{ p.quantidadeAnexos }}
+                  {{ p.quantidadeAnexos === 1 ? 'arquivo enviado' : 'arquivos enviados' }}
+                </p>
+              }
+
+              <!-- O caso que mais confunde: o arquivo subiu, mas o pedido continua "esperando
+                   você" porque o antivírus ainda não liberou. Sem dizer isso, o produtor acha
+                   que o envio falhou e manda tudo de novo. -->
+              @if (emVerificacao(p)) {
+                <p class="text-apoio flex items-start gap-2 rounded-controle bg-info-soft px-3 py-2 text-info-ink">
+                  <svg lucideLoaderCircle [size]="15" class="mt-0.5 shrink-0 animate-spin" aria-hidden="true" />
+                  <span>
+                    Arquivo em verificação de segurança. Ele chega ao escritório quando terminar —
+                    não precisa mandar de novo.
+                  </span>
+                </p>
+              }
+
+              @if (p.status === 'PENDENTE') {
+                <label
+                  class="tap-target inline-flex cursor-pointer items-center gap-2 rounded-controle border border-border px-3 py-2 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
+                  [class.pointer-events-none]="anexandoEm() === p.id"
+                  [class.opacity-60]="anexandoEm() === p.id"
+                >
+                  @if (anexandoEm() === p.id) {
+                    <svg lucideLoaderCircle [size]="16" class="animate-spin" aria-hidden="true" />
+                    Enviando…
+                  } @else {
+                    <svg lucideUpload [size]="16" aria-hidden="true" />
+                    Anexar arquivo
+                  }
+                  <input
+                    type="file"
+                    class="sr-only"
+                    [accept]="formatosAceitos"
+                    [disabled]="anexandoEm() === p.id"
+                    (change)="anexarNaPendencia(p, $event)"
+                  />
+                </label>
+              }
             </div>
           }
         </div>

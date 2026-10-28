@@ -27,8 +27,17 @@ describe('DocumentosPage', () => {
 
   afterEach(() => httpMock.verify());
 
+  /**
+   * Responde a busca dos pedidos de documento que a tela faz ao abrir.
+   *
+   * Passou a casar `/pendencias` quando a #180 entrou: a rota antiga (`/contador/pendencias`)
+   * nunca existiu no backend. O `includes('/contador')` fica para o caso de alguma chamada do
+   * cliente antigo sobrar.
+   */
   function flushPendencias() {
-    httpMock.match((r) => r.url.includes('/contador')).forEach((r) => r.flush([]));
+    httpMock
+      .match((r) => r.url.includes('/pendencias') || r.url.includes('/contador'))
+      .forEach((r) => r.flush([]));
   }
 
   /** Uma página do Spring Data com as notas dadas. */
@@ -234,112 +243,205 @@ describe('DocumentosPage', () => {
     expect(cmp.notasErro()).toBe(false);
   });
 
-  it('CTD-13/14: salvarAnexo() chama ContadorApi.anexarDocumento() e muda o status da solicitação para enviado', () => {
-    const fixture = TestBed.createComponent(DocumentosPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
+  /**
+   * Os pedidos de documento do escritorio (backend#180).
+   *
+   * Os dois testes que havia aqui exercitavam `salvarAnexo()` contra `/contador/pendencias` e
+   * `/contador/documentos/anexar` -- rotas que **nunca existiram** no backend. Passavam porque o
+   * `HttpTestingController` responde o que mandarem responder; contra o servidor de verdade era
+   * 404 desde sempre, e a secao jamais apareceu na tela.
+   */
+  describe('pedidos de documento (#180)', () => {
+    const pendencia = (over: Record<string, unknown> = {}) => ({
+      id: 'pd-1',
+      produtorId: 'p1',
+      escritorioId: 'e1',
+      titulo: 'Comprovantes de frete de setembro',
+      descricao: 'Preciso dos comprovantes das tres cargas.',
+      observacoes: null,
+      dataLimite: '2026-11-05',
+      tiposDocumento: ['NOTA_FISCAL', 'COMPROVANTE_PAGAMENTO'],
+      status: 'PENDENTE',
+      motivo: null,
+      quantidadeAnexos: 0,
+      anexos: [] as Record<string, unknown>[],
+      createdAt: '2026-10-28T15:55:56Z',
+      updatedAt: '2026-10-28T15:55:56Z',
+      ...over,
+    });
 
-    httpMock
-      .expectOne((r) => r.url === '/notas')
-      .flush({
-        content: [],
-        totalElements: 0,
-        totalPages: 0,
-        number: 0,
-        size: 12,
-        first: true,
-        last: true,
-        numberOfElements: 0,
-        empty: true,
-      });
-    httpMock
-      .expectOne((r) => r.url === '/contador/pendencias')
-      .flush([
-        {
-          id: 'sol-1',
-          produtorId: 'p1',
-          titulo: 'Balancete',
-          descricao: 'Balancete',
-          dataLimite: '2026-08-01',
-          prioridade: 'media',
-          status: 'pendente',
-          tiposDocumentos: '["Balancete"]',
-          createdAt: '2026-07-01T00:00:00',
-          updatedAt: '2026-07-01T00:00:00',
-        },
-      ]);
+    const anexo = (situacao: string) => ({
+      id: 'a1',
+      nomeArquivo: 'comprovante.pdf',
+      mime: 'application/pdf',
+      tamanho: 125,
+      sha256: 'abc',
+      situacao,
+      enviadoEm: '2026-10-28T15:56:13Z',
+    });
 
-    cmp.solicitacaoSelecionada.set('sol-1');
-    cmp.arquivoSelecionado.set(
-      new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }),
-    );
-    cmp.salvarAnexo();
+    function abrir(pendencias: Record<string, unknown>[] = [pendencia()]) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      httpMock.expectOne((r) => r.url === '/pendencias').flush(pendencias);
+      // Quem esta PENDENTE com anexo ganha uma busca de detalhe (ver `completarAnexosParados`);
+      // devolvemos o proprio item, sem anexos, que e o caso neutro.
+      httpMock
+        .match((r) => /\/pendencias\/[^/]+$/.test(r.url))
+        .forEach((r, i) => r.flush(pendencias[i] ?? pendencia()));
+      return fixture;
+    }
 
-    httpMock
-      .expectOne((r) => r.url === '/contador/documentos/anexar')
-      .flush({
-        id: 'doc-1',
-        solicitacaoId: 'sol-1',
-        nomeArquivo: 'balancete.pdf',
-        arquivoUrl: '',
-        tipo: 'Balancete',
-        createdAt: '2026-07-07T00:00:00',
-      });
+    function evento(arquivo: File) {
+      return { target: { files: [arquivo], value: 'c:/fake/comprovante.pdf' } } as unknown as Event;
+    }
 
-    expect(cmp.solicitacoes().find((s) => s.id === 'sol-1')?.status).toBe('enviado');
-    expect(cmp.showAnexar()).toBe(false);
-  });
+    const pdf = (tamanho = 10) =>
+      new File([new Uint8Array(tamanho)], 'comprovante.pdf', { type: 'application/pdf' });
 
-  it('bugfix (Copilot review): quando anexarDocumento() sucede mas retorna doc falsy, mostra erro e mantém o status/dialog', () => {
-    const fixture = TestBed.createComponent(DocumentosPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
+    it('busca os pedidos na rota do produtor, sem produtorId', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
 
-    httpMock
-      .expectOne((r) => r.url === '/notas')
-      .flush({
-        content: [],
-        totalElements: 0,
-        totalPages: 0,
-        number: 0,
-        size: 12,
-        first: true,
-        last: true,
-        numberOfElements: 0,
-        empty: true,
-      });
-    httpMock
-      .expectOne((r) => r.url === '/contador/pendencias')
-      .flush([
-        {
-          id: 'sol-1',
-          produtorId: 'p1',
-          titulo: 'Balancete',
-          descricao: 'Balancete',
-          dataLimite: '2026-08-01',
-          prioridade: 'media',
-          status: 'pendente',
-          tiposDocumentos: '["Balancete"]',
-          createdAt: '2026-07-01T00:00:00',
-          updatedAt: '2026-07-01T00:00:00',
-        },
-      ]);
+      const req = httpMock.expectOne((r) => r.url === '/pendencias');
+      expect(req.request.params.keys()).toEqual([]);
+      req.flush([pendencia()]);
 
-    cmp.showAnexar.set(true);
-    cmp.solicitacaoSelecionada.set('sol-1');
-    cmp.arquivoSelecionado.set(
-      new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }),
-    );
-    cmp.salvarAnexo();
+      expect(fixture.componentInstance.pendencias().length).toBe(1);
+      expect(fixture.componentInstance.pendenciasEsperandoVoce()).toBe(1);
+    });
 
-    httpMock
-      .expectOne((r) => r.url === '/contador/documentos/anexar')
-      .flush(null as unknown as object);
+    /**
+     * A lista devolve `anexos: []` e so o `quantidadeAnexos` -- os metadados vem no detalhe.
+     *
+     * Sem buscar o detalhe, o aviso de "em verificacao" aparecia no instante do upload e **sumia
+     * ao recarregar a pagina**: o produtor voltava, via "esperando voce" com o arquivo ja enviado
+     * e nenhuma explicacao, e mandava de novo. E o unico caso em que vale gastar requisicao a
+     * mais, e so para quem tem arquivo parado (PENDENTE com anexo).
+     */
+    it('busca o detalhe de quem tem arquivo parado, para saber do antivirus ao recarregar', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      httpMock
+        .expectOne((r) => r.url === '/pendencias')
+        .flush([
+          pendencia({ id: 'pd-1', status: 'PENDENTE', quantidadeAnexos: 1 }),
+          pendencia({ id: 'pd-2', status: 'PENDENTE', quantidadeAnexos: 0 }),
+          pendencia({ id: 'pd-3', status: 'ENVIADA', quantidadeAnexos: 2 }),
+        ]);
 
-    expect(cmp.solicitacoes().find((s) => s.id === 'sol-1')?.status).toBe('pendente');
-    expect(cmp.showAnexar()).toBe(true);
-    const toasts = TestBed.inject(ToastService).toasts();
-    expect(toasts.some((t) => t.type === 'error')).toBe(true);
+      // So a pd-1: a pd-2 nao tem arquivo e a pd-3 ja passou pelo antivirus.
+      httpMock.expectNone((r) => r.url === '/pendencias/pd-2');
+      httpMock.expectNone((r) => r.url === '/pendencias/pd-3');
+      httpMock
+        .expectOne((r) => r.url === '/pendencias/pd-1')
+        .flush(
+          pendencia({ id: 'pd-1', status: 'PENDENTE', quantidadeAnexos: 1, anexos: [anexo('EM_VERIFICACAO')] }),
+        );
+
+      const cmp = fixture.componentInstance;
+      expect(cmp.emVerificacao(cmp.pendencias().find((p) => p.id === 'pd-1')!)).toBe(true);
+    });
+
+    it('detalhe que falha nao derruba a lista: o pedido continua na tela', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      httpMock
+        .expectOne((r) => r.url === '/pendencias')
+        .flush([pendencia({ id: 'pd-1', status: 'PENDENTE', quantidadeAnexos: 1 })]);
+      httpMock
+        .expectOne((r) => r.url === '/pendencias/pd-1')
+        .flush('erro', { status: 500, statusText: 'Server Error' });
+
+      expect(fixture.componentInstance.pendencias().length).toBe(1);
+    });
+
+    it('anexar manda o arquivo e troca a pendencia pela versao que o servidor devolveu', () => {
+      const cmp = abrir().componentInstance;
+
+      cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf()));
+
+      const req = httpMock.expectOne((r) => r.url === '/pendencias/pd-1/anexos');
+      expect((req.request.body as FormData).get('arquivo')).toBeInstanceOf(File);
+      req.flush(pendencia({ status: 'ENVIADA', quantidadeAnexos: 1, anexos: [anexo('LIMPO')] }));
+
+      expect(cmp.pendencias()[0]!.status).toBe('ENVIADA');
+      expect(cmp.anexandoEm()).toBeNull();
+    });
+
+    it('antivirus fora do ar: o arquivo sobe, mas o pedido CONTINUA esperando o produtor', () => {
+      const cmp = abrir().componentInstance;
+
+      cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf()));
+      httpMock
+        .expectOne((r) => r.url === '/pendencias/pd-1/anexos')
+        .flush(
+          pendencia({ status: 'PENDENTE', quantidadeAnexos: 1, anexos: [anexo('EM_VERIFICACAO')] }),
+          { status: 201, statusText: 'Created' },
+        );
+
+      // E o caso que mais confunde: sem dizer isto, o produtor acha que falhou e manda de novo.
+      expect(cmp.emVerificacao(cmp.pendencias()[0]!)).toBe(true);
+      expect(cmp.pendencias()[0]!.status).toBe('PENDENTE');
+      expect(cmp.pendenciasEsperandoVoce()).toBe(1);
+    });
+
+    it('arquivo acima de 5 MB nem sai do navegador', () => {
+      const cmp = abrir().componentInstance;
+
+      cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf(5 * 1024 * 1024 + 1)));
+
+      // Gastar o upload inteiro do 4G da fazenda para receber 400 no fim seria cruel.
+      httpMock.expectNone((r) => r.url === '/pendencias/pd-1/anexos');
+      expect(cmp.anexandoEm()).toBeNull();
+    });
+
+    it('pedido que ja tem 10 arquivos nao tenta o 11o', () => {
+      const cmp = abrir([pendencia({ quantidadeAnexos: 10 })]).componentInstance;
+
+      cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf()));
+
+      httpMock.expectNone((r) => r.url === '/pendencias/pd-1/anexos');
+    });
+
+    it('a recusa do servidor para de ser generica: cada codigo tem a sua saida', () => {
+      const cmp = abrir().componentInstance;
+      const erros: string[] = [];
+      const toast = TestBed.inject(ToastService);
+      vi.spyOn(toast, 'error').mockImplementation(((m: string) => {
+        erros.push(m);
+      }) as typeof toast.error);
+
+      const casos: [string, string][] = [
+        ['ANEXO_INVALIDO', 'PDF, JPG, PNG ou XML'],
+        ['ANEXO_INFECTADO', 'antivirus recusou'],
+        ['LIMITE_ANEXOS', 'limite'],
+        ['TRANSICAO_PENDENCIA_INVALIDA', 'nao esta mais aceitando'],
+      ];
+      for (const [codigo, trecho] of casos) {
+        cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf()));
+        httpMock
+          .expectOne((r) => r.url === '/pendencias/pd-1/anexos')
+          .flush({ errors: [{ code: codigo }] }, { status: 400, statusText: 'Bad Request' });
+        expect(erros.at(-1)).toContain(trecho);
+      }
+
+      expect(erros.length).toBe(4);
+    });
+
+    it('o status vira rotulo na voz do produtor, nao o codigo do backend', () => {
+      const cmp = abrir().componentInstance;
+
+      expect(cmp.pendenciaStatusLabel('PENDENTE')).toBe('Esperando você');
+      expect(cmp.pendenciaStatusLabel('ENVIADA')).toBe('Com o escritório');
+      expect(cmp.tiposAceitos(cmp.pendencias()[0]!)).toBe(
+        'nota fiscal ou comprovante de pagamento',
+      );
+    });
   });
 
   /**
