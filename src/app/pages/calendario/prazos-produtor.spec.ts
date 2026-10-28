@@ -397,7 +397,28 @@ describe('PrazosProdutor', () => {
     expect(texto).not.toContain('O próximo prazo');
   });
 
+  /**
+   * Relógio congelado em 15/10/2026, e não `new Date()`.
+   *
+   * A versão anterior montava o mês a partir de hoje e afirmava que o dia 28 seria "a vencer"
+   * "no pior caso em que o teste roda dia 28, porque a comparação inclui hoje". Não inclui:
+   * `diaClass` devolve o estilo do **dia selecionado** antes de olhar o prazo, e o dia selecionado
+   * começa sendo hoje. O teste passou até 27/10/2026 e virou vermelho sozinho em 28/10.
+   *
+   * Com a data fixa, os três dias escolhidos têm papel estável: o 5 já passou e está pago, o 28
+   * ainda vai vencer, o 14 não tem nada — e nenhum deles é "hoje".
+   */
   it('o dia com prazo vira célula colorida pela situação, não um ponto de 6px', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
+    try {
+      executarTesteDeCorDoDia();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  function executarTesteDeCorDoDia() {
     const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
@@ -419,15 +440,14 @@ describe('PrazosProdutor', () => {
     flushContadorVazio();
     fixture.detectChanges();
 
-    // O dia 28 ainda vai vencer (hoje é bem antes, no pior caso o teste roda dia 28 e ele é
-    // "a vencer" do mesmo jeito, porque a comparação inclui hoje).
+    // Com o relógio em 15/10, o 28 ainda vai vencer e não é o dia selecionado.
     expect(cmp.diaClass(28)).toContain('aviso');
     expect(cmp.diaClass(5)).toContain('sucesso');
     // Dia sem nada não ganha cor nenhuma.
     expect(cmp.diaClass(14)).not.toContain('aviso');
     expect(cmp.diaClass(14)).not.toContain('sucesso');
     expect(cmp.diaClass(14)).not.toContain('perigo');
-  });
+  }
 
   // O grupo lembrava da versao antiga "mostrando em que data mandar cada coisa". A celula so
   // pintava: o nome do que vencia morava num painel lateral, atras de um clique.
