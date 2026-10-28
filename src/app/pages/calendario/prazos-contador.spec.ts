@@ -166,4 +166,67 @@ describe('PrazosContador', () => {
 
     expect(fixture.componentInstance.guias()).toEqual([]);
   });
+
+  /**
+   * Erro nao e lista vazia (issue #107).
+   *
+   * A pagina tinha `error: () => this.guias.set([])`: a falha da API virava a mesma tela de
+   * "Nenhuma guia lancada". Com o produtor errado da #106 (404), o escritorio via "nenhuma guia"
+   * enquanto havia oito no banco, uma de ICMS de R$ 3.420 vencida.
+   */
+  describe('erro separado do vazio (#107)', () => {
+    function abrir() {
+      const fixture = TestBed.createComponent(PrazosContador);
+      fixture.detectChanges();
+      return fixture.componentInstance;
+    }
+
+    it('404 vira estado de erro, nao lista vazia', () => {
+      const cmp = abrir();
+
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush(
+          { errors: [{ code: 'NAO_ENCONTRADO', message: 'Produtor nao encontrado.' }] },
+          { status: 404, statusText: 'Not Found' },
+        );
+
+      expect(cmp.erro()?.mensagem).toBe('Produtor nao encontrado.');
+      expect(cmp.carregando()).toBe(false);
+    });
+
+    it('no 404 nao oferece "tentar de novo": repetir nao faz o produtor existir', () => {
+      const cmp = abrir();
+
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush({ errors: [] }, { status: 404, statusText: 'Not Found' });
+
+      expect(cmp.erro()?.podeTentarDeNovo).toBe(false);
+    });
+
+    it('no 500 oferece tentar de novo', () => {
+      const cmp = abrir();
+
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush('falhou', { status: 500, statusText: 'Server Error' });
+
+      expect(cmp.erro()?.podeTentarDeNovo).toBe(true);
+    });
+
+    it('sucesso limpa o erro anterior', () => {
+      const cmp = abrir();
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush('falhou', { status: 500, statusText: 'Server Error' });
+      expect(cmp.erro()).not.toBeNull();
+
+      cmp.carregar();
+      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+
+      expect(cmp.erro()).toBeNull();
+      expect(cmp.guias()).toEqual([]);
+    });
+  });
 });

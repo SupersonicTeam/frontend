@@ -6,7 +6,9 @@ import {
   LucidePlus,
   LucideTriangleAlert,
 } from '@lucide/angular';
+import { HttpErrorResponse } from '@angular/common/http';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
 import { ToastService } from '@core/services/toast.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
@@ -138,16 +140,28 @@ export class PrazosContador implements OnInit {
     this.carregar();
   }
 
+  /**
+   * A falha da busca, quando houve (issue #107).
+   *
+   * Antes o `error` desta tela fazia `guias.set([])`, e a falha virava a mesma tela de "Nenhuma
+   * guia lançada". Com o produtor errado da #106 o escritório via "nenhuma guia" enquanto havia
+   * oito no banco, uma de ICMS de R$ 3.420 vencida. Vazio é "não há guia"; erro é outra coisa.
+   */
+  readonly erro = signal<FalhaDaApi | null>(null);
+
   carregar(): void {
     this.carregando.set(true);
+    this.erro.set(null);
     this.hoje.set(PrazosContador.hojeISO());
     this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
       next: (lista) => {
         this.guias.set(lista);
         this.carregando.set(false);
       },
-      error: () => {
-        this.guias.set([]);
+      error: (err: HttpErrorResponse) => {
+        // A lista **não** é zerada: o que estava na tela continua sendo o último dado verdadeiro
+        // que o servidor deu, e some só se ele disser que sumiu.
+        this.erro.set(falhaDaApi(err));
         this.carregando.set(false);
       },
     });
@@ -173,19 +187,17 @@ export class PrazosContador implements OnInit {
         observacoes: this.formObs().trim() || undefined,
       })
       .subscribe({
-        next: (guia) => {
+        next: () => {
           this.salvando.set(false);
-          if (!guia) {
-            this.toast.error('Não foi possível criar a guia. Tente novamente.');
-            return;
-          }
           this.showNovaGuia.set(false);
           this.toast.success('Guia lançada.');
           this.carregar();
         },
-        error: () => {
+        // O service não devolve mais `null` em falha (#107), então o único caminho de erro é
+        // este — e a mensagem agora é a do servidor, não uma frase nossa para qualquer causa.
+        error: (err: HttpErrorResponse) => {
           this.salvando.set(false);
-          this.toast.error('Não foi possível criar a guia. Tente novamente.');
+          this.toast.error(falhaDaApi(err).mensagem);
         },
       });
   }
@@ -196,7 +208,7 @@ export class PrazosContador implements OnInit {
         this.toast.success(`Guia de ${guia.tipoGuia} marcada como paga.`);
         this.carregar();
       },
-      error: () => this.toast.error('Não foi possível marcar a guia como paga.'),
+      error: (err: HttpErrorResponse) => this.toast.error(falhaDaApi(err).mensagem),
     });
   }
 

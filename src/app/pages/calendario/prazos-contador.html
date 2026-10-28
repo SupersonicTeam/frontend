@@ -123,6 +123,20 @@
 
     @if (carregando()) {
       <ui-skeleton [linhas]="3" formato="bloco" altura="3.5rem" />
+    } @else if (erro(); as falha) {
+      <!-- Erro ANTES do vazio, e separado dele (#107).
+           Antes a falha caía no "Nenhuma guia lançada", e o escritório lia que não havia guia
+           enquanto a API respondia 404 com oito guias no banco. "Tentar de novo" só aparece onde
+           repetir pode dar outro resultado: num 404 ou 403 seria uma promessa falsa. -->
+      <ui-empty-state
+        titulo="Não foi possível carregar as guias"
+        [descricao]="falha.mensagem"
+      >
+        <svg icone lucideTriangleAlert [size]="22" />
+        @if (falha.podeTentarDeNovo) {
+          <ui-button acao variant="ghost" (click)="carregar()">Tentar de novo</ui-button>
+        }
+      </ui-empty-state>
     } @else if (guias().length === 0) {
       <ui-empty-state
         titulo="Nenhuma guia lançada"
