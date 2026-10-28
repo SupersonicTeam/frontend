@@ -575,4 +575,80 @@ describe('PrazosProdutor', () => {
     expect(cmp.nomeMes()).toMatch(/^[A-Z]/);
     expect(cmp.nomeDiaSelecionado()).not.toMatch(/ De /);
   });
+
+  /**
+   * Obrigacao nao e guia (backend#181).
+   *
+   * O calendario passou a devolver obrigacoes -- `tipo: "obrigacao"`, sem status e sem valor. Como
+   * o cliente supunha `pendente`, a data no passado as transformava em atrasadas, e o aviso
+   * "guia atrasada costuma ter multa e juros" saia no **primeiro atrasado qualquer**: o
+   * Fechamento da apuracao aparecia com conselho de pagamento para algo que nao se paga.
+   */
+  describe('obrigacoes (#181)', () => {
+    const obrigacaoAtrasada = {
+      id: '00000000-0000-4000-8181-0000000000ff:' + emDias(-5),
+      evento: 'Fechamento da apuracao do mes',
+      descricao: null,
+      dataVencimento: emDias(-5),
+      tipo: 'obrigacao',
+      status: null,
+      valor: null,
+      periodicidade: 'MENSAL',
+      origem: 'RN004 (apuracao mensal de IBS/CBS)',
+    };
+    const guiaAtrasada = {
+      id: 'g1',
+      evento: 'Guia GPS',
+      descricao: null,
+      dataVencimento: emDias(-2),
+      tipo: 'imposto',
+      status: 'pendente',
+      valor: 890,
+    };
+
+    function abrirCom(itens: unknown[]) {
+      const fixture = TestBed.createComponent(PrazosProdutor);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush(itens);
+      flushContadorVazio();
+      fixture.detectChanges();
+      return fixture.componentInstance;
+    }
+
+    it('o aviso de multa e juros se cola na primeira GUIA, nao no primeiro atrasado', () => {
+      // A obrigacao vem antes na lista (venceu ha mais tempo), e era nela que o aviso caia.
+      const cmp = abrirCom([obrigacaoAtrasada, guiaAtrasada]);
+
+      expect(cmp.atrasados()[0]!.tipo).toBe('obrigacao');
+      expect(cmp.primeiraGuiaAtrasada()?.id).toBe('g1');
+    });
+
+    it('so com obrigacao atrasada, o aviso de multa e juros nao aparece', () => {
+      const cmp = abrirCom([obrigacaoAtrasada]);
+
+      expect(cmp.atrasados().length).toBe(1);
+      expect(cmp.temGuiaAtrasada()).toBe(false);
+      expect(cmp.primeiraGuiaAtrasada()).toBeNull();
+    });
+
+    it('a obrigacao e "A fazer", nunca "Vencido"', () => {
+      const cmp = abrirCom([obrigacaoAtrasada]);
+
+      expect(cmp.statusLabel(cmp.atrasados()[0]!.status)).toBe('A fazer');
+      expect(cmp.statusColor(null)).not.toContain('perigo');
+    });
+
+    it('a obrigacao nao entra no total atrasado: nao ha o que somar', () => {
+      const cmp = abrirCom([obrigacaoAtrasada, guiaAtrasada]);
+
+      expect(cmp.totalAtrasado()).toBe(890);
+    });
+
+    it('a periodicidade sai em portugues, nao em caixa alta', () => {
+      const cmp = abrirCom([obrigacaoAtrasada]);
+
+      expect(cmp.rotuloPeriodicidade('MENSAL')).toBe('todo mês');
+      expect(cmp.atrasados()[0]!.origem).toBe('RN004 (apuracao mensal de IBS/CBS)');
+    });
+  });
 });

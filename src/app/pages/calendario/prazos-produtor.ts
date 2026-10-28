@@ -267,12 +267,19 @@ export class PrazosProdutor implements OnInit {
    */
   frasePrazo(v: VencimentoFiscal): string {
     const quando = this.dataPorExtenso(v.dataVencimento);
+    // "Vence" e verbo de guia. A obrigacao (status nulo, #181) nao se paga: dizer que ela "venceu"
+    // sugere divida, e no caso do fechamento da apuracao -- que acontece sozinho -- sugere uma
+    // falta que nao houve. Para ela o prazo apenas **era** aquela data.
     const verbo =
-      v.status === 'pago'
-        ? 'Venceu em'
-        : this.diasAte(v.dataVencimento) < 0
-          ? 'Vencia em'
-          : 'Vence em';
+      v.status === null
+        ? this.diasAte(v.dataVencimento) < 0
+          ? 'O prazo era'
+          : 'O prazo é'
+        : v.status === 'pago'
+          ? 'Venceu em'
+          : this.diasAte(v.dataVencimento) < 0
+            ? 'Vencia em'
+            : 'Vence em';
     const referencia = v.descricao ? `, ${v.descricao.toLowerCase()}` : '';
     return `${verbo} ${quando}${referencia}.`;
   }
@@ -284,13 +291,24 @@ export class PrazosProdutor implements OnInit {
     return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
   }
 
-  /** "vence hoje", "em 13 dias", "venceu há 27 dias" — a conta que o produtor faria de cabeça. */
-  rotuloPrazo(iso: string): string {
+  /**
+   * "vence hoje", "em 13 dias", "venceu há 27 dias" — a conta que o produtor faria de cabeça.
+   *
+   * `ehObrigacao` troca o verbo de pagamento pelo de prazo: a obrigação não vence, o prazo dela
+   * passa.
+   */
+  rotuloPrazo(iso: string, ehObrigacao = false): string {
     const dias = this.diasAte(iso);
-    if (dias === 0) return 'vence hoje';
-    if (dias === 1) return 'vence amanhã';
-    if (dias === -1) return 'venceu ontem';
-    return dias > 0 ? `em ${dias} dias` : `venceu há ${-dias} dias`;
+    if (dias === 0) return ehObrigacao ? 'é hoje' : 'vence hoje';
+    if (dias === 1) return ehObrigacao ? 'é amanhã' : 'vence amanhã';
+    if (dias === -1) return ehObrigacao ? 'era ontem' : 'venceu ontem';
+    if (dias > 0) return `em ${dias} dias`;
+    return ehObrigacao ? `passou há ${-dias} dias` : `venceu há ${-dias} dias`;
+  }
+
+  /** O rótulo relativo já no verbo certo para este item. */
+  rotuloPrazoDe(v: VencimentoFiscal): string {
+    return this.rotuloPrazo(v.dataVencimento, v.status === null);
   }
 
   /** O prazo aperta: até 3 dias o rótulo já fica em tom de alerta. */
@@ -548,7 +566,12 @@ export class PrazosProdutor implements OnInit {
     );
   }
 
-  statusColor(status: string): string {
+  /**
+   * A cor do selo. **`null` é a obrigação**, que não se paga: cor neutra, nunca a vermelha de
+   * guia vencida.
+   */
+  statusColor(status: string | null): string {
+    if (status === null) return 'bg-info-soft text-info-ink border border-info/30';
     return (
       {
         pago: 'bg-sucesso-soft text-sucesso-ink border border-sucesso/30',
@@ -558,9 +581,48 @@ export class PrazosProdutor implements OnInit {
     );
   }
 
-  statusLabel(status: string): string {
+  /**
+   * O rótulo do selo.
+   *
+   * A obrigação (`status` nulo) não é "pendente" nem "vencida" — ela é algo **a fazer**. Dizer
+   * "Vencido" ali empurraria o produtor a procurar uma guia que não existe.
+   */
+  statusLabel(status: string | null): string {
+    if (status === null) return 'A fazer';
     return { pago: 'Pago', vencido: 'Vencido', pendente: 'Pendente' }[status] ?? status;
   }
+
+  /** `MENSAL` → "todo mês". O backend fala em caixa alta; o produtor, não. */
+  rotuloPeriodicidade(periodicidade: string): string {
+    return (
+      {
+        MENSAL: 'todo mês',
+        BIMESTRAL: 'a cada dois meses',
+        TRIMESTRAL: 'a cada três meses',
+        SEMESTRAL: 'a cada seis meses',
+        ANUAL: 'uma vez por ano',
+      }[periodicidade] ?? periodicidade.toLowerCase()
+    );
+  }
+
+  /** O item é uma guia — ou seja, tem dinheiro e data de pagamento. */
+  ehGuia(vencimento: VencimentoFiscal): boolean {
+    return vencimento.tipo === 'imposto';
+  }
+
+  /**
+   * Há guia atrasada entre os atrasados.
+   *
+   * O aviso de multa e juros só vale para guia. Antes ele aparecia no **primeiro** item atrasado,
+   * qualquer que fosse: o fechamento da apuração aparecia com "guia atrasada costuma ter multa e
+   * juros", conselho de pagamento para algo que não se paga.
+   */
+  readonly temGuiaAtrasada = computed(() => this.atrasados().some((v) => this.ehGuia(v)));
+
+  /** A primeira guia atrasada — é nela que o aviso de multa e juros se cola. */
+  readonly primeiraGuiaAtrasada = computed(
+    () => this.atrasados().find((v) => this.ehGuia(v)) ?? null,
+  );
 
   /**
    * A cara do dia na grade.
