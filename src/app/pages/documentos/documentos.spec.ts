@@ -261,6 +261,127 @@ describe('DocumentosPage', () => {
    * **409 APROVACAO_EXIGIDA**. Ou seja, o botao "Gerar XML" desta tela **ja esta quebrado** para
    * quem tem contador -- e o produtor semente tem.
    */
+  /**
+   * "Precisam de revisao" voltou a significar uma coisa so (issue #111).
+   *
+   * O rotulo contava as notas **travadas pelo fisco** (`COM_INCONSISTENCIAS`/`REJEITADA`). Com a
+   * #178 no ar, "revisao" passou a ser outra coisa: a nota que o produtor **enviou para o
+   * contador aprovar**. No teste manual de 28/10 o painel dizia "Precisam de revisao: 0" com a
+   * nota 117 aguardando aprovacao -- as duas pilhas sob o mesmo nome, e a que importava invisivel.
+   *
+   * Agora `revisao` e `AGUARDANDO_APROVACAO`, e o que o fisco travou tem a aba propria.
+   */
+  /**
+   * Status desconhecido ou em transito nao oferece acao (#111, regra da #96).
+   *
+   * As predicates da tela sao **allowlists por status**, entao isso vale por construcao -- mas e
+   * exatamente o tipo de garantia que se perde na primeira vez que alguem escrever
+   * `status !== 'AUTORIZADA'` em vez de listar. O teste fixa a regra.
+   */
+  describe('acoes em estado transitorio ou desconhecido (#111)', () => {
+    const notaCom = (status: string) =>
+      ({ id: 'n1', numero: 1, status, dataEmissao: '2026-09-10T03:00:00Z', itens: [] }) as never;
+
+    function abrir() {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      flushPendencias();
+      return fixture.componentInstance;
+    }
+
+    it('ENVIANDO e CANCELANDO nao aceitam editar, emitir nem cancelar', () => {
+      const cmp = abrir();
+      for (const status of ['ENVIANDO', 'CANCELANDO']) {
+        const nota = notaCom(status);
+        expect(cmp.podeEditar(nota), status).toBe(false);
+        expect(cmp.podeGerarXml(nota), status).toBe(false);
+        expect(cmp.podeCancelar(nota), status).toBe(false);
+        expect(cmp.podeEnviarParaRevisao(nota), status).toBe(false);
+      }
+    });
+
+    it('um status que o backend invente tambem nao oferece nada', () => {
+      const cmp = abrir();
+      const nota = notaCom('ALGO_QUE_NAO_EXISTE_AINDA');
+
+      expect(cmp.podeEditar(nota)).toBe(false);
+      expect(cmp.podeGerarXml(nota)).toBe(false);
+      expect(cmp.podeCancelar(nota)).toBe(false);
+      expect(cmp.podeRetirarDaRevisao(nota)).toBe(false);
+    });
+  });
+
+  describe('as duas pilhas do contador (#111)', () => {
+    const nota = (id: string, status: string) => ({
+      id,
+      numero: Number(id.replace(/\D/g, '')) || 1,
+      serie: 1,
+      status,
+      dataEmissao: '2026-09-10T03:00:00Z',
+      destinatarioNome: 'Cooperativa',
+      valorTotalNota: 1000,
+      itens: [],
+    });
+
+    function abrirContador(notas: Record<string, unknown>[]) {
+      localStorage.setItem('agrocontabil.perfil', 'contador');
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina(notas));
+      flushPendencias();
+      httpMock.match((r) => r.url.endsWith('/revisoes')).forEach((r) => r.flush([]));
+      return fixture.componentInstance;
+    }
+
+    afterEach(() => localStorage.clear());
+
+    it('"Precisam de revisao" conta o que aguarda aprovacao, nao o que o fisco travou', () => {
+      const cmp = abrirContador([
+        nota('n1', 'AGUARDANDO_APROVACAO'),
+        nota('n2', 'AGUARDANDO_APROVACAO'),
+        nota('n3', 'COM_INCONSISTENCIAS'),
+      ]);
+
+      const aba = cmp.triagemDoContador().find((t) => t.chave === 'revisao');
+      expect(aba?.quantidade).toBe(2);
+    });
+
+    it('o que o fisco travou ganhou aba propria, em vez de sumir', () => {
+      const cmp = abrirContador([
+        nota('n1', 'AGUARDANDO_APROVACAO'),
+        nota('n3', 'COM_INCONSISTENCIAS'),
+        nota('n4', 'REJEITADA'),
+      ]);
+
+      const aba = cmp.triagemDoContador().find((t) => t.chave === 'travadas');
+      expect(aba?.quantidade).toBe(2);
+    });
+
+    it('filtrar por revisao deixa so o que aguarda aprovacao', () => {
+      const cmp = abrirContador([
+        nota('n1', 'AGUARDANDO_APROVACAO'),
+        nota('n3', 'COM_INCONSISTENCIAS'),
+      ]);
+
+      cmp.statusFilter.set('revisao');
+      expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
+    });
+
+    it('filtrar por DEVOLVIDA e por AGUARDANDO_APROVACAO funciona: sao status do backend', () => {
+      const cmp = abrirContador([
+        nota('n1', 'AGUARDANDO_APROVACAO'),
+        nota('n5', 'DEVOLVIDA'),
+      ]);
+
+      cmp.statusFilter.set('DEVOLVIDA');
+      expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n5']);
+
+      cmp.statusFilter.set('AGUARDANDO_APROVACAO');
+      expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
+    });
+  });
+
   describe('revisao do contador (#178)', () => {
     const rascunho = (over: Record<string, unknown> = {}) => ({
       id: 'n1',
@@ -1113,19 +1234,24 @@ describe('DocumentosPage', () => {
       nota('n5', '2026-08-02T00:00:00Z', { status: 'CANCELADA' }),
     ];
 
-    it('"precisam de revisão" atravessa inconsistência e rejeição — é o trabalho, não o status', () => {
+    /**
+     * Este teste era de `revisao`. O recorte que ele descreve -- "atravessa inconsistencia e
+     * rejeicao, e o trabalho, nao o status" -- continua existindo e continua certo; so mudou de
+     * nome para **travadas**, porque "revisao" passou a ser a aprovacao do contador (#111).
+     */
+    it('"travadas pelo fisco" atravessa inconsistência e rejeição — é o trabalho, não o status', () => {
       const cmp = comNotas(carteira()).componentInstance;
 
       const caixas = Object.fromEntries(
         cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
       );
-      expect(caixas['revisao']).toBe(2);
+      expect(caixas['travadas']).toBe(2);
       expect(caixas['RASCUNHO']).toBe(1);
       expect(caixas['AUTORIZADA']).toBe(1);
       expect(caixas['CANCELADA']).toBe(1);
       expect(caixas['todos']).toBe(5);
 
-      cmp.statusFilter.set('revisao');
+      cmp.statusFilter.set('travadas');
       expect(
         cmp
           .notasFiltradas()
@@ -1144,7 +1270,7 @@ describe('DocumentosPage', () => {
       const caixas = Object.fromEntries(
         cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
       );
-      expect(caixas['revisao']).toBe(2);
+      expect(caixas['travadas']).toBe(2);
       expect(caixas['todos']).toBe(5);
       expect(cmp.notasFiltradas()).toHaveLength(1);
     });
@@ -1157,7 +1283,7 @@ describe('DocumentosPage', () => {
         cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
       );
       expect(caixas['todos']).toBe(2);
-      expect(caixas['revisao']).toBe(0);
+      expect(caixas['travadas']).toBe(0);
     });
   });
 

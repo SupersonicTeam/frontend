@@ -21,7 +21,9 @@ export type StatusNotaFiscal =
   | 'CANCELADA'
   | 'AGUARDANDO_APROVACAO'
   | 'APROVADA'
-  | 'DEVOLVIDA';
+  | 'DEVOLVIDA'
+  | 'ENVIANDO'
+  | 'CANCELANDO';
 
 /** Ordem canônica dos status ao longo do fluxo — base do stepper (#14). */
 export const STATUS_NOTA_ORDEM: readonly StatusNotaFiscal[] = [
@@ -72,27 +74,39 @@ export const STATUS_NOTA_META: Record<StatusNotaFiscal, StatusNotaMeta> = {
     desvio: true,
   },
   PENDENTE_SEFAZ: {
-    label: 'Pendente SEFAZ',
+    label: 'Pendente na SEFAZ',
     badge: 'bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
     desvio: true,
   },
   AGUARDANDO_APROVACAO: {
-    label: 'Esperando o contador',
+    label: 'Aguardando aprovação',
     badge:
       'bg-info-soft text-info-ink border border-info-borda',
     desvio: false,
   },
   APROVADA: {
-    label: 'Aprovada, pronta para emitir',
+    label: 'Aprovada',
     badge:
       'bg-sucesso-soft text-sucesso-ink border border-sucesso-borda',
     desvio: false,
   },
   DEVOLVIDA: {
-    label: 'Devolvida para corrigir',
+    label: 'Devolvida',
     badge:
       'bg-aviso-soft text-aviso-ink border border-aviso-borda',
     desvio: true,
+  },
+  // Transitorios: a nota esta no meio de uma ida a SEFAZ. Nenhuma acao vale enquanto isso --
+  // ver `aceitaAcao`.
+  ENVIANDO: {
+    label: 'Enviando',
+    badge: 'bg-info-soft text-info-ink border border-info-borda',
+    desvio: false,
+  },
+  CANCELANDO: {
+    label: 'Cancelando',
+    badge: 'bg-surface-2 text-muted-foreground border border-border',
+    desvio: false,
   },
   CANCELADA: {
     label: 'Cancelada',
@@ -130,6 +144,21 @@ export function statusNotaLabel(status?: string): string {
  */
 export function editavel(status?: string): boolean {
   return status === 'RASCUNHO' || status === 'COM_INCONSISTENCIAS' || status === 'DEVOLVIDA';
+}
+
+/**
+ * Status em que a nota está **em trânsito**: o resultado ainda não existe.
+ *
+ * Nestes a tela não oferece ação nenhuma. Foi o que a #96 fixou para os transitórios e a #111
+ * estendeu ao desconhecido: se o app não sabe o que aquele estado é, também não sabe o que é
+ * seguro oferecer nele — e um botão que dispara 409 é pior do que botão nenhum.
+ */
+const EM_TRANSITO: readonly string[] = ['ENVIANDO', 'CANCELANDO', 'PENDENTE_SEFAZ'];
+
+/** A nota aceita ação: o status é conhecido e não está em trânsito. */
+export function aceitaAcao(status?: string): boolean {
+  if (!status || !(status in STATUS_NOTA_META)) return false;
+  return !EM_TRANSITO.includes(status);
 }
 
 /** A nota está na mesa do escritório, esperando aprovação. */

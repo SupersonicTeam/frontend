@@ -114,11 +114,13 @@
         }
       </div>
 
-      <!-- Dizer o que NÃO existe evita que ele procure. A aprovação do rascunho antes da emissão
-           está pedida em SupersonicTeam/backend#178 e ainda não existe no servidor. -->
+      <!-- O texto aqui dizia que a aprovação antes da emissão "ainda não existe no servidor".
+           Existe desde a backend#178, e a caixa prometida é a de "Precisam de revisão" ao lado —
+           que durante um tempo contou a pilha errada e mostrava 0 com nota na mesa (#111). -->
       <p class="text-apoio text-muted-foreground">
-        Tudo que o produtor emitiu. Ainda não existe "enviar para a sua aprovação" antes da emissão
-        — quando existir, vira uma caixa aqui.
+        Tudo que o produtor emitiu, mais o que ele enviou para a sua aprovação. As duas pilhas são
+        separadas: <strong class="text-foreground">Precisam de revisão</strong> espera você, e
+        <strong class="text-foreground">Travadas pelo fisco</strong> espera o produtor corrigir.
       </p>
     </div>
   }
@@ -179,11 +181,17 @@
            de cima o aplica: o filtro esta valendo e o controle nao mostra qual. -->
         @if (perfilService.ehContador()) {
           <option value="revisao">Precisam de revisão</option>
+          <option value="travadas">Travadas pelo fisco</option>
         } @else {
           <option value="esperando">Esperando você</option>
         }
         <option value="RASCUNHO">Rascunho</option>
         <option value="COM_INCONSISTENCIAS">Com inconsistências</option>
+        <!-- Os três da revisão (#178): sem eles não havia como achar uma nota devolvida ou
+             parada na mesa do contador, que são justamente as que alguém precisa olhar. -->
+        <option value="AGUARDANDO_APROVACAO">Aguardando aprovação</option>
+        <option value="APROVADA">Aprovada</option>
+        <option value="DEVOLVIDA">Devolvida</option>
         <option value="AUTORIZADA">Autorizada</option>
         <option value="REJEITADA">Rejeitada</option>
         <option value="CANCELADA">Cancelada</option>

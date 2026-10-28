@@ -17,6 +17,9 @@ const TOM_POR_STATUS: Record<StatusNotaFiscal, string> = {
   // A revisao do contador (#178). Esperando o escritorio e informacao, nao erro; devolvida e
   // aviso, porque pede acao do produtor; aprovada e sucesso parcial -- falta emitir.
   AGUARDANDO_APROVACAO: 'bg-info-soft text-info-ink border-info/30',
+  // Em transito para a SEFAZ: neutro, porque o resultado ainda nao existe.
+  ENVIANDO: 'bg-info-soft text-info-ink border-info/30',
+  CANCELANDO: 'bg-surface-2 text-muted-foreground border-border',
   APROVADA: 'bg-sucesso-soft text-sucesso-ink border-sucesso/30',
   DEVOLVIDA: 'bg-aviso-soft text-aviso-ink border-aviso/30',
 };
@@ -76,6 +79,8 @@ export class UiBadgeStatus {
       PENDENTE_SEFAZ: 'bg-aviso',
       CANCELADA: 'bg-muted-foreground',
       AGUARDANDO_APROVACAO: 'bg-info',
+      ENVIANDO: 'bg-info',
+      CANCELANDO: 'bg-muted-foreground',
       APROVADA: 'bg-sucesso',
       DEVOLVIDA: 'bg-aviso',
     };

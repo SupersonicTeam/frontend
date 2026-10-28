@@ -24,16 +24,28 @@ describe('NotaPreview — stepper', () => {
       componente.stepperEstado(status as Parameters<NotaPreview['stepperEstado']>[0], i),
     );
 
-  it('esperando o contador é espera, não erro', () => {
-    expect(etapas('AGUARDANDO_APROVACAO')).toEqual(['warn', 'todo', 'todo', 'todo']);
+  /**
+   * O stepper passou a ser o da #111: **rascunho → em revisão → aprovada → emitida**.
+   *
+   * Antes eram "Rascunho · XML gerado · Enviada · Autorizada", e a revisão do contador não tinha
+   * etapa: ela aparecia como estado da primeira bolinha. Com o fluxo da #178 valendo para todo
+   * produtor com escritório, a revisão é uma etapa de verdade — e o "XML gerado", que é detalhe
+   * técnico, sai do caminho que o produtor acompanha.
+   */
+  it('as etapas são as do contrato, não as do XML', () => {
+    expect(componente.STEPPER_STEPS).toEqual(['Rascunho', 'Em revisão', 'Aprovada', 'Emitida']);
   });
 
-  it('aprovada: o rascunho está pronto e a vez é do XML', () => {
-    expect(etapas('APROVADA')).toEqual(['done', 'current', 'todo', 'todo']);
+  it('aguardando aprovação é a etapa 2, em andamento', () => {
+    expect(etapas('AGUARDANDO_APROVACAO')).toEqual(['done', 'current', 'todo', 'todo']);
   });
 
-  it('devolvida se parece com a nota que tem inconsistência: voltou para o produtor', () => {
-    expect(etapas('DEVOLVIDA')).toEqual(etapas('COM_INCONSISTENCIAS'));
+  it('aprovada fecha a etapa 2 e a vez é de emitir', () => {
+    expect(etapas('APROVADA')).toEqual(['done', 'done', 'current', 'todo']);
+  });
+
+  it('devolvida volta para o rascunho, e marca a revisão como problema', () => {
+    expect(etapas('DEVOLVIDA')).toEqual(['current', 'error', 'todo', 'todo']);
   });
 
   it('nenhum dos três cai no "não aconteceu nada"', () => {
@@ -42,8 +54,12 @@ describe('NotaPreview — stepper', () => {
     }
   });
 
-  it('o fluxo antigo continua como estava', () => {
+  it('o começo e o fim continuam onde estavam', () => {
     expect(etapas('RASCUNHO')).toEqual(['current', 'todo', 'todo', 'todo']);
     expect(etapas('AUTORIZADA')).toEqual(['done', 'done', 'done', 'done']);
+  });
+
+  it('o XML gerado é caminho de quem não tem contador: pula a revisão', () => {
+    expect(etapas('XML_GERADO')).toEqual(['done', 'todo', 'todo', 'current']);
   });
 });

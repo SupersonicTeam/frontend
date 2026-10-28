@@ -226,12 +226,16 @@
         </p>
         <ul class="mt-3 divide-y divide-border">
           @for (nota of notasDevolvidas(); track nota.id) {
-            <li class="flex items-center gap-2 py-2 text-apoio text-foreground">
+            <li class="flex flex-wrap items-center gap-2 py-2 text-apoio text-foreground">
               <span class="min-w-0 flex-1">
                 <span class="font-medium">Nota {{ nota.numero }}</span>
                 · {{ nota.destinatarioNome }}
               </span>
               <ui-badge-status [status]="nota.status" />
+              <!-- A prévia aceita RASCUNHO, COM_INCONSISTENCIAS, DEVOLVIDA, AGUARDANDO_APROVACAO
+                   e APROVADA (#111): conferir o documento é o que faz o escritório saber o que
+                   pedir ao produtor. -->
+              <ui-button variant="sutil" (click)="verPreviaDanfe(nota)">Ver a DANFE</ui-button>
             </li>
           }
         </ul>

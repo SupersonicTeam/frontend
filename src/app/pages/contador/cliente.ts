@@ -434,10 +434,14 @@ export class ClientePage {
       },
       error: (erro: HttpErrorResponse) => {
         this.executando.set(null);
+        // O 403 aqui tem dono: a função ASSISTENTE lê a carteira mas **não aprova nota**
+        // (#111). Dizer "não foi possível" faria a pessoa tentar de novo até desistir.
         this.toast.error(
-          erro.status === 409
-            ? 'A situação desta nota mudou. Recarregue para ver como ela está.'
-            : 'Não foi possível concluir a ação. Tente de novo.',
+          erro.status === 403
+            ? 'A sua função no escritório não aprova nem devolve nota. Peça a um contador ou ao administrador.'
+            : erro.status === 409
+              ? 'A situação desta nota mudou. Recarregue para ver como ela está.'
+              : 'Não foi possível concluir a ação. Tente de novo.',
         );
       },
     });

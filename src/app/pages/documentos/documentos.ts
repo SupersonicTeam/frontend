@@ -419,10 +419,17 @@ export class DocumentosPage implements OnInit {
   readonly notasFiltradas = computed(() => {
     let lista = this.notasAntesDaSituacao().slice();
 
-    // Situacao. `revisao` nao e um status do backend: e o trabalho do contador, que atravessa
-    // dois status (com inconsistencia e rejeitada) -- as duas notas que alguem precisa olhar.
+    // Situacao. Nem toda opcao e um status do backend: `revisao`, `travadas` e `esperando` sao
+    // recortes de trabalho.
+    //
+    // `revisao` significava "o que o fisco travou". Com a #178 no ar isso virou ambiguo -- revisao
+    // passou a ser o que o produtor **mandou o contador aprovar** --, e as duas pilhas sob o mesmo
+    // nome deixavam a que importa invisivel: o painel dizia "Precisam de revisao: 0" com nota
+    // aguardando aprovacao (#111). Agora sao duas, cada uma com o seu nome.
     const situacao = this.statusFilter();
-    if (situacao === 'revisao') lista = lista.filter((n) => this.podeVerValidacoes(n));
+    if (situacao === 'revisao')
+      lista = lista.filter((n) => esperaOEscritorio(n.status));
+    else if (situacao === 'travadas') lista = lista.filter((n) => this.podeVerValidacoes(n));
     // `esperando` e o recorte do produtor: o que ainda depende dele. Atravessa tres status
     // (inconsistencia, rejeitada, rascunho) porque o que une os tres e a pendencia, nao a
     // etiqueta -- nenhum deles virou documento fiscal ainda.
@@ -488,6 +495,11 @@ export class DocumentosPage implements OnInit {
       {
         chave: 'revisao',
         rotulo: 'Precisam de revisão',
+        quantidade: quantas((n) => esperaOEscritorio(n.status)),
+      },
+      {
+        chave: 'travadas',
+        rotulo: 'Travadas pelo fisco',
         quantidade: quantas((n) => this.podeVerValidacoes(n)),
       },
       {
