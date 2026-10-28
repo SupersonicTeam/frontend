@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import type { Observable } from 'rxjs';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   LucideArrowLeft,
@@ -290,8 +291,18 @@ export class ClientePage {
   // ── Pedidos de documento (backend#180) ──
 
   readonly executando = signal<string | null>(null);
-  /** `{id, verbo}` do motivo que está sendo escrito; `null` quando nenhum está aberto. */
-  readonly motivoAberto = signal<{ id: string; verbo: VerboPendencia } | null>(null);
+  /**
+   * O motivo que está sendo escrito, e de quem.
+   *
+   * Um só por vez, e com `alvo`: devolver uma **nota** (backend#178) e devolver um **pedido de
+   * documento** (#180) usam o mesmo campo e a mesma regra de 5 a 500 caracteres, mas batem em
+   * rotas diferentes. Sem o `alvo`, confirmar um acabaria executando o outro.
+   */
+  readonly motivoAberto = signal<{
+    id: string;
+    verbo: VerboPendencia;
+    alvo: 'pendencia' | 'nota';
+  } | null>(null);
   readonly motivo = signal('');
 
   // ── Formulário de pedir documento ──
@@ -356,7 +367,13 @@ export class ClientePage {
 
   /** Abre o campo de motivo. */
   abrirMotivo(pendencia: Pendencia, verbo: VerboPendencia): void {
-    this.motivoAberto.set({ id: pendencia.id, verbo });
+    this.motivoAberto.set({ id: pendencia.id, verbo, alvo: 'pendencia' });
+    this.motivo.set('');
+  }
+
+  /** Abre o campo de motivo para devolver uma **nota** ao produtor. */
+  abrirMotivoDaNota(nota: NotaFiscal): void {
+    this.motivoAberto.set({ id: nota.id, verbo: 'rejeitar', alvo: 'nota' });
     this.motivo.set('');
   }
 
@@ -378,9 +395,66 @@ export class ClientePage {
   confirmarMotivo(): void {
     const aberto = this.motivoAberto();
     if (!aberto || !this.motivoValido()) return;
+    const motivo = this.motivo().trim();
+
+    if (aberto.alvo === 'nota') {
+      const nota = this.notas().find((n) => n.id === aberto.id);
+      if (nota) this.devolver(nota, motivo);
+      return;
+    }
     const pendencia = this.pendencias().find((p) => p.id === aberto.id);
-    if (!pendencia) return;
-    this.executar(pendencia, aberto.verbo, this.motivo().trim());
+    if (pendencia) this.executar(pendencia, aberto.verbo, motivo);
+  }
+
+  /**
+   * Aprova a nota: o produtor passa a poder emitir.
+   *
+   * Enquanto isto não acontece, `gerar-xml` responde 409 `APROVACAO_EXIGIDA` para ele — ou seja,
+   * este botão é o que destrava a emissão, não um carimbo.
+   */
+  aprovar(nota: NotaFiscal): void {
+    this.executarNaNota(nota, () => this.carteiraApi.aprovarNota(this.produtorId, nota.id));
+  }
+
+  /** Devolve a nota ao produtor com o motivo, que entra no histórico de revisão. */
+  devolver(nota: NotaFiscal, motivo: string): void {
+    this.executarNaNota(nota, () =>
+      this.carteiraApi.devolverNota(this.produtorId, nota.id, motivo),
+    );
+  }
+
+  /** Troca a nota pela versão que o servidor devolveu — o status é decisão dele. */
+  private executarNaNota(nota: NotaFiscal, chamada: () => Observable<NotaFiscal>): void {
+    this.executando.set(nota.id);
+    chamada().subscribe({
+      next: (atualizada) => {
+        this.executando.set(null);
+        this.fecharMotivo();
+        this.notas.update((lista) => lista.map((n) => (n.id === atualizada.id ? atualizada : n)));
+      },
+      error: (erro: HttpErrorResponse) => {
+        this.executando.set(null);
+        this.toast.error(
+          erro.status === 409
+            ? 'A situação desta nota mudou. Recarregue para ver como ela está.'
+            : 'Não foi possível concluir a ação. Tente de novo.',
+        );
+      },
+    });
+  }
+
+  /** Abre a DANFE do rascunho, com marca d'água, para conferir antes de aprovar. */
+  verPreviaDanfe(nota: NotaFiscal): void {
+    this.carteiraApi.previewDanfe(this.produtorId, nota.id).subscribe({
+      next: (resposta) => {
+        const nome = filenameDeContentDisposition(
+          resposta.headers.get('Content-Disposition'),
+          `nota-${nota.numero}.pdf`,
+        );
+        if (resposta.body) salvarBlob(resposta.body, nome);
+      },
+      error: () => this.toast.error('Não foi possível gerar a prévia da DANFE.'),
+    });
   }
 
   /**

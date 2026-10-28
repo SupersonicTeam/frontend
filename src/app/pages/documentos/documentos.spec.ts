@@ -38,6 +38,9 @@ describe('DocumentosPage', () => {
     httpMock
       .match((r) => r.url.includes('/pendencias') || r.url.includes('/contador'))
       .forEach((r) => r.flush([]));
+    // Desde a #178 a tela tambem pergunta se ha escritorio vinculado: e isso que decide se o
+    // botao e "Emitir" ou "Enviar para revisao".
+    httpMock.match((r) => r.url === '/vinculos').forEach((r) => r.flush([]));
   }
 
   /** Uma página do Spring Data com as notas dadas. */
@@ -251,6 +254,123 @@ describe('DocumentosPage', () => {
    * `HttpTestingController` responde o que mandarem responder; contra o servidor de verdade era
    * 404 desde sempre, e a secao jamais apareceu na tela.
    */
+  /**
+   * A revisao do contador antes da emissao (backend#178).
+   *
+   * Medido em 28/10: com escritorio vinculado, `gerar-xml` num rascunho responde
+   * **409 APROVACAO_EXIGIDA**. Ou seja, o botao "Gerar XML" desta tela **ja esta quebrado** para
+   * quem tem contador -- e o produtor semente tem.
+   */
+  describe('revisao do contador (#178)', () => {
+    const rascunho = (over: Record<string, unknown> = {}) => ({
+      id: 'n1',
+      numero: 10,
+      serie: 1,
+      status: 'RASCUNHO',
+      dataEmissao: '2026-10-01T03:00:00Z',
+      destinatarioNome: 'Cooperativa',
+      valorTotalNota: 1000,
+      itens: [],
+      ...over,
+    });
+
+    function abrir(notas: Record<string, unknown>[], vinculos: unknown[]) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina(notas));
+      httpMock.expectOne((r) => r.url === '/pendencias').flush([]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush(vinculos);
+      return fixture.componentInstance;
+    }
+
+    /** Responde o historico de revisao que as notas DEVOLVIDAS disparam. */
+    function flushRevisoes() {
+      httpMock.match((r) => r.url.endsWith('/revisoes')).forEach((r) => r.flush([]));
+    }
+
+    const comEscritorio = [{ id: 'v1', escritorio: 'Campo Certo', situacao: 'ATIVO' }];
+
+    it('pergunta ao servidor se ha escritorio vinculado', () => {
+      const cmp = abrir([rascunho()], comEscritorio);
+      expect(cmp.temContador()).toBe(true);
+    });
+
+    it('vinculo encerrado nao conta: so o ATIVO alcanca a nota', () => {
+      const cmp = abrir([rascunho()], [{ id: 'v1', situacao: 'ENCERRADO' }]);
+      expect(cmp.temContador()).toBe(false);
+    });
+
+    it('COM contador, o rascunho vai para revisao -- nao direto para o XML', () => {
+      const cmp = abrir([rascunho()], comEscritorio);
+      const nota = cmp.notas()[0]!;
+
+      expect(cmp.podeEnviarParaRevisao(nota)).toBe(true);
+      expect(cmp.podeGerarXml(nota)).toBe(false);
+    });
+
+    it('SEM contador, o fluxo antigo continua: rascunho gera XML direto', () => {
+      const cmp = abrir([rascunho()], []);
+      const nota = cmp.notas()[0]!;
+
+      expect(cmp.podeEnviarParaRevisao(nota)).toBe(false);
+      expect(cmp.podeGerarXml(nota)).toBe(true);
+    });
+
+    it('a nota aprovada volta a poder gerar XML, mesmo com contador', () => {
+      const cmp = abrir([rascunho({ status: 'APROVADA' })], comEscritorio);
+      expect(cmp.podeGerarXml(cmp.notas()[0]!)).toBe(true);
+    });
+
+    it('enviar para revisao troca a nota pela que o servidor devolveu', () => {
+      const cmp = abrir([rascunho()], comEscritorio);
+
+      cmp.enviarParaRevisao(cmp.notas()[0]!);
+
+      httpMock
+        .expectOne((r) => r.url === '/notas/n1/enviar-para-revisao')
+        .flush(rascunho({ status: 'AGUARDANDO_APROVACAO' }));
+
+      expect(cmp.notas()[0]!.status).toBe('AGUARDANDO_APROVACAO');
+    });
+
+    it('enquanto esta com o contador, a nota nao e editavel nem volta para o XML', () => {
+      const cmp = abrir([rascunho({ status: 'AGUARDANDO_APROVACAO' })], comEscritorio);
+      const nota = cmp.notas()[0]!;
+
+      expect(cmp.podeEditar(nota)).toBe(false);
+      expect(cmp.podeGerarXml(nota)).toBe(false);
+      // Mas da para desistir e trazer de volta.
+      expect(cmp.podeRetirarDaRevisao(nota)).toBe(true);
+    });
+
+    it('aprovada tambem nao e editavel: mudar invalidaria a aprovacao', () => {
+      const cmp = abrir([rascunho({ status: 'APROVADA' })], comEscritorio);
+      expect(cmp.podeEditar(cmp.notas()[0]!)).toBe(false);
+    });
+
+    it('devolvida volta a ser editavel, como rascunho', () => {
+      const cmp = abrir([rascunho({ status: 'DEVOLVIDA' })], comEscritorio);
+      flushRevisoes();
+      const nota = cmp.notas()[0]!;
+
+      expect(cmp.podeEditar(nota)).toBe(true);
+      expect(cmp.podeEnviarParaRevisao(nota)).toBe(true);
+    });
+
+    it('a nota devolvida busca o motivo no historico: e o que diz o que corrigir', () => {
+      const cmp = abrir([rascunho({ status: 'DEVOLVIDA' })], comEscritorio);
+
+      httpMock
+        .expectOne((r) => r.url === '/notas/n1/revisoes')
+        .flush([
+          { id: 'r2', acao: 'DEVOLVIDA', motivo: 'Falta o CFOP no item 2.', papel: 'CONTADOR', ocorridoEm: 'b' },
+          { id: 'r1', acao: 'ENVIADA', motivo: null, papel: 'PRODUTOR', ocorridoEm: 'a' },
+        ]);
+
+      expect(cmp.motivoDaDevolucao('n1')).toBe('Falta o CFOP no item 2.');
+    });
+  });
+
   describe('pedidos de documento (#180)', () => {
     const pendencia = (over: Record<string, unknown> = {}) => ({
       id: 'pd-1',
@@ -285,6 +405,8 @@ describe('DocumentosPage', () => {
       fixture.detectChanges();
       httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
       httpMock.expectOne((r) => r.url === '/pendencias').flush(pendencias);
+      // Desde a #178 a tela tambem pergunta se ha escritorio vinculado.
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
       // Quem esta PENDENTE com anexo ganha uma busca de detalhe (ver `completarAnexosParados`);
       // devolvemos o proprio item, sem anexos, que e o caso neutro.
       httpMock
@@ -308,6 +430,7 @@ describe('DocumentosPage', () => {
       const req = httpMock.expectOne((r) => r.url === '/pendencias');
       expect(req.request.params.keys()).toEqual([]);
       req.flush([pendencia()]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
 
       expect(fixture.componentInstance.pendencias().length).toBe(1);
       expect(fixture.componentInstance.pendenciasEsperandoVoce()).toBe(1);
@@ -332,6 +455,7 @@ describe('DocumentosPage', () => {
           pendencia({ id: 'pd-2', status: 'PENDENTE', quantidadeAnexos: 0 }),
           pendencia({ id: 'pd-3', status: 'ENVIADA', quantidadeAnexos: 2 }),
         ]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
 
       // So a pd-1: a pd-2 nao tem arquivo e a pd-3 ja passou pelo antivirus.
       httpMock.expectNone((r) => r.url === '/pendencias/pd-2');
@@ -353,6 +477,7 @@ describe('DocumentosPage', () => {
       httpMock
         .expectOne((r) => r.url === '/pendencias')
         .flush([pendencia({ id: 'pd-1', status: 'PENDENTE', quantidadeAnexos: 1 })]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
       httpMock
         .expectOne((r) => r.url === '/pendencias/pd-1')
         .flush('erro', { status: 500, statusText: 'Server Error' });

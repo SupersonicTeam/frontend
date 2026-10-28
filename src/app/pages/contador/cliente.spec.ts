@@ -385,6 +385,75 @@ describe('ClientePage', () => {
     });
   });
 
+  /**
+   * A aprovação da nota antes da emissão (backend#178).
+   *
+   * Medido em 28/10: com escritório vinculado, `gerar-xml` num rascunho responde
+   * **409 APROVACAO_EXIGIDA**. Ou seja, enquanto o contador não aprova, a nota do produtor não
+   * sai — o que torna este bloco o gargalo do fluxo, não um enfeite.
+   */
+  describe('aprovação da nota', () => {
+    const emRevisao = () =>
+      nota({ id: 'nr', status: 'AGUARDANDO_APROVACAO' as NotaFiscal['status'] });
+
+    it('aprovar não pede motivo e troca a nota pela que o servidor devolveu', () => {
+      const fixture = abrir();
+      responder({ notas: [emRevisao()] });
+      const page = fixture.componentInstance;
+
+      page.aprovar(page.notasAguardandoAprovacao()[0]!);
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p1/notas/nr/aprovar',
+      );
+      expect(req.request.body).toBeNull();
+      req.flush(nota({ id: 'nr', status: 'APROVADA' as NotaFiscal['status'] }));
+
+      // Saiu da fila de aprovação: ela passou a estar com o produtor para emitir.
+      expect(page.notasAguardandoAprovacao().length).toBe(0);
+    });
+
+    it('devolver com motivo curto não vai ao servidor', () => {
+      const fixture = abrir();
+      responder({ notas: [emRevisao()] });
+      const page = fixture.componentInstance;
+
+      page.abrirMotivoDaNota(page.notasAguardandoAprovacao()[0]!);
+      page.motivo.set('ruim');
+      page.confirmarMotivo();
+
+      httpMock.expectNone((r) => r.url.includes('/devolver'));
+    });
+
+    it('devolver manda o motivo e a nota volta para o produtor', () => {
+      const fixture = abrir();
+      responder({ notas: [emRevisao()] });
+      const page = fixture.componentInstance;
+
+      page.abrirMotivoDaNota(page.notasAguardandoAprovacao()[0]!);
+      page.motivo.set('Falta o CFOP no item 2.');
+      page.confirmarMotivo();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p1/notas/nr/devolver',
+      );
+      expect(req.request.body).toEqual({ motivo: 'Falta o CFOP no item 2.' });
+      req.flush(nota({ id: 'nr', status: 'DEVOLVIDA' as NotaFiscal['status'] }));
+
+      expect(page.notasDevolvidas().length).toBe(1);
+      expect(page.motivoAberto()).toBeNull();
+    });
+
+    it('o motivo de um pedido e o de uma nota não se misturam', () => {
+      const fixture = abrir();
+      responder({ notas: [emRevisao()] });
+      const page = fixture.componentInstance;
+
+      page.abrirMotivoDaNota(page.notasAguardandoAprovacao()[0]!);
+      expect(page.motivoAberto()?.alvo).toBe('nota');
+    });
+  });
+
   it('o foco da query string escolhe por qual bloco a tela começa', () => {
     rota.snapshot.queryParamMap = convertToParamMap({ foco: 'guias' });
     const fixture = abrir();

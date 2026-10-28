@@ -42,6 +42,19 @@ export class NotaPreview {
         return idx < 2 ? 'done' : idx === 2 ? 'warn' : 'todo';
       case 'CANCELADA':
         return 'done';
+      // A revisao do contador (backend#178) acontece ENTRE o rascunho e o XML, e nao tem etapa
+      // propria aqui: acrescentar uma quinta bolinha mudaria o stepper tambem para quem nao tem
+      // contador, que e a maioria. Entao ela aparece como estado da primeira etapa -- o que e
+      // verdade: a nota ainda nao virou XML.
+      case 'AGUARDANDO_APROVACAO':
+        // Esperando o escritorio: nao e erro, e espera.
+        return idx === 0 ? 'warn' : 'todo';
+      case 'APROVADA':
+        // O rascunho esta pronto e liberado; falta gerar o XML.
+        return idx === 0 ? 'done' : idx === 1 ? 'current' : 'todo';
+      case 'DEVOLVIDA':
+        // Voltou para a mao do produtor, como a nota com inconsistencia.
+        return idx === 0 ? 'error' : 'todo';
       default:
         return 'todo';
     }

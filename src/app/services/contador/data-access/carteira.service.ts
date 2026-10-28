@@ -129,6 +129,45 @@ export class CarteiraApi {
   }
 
   /**
+   * `POST .../notas/{id}/aprovar` — libera a nota para o produtor emitir (backend#178).
+   *
+   * Sem corpo: aprovar não pede justificativa. Devolver, sim.
+   */
+  aprovarNota(produtorId: string, notaId: string): Observable<NotaFiscal> {
+    return this.http.post<NotaFiscal>(
+      `/contador/produtores/${produtorId}/notas/${notaId}/aprovar`,
+      null,
+    );
+  }
+
+  /**
+   * `POST .../notas/{id}/devolver` — devolve a nota ao produtor, com motivo de 5 a 500.
+   *
+   * O motivo entra no histórico de revisão e é o texto que o produtor lê para saber o que
+   * corrigir. Sem ele o servidor responde 400 (medido em 28/10).
+   */
+  devolverNota(produtorId: string, notaId: string, motivo: string): Observable<NotaFiscal> {
+    return this.http.post<NotaFiscal>(
+      `/contador/produtores/${produtorId}/notas/${notaId}/devolver`,
+      { motivo },
+    );
+  }
+
+  /**
+   * `GET .../notas/{id}/danfe-preview` — a DANFE do rascunho, com marca d'água (backend#89).
+   *
+   * É o que permite conferir a nota **antes** de aprovar, em vez de decidir pelos números da
+   * listagem. Sem `Accept` declarado: o caminho de erro devolve JSON e só aceitar qualquer tipo
+   * serve para os dois (ver `apiInterceptor`, issue #99).
+   */
+  previewDanfe(produtorId: string, notaId: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(
+      `/contador/produtores/${produtorId}/notas/${notaId}/danfe-preview`,
+      { responseType: 'blob', observe: 'response' },
+    );
+  }
+
+  /**
    * `GET /api/contador/produtores/{produtorId}/pendencias` — os pedidos de documento (backend#180).
    *
    * É a rota que substitui o `/api/contador/pendencias?produtorId=` que o `ContadorApi` ainda

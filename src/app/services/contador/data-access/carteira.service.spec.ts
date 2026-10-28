@@ -110,6 +110,38 @@ describe('CarteiraApi', () => {
     req.flush([]);
   });
 
+  describe('aprovacao da nota (#178)', () => {
+    it('aprovar nao manda corpo', () => {
+      service.aprovarNota('p9', 'n1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p9/notas/n1/aprovar',
+      );
+      expect(req.request.body).toBeNull();
+      req.flush({});
+    });
+
+    it('devolver leva o motivo, que e o que o produtor le para corrigir', () => {
+      service.devolverNota('p9', 'n1', 'Falta o CFOP no item 2.').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p9/notas/n1/devolver',
+      );
+      expect(req.request.body).toEqual({ motivo: 'Falta o CFOP no item 2.' });
+      req.flush({});
+    });
+
+    it('o preview da DANFE sai em blob, para conferir antes de aprovar', () => {
+      service.previewDanfe('p9', 'n1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p9/notas/n1/danfe-preview',
+      );
+      expect(req.request.responseType).toBe('blob');
+      req.flush(new Blob());
+    });
+  });
+
   it('validacoesDaNota busca no escopo do cliente, não em /notas', () => {
     service.validacoesDaNota('p9', 'n1').subscribe();
 

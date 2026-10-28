@@ -39,10 +39,11 @@ import {
   temAnexoEmVerificacao,
 } from '@models/pendencia.model';
 import { PendenciasApi } from '@services/pendencias/data-access/pendencias.service';
+import { VinculosApi } from '@services/vinculos/data-access/vinculos.service';
 import { NotaFiscalRequest, NotaFiscalItemRequest } from '@dtos/notas/nota-fiscal.request';
 import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
-import { statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
+import { editavel, esperaOEscritorio, statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
 import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
@@ -216,6 +217,7 @@ export class DocumentosPage implements OnInit {
   private readonly router = inject(Router);
   private readonly contadorService = inject(ContadorApi);
   private readonly pendenciasApi = inject(PendenciasApi);
+  private readonly vinculosApi = inject(VinculosApi);
   private readonly toastService = inject(ToastService);
 
   // Data
@@ -776,6 +778,7 @@ export class DocumentosPage implements OnInit {
 
   carregarDados(): void {
     this.recarregarNotas();
+    this.carregarRevisao();
     // O produtor e o autenticado: a rota nao leva produtorId. Falha fica silenciosa de proposito
     // -- esta e uma secao lateral da tela de notas, e um toast de erro aqui roubaria a atencao do
     // que o produtor veio fazer.
@@ -829,6 +832,7 @@ export class DocumentosPage implements OnInit {
       .subscribe({
         next: (page) => {
           this.notas.set(page.content);
+          this.carregarMotivosDeDevolucao(page.content);
           this.totalElements.set(page.totalElements);
           this.notasErro.set(false);
           this.loading.set(false);
@@ -861,9 +865,130 @@ export class DocumentosPage implements OnInit {
     if (this.previewNota()?.id === nota.id) this.previewNota.set(nota);
   }
 
+  // ── Revisão do contador (backend#178) ──
+
+  /**
+   * O produtor tem escritório vinculado.
+   *
+   * É o que decide se o botão é "Gerar XML" ou "Enviar para revisão" — e não é preferência de
+   * tela: com escritório ativo, `gerar-xml` num rascunho responde **409 `APROVACAO_EXIGIDA`**
+   * (medido em 28/10). Sem escritório, `enviar-para-revisao` é que responde 409. Ou seja, os dois
+   * fluxos existem e só um vale para cada produtor.
+   */
+  readonly temContador = signal(false);
+
+  /** Motivo da última devolução, por nota, buscado do histórico de revisão. */
+  private readonly motivosDeDevolucao = signal<Record<string, string>>({});
+  readonly enviandoRevisao = signal<string | null>(null);
+
+  /** O texto que o contador escreveu ao devolver esta nota, se já chegou. */
+  motivoDaDevolucao(notaId: string): string | undefined {
+    return this.motivosDeDevolucao()[notaId];
+  }
+
+  /**
+   * A nota vai para a mesa do contador.
+   *
+   * Vale para o que ainda é do produtor: rascunho, nota com inconsistência e nota devolvida — os
+   * mesmos estados que `editavel()` permite mexer.
+   */
+  podeEnviarParaRevisao(nota?: NotaFiscal | null): boolean {
+    return this.temContador() && editavel(nota?.status);
+  }
+
+  /** A nota está na mesa do contador e o produtor pode trazê-la de volta. */
+  podeRetirarDaRevisao(nota?: NotaFiscal | null): boolean {
+    return esperaOEscritorio(nota?.status);
+  }
+
+  /** Manda a nota para a revisão do escritório. */
+  enviarParaRevisao(nota: NotaFiscal): void {
+    this.enviandoRevisao.set(nota.id);
+    this.notasApi.enviarParaRevisao(nota.id).subscribe({
+      next: (atualizada) => {
+        this.enviandoRevisao.set(null);
+        this.trocarNota(atualizada);
+        this.toastService.success('Nota enviada para o seu contador.');
+      },
+      error: (erro: HttpErrorResponse) => {
+        this.enviandoRevisao.set(null);
+        // 422: a validação fiscal reprovou antes de mudar o status, e a nota foi para
+        // COM_INCONSISTENCIAS. O produtor precisa saber que ela voltou, não que "deu erro".
+        this.toastService.error(
+          erro.status === 422
+            ? 'O validador fiscal recusou a nota. Abra as inconsistências e corrija antes de enviar.'
+            : 'Não foi possível enviar a nota para o contador.',
+        );
+        if (erro.status === 422) this.recarregarNotas();
+      },
+    });
+  }
+
+  /** Traz a nota de volta da mesa do contador, para rascunho. */
+  retirarDaRevisao(nota: NotaFiscal): void {
+    this.enviandoRevisao.set(nota.id);
+    this.notasApi.retirarDaRevisao(nota.id).subscribe({
+      next: (atualizada) => {
+        this.enviandoRevisao.set(null);
+        this.trocarNota(atualizada);
+      },
+      error: () => {
+        this.enviandoRevisao.set(null);
+        this.toastService.error('Não foi possível retirar a nota da revisão.');
+      },
+    });
+  }
+
+  /** Substitui a nota na lista e no painel aberto, se for a mesma. */
+  private trocarNota(atualizada: NotaFiscal): void {
+    this.notas.update((lista) => lista.map((n) => (n.id === atualizada.id ? atualizada : n)));
+    if (this.previewNota()?.id === atualizada.id) this.previewNota.set(atualizada);
+  }
+
+  /**
+   * Busca se há escritório vinculado e, para cada nota devolvida, o motivo.
+   *
+   * O motivo não vem na nota: ele mora no histórico de revisão (`/notas/{id}/revisoes`). Sem
+   * buscá-lo, a nota apareceria como "Devolvida para corrigir" **sem dizer o que corrigir**, que
+   * é a única informação que importa nesse estado.
+   */
+  private carregarRevisao(): void {
+    this.vinculosApi.listar().subscribe({
+      next: (vinculos) => this.temContador.set(vinculos.some((v) => v.situacao === 'ATIVO')),
+      error: () => this.temContador.set(false),
+    });
+  }
+
+  /** Para cada nota devolvida, busca o motivo da última devolução. */
+  private carregarMotivosDeDevolucao(notas: NotaFiscal[]): void {
+    for (const nota of notas) {
+      if (String(nota.status) !== 'DEVOLVIDA' || this.motivosDeDevolucao()[nota.id]) continue;
+      this.notasApi.revisoes(nota.id).subscribe({
+        next: (historico) => {
+          const devolucao = historico.find((r) => r.acao === 'DEVOLVIDA' && r.motivo);
+          if (devolucao?.motivo) {
+            this.motivosDeDevolucao.update((atuais) => ({
+              ...atuais,
+              [nota.id]: devolucao.motivo as string,
+            }));
+          }
+        },
+        error: () => undefined,
+      });
+    }
+  }
+
   // ─────────────── Visibilidade de ações por status (#14) ───────────────
-  /** XML pode ser gerado só em RASCUNHO/COM_INCONSISTENCIAS. */
+  /**
+   * O XML pode ser gerado.
+   *
+   * **Com escritório vinculado, só depois da aprovação** (backend#178): o servidor responde 409
+   * `APROVACAO_EXIGIDA` para um rascunho, então oferecer "Gerar XML" ali seria oferecer um erro.
+   * Sem escritório, o fluxo antigo segue valendo.
+   */
   podeGerarXml(nota?: NotaFiscal | null): boolean {
+    if (String(nota?.status) === 'APROVADA') return true;
+    if (this.temContador()) return false;
     return nota?.status === 'RASCUNHO' || nota?.status === 'COM_INCONSISTENCIAS';
   }
   /** XML/DANFE disponíveis após a geração do XML (409 em RASCUNHO/COM_INCONSISTENCIAS). */
@@ -1071,9 +1196,15 @@ export class DocumentosPage implements OnInit {
 
   // ─────────────────────────── Formulário de nota ───────────────────────────
 
-  /** Só notas em RASCUNHO ou COM_INCONSISTENCIAS podem ser editadas/excluídas (backend: 409 fora disso). */
+  /**
+   * A nota pode ser editada ou excluída (backend: 409 fora disso).
+   *
+   * A regra mora em `editavel()`, no enum, porque a #178 acrescentou dois casos que é fácil
+   * esquecer: `AGUARDANDO_APROVACAO` e `APROVADA` **não** são editáveis — mexer numa nota que
+   * está com o contador, ou que ele já aprovou, invalidaria a aprovação. `DEVOLVIDA` é editável.
+   */
   podeEditar(nota?: NotaFiscal | null): boolean {
-    return nota?.status === 'RASCUNHO' || nota?.status === 'COM_INCONSISTENCIAS';
+    return editavel(nota?.status);
   }
 
   private resetForm(): void {

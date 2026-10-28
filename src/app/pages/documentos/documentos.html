@@ -622,6 +622,20 @@
   (fechar)="fecharPreview()"
 >
   @if (previewNota()) {
+    <!-- O CONTADOR DEVOLVEU, E DISSE POR QUE.
+         O motivo não vem na nota: mora no histórico de revisão. Sem ele a nota apareceria como
+         "Devolvida para corrigir" sem dizer o que corrigir — que é a única informação que
+         importa nesse estado. Vem antes de tudo pelo mesmo motivo que as inconsistências. -->
+    @if (motivoDaDevolucao(previewNota()!.id); as motivo) {
+      <div class="mb-4 rounded-card border border-aviso/40 bg-aviso-soft p-4">
+        <p class="flex items-center gap-2 font-heading font-semibold text-aviso-ink">
+          <svg lucideTriangleAlert [size]="18" />
+          O seu contador devolveu esta nota
+        </p>
+        <p class="mt-1 text-apoio text-aviso-ink">{{ motivo }}</p>
+      </div>
+    }
+
     <!-- O QUE IMPEDE A EMISSAO VEM PRIMEIRO.
          Antes este bloco ficava depois da DANFE inteira, a 644px do topo num
          conteudo de 730px: quem clicava "Corrigir agora" no painel tinha que
@@ -734,6 +748,32 @@
         (click)="pedirExclusao(previewNota()!)"
       >
         <svg lucideTrash2 [size]="15" /> Excluir
+      </button>
+    }
+    <!-- ── A revisão do contador (backend#178) ──
+         Com escritório vinculado, "Gerar XML" responde 409 APROVACAO_EXIGIDA: o caminho é enviar
+         para o contador primeiro. Os dois botões nunca aparecem juntos. -->
+    @if (podeEnviarParaRevisao(previewNota())) {
+      <button
+        class="flex-1 min-w-[110px] flex items-center justify-center gap-2 px-4 py-2 rounded-controle bg-primary text-primary-foreground text-apoio font-medium hover:opacity-90 disabled:opacity-50"
+        [disabled]="enviandoRevisao() === previewNota()!.id"
+        (click)="enviarParaRevisao(previewNota()!)"
+      >
+        @if (enviandoRevisao() === previewNota()!.id) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Enviando...
+        } @else {
+          <svg lucideFileOutput [size]="16" /> Enviar para revisão
+        }
+      </button>
+    }
+    @if (podeRetirarDaRevisao(previewNota())) {
+      <button
+        class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted"
+        [disabled]="enviandoRevisao() === previewNota()!.id"
+        (click)="retirarDaRevisao(previewNota()!)"
+        title="Traz a nota de volta para rascunho"
+      >
+        Retirar da revisão
       </button>
     }
     @if (podeGerarXml(previewNota())) {
