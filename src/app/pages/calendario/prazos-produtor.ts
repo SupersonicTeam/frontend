@@ -10,11 +10,9 @@ import {
   LucideRefreshCw,
 } from '@lucide/angular';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
-import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { ToastService } from '@core/services/toast.service';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
-import { SolicitacaoContador } from '@models/solicitacao-contador.model';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 
 @Component({
@@ -34,7 +32,6 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 })
 export class PrazosProdutor implements OnInit {
   private readonly calendarioService = inject(CalendarioApi);
-  private readonly contadorService = inject(ContadorApi);
   private readonly notificacaoService = inject(NotificacaoApi);
   private readonly toastService = inject(ToastService);
 
@@ -43,18 +40,19 @@ export class PrazosProdutor implements OnInit {
    * vira uma busca, e o que já veio fica guardado para voltar ao mês não custar outra requisição.
    */
   private readonly vencimentosPorMes = signal<Record<string, VencimentoFiscal[]>>({});
-  private readonly vencimentosContador = signal<VencimentoFiscal[]>([]);
 
   private readonly vencimentosReais = computed(() =>
     Object.values(this.vencimentosPorMes()).flat(),
   );
 
-  // As duas fontes carregam desacopladas: uma falha isolada em `/calendario-fiscal` não esconde
-  // as solicitações do contador, e vice-versa (ver design.md: "Resiliência do calendário").
-  readonly vencimentos = computed(() => [
-    ...this.vencimentosReais(),
-    ...this.vencimentosContador(),
-  ]);
+  // Fonte unica: `/calendario-fiscal/{id}/vencimentos`.
+  //
+  // Eram duas. A segunda buscava as solicitacoes do contador a parte e as convertia em eventos --
+  // contra `/contador/pendencias?produtorId=`, que **nunca existiu** e respondia 404 em toda
+  // abertura da tela. Desde a backend#180 o proprio calendario devolve a pendencia com prazo como
+  // `tipo: "solicitacao"` (medido em 28/10), entao a conversao a mao virou uma segunda verdade
+  // sobre o mesmo dado -- e a que estava sempre vazia.
+  readonly vencimentos = computed(() => this.vencimentosReais());
   loading = signal(false);
   vencimentosErro = signal(false);
   enviandoNotificacao = signal(false);
@@ -315,7 +313,6 @@ export class PrazosProdutor implements OnInit {
   carregar(): void {
     this.hoje.set(PrazosProdutor.hojeISO());
     this.carregarJanela();
-    this.carregarVencimentosContador();
   }
 
   /**
@@ -416,34 +413,8 @@ export class PrazosProdutor implements OnInit {
     return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  private carregarVencimentosContador(): void {
-    this.contadorService.getPendencias(LOGGED_PRODUCER_ID).subscribe({
-      next: (pendencias) => this.vencimentosContador.set(this.mapPendenciasParaEventos(pendencias)),
-      error: () => this.vencimentosContador.set([]),
-    });
-  }
-
   retry(): void {
     this.carregar();
-  }
-
-  // Converte solicitações do contador (com prazo) em eventos do calendário
-  private mapPendenciasParaEventos(pendencias: SolicitacaoContador[]): VencimentoFiscal[] {
-    return pendencias
-      .filter(
-        (p) =>
-          (p.status === 'pendente' || p.status === 'enviado' || p.status === 'rejeitado') &&
-          p.prazo,
-      )
-      .map((p) => ({
-        id: 'sol-' + p.id,
-        titulo: p.titulo,
-        descricao: p.descricao,
-        dataVencimento: (p.prazo || '').split('T')[0],
-        tipo: 'solicitacao' as const,
-        status: 'pendente' as const,
-        prioridade: p.prioridade,
-      }));
   }
 
   mesAnterior(): void {
