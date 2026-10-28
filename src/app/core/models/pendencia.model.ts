@@ -69,6 +69,15 @@ export interface Pendencia {
   updatedAt: string;
 }
 
+/** Os cinco tipos, na ordem em que o escritório costuma pedir. */
+export const TIPOS_DOCUMENTO: readonly TipoDocumentoPendencia[] = [
+  'NOTA_FISCAL',
+  'COMPROVANTE_PAGAMENTO',
+  'EXTRATO',
+  'CONTRATO',
+  'OUTRO',
+];
+
 /** Rótulos em português, na voz de quem lê. */
 export const STATUS_PENDENCIA_LABEL: Record<StatusPendencia, string> = {
   PENDENTE: 'Esperando você',

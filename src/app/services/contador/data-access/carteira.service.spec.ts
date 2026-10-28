@@ -155,6 +155,82 @@ describe('CarteiraApi', () => {
     expect(falhou).toBe(true);
   });
 
+  /**
+   * O lado do escritorio dos pedidos de documento (backend#180).
+   *
+   * O ciclo e PENDENTE -> ENVIADA -> CONCLUIDA/CANCELADA, e **o servidor recusa o que estiver fora
+   * de ordem** com 409 TRANSICAO_PENDENCIA_INVALIDA (medido: concluir uma PENDENTE devolve
+   * "esta PENDENTE e nao permite esta acao"). Por isso quem decide o que oferecer e a tela; aqui
+   * so garantimos que cada verbo bate na rota certa, com o corpo certo.
+   */
+  describe('pedidos de documento', () => {
+    it('criar manda o pedido na rota do cliente', () => {
+      service
+        .criarPendencia('p9', {
+          titulo: 'Extrato de outubro',
+          tiposDocumento: ['EXTRATO'],
+          dataLimite: '2026-11-10',
+        })
+        .subscribe();
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p9/pendencias');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({
+        titulo: 'Extrato de outubro',
+        tiposDocumento: ['EXTRATO'],
+        dataLimite: '2026-11-10',
+      });
+      req.flush({});
+    });
+
+    it('concluir nao manda corpo: aceitar o que veio nao precisa de justificativa', () => {
+      service.concluirPendencia('p9', 'pd1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p9/pendencias/pd1/concluir',
+      );
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toBeNull();
+      req.flush({});
+    });
+
+    it('rejeitar leva o motivo, que e o que o produtor vai ler para refazer', () => {
+      service.rejeitarPendencia('p9', 'pd1', 'A foto do comprovante saiu ilegivel.').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p9/pendencias/pd1/rejeitar',
+      );
+      expect(req.request.body).toEqual({ motivo: 'A foto do comprovante saiu ilegivel.' });
+      req.flush({});
+    });
+
+    it('cancelar tambem leva motivo', () => {
+      service.cancelarPendencia('p9', 'pd1', 'Pedido duplicado.').subscribe();
+
+      httpMock
+        .expectOne((r) => r.url === '/contador/produtores/p9/pendencias/pd1/cancelar')
+        .flush({});
+    });
+
+    it('reabrir volta um pedido concluido ou cancelado', () => {
+      service.reabrirPendencia('p9', 'pd1').subscribe();
+
+      httpMock
+        .expectOne((r) => r.url === '/contador/produtores/p9/pendencias/pd1/reabrir')
+        .flush({});
+    });
+
+    it('baixar o anexo pede blob e a resposta inteira, pelo nome no Content-Disposition', () => {
+      service.baixarAnexoDoCliente('p9', 'pd1', 'a1').subscribe();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p9/pendencias/pd1/anexos/a1',
+      );
+      expect(req.request.responseType).toBe('blob');
+      req.flush(new Blob());
+    });
+  });
+
   it('obterCliente acha o cliente na carteira pelo id do produtor', () => {
     let recebido: ProdutorCarteira | null | undefined;
     service.obterCliente('p2').subscribe((r) => (recebido = r));

@@ -1,8 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, type HttpResponse } from '@angular/common/http';
 import { Observable, map } from 'rxjs';
 import type { FiltroCarteira, PaginaCarteira, ProdutorCarteira } from '@models/carteira.model';
-import type { PendenciaCliente, StatusPendencia } from '@models/carteira.model';
+import type { Pendencia, StatusPendencia, TipoDocumentoPendencia } from '@models/pendencia.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { statusDaGuia } from '@core/utils/guias';
@@ -18,6 +18,18 @@ export type StatusNotaFiltro =
   | 'AGUARDANDO_APROVACAO'
   | 'APROVADA'
   | 'DEVOLVIDA';
+
+/** Corpo de `POST .../pendencias`. */
+export interface NovoPedidoDocumento {
+  /** Até 120 caracteres. */
+  titulo: string;
+  /** De 1 a 5 tipos. */
+  tiposDocumento: TipoDocumentoPendencia[];
+  descricao?: string;
+  /** `AAAA-MM-DD`. */
+  dataLimite?: string;
+  observacoes?: string;
+}
 
 /** Filtros de `GET /api/contador/produtores/{produtorId}/notas` (os mesmos de `/api/notas`). */
 export interface FiltroNotasCliente {
@@ -126,12 +138,12 @@ export class CarteiraApi {
   pendenciasDoCliente(
     produtorId: string,
     status: StatusPendencia[] = [],
-  ): Observable<PendenciaCliente[]> {
+  ): Observable<Pendencia[]> {
     let params = new HttpParams();
     for (const s of status) {
       params = params.append('status', s);
     }
-    return this.http.get<PendenciaCliente[]>(`/contador/produtores/${produtorId}/pendencias`, {
+    return this.http.get<Pendencia[]>(`/contador/produtores/${produtorId}/pendencias`, {
       params,
     });
   }
@@ -160,6 +172,98 @@ export class CarteiraApi {
           })),
         ),
       );
+  }
+
+  /**
+   * `GET /api/contador/produtores/{produtorId}/pendencias/{id}` — o pedido **com os anexos**.
+   *
+   * A listagem devolve `anexos: []` e só o `quantidadeAnexos`; quem precisa dos arquivos vem aqui.
+   */
+  detalharPendencia(produtorId: string, pendenciaId: string): Observable<Pendencia> {
+    return this.http.get<Pendencia>(
+      `/contador/produtores/${produtorId}/pendencias/${pendenciaId}`,
+    );
+  }
+
+  /**
+   * `POST /api/contador/produtores/{produtorId}/pendencias` — pede um documento ao produtor.
+   *
+   * `titulo` até 120, `descricao` e `observacoes` até 1000, `tiposDocumento` de 1 a 5.
+   */
+  criarPendencia(produtorId: string, pedido: NovoPedidoDocumento): Observable<Pendencia> {
+    return this.http.post<Pendencia>(`/contador/produtores/${produtorId}/pendencias`, pedido);
+  }
+
+  /**
+   * Aceita o que o produtor mandou (`ENVIADA` → `CONCLUIDA`).
+   *
+   * Sem corpo: aceitar não pede justificativa. Recusar, sim — por isso só o `rejeitar` leva motivo.
+   */
+  concluirPendencia(produtorId: string, pendenciaId: string): Observable<Pendencia> {
+    return this.acao(produtorId, pendenciaId, 'concluir');
+  }
+
+  /**
+   * Recusa o que veio e devolve o pedido ao produtor (`ENVIADA` → `PENDENTE`).
+   *
+   * O `motivo` tem de 5 a 500 caracteres e **não é burocracia**: é o único texto que o produtor vê
+   * para saber o que refazer. Ele aparece no cartão dele, em `motivo`.
+   */
+  rejeitarPendencia(
+    produtorId: string,
+    pendenciaId: string,
+    motivo: string,
+  ): Observable<Pendencia> {
+    return this.acao(produtorId, pendenciaId, 'rejeitar', { motivo });
+  }
+
+  /** Cancela o pedido, com motivo (5 a 500). */
+  cancelarPendencia(
+    produtorId: string,
+    pendenciaId: string,
+    motivo: string,
+  ): Observable<Pendencia> {
+    return this.acao(produtorId, pendenciaId, 'cancelar', { motivo });
+  }
+
+  /** Reabre um pedido concluído ou cancelado. */
+  reabrirPendencia(produtorId: string, pendenciaId: string): Observable<Pendencia> {
+    return this.acao(produtorId, pendenciaId, 'reabrir');
+  }
+
+  /**
+   * Baixa um anexo do cliente.
+   *
+   * Só sai anexo `LIMPO`; em verificação o servidor responde 409 `ANEXO_EM_VERIFICACAO`. Resposta
+   * inteira para o chamador ler o nome em `Content-Disposition`.
+   */
+  baixarAnexoDoCliente(
+    produtorId: string,
+    pendenciaId: string,
+    anexoId: string,
+  ): Observable<HttpResponse<Blob>> {
+    return this.http.get(
+      `/contador/produtores/${produtorId}/pendencias/${pendenciaId}/anexos/${anexoId}`,
+      { responseType: 'blob', observe: 'response' },
+    );
+  }
+
+  /**
+   * Os quatro verbos do ciclo.
+   *
+   * Transição fora de ordem é **409 `TRANSICAO_PENDENCIA_INVALIDA`**, e o erro sobe: quem oferece
+   * o botão é a tela, que conhece o status; se ela errar, o contador precisa ver o porquê.
+   */
+  private acao(
+    produtorId: string,
+    pendenciaId: string,
+    verbo: 'concluir' | 'rejeitar' | 'cancelar' | 'reabrir',
+    corpo?: { motivo: string },
+  ): Observable<Pendencia> {
+    return this.http.post<Pendencia>(
+      `/contador/produtores/${produtorId}/pendencias/${pendenciaId}/${verbo}`,
+      corpo ?? null,
+    );
   }
 
   /** Monta os parâmetros da carteira, com `etiqueta` repetido em vez de juntado por vírgula. */
