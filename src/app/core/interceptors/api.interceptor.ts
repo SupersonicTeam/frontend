@@ -72,11 +72,35 @@ export const apiInterceptor: HttpInterceptorFn = (req, next) => {
 
   const usuarioId = identidade.usuarioId();
 
+  const cabecalhos: Record<string, string> = {};
+  if (usuarioId) cabecalhos['X-Usuario-Id'] = usuarioId;
+
+  // `Accept` so onde ele e verdade (issue #99).
+  //
+  // O interceptor cravava `application/json` em TODA requisicao, inclusive nos downloads de DANFE
+  // e de XML, que pedem `responseType: 'blob'`/`'text'`. Medido contra o backend em 28/10, com uma
+  // nota autorizada: `/notas/{id}/pdf` e `/notas/{id}/xml` respondem **500** com
+  // `Accept: application/json`, e **200** sem Accept nenhum. Ou seja, o header que nos mesmos
+  // mandavamos derrubava o download.
+  //
+  // E nao basta trocar pelo tipo binario: pedindo a DANFE de uma nota COM_INCONSISTENCIAS, que o
+  // backend recusa, `Accept: application/pdf` devolve **500 de corpo vazio**, enquanto sem Accept
+  // vem o **409** com o envelope JSON e a mensagem util ("Gere o XML da nota antes"). O caminho
+  // feliz devolve binario e o caminho de erro devolve JSON; so aceitar qualquer tipo serve para os
+  // dois -- e e por isso que o `download.ts` desserializa o ApiErrorEnvelope de dentro do blob.
+  //
+  // Entao: um Accept declarado pelo chamador manda, e o padrao `application/json` so entra quando a
+  // resposta esperada e JSON.
+  //
+  // Que o backend responda 500 em vez de 406 quando o Accept nao casa e defeito dele, registrado em
+  // SupersonicTeam/backend#250 -- mas mandar o Accept errado era nosso.
+  if (!req.headers.has('Accept') && req.responseType === 'json') {
+    cabecalhos['Accept'] = 'application/json';
+  }
+
   const apiReq = req.clone({
     url: precisaBase ? `${base}${req.url}` : req.url,
-    setHeaders: usuarioId
-      ? { Accept: 'application/json', 'X-Usuario-Id': usuarioId }
-      : { Accept: 'application/json' },
+    setHeaders: cabecalhos,
   });
 
   return next(apiReq).pipe(

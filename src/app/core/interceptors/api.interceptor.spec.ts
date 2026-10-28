@@ -156,3 +156,121 @@ describe('apiInterceptor (identidade X-Usuario-Id)', () => {
     httpMock.verify();
   });
 });
+
+/**
+ * O `Accept` deixou de ser cravado em toda requisição (issue #99).
+ *
+ * O interceptor punha `Accept: application/json` em **tudo**, inclusive nos downloads de DANFE e
+ * de XML, que pedem `responseType: 'blob'`/`'text'`. Medido contra o backend em 28/10 com uma
+ * nota autorizada:
+ *
+ * | Accept             | `/notas/{id}/pdf` | `/notas/{id}/xml` |
+ * |--------------------|-------------------|-------------------|
+ * | `application/json` | **500**           | **500**           |
+ * | `application/pdf` / `application/xml` | 200 | 200 |
+ * | nenhum (o navegador manda qualquer tipo) | 200 | 200 |
+ *
+ * Ou seja: o header que o próprio cliente mandava derrubava o download. (Que a resposta seja 500
+ * e não 406 é defeito do backend, registrado em SupersonicTeam/backend#250 — mas mandar o Accept
+ * errado é nosso.)
+ */
+describe('apiInterceptor (Accept — issue #99)', () => {
+  function cliente() {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(withInterceptors([apiInterceptor])),
+        provideHttpClientTesting(),
+        ToastService,
+        {
+          // `paraRota` nao existe neste ramo -- o interceptor ainda le `usuarioId()`. O stub o
+          // declara mesmo assim porque a branch da carteira (#95) troca a leitura por ele, e o
+          // merge das duas **nao da conflito**: o git junta os dois lados limpo e a suite amanhece
+          // vermelha, com o stub sem o metodo que o interceptor passou a chamar. Uma propriedade a
+          // mais num stub nao custa nada; descobrir isso depois do push custa.
+          provide: IdentidadeService,
+          useValue: { usuarioId: signal(null), paraRota: () => null },
+        },
+      ],
+    });
+    return {
+      http: TestBed.inject(HttpClient),
+      httpMock: TestBed.inject(HttpTestingController),
+    };
+  }
+
+  it('requisição JSON continua pedindo application/json', () => {
+    const { http, httpMock } = cliente();
+    http.get('/notas').subscribe({ next: () => undefined, error: () => undefined });
+
+    const req = httpMock.expectOne('/api/notas');
+    expect(req.request.headers.get('Accept')).toBe('application/json');
+    req.flush({});
+    httpMock.verify();
+  });
+
+  /**
+   * Download **não leva Accept nenhum**, e isso é deliberado — não é "esquecemos de pôr o certo".
+   *
+   * Medido em 28/10 pedindo a DANFE de uma nota `COM_INCONSISTENCIAS`, que o backend recusa:
+   *
+   * - com `Accept: application/pdf` → **500 de corpo vazio**. A recusa real se perde;
+   * - sem Accept nenhum (o navegador manda qualquer tipo) → **409** com o envelope JSON e a mensagem que serve ao usuário:
+   *   "DANFE indisponivel para a nota … Gere o XML da nota antes".
+   *
+   * O caminho feliz devolve PDF e o caminho de erro devolve JSON; só aceitar qualquer tipo serve para os dois. O
+   * `download.ts` já desserializa o `ApiErrorEnvelope` de dentro do blob justamente por isso.
+   * Declarar o tipo binário no Accept trocaria um defeito por outro pior: um 500 mudo no lugar de
+   * "gere o XML da nota antes".
+   */
+  it('download em blob não manda Accept: o erro vem em JSON e só */* aceita os dois', () => {
+    const { http, httpMock } = cliente();
+    http
+      .get('/notas/n1/pdf', { responseType: 'blob' })
+      .subscribe({ next: () => undefined, error: () => undefined });
+
+    const req = httpMock.expectOne('/api/notas/n1/pdf');
+    expect(req.request.headers.has('Accept')).toBe(false);
+    req.flush(new Blob());
+    httpMock.verify();
+  });
+
+  it('resposta em texto também não manda Accept', () => {
+    const { http, httpMock } = cliente();
+    http
+      .get('/notas/n1/xml', { responseType: 'text' })
+      .subscribe({ next: () => undefined, error: () => undefined });
+
+    const req = httpMock.expectOne('/api/notas/n1/xml');
+    expect(req.request.headers.has('Accept')).toBe(false);
+    req.flush('<xml/>');
+    httpMock.verify();
+  });
+
+  it('o Accept que o chamador declarou é preservado, não sobrescrito', () => {
+    const { http, httpMock } = cliente();
+    http
+      .get('/notas/n1/pdf', {
+        responseType: 'blob',
+        headers: { Accept: 'application/pdf' },
+      })
+      .subscribe({ next: () => undefined, error: () => undefined });
+
+    const req = httpMock.expectOne('/api/notas/n1/pdf');
+    expect(req.request.headers.get('Accept')).toBe('application/pdf');
+    req.flush(new Blob());
+    httpMock.verify();
+  });
+
+  it('um Accept declarado numa requisição JSON também é respeitado', () => {
+    const { http, httpMock } = cliente();
+    http
+      .get('/assistente/chat', { headers: { Accept: 'text/event-stream' } })
+      .subscribe({ next: () => undefined, error: () => undefined });
+
+    const req = httpMock.expectOne('/api/assistente/chat');
+    expect(req.request.headers.get('Accept')).toBe('text/event-stream');
+    req.flush({});
+    httpMock.verify();
+  });
+});
