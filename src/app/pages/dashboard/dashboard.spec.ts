@@ -346,6 +346,11 @@ describe('DashboardPage', () => {
     expect(cmp.previewDoc()).not.toBeNull();
   });
 
+  /**
+   * O DASH-06 afirmava `IBS Estadual = debitoIbs * 0.72`, consagrando uma repartição que a API
+   * **não faz** e que o backend não devolve em lugar nenhum (#110). O que ele guardava de certo —
+   * que o breakdown vem dos KPIs e não da soma das notas — continua aqui.
+   */
   it('DASH-06: impostoBreakdown/totalImpostoCalculado derivam de kpis (não soma notas)', () => {
     const fixture = TestBed.createComponent(DashboardPage);
     const cmp = fixture.componentInstance;
@@ -353,9 +358,9 @@ describe('DashboardPage', () => {
     flushDashboard();
     flushVencimentos();
     const breakdown = cmp.impostoBreakdown();
-    expect(breakdown.find(b => b.nome === 'CBS')?.valor).toBe(420);
-    expect(breakdown.find(b => b.nome === 'IBS Estadual')?.valor).toBeCloseTo(860 * 0.72);
-    expect(cmp.totalImpostoCalculado()).toBeCloseTo(420 + 860 * 0.72 + 860 * 0.28);
+    expect(breakdown.find((b) => b.nome === 'CBS')?.valor).toBe(420);
+    expect(breakdown.find((b) => b.nome === 'IBS')?.valor).toBe(860);
+    expect(cmp.totalImpostoCalculado()).toBeCloseTo(420 + 860);
   });
 
   it('INT-02/03: financeiro() expõe o bloco sem re-inverter entradas/saídas', () => {
@@ -393,5 +398,62 @@ describe('DashboardPage', () => {
     // resto do dashboard não quebra:
     expect(cmp.nomeUsuario()).toBe('Maria Souza');
     expect(cmp.dashboard()?.kpis.saldoIbs).toBe(760);
+  });
+
+  /**
+   * O simulador parava de inventar aliquota (issue #110).
+   *
+   * Ele mostrava CBS 3,5%, IBS Estadual 5,1% e IBS Municipal 2,0%, com "8,8% → 3,5%" riscado e
+   * "tributacao efetiva ~10,6%". Medido contra a API em 28/10: as aliquotas de 2026 sao
+   * **CBS 0,9% e IBS 0,1%**, e na base de setembro a carga efetiva e 1.809,50 / 180.950 = **1,0%**.
+   *
+   * Pior que os numeros: o IBS era **repartido 72/28** entre "Estadual" e "Municipal", uma divisao
+   * que a API nao faz e que o backend nao devolve em lugar nenhum.
+   */
+  describe('simulador sem numero inventado (#110)', () => {
+    function abrirCom(kpis: Partial<DashboardResponse['kpis']>, totalEntradas = 180950) {
+      const fixture = TestBed.createComponent(DashboardPage);
+      fixture.detectChanges();
+      flushDashboard({
+        kpis: { ...buildResponse().kpis, ...kpis },
+        financeiro: { totalEntradas, totalSaidas: 0, saldo: totalEntradas, lucroEstimado: 0 },
+      });
+      flushVencimentos();
+      return fixture.componentInstance;
+    }
+
+    it('o breakdown tem os dois tributos que a API devolve, nao tres', () => {
+      const cmp = abrirCom({ debitoIbs: 180.95, debitoCbs: 1628.55 });
+
+      // "IBS Estadual" e "IBS Municipal" nao existem no contrato: eram 72% e 28% inventados.
+      expect(cmp.impostoBreakdown().map((i) => i.nome)).toEqual(['IBS', 'CBS']);
+    });
+
+    it('o valor de cada tributo vem inteiro do KPI, sem repartir', () => {
+      const cmp = abrirCom({ debitoIbs: 180.95, debitoCbs: 1628.55 });
+      const porNome = Object.fromEntries(cmp.impostoBreakdown().map((i) => [i.nome, i.valor]));
+
+      expect(porNome['IBS']).toBe(180.95);
+      expect(porNome['CBS']).toBe(1628.55);
+    });
+
+    it('a carga efetiva sai da conta imposto / faturamento, nao de um numero fixo', () => {
+      const cmp = abrirCom({ debitoIbs: 180.95, debitoCbs: 1628.55 }, 180950);
+
+      // 1.809,50 / 180.950 = 1,0% -- e nao os "~10,6%" que estavam cravados no template.
+      expect(cmp.cargaEfetiva()).toBeCloseTo(1.0, 2);
+    });
+
+    it('sem faturamento no periodo, nao inventa carga efetiva', () => {
+      const cmp = abrirCom({ debitoIbs: 0, debitoCbs: 0 }, 0);
+
+      expect(cmp.cargaEfetiva()).toBeNull();
+    });
+
+    it('o total do simulador e a soma do que a API devolveu', () => {
+      const cmp = abrirCom({ debitoIbs: 180.95, debitoCbs: 1628.55 });
+
+      expect(cmp.totalImpostoCalculado()).toBeCloseTo(1809.5, 2);
+    });
   });
 });

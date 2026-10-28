@@ -255,9 +255,9 @@
           <span class="rounded-full bg-primary/10 px-2.5 py-1.5 text-apoio leading-none font-medium whitespace-nowrap text-primary">
             Agropecuária
           </span>
-          <span class="rounded-full bg-sucesso-soft px-2.5 py-1.5 text-apoio leading-none font-medium whitespace-nowrap text-sucesso-ink">
-            -60% CBS/IBS
-          </span>
+<!-- O selo "-60% CBS/IBS" saía aqui para qualquer produtor. A redução é **por produto**: na
+               base atual só o milho tem base reduzida (30.680 de 76.700), e café, soja, algodão
+               não têm. Prometer 60% no cabeçalho do painel é prometer o que não vale (#110). -->
         </div>
       }
     </div>
@@ -300,7 +300,13 @@
           {{ formatCurrency(totalImpostoCalculado()) }}
         </p>
         <p class="text-apoio text-muted-foreground mt-1">
-          Regime: Pessoa Física Rural · Tributação efetiva: ~10,6%
+          <!-- A carga sai da conta imposto / faturamento do período. Antes era "~10,6%" cravado;
+               na base de setembro o valor real é 1,0% (#110). -->
+          @if (cargaEfetiva(); as carga) {
+            Sobre o que você faturou no período: {{ carga.toFixed(1).replace('.', ',') }}%
+          } @else {
+            Sem faturamento no período para calcular a carga.
+          }
         </p>
       }
     </div>
@@ -308,25 +314,16 @@
     <!-- Tabela breakdown -->
     @if (!(loading() && !dashboard()) && impostoBreakdown().length > 0) {
       <div class="space-y-1 mb-4">
-        <div class="grid grid-cols-3 text-apoio font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
+        <!-- Sem coluna de alíquota: o KPI é a soma de itens com bases diferentes, e dividir isso
+             daria um número que não é alíquota de nada. A alíquota real é por item, e vem da API
+             na própria nota (#110). -->
+        <div class="grid grid-cols-2 text-apoio font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
           <span>Tributo</span>
-          <span class="text-center">Alíquota</span>
           <span class="text-right">Valor</span>
         </div>
         @for (item of impostoBreakdown(); track item.nome) {
-          <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-apoio">
-            <div class="flex items-center gap-1.5">
-              <span class="font-medium text-foreground">{{ item.nome }}</span>
-              @if (item.reducao) {
-                <span class="rounded bg-sucesso-soft px-1.5 text-apoio font-medium text-sucesso-ink">-60%</span>
-              }
-            </div>
-            <div class="text-center">
-              <span class="text-foreground font-medium">{{ item.aliquota }}</span>
-              @if (item.original) {
-                <span class="text-apoio text-muted-foreground line-through ml-1">{{ item.original }}</span>
-              }
-            </div>
+          <div class="grid grid-cols-2 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-apoio">
+            <span class="font-medium text-foreground">{{ item.nome }}</span>
             <span class="text-right font-semibold text-foreground">{{ formatCurrency(item.valor) }}</span>
           </div>
         }
@@ -362,11 +359,17 @@
 
     @if (showSimuladorDetalhe()) {
       <div class="mt-2 pt-2 border-t border-border">
+        <!-- Este parágrafo afirmava "60% de redução nas alíquotas de CBS (8,8% → 3,5%) e IBS
+             (17,7% → 7,1%)" e "efetiva ~10,6% ao invés de 26,5%". Nenhum desses números vinha da
+             API, e a redução não é nas alíquotas: é na **base de cálculo**, e só de alguns
+             produtos. A regra de quem tem redução está sendo conferida na LC 214
+             (SupersonicTeam/backend#272); até lá a tela não assume nada (#110). -->
         <p class="text-apoio text-muted-foreground leading-relaxed">
-          No agronegócio, a <strong class="text-foreground">Reforma Tributária</strong> garante
-          <strong class="text-primary">60% de redução</strong> nas alíquotas de CBS (8,8% → 3,5%)
-          e IBS (17,7% → 7,1%). A tributação efetiva total é de aproximadamente
-          <strong class="text-primary">10,6%</strong> ao invés dos 26,5% do regime comum.
+          A <strong class="text-foreground">Reforma Tributária</strong> prevê redução para parte da
+          produção agropecuária, e ela é aplicada na <strong class="text-foreground">base de
+          cálculo</strong> de cada produto — não na alíquota, e não para todos. Os valores acima
+          são os que a apuração calculou para as suas notas do período; a redução de cada item
+          aparece na nota, quando houver.
         </p>
       </div>
     }
