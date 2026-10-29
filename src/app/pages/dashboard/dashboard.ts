@@ -1,4 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, EMPTY, catchError, switchMap, tap } from 'rxjs';
 import {
   LucideTrendingUp,
   LucideDollarSign,
@@ -359,25 +361,57 @@ export class DashboardPage implements OnInit {
     return { label: 'Verificando…', classe: 'bg-surface-2 text-muted-foreground' };
   });
 
+  /**
+   * Cada troca de periodo entra por aqui, e **cancela a anterior** (issue #108).
+   *
+   * Antes `trocarPeriodo` disparava dois `subscribe` soltos, e nada cancelava os de antes. Maio ->
+   * Julho com a resposta de maio atrasada: ela chegava por ultimo e o `tap` do service gravava os
+   * valores de maio no signal, com Julho selecionado no seletor -- R$ 102.900 debaixo do rotulo
+   * errado. Reproduzivel, e foi assim que o teste manual de 28/10 pegou.
+   *
+   * O `switchMap` resolve na raiz: ao chegar o periodo novo ele desinscreve do anterior, e o
+   * `HttpClient` **aborta a requisicao**. Resposta que nao existe nao sobrescreve nada.
+   *
+   * O `catchError` fica **dentro** do `switchMap`: se subisse, o erro mataria o fluxo e a proxima
+   * troca de mes nao carregaria mais nada.
+   */
+  private readonly periodoPedido = new Subject<string>();
+
+  private readonly painelPorPeriodo = this.periodoPedido
+    .pipe(
+      tap(() => {
+        this.loading.set(true);
+        this.erro.set(false);
+      }),
+      switchMap((periodo) =>
+        this.dashboardService.carregar(periodo).pipe(
+          catchError(() => {
+            this.loading.set(false);
+            this.erro.set(true);
+            return EMPTY;
+          }),
+        ),
+      ),
+      takeUntilDestroyed(),
+    )
+    .subscribe(() => {
+      this.loading.set(false);
+      this.carregarNotasComProblema();
+    });
+
+  private readonly apuracaoPorPeriodo = this.periodoPedido
+    .pipe(
+      tap(() => this.statusDoBackend.set(null)),
+      switchMap((periodo) =>
+        this.tributarioApi.apuracao(periodo).pipe(catchError(() => EMPTY)),
+      ),
+      takeUntilDestroyed(),
+    )
+    .subscribe((a) => this.statusDoBackend.set(a.status ?? null));
+
   /** Recarrega painel e apuracao para o periodo escolhido. */
   private trocarPeriodo(): void {
-    const periodo = this.periodoSelecionado();
-    this.loading.set(true);
-    this.dashboardService.carregar(periodo).subscribe({
-      next: () => {
-        this.loading.set(false);
-        this.carregarNotasComProblema();
-      },
-      error: () => {
-        this.loading.set(false);
-        this.erro.set(true);
-      },
-    });
-    this.statusDoBackend.set(null);
-    this.tributarioApi.apuracao(periodo).subscribe({
-      next: (a) => this.statusDoBackend.set(a.status ?? null),
-      error: () => this.statusDoBackend.set(null),
-    });
+    this.periodoPedido.next(this.periodoSelecionado());
   }
 
   setMes(valor: string): void {

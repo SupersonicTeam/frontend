@@ -92,6 +92,9 @@ describe('DashboardPage', () => {
   function flushApuracao(status: string | null = 'ABERTO') {
     httpMock
       .match(r => r.url === '/apuracao')
+      // Desde a #108 a troca de periodo CANCELA a requisicao anterior, e responder uma requisicao
+      // cancelada lanca. Pular e o correto: ela nunca vai chegar a tela.
+      .filter(r => !r.cancelled)
       .forEach(r => (status ? r.flush({ periodo: '2026-09', status }) : r.flush('x', { status: 500, statusText: 'x' })));
   }
 
@@ -99,11 +102,15 @@ describe('DashboardPage', () => {
   function flushNotasComPendencia(notas: Partial<NotaFiscal>[] = []) {
     httpMock
       .match(r => r.url === '/notas')
+      .filter(r => !r.cancelled)
       .forEach(r => r.flush({ content: notas, totalElements: notas.length }));
   }
 
   function flushVencimentos() {
-    httpMock.match(r => r.url.includes('/calendario-fiscal')).forEach(r => r.flush([]));
+    httpMock
+      .match(r => r.url.includes('/calendario-fiscal'))
+      .filter(r => !r.cancelled)
+      .forEach(r => r.flush([]));
   }
 
   it('#47: o assistente aponta pendência antiga, mesmo fora das 3 últimas notas', () => {
@@ -410,6 +417,76 @@ describe('DashboardPage', () => {
    * Pior que os numeros: o IBS era **repartido 72/28** entre "Estadual" e "Municipal", uma divisao
    * que a API nao faz e que o backend nao devolve em lugar nenhum.
    */
+  /**
+   * Trocar de periodo rapido nao pode deixar o mes antigo na tela (issue #108).
+   *
+   * Reproducao do teste manual de 28/10: Maio -> Julho, com a resposta de maio atrasada. Ela
+   * chegava por ultimo e o `tap` do service gravava os valores de **maio** no signal, com Julho
+   * selecionado no seletor: R$ 102.900 debaixo do rotulo errado.
+   *
+   * `trocarPeriodo` disparava dois `subscribe` soltos e nada cancelava os anteriores.
+   */
+  describe('troca de periodo sem corrida (#108)', () => {
+    function abrir() {
+      const fixture = TestBed.createComponent(DashboardPage);
+      fixture.detectChanges();
+      flushDashboard();
+      flushVencimentos();
+      return fixture.componentInstance;
+    }
+
+    const pedidoDe = (periodo: string) =>
+      httpMock.expectOne((r) => r.url === '/dashboard' && r.params.get('periodo') === periodo);
+
+    it('a requisicao do periodo abandonado e CANCELADA', () => {
+      const cmp = abrir();
+
+      cmp.setMes('5');
+      const maio = pedidoDe('2026-05');
+      cmp.setMes('7');
+      const julho = pedidoDe('2026-07');
+
+      expect(maio.cancelled).toBe(true);
+      julho.flush(buildResponse({ periodo: '2026-07' }));
+      flushApuracao();
+      flushNotasComPendencia();
+      flushVencimentos();
+    });
+
+    it('a tela fica com o periodo que o usuario escolheu por ultimo', () => {
+      const cmp = abrir();
+
+      cmp.setMes('5');
+      pedidoDe('2026-05');
+      cmp.setMes('7');
+      pedidoDe('2026-07').flush(buildResponse({ periodo: '2026-07' }));
+      flushApuracao();
+      flushNotasComPendencia();
+
+      expect(cmp.dashboard()?.periodo).toBe('2026-07');
+      expect(cmp.periodoSelecionado()).toBe('2026-07');
+      flushVencimentos();
+    });
+
+    it('a apuracao do periodo abandonado tambem e cancelada: o selo nao pode mentir', () => {
+      const cmp = abrir();
+
+      cmp.setMes('5');
+      pedidoDe('2026-05');
+      const apuracaoMaio = httpMock.expectOne(
+        (r) => r.url === '/apuracao' && r.params.get('periodo') === '2026-05',
+      );
+
+      cmp.setMes('7');
+      pedidoDe('2026-07').flush(buildResponse({ periodo: '2026-07' }));
+
+      expect(apuracaoMaio.cancelled).toBe(true);
+      flushApuracao();
+      flushNotasComPendencia();
+      flushVencimentos();
+    });
+  });
+
   describe('simulador sem numero inventado (#110)', () => {
     function abrirCom(kpis: Partial<DashboardResponse['kpis']>, totalEntradas = 180950) {
       const fixture = TestBed.createComponent(DashboardPage);
