@@ -150,4 +150,45 @@ describe('NotasApi', () => {
       req.flush({ content: [], totalElements: 0 });
     });
   });
+
+  /**
+   * A previa da DANFE vem do servidor (issue #101).
+   *
+   * Quando a #101 foi feita eu nao sabia que existia rota para isso e usei um DANFE simplificado
+   * montado no navegador com `jspdf`. Existe: `GET /notas/{id}/danfe-preview`. Medido contra a API
+   * local em 29/10 -- **200 `application/pdf`, 60 kB** numa nota `COM_INCONSISTENCIAS`, e **409
+   * "Preview da DANFE indisponivel"** numa `AUTORIZADA`, onde quem responde e o `pdf` oficial.
+   * Os dois nunca servem a mesma nota.
+   */
+  describe('previa da DANFE (#101)', () => {
+    it('pede o blob na rota de preview, com a resposta inteira para ler o nome do arquivo', () => {
+      let resp: HttpResponse<Blob> | undefined;
+      service.previewDanfe('n1').subscribe((r) => (resp = r));
+
+      const req = httpMock.expectOne('/notas/n1/danfe-preview');
+      expect(req.request.method).toBe('GET');
+      expect(req.request.responseType).toBe('blob');
+      req.flush(new Blob(['%PDF-1.4'], { type: 'application/pdf' }), {
+        headers: { 'Content-Disposition': 'attachment; filename="previa-nota-7.pdf"' },
+      });
+
+      expect(resp?.headers.get('Content-Disposition')).toContain('previa-nota-7.pdf');
+    });
+
+    it('nao e a mesma rota do DANFE oficial — uma serve rascunho, a outra nota emitida', () => {
+      service.previewDanfe('n1').subscribe();
+      httpMock.expectOne('/notas/n1/danfe-preview').flush(new Blob());
+      httpMock.expectNone('/notas/n1/pdf');
+    });
+
+    it('o 409 sobe para a tela dizer o motivo — nada de PDF aproximado no lugar do erro', () => {
+      let erro: unknown;
+      service.previewDanfe('n1').subscribe({ error: (e) => (erro = e) });
+      httpMock
+        .expectOne('/notas/n1/danfe-preview')
+        .flush(new Blob(), { status: 409, statusText: 'Conflict' });
+
+      expect(erro).toBeTruthy();
+    });
+  });
 });

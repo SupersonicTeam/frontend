@@ -49,7 +49,6 @@ import {
   statusNotaLabel,
   temArquivosFiscais,
 } from '@core/enums/status-nota-fiscal.enum';
-import { gerarNotaPdf } from '@core/utils/nota-pdf';
 import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 import { aplicarMascara, mascaraCep, mascaraCpfCnpj, soDigitos } from '@core/utils/mascaras';
@@ -288,6 +287,7 @@ export class DocumentosPage implements OnInit {
   enviandoSefaz = signal(false);
   consultandoStatus = signal(false);
   baixandoDanfe = signal(false);
+  baixandoPrevia = signal(false);
   /** Último retorno da SEFAZ (cStat/motivo/protocolo) exibido no preview. */
   sefazRetorno = signal<SefazRetorno | null>(null);
 
@@ -1789,12 +1789,37 @@ export class DocumentosPage implements OnInit {
     return env ? mensagemDeEnvelope(env, err?.status ?? 0) : fallback;
   }
 
-  async baixarPdf(nota: NotaFiscal): Promise<void> {
-    try {
-      await gerarNotaPdf(nota);
-    } catch {
-      this.toastService.error('Erro ao gerar o PDF.');
-    }
+  /**
+   * A prévia da DANFE — **do servidor**, não montada aqui (issue #101).
+   *
+   * Isto chamava `gerarNotaPdf`, um DANFE simplificado que o navegador desenhava com `jspdf` a
+   * partir da nota em tela. Era um substituto: quando a #101 foi feita eu não sabia que existia
+   * rota para isso. Existe — `GET /notas/{id}/danfe-preview` — e devolve a prévia de verdade, com
+   * o layout do documento, conferida contra a API em 29/10 (200, `application/pdf`, 60 kB).
+   *
+   * **Sem cair no gerador local em caso de falha.** Se o servidor recusar, a tela diz o motivo que
+   * ele deu: um PDF aproximado no lugar de uma mensagem de erro é o tipo de fallback que esconde o
+   * problema (#107), e aqui esconderia justamente que a nota não está pronta.
+   */
+  baixarPrevia(nota: NotaFiscal): void {
+    this.baixandoPrevia.set(true);
+    this.notasApi.previewDanfe(nota.id).subscribe({
+      next: (resp) => {
+        this.baixandoPrevia.set(false);
+        const nome = filenameDeContentDisposition(
+          resp.headers.get('Content-Disposition'),
+          `previa-nota-${nota.numero ?? nota.id}.pdf`,
+        );
+        salvarBlob(resp.body!, nome);
+        this.toastService.success('Prévia baixada (sem valor fiscal).');
+      },
+      error: async (err: HttpErrorResponse) => {
+        this.baixandoPrevia.set(false);
+        this.toastService.error(
+          await this.mensagemErroDownload(err, 'Prévia indisponível para esta nota.'),
+        );
+      },
+    });
   }
 
   // === Importar nota (XML, drag-and-drop) ===

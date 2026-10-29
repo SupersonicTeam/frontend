@@ -217,7 +217,7 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `chart-tokens.ts` | Cores do Chart.js a partir das custom properties do tema. O `<canvas>` não enxerga Tailwind. |
 | `guias.ts` | `statusDaGuia()` traduz `PENDENTE`/`PAGA`/`VENCIDA` para o vocabulário do modelo **e deriva o atraso da data** — o backend não devolve `VENCIDA` por conta própria em `/contador/guias`, mas a carteira conta a guia atrasada em `atencao.guiasVencidas`. Sem isso as duas telas discordavam sobre a mesma guia. |
 | `mascaras.ts` | CPF/CNPJ e CEP nos campos (#102). `aplicarMascara()` formata **sem perder o cursor**: a âncora é quantos dígitos havia antes dele, não a posição no texto, que anda quando um ponto entra. Antes o cursor ia para o fim a cada tecla. O envio segue cru (`soDigitos` no payload). |
-| `download.ts` · `nota-pdf.ts` | Salvar blob / DANFE. O `nota-pdf` gera a **prévia** simplificada no navegador, a partir da nota que já está na tela — é o que dá para baixar enquanto não há XML (#101). Quem decide se o documento fiscal existe é `temArquivosFiscais(status)`, no enum: é pergunta de **estado**, não de permissão. |
+| `download.ts` | Salvar blob (DANFE, XML, prévia). **A prévia vem do servidor**, não é montada aqui: `GET /notas/{id}/danfe-preview` devolve a DANFE do rascunho (o `nota-pdf.ts`, que desenhava uma aproximação com `jspdf`, foi apagado e a dependência saiu junto). Quem decide se o documento fiscal já existe é `temArquivosFiscais(status)`, no enum: é pergunta de **estado**, não de permissão — e as duas rotas nunca servem a mesma nota (a oficial dá 409 em rascunho, a prévia dá 409 em nota emitida). |
 
 ## Assistente — a Ceres (`shared/assistente/`, issue #76)
 
@@ -262,6 +262,11 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 
 ## Git / fluxo de trabalho
 
+- **O contrato do backend está em `http://localhost:8080/v3/api-docs`** (OpenAPI, ~125 kB, 92 rotas).
+  Leia-o **antes de supor que uma rota não existe** — duas vezes em 29/10 a rota que eu dava como
+  futura já estava no ar (`/auth/me`, que fechou a #106, e os filtros `status`/`busca` de
+  `/api/notas`, da #104). O proxy do `ng serve` só encaminha `/api/*`, então use `curl` direto na
+  8080, não o navegador.
 - Remote: `origin` → `github.com/SupersonicTeam/frontend`.
 - **Fluxo:** uma **issue** por tarefa → branch **`feature/<n>-<slug>`** a partir de `main` → **PR para `main`**
   (corpo com `Closes #<n>`) → merge após CI verde. Branches mergeadas são deletadas.

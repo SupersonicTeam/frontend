@@ -802,11 +802,17 @@
          em que e a unica coisa baixavel. -->
     @if (podeBaixarPrevia(previewNota())) {
       <button
-        class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted"
-        (click)="baixarPdf(previewNota()!)"
+        class="flex items-center justify-center gap-2 px-3 py-2 rounded-controle border border-border text-apoio font-medium hover:bg-muted disabled:opacity-50"
+        [disabled]="baixandoPrevia()"
+        (click)="baixarPrevia(previewNota()!)"
         title="Pré-visualização sem valor fiscal — o DANFE oficial só existe depois do XML"
       >
-        <svg lucideDownload [size]="16" /> Prévia
+        @if (baixandoPrevia()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" />
+        } @else {
+          <svg lucideDownload [size]="16" />
+        }
+        Prévia
       </button>
     }
     @if (podeEnviarSefaz(previewNota())) {

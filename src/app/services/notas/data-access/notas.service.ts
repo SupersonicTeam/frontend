@@ -150,6 +150,22 @@ export class NotasApi {
     return this.http.get(`/notas/${id}/pdf`, { responseType: 'blob', observe: 'response' });
   }
 
+  /**
+   * `GET /api/notas/{id}/danfe-preview` — a **prévia** da DANFE, enquanto o documento fiscal não
+   * existe (issue #101).
+   *
+   * É o espelho exato do `baixarPdf`: medido contra a API local em 29/10, a prévia responde **200
+   * application/pdf** numa nota `COM_INCONSISTENCIAS` e **409 "Preview da DANFE indisponivel"**
+   * numa `AUTORIZADA` — onde o `pdf` oficial é que responde. Os dois nunca servem a mesma nota, e
+   * é por isso que a tela oferece um ou outro, nunca os dois (`temArquivosFiscais`).
+   */
+  previewDanfe(id: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`/notas/${id}/danfe-preview`, {
+      responseType: 'blob',
+      observe: 'response',
+    });
+  }
+
   /** POST /api/notas/{id}/cancelar — cancela nota AUTORIZADA (motivo 15–255 chars). */
   cancelar(id: string, motivo: string): Observable<unknown> {
     return this.api.post<unknown>(`/notas/${id}/cancelar`, { motivo });
