@@ -10,13 +10,27 @@ import { Observable } from 'rxjs';
 export class ApiService {
   private readonly http = inject(HttpClient);
 
-  get<T>(endpoint: string, params?: Record<string, string | number | boolean>): Observable<T> {
+  /**
+   * GET com query string.
+   *
+   * **Um array vira o parâmetro repetido**, não uma lista separada por vírgula: `['A','B']` sai
+   * como `?x=A&x=B`. É o que `GET /api/notas` espera de `status`, onde várias ocorrências valem
+   * como **OU** (contrato da #116). Com `set` o valor viraria a string `"A,B"` e o servidor leria
+   * um status só, com esse nome — e não haveria erro, só zero resultado.
+   */
+  get<T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | readonly string[]>,
+  ): Observable<T> {
     let httpParams = new HttpParams();
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          httpParams = httpParams.set(key, String(value));
+        if (value === undefined || value === null) return;
+        if (Array.isArray(value)) {
+          for (const item of value) httpParams = httpParams.append(key, String(item));
+          return;
         }
+        httpParams = httpParams.set(key, String(value));
       });
     }
     return this.http.get<T>(endpoint, { params: httpParams });

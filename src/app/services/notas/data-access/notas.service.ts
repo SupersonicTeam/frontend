@@ -21,14 +21,34 @@ export interface RevisaoNota {
 }
 
 /** Parâmetros de paginação/ordenação do Spring Data (`Pageable`), mais os filtros da rota. */
+/**
+ * Paginação, ordenação e **os filtros** de `GET /api/notas` (contrato da #116).
+ *
+ * Todos opcionais e combináveis. O `totalElements` da resposta reflete o filtro.
+ */
 export interface Pageable {
   page?: number;
   size?: number;
-  /** Ex.: 'dataEmissao,desc'. */
+  /** Só `dataEmissao`, `numero`, `status`, `valorTotal` e `createdAt`. Ex.: 'dataEmissao,desc'. */
   sort?: string;
-  /** Um `StatusNotaFiscal`. Composições da tela (ex.: "esperando você") não cabem aqui (#104). */
-  status?: string;
-  /** Natureza, número ou destinatário — a mesma cobertura que o campo de busca promete (#104). */
+  /**
+   * Um status ou **vários**: repetido na query, valem como **OU**
+   * (`?status=RASCUNHO&status=DEVOLVIDA`). É o que permite mandar ao servidor as composições da
+   * tela, como "esperando você" — na #104 elas ficavam em memória por eu supor que só cabia um.
+   */
+  status?: string | readonly string[];
+  /** `NFE` ou `NFA`. */
+  tipoDocumento?: string;
+  /** `YYYY-MM-DD`, em Brasília. O dia de `emitidaAte` entra inteiro. */
+  emitidaDe?: string;
+  emitidaAte?: string;
+  /**
+   * Número, destinatário ou natureza — parcial, sem diferenciar maiúscula nem acento.
+   *
+   * Até 100 caracteres (acima disso o servidor responde `400 VALIDATION_ERROR`). Com menos de 3
+   * é **ignorada**, salvo termo só de dígitos, que casa o número da nota por prefixo. Ainda não
+   * acha por produto nem por CPF/CNPJ (backend#271).
+   */
   busca?: string;
 }
 
@@ -46,25 +66,28 @@ export class NotasApi {
   /**
    * `GET /api/notas` — listagem paginada (`Page<NotaFiscalResponse>`).
    *
-   * **`status` e `busca` agora sao do servidor** (issue #104). Ate entao a rota so aceitava
-   * `Pageable`, e esta tela filtrava em memoria sobre a pagina carregada -- com o efeito de o
-   * filtro "nao enxergar" o que estivesse fora dela.
+   * **Os filtros sao do servidor** (issues #104 e #116). Ate entao a tela filtrava em memoria
+   * sobre a pagina carregada, com o efeito de o filtro "nao enxergar" o que estivesse fora dela.
    *
-   * Medido contra a API local em 29/10, com 15 notas na base:
+   * Correcao de rota registrada: na #104 eu testei `?de=&ate=`, vi serem ignorados e **reportei
+   * como lacuna do backend**. Os parametros existiam com outro nome -- `emitidaDe`/`emitidaAte` --
+   * e estao no corpo da #116, que eu nao conseguia ler na epoca. Medido contra a API local:
    *
-   *     ?status=COM_INCONSISTENCIAS  -> 2   (totalElements 2)   filtra
-   *     ?busca=Cafeeira              -> 1   (totalElements 1)   filtra
-   *     ?de=2026-09-01&ate=2026-09-30 -> 15                     **ignorado**
-   *
-   * O recorte por data continua sem efeito, entao o filtro de periodo segue em memoria e o
-   * `pageSize` da tela nao pode voltar para 12 ainda -- ver o comentario em `DocumentosPage`.
+   *     ?emitidaDe=2026-09-01&emitidaAte=2026-09-30          -> 2   (de 15)
+   *     ?de=2026-09-01&ate=2026-09-30                        -> 15  (nome inexistente, ignorado)
+   *     ?status=COM_INCONSISTENCIAS&status=AGUARDANDO_APROVACAO -> 3 (OU, repetido)
+   *     ?busca=ab                                            -> 15  (menos de 3 letras, ignorada)
+   *     ?busca=101                                           -> 1   (digitos casam por prefixo)
    */
   listar(pageable: Pageable = {}): Observable<Page<NotaFiscal>> {
-    const params: Record<string, string | number> = {};
+    const params: Record<string, string | number | readonly string[]> = {};
     if (pageable.page != null) params['page'] = pageable.page;
     if (pageable.size != null) params['size'] = pageable.size;
     if (pageable.sort) params['sort'] = pageable.sort;
-    if (pageable.status) params['status'] = pageable.status;
+    if (pageable.status?.length) params['status'] = pageable.status;
+    if (pageable.tipoDocumento) params['tipoDocumento'] = pageable.tipoDocumento;
+    if (pageable.emitidaDe) params['emitidaDe'] = pageable.emitidaDe;
+    if (pageable.emitidaAte) params['emitidaAte'] = pageable.emitidaAte;
     if (pageable.busca) params['busca'] = pageable.busca;
     return this.api.get<Page<NotaFiscal>>('/notas', params);
   }
