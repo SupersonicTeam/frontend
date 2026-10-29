@@ -189,6 +189,24 @@ export class AssistenteStore {
     this.aberto.set(false);
   }
 
+  /**
+   * Esquece a conversa e o contexto. Chamado ao **sair** (trocar de perfil).
+   *
+   * `mensagens`, `notasPendentes` e `carregou` são estado de sessão num service `root`: sem isto,
+   * a conversa de quem saiu continuava na tela para quem entrou.
+   */
+  limpar(): void {
+    this.cancelar(false);
+    this.mensagens.set([]);
+    this.entrada.set('');
+    this.aberto.set(false);
+    this.enviando.set(false);
+    this.bloqueadoPorPapel.set(false);
+    this.notasPendentes.set(0);
+    this.carregou = false;
+    this.limparNota();
+  }
+
   limparNota(): void {
     this.notaEmFoco.set(null);
     this.validacoesDaNota.set([]);

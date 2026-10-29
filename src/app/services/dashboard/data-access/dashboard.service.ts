@@ -117,6 +117,21 @@ export class DashboardApi {
     return pedido;
   }
 
+  /**
+   * Esquece o painel carregado. Chamado ao **sair** (trocar de perfil).
+   *
+   * O signal é `providedIn: 'root'` e sobrevive à troca: medido em 29/10, entrando como produtor,
+   * saindo e entrando como contador **sem recarregar a página**, a topbar do escritório exibia
+   * "Atendendo João da Silva Produtor" — o nome que sobrou da sessão anterior. Pior que mostrar
+   * nada: parece dado, então se acredita nele.
+   */
+  limpar(): void {
+    this.dashboardSignal.set(null);
+    this.emVoo.clear();
+    this.sequencia = 0;
+    this.aceita = 0;
+  }
+
   /** Só escreve se este pedido ainda for o mais recente — ou se não houver nada escrito. */
   private guardar(res: DashboardResponse, minhaVez: number): void {
     if (minhaVez === 0) {
