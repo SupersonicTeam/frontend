@@ -22,7 +22,14 @@ describe('AppLayout', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AppLayout],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        // `sair()` navega para /login. Com a tabela vazia o Angular rejeita com NG04002, e a
+        // promessa sem dono reprova a RODADA inteira no Vitest — os 496 testes passam e o CI fica
+        // vermelho mesmo assim. Uma rota que case basta.
+        provideRouter([{ path: 'login', children: [] }]),
+      ],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
     perfil = TestBed.inject(PerfilService);
