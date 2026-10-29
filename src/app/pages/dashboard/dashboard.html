@@ -119,12 +119,15 @@
             </div>
           }
         </dl>
-        <p class="mt-4 text-apoio text-muted-foreground">
-          <strong>IBS</strong> e <strong>CBS</strong> são os impostos que substituem ICMS, ISS, PIS e
-          Cofins na reforma tributária de 2026. <strong>Débito</strong> é o que você deve pelas
-          vendas, <strong>crédito</strong> é o que abate pelas compras, e o <strong>saldo</strong> é
-          a diferença — o que sobra para pagar.
-        </p>
+        <!-- O glossario (#105). Era este mesmo texto, em paragrafo corrido: cinco termos
+             explicados de uma vez, para quem talvez quisesse saber de um. Agora cada verbete
+             abre sozinho e entrega a pergunta pronta a Ceres. -->
+        <div class="mt-4 flex flex-wrap items-start gap-1">
+          <span class="py-2 pr-1 text-apoio text-muted-foreground">O que significa:</span>
+          @for (t of termosFiscais; track t.chave) {
+            <ui-termo [termo]="t" (perguntar)="perguntarSobre($event)" />
+          }
+        </div>
       </ui-card>
     }
 
@@ -275,7 +278,7 @@
         (change)="setMes($any($event.target).value)"
         aria-label="Mês de apuração"
       >
-        @for (m of meses; track m.v) {
+        @for (m of meses(); track m.v) {
           <option [value]="m.v" [selected]="m.v === periodoMes()">{{ m.nome }}</option>
         }
       </select>

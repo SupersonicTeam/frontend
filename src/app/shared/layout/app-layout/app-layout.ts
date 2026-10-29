@@ -22,6 +22,8 @@ import { PerfilService } from '@core/services/perfil.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { AssistenteDrawer } from '@shared/assistente/assistente-drawer';
 import { AssistenteLauncher } from '@shared/assistente/assistente-launcher';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import { ToastContainer } from '@shared/components/toast-container/toast-container';
 
 export interface NavItem {
@@ -64,6 +66,8 @@ export class AppLayout implements OnInit {
   readonly notificacoesService = inject(NotificacoesService);
   readonly perfilService = inject(PerfilService);
   private readonly dashboardApi = inject(DashboardApi);
+  private readonly assistenteStore = inject(AssistenteStore);
+  private readonly authApi = inject(AuthApi);
 
   mobileMenuOpen = signal(false);
   notificacoesOpen = signal(false);
@@ -71,6 +75,12 @@ export class AppLayout implements OnInit {
   /** Sai do perfil demonstrativo e volta ao /login (issue #23). */
   sair(): void {
     this.closeMobileMenu();
+    // **Sair precisa esquecer o que a sessao guardou.** Os services sao `root` e sobrevivem a
+    // troca de perfil: sem isto o painel e a conversa de quem saiu seguiam em memoria para quem
+    // entrou -- e era assim que a topbar do contador dizia "Atendendo Joao da Silva Produtor".
+    this.dashboardApi.limpar();
+    this.assistenteStore.limpar();
+    this.authApi.limpar();
     this.perfilService.sair();
     this.router.navigateByUrl('/login');
   }
@@ -91,13 +101,27 @@ export class AppLayout implements OnInit {
     // O sino busca na fonte do papel atual (#113). Antes ele nascia com tres itens cravados
     // no codigo, com datas de 2025 e uma nota que nao existe.
     this.notificacoesService.carregar();
-    // O nome do produtor vem do dashboard. Sem esta carga, quem entra direto em
-    // /documentos ve "Produtor" na topbar enquanto o painel mostra "Joao da
-    // Silva Produtor" -- duas identidades para a mesma pessoa, dependendo de
-    // por onde se entrou. O service guarda em signal, entao nao repete.
-    if (!this.dashboardApi.dashboard()) {
-      this.dashboardApi.carregar().subscribe({ error: () => undefined });
-    }
+    // ── O nome na topbar vem do painel, e quem o busca depende de onde se esta.
+    //
+    // Sem carga nenhuma, quem entra direto em /documentos ve "Produtor" na topbar enquanto o painel
+    // mostra "Joao da Silva Produtor" -- duas identidades para a mesma pessoa, dependendo de por
+    // onde se entrou. Mas as duas condicoes abaixo dizem quando NAO buscar:
+    //
+    // 1. **Contador nunca.** `/api/dashboard` responde 403 "Operacao restrita ao papel PRODUTOR"
+    //    (medido em 29/10) -- seria uma ida ao servidor para receber erro em toda navegacao do
+    //    escritorio. Mesma regra que o `IdentidadeService.paraRota` ja aplica aos headers. Ele nao
+    //    perde nada: `nomeExibido` nao usa o painel para contador.
+    //
+    // 2. **Em /dashboard, nao.** O shell monta antes da pagina filha, entao o guard antigo
+    //    (`if (!dashboard())`) olhava o RESULTADO quando resposta nenhuma tinha voltado: a topbar
+    //    pedia, a pagina pedia logo atras, e mediam-se **dois GET /api/dashboard** por abertura
+    //    (#114). Pior, o pedido da topbar vai SEM periodo -- chegando depois de o produtor escolher
+    //    um mes, jogava os KPIs de volta para o padrao do backend. Ali a pagina busca com o periodo
+    //    certo e o signal e compartilhado: a topbar so precisa esperar.
+    if (!this.perfilService.ehProdutor()) return;
+    if (this.router.url.startsWith('/dashboard')) return;
+
+    this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
   }
 
   /**
@@ -169,8 +193,13 @@ export class AppLayout implements OnInit {
    */
   readonly papelExibido = computed(() => {
     if (this.perfilService.ehContador()) {
-      const produtor = this.dashboardApi.dashboard()?.produtor.nome;
-      return produtor ? `Atendendo ${produtor}` : 'Contador';
+      // **Sem "Atendendo X".** Lia o nome do painel do PRODUTOR -- outra pessoa, e para o
+      // escritorio nem existe "o" cliente: ele tem uma carteira. Trocando de perfil sem recarregar
+      // a pagina, isso exibia o produtor da sessao anterior como se fosse quem ele atende.
+      //
+      // Vazio quando a primeira linha ja diz "Contador", para nao gaguejar; quem digitou um nome
+      // no login ve o nome em cima e o papel embaixo.
+      return this.nomeExibido() === this.perfilService.rotuloPadrao('contador') ? '' : 'Contador';
     }
     return 'Produtor rural';
   });

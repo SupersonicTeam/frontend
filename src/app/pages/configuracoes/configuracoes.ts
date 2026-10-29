@@ -194,10 +194,8 @@ export class ConfiguracoesPage implements OnInit {
   }
 
   ngOnInit(): void {
-    // Cache no signal do service: se o painel já carregou, não repete a chamada.
-    if (!this.dashboardApi.dashboard()) {
-      this.dashboardApi.carregar().subscribe({ error: () => undefined });
-    }
+    // O service decide se precisa buscar, e nao sobrescreve painel pedido com periodo (#114).
+    this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
     this.carregarCatalogo();
   }
 }

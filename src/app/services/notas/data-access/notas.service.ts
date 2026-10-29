@@ -20,12 +20,16 @@ export interface RevisaoNota {
   ocorridoEm: string;
 }
 
-/** Parâmetros de paginação/ordenação do Spring Data (`Pageable`). */
+/** Parâmetros de paginação/ordenação do Spring Data (`Pageable`), mais os filtros da rota. */
 export interface Pageable {
   page?: number;
   size?: number;
   /** Ex.: 'dataEmissao,desc'. */
   sort?: string;
+  /** Um `StatusNotaFiscal`. Composições da tela (ex.: "esperando você") não cabem aqui (#104). */
+  status?: string;
+  /** Natureza, número ou destinatário — a mesma cobertura que o campo de busca promete (#104). */
+  busca?: string;
 }
 
 /**
@@ -39,12 +43,29 @@ export class NotasApi {
   private readonly api = inject(ApiService);
   private readonly http = inject(HttpClient);
 
-  /** GET /api/notas — listagem paginada (`Page<NotaFiscalResponse>`). */
+  /**
+   * `GET /api/notas` — listagem paginada (`Page<NotaFiscalResponse>`).
+   *
+   * **`status` e `busca` agora sao do servidor** (issue #104). Ate entao a rota so aceitava
+   * `Pageable`, e esta tela filtrava em memoria sobre a pagina carregada -- com o efeito de o
+   * filtro "nao enxergar" o que estivesse fora dela.
+   *
+   * Medido contra a API local em 29/10, com 15 notas na base:
+   *
+   *     ?status=COM_INCONSISTENCIAS  -> 2   (totalElements 2)   filtra
+   *     ?busca=Cafeeira              -> 1   (totalElements 1)   filtra
+   *     ?de=2026-09-01&ate=2026-09-30 -> 15                     **ignorado**
+   *
+   * O recorte por data continua sem efeito, entao o filtro de periodo segue em memoria e o
+   * `pageSize` da tela nao pode voltar para 12 ainda -- ver o comentario em `DocumentosPage`.
+   */
   listar(pageable: Pageable = {}): Observable<Page<NotaFiscal>> {
     const params: Record<string, string | number> = {};
     if (pageable.page != null) params['page'] = pageable.page;
     if (pageable.size != null) params['size'] = pageable.size;
     if (pageable.sort) params['sort'] = pageable.sort;
+    if (pageable.status) params['status'] = pageable.status;
+    if (pageable.busca) params['busca'] = pageable.busca;
     return this.api.get<Page<NotaFiscal>>('/notas', params);
   }
 
@@ -127,6 +148,22 @@ export class NotasApi {
    */
   baixarPdf(id: string): Observable<HttpResponse<Blob>> {
     return this.http.get(`/notas/${id}/pdf`, { responseType: 'blob', observe: 'response' });
+  }
+
+  /**
+   * `GET /api/notas/{id}/danfe-preview` — a **prévia** da DANFE, enquanto o documento fiscal não
+   * existe (issue #101).
+   *
+   * É o espelho exato do `baixarPdf`: medido contra a API local em 29/10, a prévia responde **200
+   * application/pdf** numa nota `COM_INCONSISTENCIAS` e **409 "Preview da DANFE indisponivel"**
+   * numa `AUTORIZADA` — onde o `pdf` oficial é que responde. Os dois nunca servem a mesma nota, e
+   * é por isso que a tela oferece um ou outro, nunca os dois (`temArquivosFiscais`).
+   */
+  previewDanfe(id: string): Observable<HttpResponse<Blob>> {
+    return this.http.get(`/notas/${id}/danfe-preview`, {
+      responseType: 'blob',
+      observe: 'response',
+    });
   }
 
   /** POST /api/notas/{id}/cancelar — cancela nota AUTORIZADA (motivo 15–255 chars). */

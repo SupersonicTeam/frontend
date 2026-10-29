@@ -175,8 +175,21 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
   - **Acento do assistente**: `assistente`, `assistente-soft`, `assistente-ink`, `assistente-borda`.
     Violeta, usado **só** onde o sistema interpreta, sugere ou explica algo. Nunca decoração — é o que
     dá presença visual à IA, que era a crítica da banca.
-  - **Cores semânticas** com par `soft`/`ink`: `sucesso`, `aviso`, `info`, `perigo`. Usar no lugar de
-    `bg-green-50`, `text-amber-800` e afins — há 257 dessas hardcoded no projeto, 135 sem variante `dark:`.
+  - **Cores semânticas** com trio `soft`/`ink`/`borda`: `sucesso`, `aviso`, `info`, `perigo`. Usar no
+    lugar de `bg-green-50`, `text-amber-800` e afins (eram 257 cravadas; em 29/10 restavam **101**, quase
+    todas no fac-símile da DANFE, onde são intencionais).
+  - **Classe de cor sem token não falha em lugar nenhum.** No Tailwind v4 ela simplesmente **não gera
+    CSS** — sem erro de build, sem warning de lint, sem teste vermelho; o elemento fica com o valor padrão
+    e ninguém nota. Foi o que aconteceu com `border-{info,sucesso,aviso,perigo}-borda`, usadas em **9
+    lugares** enquanto só `assistente-borda` existia (corrigido na #115). Para conferir, conte no CSS
+    **compilado**, não no fonte:
+
+    ```bash
+    grep -c "aviso-borda" dist/frontend/browser/styles-*.css   # 0 = a classe nao existe
+    ```
+
+    Tentei virar teste de unidade e **não dá**: o builder do Angular desvia `styles.css` para o próprio
+    processador, então `import.meta.glob('/src/styles.css', {query:'?raw'})` devolve string vazia.
   - **Superfícies** `surface` e `surface-2` (neutros com viés verde), **sombras** `shadow-suave|media|alta|assistente`
     e **raios** `rounded-controle|card|destaque`.
 
@@ -189,7 +202,7 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `<ui-modal>` | Diálogo acessível sobre CDK: foco preso, Esc, foco devolvido ao gatilho, rolagem travada. **Use sempre** — havia 14 modais à mão sem nada disso. Conteúdo por projeção, ações no slot `[rodape]`. |
 | `<ui-stat>` | KPI. Rótulo em linguagem de produtor grande, termo fiscal como `apoio`. Nunca o contrário. |
 | `<ui-insight>` | Superfície do assistente. **Só com conteúdo derivado de dado real** (ex.: `/notas/{id}/validacoes`). |
-| `<ui-badge-status>` | Os 7 status da NF-e, sobre tokens semânticos. Rótulo vem de `STATUS_NOTA_META`. |
+| `<ui-badge-status>` | Os 12 status da NF-e, sobre tokens semânticos. Rótulo vem de `STATUS_NOTA_META`. **É este que a UI usa.** O `STATUS_NOTA_META.badge` é outra lista de classes, com um único consumidor: a `nota-preview`. |
 | `<ui-empty-state>` | Estado vazio com saída (slot `[acao]`), no lugar de texto solto. |
 | `<ui-skeleton>` | Carregamento com a forma do conteúdo, no lugar de spinner. |
 | `<ui-table>` | Moldura de tabela: rolagem na moldura, cabeçalho fixo, densidade por contexto. |
@@ -203,7 +216,8 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `ceres.ts` | Vocabulário da Ceres em português: `rotuloRota()` (selo "das suas notas"), `etapaDaRota()` (o que mostrar enquanto ela trabalha), `rotuloFonte()`/`descreverFonte()` (as consultas de `fontesDados`) e `TAMANHO_MAXIMO_PERGUNTA` (1000). Função não documentada no contrato aparece com o nome cru — melhor que inventar rótulo. |
 | `chart-tokens.ts` | Cores do Chart.js a partir das custom properties do tema. O `<canvas>` não enxerga Tailwind. |
 | `guias.ts` | `statusDaGuia()` traduz `PENDENTE`/`PAGA`/`VENCIDA` para o vocabulário do modelo **e deriva o atraso da data** — o backend não devolve `VENCIDA` por conta própria em `/contador/guias`, mas a carteira conta a guia atrasada em `atencao.guiasVencidas`. Sem isso as duas telas discordavam sobre a mesma guia. |
-| `download.ts` · `nota-pdf.ts` | Salvar blob / DANFE. |
+| `mascaras.ts` | CPF/CNPJ e CEP nos campos (#102). `aplicarMascara()` formata **sem perder o cursor**: a âncora é quantos dígitos havia antes dele, não a posição no texto, que anda quando um ponto entra. Antes o cursor ia para o fim a cada tecla. O envio segue cru (`soDigitos` no payload). |
+| `download.ts` | Salvar blob (DANFE, XML, prévia). **A prévia vem do servidor**, não é montada aqui: `GET /notas/{id}/danfe-preview` devolve a DANFE do rascunho (o `nota-pdf.ts`, que desenhava uma aproximação com `jspdf`, foi apagado e a dependência saiu junto). Quem decide se o documento fiscal já existe é `temArquivosFiscais(status)`, no enum: é pergunta de **estado**, não de permissão — e as duas rotas nunca servem a mesma nota (a oficial dá 409 em rascunho, a prévia dá 409 em nota emitida). |
 
 ## Assistente — a Ceres (`shared/assistente/`, issue #76)
 
@@ -248,6 +262,11 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 
 ## Git / fluxo de trabalho
 
+- **O contrato do backend está em `http://localhost:8080/v3/api-docs`** (OpenAPI, ~125 kB, 92 rotas).
+  Leia-o **antes de supor que uma rota não existe** — duas vezes em 29/10 a rota que eu dava como
+  futura já estava no ar (`/auth/me`, que fechou a #106, e os filtros `status`/`busca` de
+  `/api/notas`, da #104). O proxy do `ng serve` só encaminha `/api/*`, então use `curl` direto na
+  8080, não o navegador.
 - Remote: `origin` → `github.com/SupersonicTeam/frontend`.
 - **Fluxo:** uma **issue** por tarefa → branch **`feature/<n>-<slug>`** a partir de `main` → **PR para `main`**
   (corpo com `Closes #<n>`) → merge após CI verde. Branches mergeadas são deletadas.

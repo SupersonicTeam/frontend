@@ -155,7 +155,9 @@
         </span>
         <span class="flex flex-col leading-tight">
           <span class="text-apoio font-medium text-topbar-foreground">{{ nomeExibido() }}</span>
-          <span class="text-apoio text-muted-foreground">{{ papelExibido() }}</span>
+          @if (papelExibido()) {
+            <span class="text-apoio text-muted-foreground">{{ papelExibido() }}</span>
+          }
         </span>
       </span>
       <button

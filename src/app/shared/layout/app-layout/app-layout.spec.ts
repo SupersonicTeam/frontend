@@ -22,7 +22,14 @@ describe('AppLayout', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [AppLayout],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        // `sair()` navega para /login. Com a tabela vazia o Angular rejeita com NG04002, e a
+        // promessa sem dono reprova a RODADA inteira no Vitest — os 496 testes passam e o CI fica
+        // vermelho mesmo assim. Uma rota que case basta.
+        provideRouter([{ path: 'login', children: [] }]),
+      ],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
     perfil = TestBed.inject(PerfilService);
@@ -55,11 +62,49 @@ describe('AppLayout', () => {
     perfil.entrar('contador');
     const cmp = montar().componentInstance;
 
-    // O chip dizia "João da Silva Produtor" com "Contador" embaixo:
-    // duas pessoas diferentes no mesmo lugar.
+    // O chip dizia "João da Silva Produtor" com "Contador" embaixo: duas pessoas diferentes no
+    // mesmo lugar. A correção anterior trocou a ordem, mas **manteve o nome do produtor** na
+    // segunda linha ("Atendendo João da Silva Produtor") — ainda a pessoa errada, porque o
+    // escritório tem uma **carteira**, não um cliente.
     expect(cmp.nomeExibido()).toBe('Contador');
-    expect(cmp.papelExibido()).toBe('Atendendo João da Silva Produtor');
+    // Vazio para não gaguejar: a primeira linha já diz "Contador".
+    expect(cmp.papelExibido()).toBe('');
   });
+
+  it('o contador nao pede o painel do produtor — aquela rota responde 403 para ele', () => {
+    perfil.entrar('contador');
+    const fixture = TestBed.createComponent(AppLayout);
+    fixture.detectChanges();
+
+    expect(httpMock.match((r) => r.url === '/dashboard').length).toBe(0);
+
+    httpMock.match((r) => r.url === '/contador/produtores').forEach((r) => r.flush([]));
+  });
+
+  /**
+   * O vazamento entre perfis, medido no navegador em 29/10.
+   *
+   * Entrando como produtor, saindo e entrando como contador **sem recarregar a página**, a topbar
+   * do escritório exibia "Atendendo João da Silva Produtor" — o nome que sobrou no signal do
+   * `DashboardApi`, que é `providedIn: 'root'` e não morre na troca de perfil. Pior que mostrar
+   * nada: parece dado, então se acredita nele.
+   */
+  it('sair esquece o painel: o nome de quem saiu nao aparece para quem entra', () => {
+    perfil.entrar('produtor');
+    const cmp = montar().componentInstance;
+    expect(cmp.nomeExibido()).toBe('João da Silva Produtor');
+
+    cmp.sair();
+    perfil.entrar('contador');
+    // Os computed do chip sao derivados de signals: basta reler apos a troca.
+
+    expect(cmp.nomeExibido()).not.toContain('João');
+    expect(cmp.papelExibido()).not.toContain('João');
+
+    httpMock.match((r) => r.url === '/contador/produtores').forEach((r) => r.flush([]));
+    httpMock.match((r) => r.url === '/alertas').forEach((r) => r.flush([]));
+  });
+
 
   it('respeita o nome digitado no login', () => {
     perfil.entrar('contador', 'Maria Contadora');

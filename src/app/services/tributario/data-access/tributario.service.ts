@@ -21,6 +21,26 @@ export class TributarioApi {
     return this.api.get<Apuracao>('/apuracao', { periodo });
   }
 
+  /**
+   * `GET /api/apuracao?de=&ate=` — a apuração de **uma faixa de meses**, numa requisição.
+   *
+   * A tela de Impostos pedia os cinco meses do histórico **um a um**, e havia um comentário dizendo
+   * que era assim porque "não existe endpoint de histórico". Existe: conferido no OpenAPI do
+   * backend (`http://localhost:8080/v3/api-docs`) e medido contra a API em 29/10 —
+   * `?de=2026-05&ate=2026-10` devolve os seis meses em ordem crescente.
+   *
+   * **Vem sem buraco**, por contrato: mês sem nota chega zerado, com `totalNotas: 0`. Isso muda o
+   * sentido da falha — antes um mês podia faltar sozinho; agora ou a faixa inteira responde, ou
+   * nenhuma parte dela.
+   *
+   * A faixa aceita até 60 meses. O contrato ainda oferece `ultimos` (6/12/36/60) e `agrupamento`
+   * (TRIMESTRE/SEMESTRE/ANO), que esta tela não usa porque o mês dela é escolhido à mão — `ultimos`
+   * conta sempre a partir do corrente.
+   */
+  apuracaoFaixa(de: string, ate: string): Observable<Apuracao[]> {
+    return this.api.get<Apuracao[]>('/apuracao', { de, ate });
+  }
+
   /** POST /api/apuracao/{id}/reabrir — reabre uma apuração FECHADA (RN005). */
   reabrirApuracao(id: string): Observable<Apuracao> {
     return this.api.post<Apuracao>(`/apuracao/${id}/reabrir`);

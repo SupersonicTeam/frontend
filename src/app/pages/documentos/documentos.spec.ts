@@ -1062,6 +1062,11 @@ describe('DocumentosPage', () => {
       expect(cmp.temFiltroAtivo()).toBe(true);
 
       cmp.limparFiltros();
+      // A situacao virou filtro de SERVIDOR (#104): limpa-la recarrega a lista.
+      httpMock
+        .match((r) => r.url === '/notas')
+        .filter((r) => !r.cancelled)
+        .forEach((r) => r.flush({ content: [], totalElements: 0 }));
       fixture.detectChanges();
 
       expect(cmp.temFiltroAtivo()).toBe(false);

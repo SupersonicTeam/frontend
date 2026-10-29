@@ -43,10 +43,15 @@ import { VinculosApi } from '@services/vinculos/data-access/vinculos.service';
 import { NotaFiscalRequest, NotaFiscalItemRequest } from '@dtos/notas/nota-fiscal.request';
 import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
-import { editavel, esperaOEscritorio, statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
-import { gerarNotaPdf } from '@core/utils/nota-pdf';
+import {
+  editavel,
+  esperaOEscritorio,
+  statusNotaLabel,
+  temArquivosFiscais,
+} from '@core/enums/status-nota-fiscal.enum';
 import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
+import { aplicarMascara, mascaraCep, mascaraCpfCnpj, soDigitos } from '@core/utils/mascaras';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
@@ -123,11 +128,6 @@ const MESES_PT = [
   'Novembro',
   'Dezembro',
 ];
-
-/** Só os dígitos de um CPF/CNPJ (remove máscara). */
-function soDigitos(v: string): string {
-  return (v ?? '').replace(/\D/g, '');
-}
 
 /** Valida os dígitos verificadores de um CPF (11 dígitos). */
 function cpfValido(cpf: string): boolean {
@@ -244,17 +244,20 @@ export class DocumentosPage implements OnInit {
   notasErro = signal(false);
   pageIndex = signal(0);
   /**
-   * **Provisório, e o número é o sintoma de um problema real.**
+   * **Ainda provisório, mas por menos tempo (issue #104).**
    *
-   * Filtrar é trabalho do servidor, mas o `GET /api/notas` aceita só `Pageable`
-   * — nenhum parâmetro de status, tipo, data ou busca. Então os filtros desta
-   * tela rodam em memória, sobre o que veio na página. Com 12 por página e 15
-   * notas na base, o filtro **não enxergava 3 delas**: digitar o nome de um
-   * destinatário da página 2 devolvia "nenhuma nota".
+   * Filtrar é trabalho do servidor. Quando esta tela foi escrita, `GET /api/notas` aceitava só
+   * `Pageable`, então todos os filtros rodavam em memória sobre a página carregada — e com 12 por
+   * página o filtro **não enxergava** o que estivesse fora dela: buscar um destinatário da página
+   * 2 devolvia "nenhuma nota". Subir para 100 era o remendo.
    *
-   * Subir para 100 faz o filtro parar de mentir enquanto o backend não expõe os
-   * parâmetros (issue aberta para o Murillo). Quando a rota existir, isto volta
-   * para 12 e o filtro em memória é apagado.
+   * O backend avançou. Medido contra a API local em 29/10: **`status` e `busca` filtram**, e o
+   * `status` já vai daqui para o servidor (`recarregarNotas`). Mas `de`/`ate` **continuam sendo
+   * ignorados** — `?de=2026-09-01&ate=2026-09-30` devolve as 15 notas, as mesmas de sem filtro.
+   *
+   * É isso que segura o número aqui: enquanto o recorte por data for em memória, cair para 12
+   * ressuscita o bug antigo no filtro de período. Quando `de`/`ate` valerem, isto volta para 12 e
+   * os filtros em memória saem junto.
    */
   pageSize = signal(100);
   totalElements = signal(0);
@@ -284,6 +287,7 @@ export class DocumentosPage implements OnInit {
   enviandoSefaz = signal(false);
   consultandoStatus = signal(false);
   baixandoDanfe = signal(false);
+  baixandoPrevia = signal(false);
   /** Último retorno da SEFAZ (cStat/motivo/protocolo) exibido no preview. */
   sefazRetorno = signal<SefazRetorno | null>(null);
 
@@ -649,11 +653,33 @@ export class DocumentosPage implements OnInit {
       this.busca().trim().length > 0,
   );
 
+  /**
+   * Troca a situação **e recarrega**, porque agora ela é filtro de servidor (#104).
+   *
+   * O template chamava `statusFilter.set(...)` direto. Com o filtro subindo para a API, trocar o
+   * signal sem recarregar deixaria a lista mostrando o recorte anterior.
+   */
+  trocarSituacao(valor: string): void {
+    if (this.statusFilter() === valor) return;
+    this.statusFilter.set(valor);
+    this.pageIndex.set(0);
+    this.recarregarNotas();
+  }
+
   limparFiltros(): void {
+    // So recarrega se a situacao anterior ia ao SERVIDOR. "Esperando voce" e composicao da tela:
+    // limpa-la nao muda o recorte que a API aplicou, e recarregar seria pedir a mesma coisa.
+    const tinhaSituacao = this.statusParaOServidor() !== undefined;
     this.periodo.set('todos');
     this.tipo.set('todos');
     this.statusFilter.set('todos');
     this.busca.set('');
+    // A situacao e filtro de servidor (#104): limpa-la sem recarregar deixaria a lista presa no
+    // recorte anterior, agora que a API e quem o aplica. Periodo, tipo e busca seguem em memoria.
+    if (tinhaSituacao) {
+      this.pageIndex.set(0);
+      this.recarregarNotas();
+    }
   }
 
   readonly pendenciasFiltradas = computed(() => {
@@ -836,11 +862,27 @@ export class DocumentosPage implements OnInit {
    * Em falha (ex.: backend offline) exibe o banner de erro com "Tentar novamente"
    * (`notasErro`), sem dados mockados.
    */
+  /**
+   * A situação escolhida, quando ela é um status que o servidor entende (#104).
+   *
+   * `todos` não é filtro, e `esperando` é uma **composição da tela** (o que depende de uma ação do
+   * produtor) que não existe como status no backend — essas duas continuam em memória.
+   */
+  private statusParaOServidor(): string | undefined {
+    const s = this.statusFilter();
+    return s === 'todos' || s === 'esperando' ? undefined : s;
+  }
+
   recarregarNotas(): void {
     this.loading.set(true);
     this.notasErro.set(false);
     this.notasApi
-      .listar({ page: this.pageIndex(), size: this.pageSize(), sort: 'dataEmissao,desc' })
+      .listar({
+        page: this.pageIndex(),
+        size: this.pageSize(),
+        sort: 'dataEmissao,desc',
+        status: this.statusParaOServidor(),
+      })
       .subscribe({
         next: (page) => {
           this.notas.set(page.content);
@@ -1003,9 +1045,29 @@ export class DocumentosPage implements OnInit {
     if (this.temContador()) return false;
     return nota?.status === 'RASCUNHO' || nota?.status === 'COM_INCONSISTENCIAS';
   }
-  /** XML/DANFE disponíveis após a geração do XML (409 em RASCUNHO/COM_INCONSISTENCIAS). */
+  /**
+   * XML/DANFE disponiveis apos a geracao do XML (409 antes dela).
+   *
+   * Isto era `!this.podeGerarXml(nota)` -- a negacao de uma checagem de **permissao**, nao de
+   * **estado** (#101). Quando a aprovacao do contador entrou no `podeGerarXml` (#178), ele passou
+   * a devolver `false` para todo produtor com escritorio, e a negacao virou `true` num rascunho:
+   * a nota exibia "XML" e "DANFE" de arquivos inexistentes. Agora a pergunta vai ao status, que e
+   * quem sabe a resposta.
+   */
   temArquivos(nota?: NotaFiscal | null): boolean {
-    return !!nota && !this.podeGerarXml(nota);
+    return !!nota && temArquivosFiscais(nota.status);
+  }
+
+  /**
+   * A previa simplificada e o que da para baixar **enquanto o documento fiscal nao existe** (#101).
+   *
+   * Ela e gerada aqui no navegador, a partir da nota que ja esta na tela: nao depende de XML, de
+   * SEFAZ nem de aprovacao. Mesmo assim vivia dentro do bloco do "Gerar XML", escondida justamente
+   * nas notas em que e a unica coisa baixavel. Onde o DANFE oficial existe, ele manda -- ninguem
+   * quer o rascunho tendo o documento com valor fiscal.
+   */
+  podeBaixarPrevia(nota?: NotaFiscal | null): boolean {
+    return !!nota && !this.temArquivos(nota);
   }
   /** Envio à SEFAZ só em XML_GERADO. */
   podeEnviarSefaz(nota?: NotaFiscal | null): boolean {
@@ -1333,7 +1395,10 @@ export class DocumentosPage implements OnInit {
     this.formNatureza.set(nota.naturezaOperacao ?? '');
     this.formData.set(nota.dataEmissao?.split('T')[0] ?? '');
     this.formDestNome.set(nota.destinatarioNome ?? '');
-    this.formDestCpfCnpj.set(nota.destinatarioCpfCnpj ?? '');
+    // Mascarado tambem ao ABRIR a nota para editar (#102). A API guarda e devolve so os digitos,
+    // entao sem isto o CPF de uma nota existente aparecia cru enquanto um digitado na hora
+    // aparecia pontuado -- o mesmo campo com duas caras, dependendo de como se chegou nele.
+    this.formDestCpfCnpj.set(mascaraCpfCnpj(nota.destinatarioCpfCnpj ?? ''));
     this.formDestIe.set(nota.destinatarioIe ?? '');
     const e = nota.destinatarioEndereco;
     this.formEndLogradouro.set(e?.logradouro ?? '');
@@ -1341,7 +1406,7 @@ export class DocumentosPage implements OnInit {
     this.formEndMunicipio.set(e?.municipio ?? '');
     this.formEndIbge.set(e?.codigoMunicipioIbge ?? '');
     this.formEndUf.set(e?.uf ?? '');
-    this.formEndCep.set(e?.cep ?? '');
+    this.formEndCep.set(mascaraCep(e?.cep ?? ''));
     this.formItens.set(
       (nota.itens ?? []).map((it) => ({
         descricao: it.descricao ?? '',
@@ -1724,12 +1789,37 @@ export class DocumentosPage implements OnInit {
     return env ? mensagemDeEnvelope(env, err?.status ?? 0) : fallback;
   }
 
-  async baixarPdf(nota: NotaFiscal): Promise<void> {
-    try {
-      await gerarNotaPdf(nota);
-    } catch {
-      this.toastService.error('Erro ao gerar o PDF.');
-    }
+  /**
+   * A prévia da DANFE — **do servidor**, não montada aqui (issue #101).
+   *
+   * Isto chamava `gerarNotaPdf`, um DANFE simplificado que o navegador desenhava com `jspdf` a
+   * partir da nota em tela. Era um substituto: quando a #101 foi feita eu não sabia que existia
+   * rota para isso. Existe — `GET /notas/{id}/danfe-preview` — e devolve a prévia de verdade, com
+   * o layout do documento, conferida contra a API em 29/10 (200, `application/pdf`, 60 kB).
+   *
+   * **Sem cair no gerador local em caso de falha.** Se o servidor recusar, a tela diz o motivo que
+   * ele deu: um PDF aproximado no lugar de uma mensagem de erro é o tipo de fallback que esconde o
+   * problema (#107), e aqui esconderia justamente que a nota não está pronta.
+   */
+  baixarPrevia(nota: NotaFiscal): void {
+    this.baixandoPrevia.set(true);
+    this.notasApi.previewDanfe(nota.id).subscribe({
+      next: (resp) => {
+        this.baixandoPrevia.set(false);
+        const nome = filenameDeContentDisposition(
+          resp.headers.get('Content-Disposition'),
+          `previa-nota-${nota.numero ?? nota.id}.pdf`,
+        );
+        salvarBlob(resp.body!, nome);
+        this.toastService.success('Prévia baixada (sem valor fiscal).');
+      },
+      error: async (err: HttpErrorResponse) => {
+        this.baixandoPrevia.set(false);
+        this.toastService.error(
+          await this.mensagemErroDownload(err, 'Prévia indisponível para esta nota.'),
+        );
+      },
+    });
   }
 
   // === Importar nota (XML, drag-and-drop) ===
@@ -1780,24 +1870,25 @@ export class DocumentosPage implements OnInit {
   }
 
   // Máscara CPF/CNPJ do formulário
+  /**
+   * CPF/CNPJ com mascara (#102).
+   *
+   * A formatacao em si ja existia aqui; o que faltava era **nao perder o cursor**. Medido antes:
+   * com `123.456.789-09` e o cursor na posicao 2, digitar um `7` levava o cursor para a posicao
+   * **15**, o fim do campo. Ver `@core/utils/mascaras`.
+   */
   formatCpfCnpj(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const numeros = input.value.replace(/\D/g, '');
-    let formatted: string;
-    if (numeros.length <= 11) {
-      formatted = numeros
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    } else {
-      formatted = numeros
-        .replace(/(\d{2})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1/$2')
-        .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-    }
-    this.formDestCpfCnpj.set(formatted);
-    input.value = formatted;
+    this.formDestCpfCnpj.set(aplicarMascara(event, mascaraCpfCnpj));
+  }
+
+  /**
+   * CEP com mascara (#102).
+   *
+   * O campo prometia `78890-000` no placeholder e aceitava `78890000` -- o exemplo formatado
+   * sugeria um formato que a tela nao entregava.
+   */
+  formatCep(event: Event): void {
+    this.formEndCep.set(aplicarMascara(event, mascaraCep));
   }
 
   // Helpers

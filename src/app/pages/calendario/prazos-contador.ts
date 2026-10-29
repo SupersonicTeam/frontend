@@ -7,11 +7,12 @@ import {
   LucideTriangleAlert,
 } from '@lucide/angular';
 import { HttpErrorResponse } from '@angular/common/http';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
 import { ToastService } from '@core/services/toast.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
+import { CarteiraApi } from '@services/contador/data-access/carteira.service';
+import type { ProdutorCarteira } from '@models/carteira.model';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiModal } from '@shared/ui/ui-modal';
@@ -63,6 +64,27 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
 export class PrazosContador implements OnInit {
   private readonly contadorApi = inject(ContadorApi);
   private readonly toast = inject(ToastService);
+
+  private readonly carteiraApi = inject(CarteiraApi);
+
+  /**
+   * De quem sao as guias desta tela (issue #106).
+   *
+   * Isto era `LOGGED_PRODUCER_ID` cravado -- em **duas** chamadas: a que lista e a que **lanca**.
+   * Medido contra a API local em 29/10, a carteira semeada tem **dois** clientes (Joao da Silva
+   * Produtor e Maria Agricultora): o escritorio nunca via as guias da Maria, e qualquer guia que
+   * lancasse ia para o Joao, mesmo achando que atendia a outra. Escrita no cliente errado e bem
+   * pior do que leitura errada.
+   *
+   * Nao precisou esperar o JWT da #93: desde a #95 a carteira devolve os ids de verdade. O que o
+   * JWT resolve e o lado do PRODUTOR, onde o id proprio ainda vem de constante.
+   */
+  readonly clientes = signal<ProdutorCarteira[]>([]);
+  readonly clienteId = signal<string | null>(null);
+
+  readonly clienteAtual = computed(
+    () => this.clientes().find((c) => c.id === this.clienteId()) ?? null,
+  );
 
   readonly carregando = signal(false);
   readonly guias = signal<GuiaFiscal[]>([]);
@@ -137,6 +159,25 @@ export class PrazosContador implements OnInit {
   readonly formValido = computed(() => !!this.formVencimento() && Number(this.formValor()) > 0);
 
   ngOnInit(): void {
+    this.carteiraApi.listar().subscribe({
+      next: (pagina) => {
+        this.clientes.set(pagina.itens);
+        // Abre no primeiro da carteira; antes abria sempre no produtor semente, fosse ele cliente
+        // deste escritorio ou nao.
+        this.clienteId.set(pagina.itens[0]?.id ?? null);
+        this.carregar();
+      },
+      error: (err: HttpErrorResponse) => {
+        this.erro.set(falhaDaApi(err));
+        this.carregando.set(false);
+      },
+    });
+  }
+
+  /** Troca o cliente e recarrega — a lista e do cliente, nao da tela. */
+  trocarCliente(id: string): void {
+    if (this.clienteId() === id) return;
+    this.clienteId.set(id);
     this.carregar();
   }
 
@@ -150,10 +191,16 @@ export class PrazosContador implements OnInit {
   readonly erro = signal<FalhaDaApi | null>(null);
 
   carregar(): void {
+    const cliente = this.clienteId();
+    if (!cliente) {
+      this.guias.set([]);
+      this.carregando.set(false);
+      return;
+    }
     this.carregando.set(true);
     this.erro.set(null);
     this.hoje.set(PrazosContador.hojeISO());
-    this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
+    this.contadorApi.getGuias(cliente).subscribe({
       next: (lista) => {
         this.guias.set(lista);
         this.carregando.set(false);
@@ -176,11 +223,12 @@ export class PrazosContador implements OnInit {
   }
 
   salvarGuia(): void {
-    if (!this.formValido()) return;
+    const cliente = this.clienteId();
+    if (!this.formValido() || !cliente) return;
     this.salvando.set(true);
     this.contadorApi
       .anexarGuia({
-        produtorId: LOGGED_PRODUCER_ID,
+        produtorId: cliente,
         tipoGuia: this.formTipo(),
         dataVencimento: this.formVencimento(),
         valor: Number(this.formValor()),

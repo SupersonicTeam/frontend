@@ -17,6 +17,9 @@ type Natureza = 'atencao' | 'sugestao' | 'explicacao';
  * vencimentos devolvem prazo. Nada aqui pode ser texto inventado só para parecer
  * inteligente; se não houver dado que sustente a frase, o componente não entra.
  *
+ * A caixa ocupa a largura que o pai der; **a prosa dentro dela para em `max-w-prose`**, para a
+ * linha nao ficar longa demais de ler em tela grande (#103).
+ *
  * ```html
  * <ui-insight natureza="atencao" titulo="2 notas precisam de correção">
  *   A nota 7 está sem endereço do destinatário, exigido para emitir a NF-e.
@@ -40,7 +43,16 @@ type Natureza = 'atencao' | 'sugestao' | 'explicacao';
             <span [class]="classesEtiqueta()">{{ etiqueta() }}</span>
           </div>
 
-          <div class="mt-1.5 text-apoio leading-relaxed text-muted-foreground">
+          <!-- max-w-prose so na PROSA (issue #103). Sem crase aqui: este template e uma
+               template string, e crase no comentario fecha a string (o build reprovou assim).
+
+               O insight atravessa a largura inteira de proposito: e alerta, e prominencia e o
+               ponto. Mas a frase dentro dele seguia a caixa, e num monitor grande isso vira linha
+               longa demais de ler. Medido em 2560px: a prosa tinha 1350px e 143 caracteres por
+               linha, contra os 45-75 que a tipografia recomenda -- quase o dobro do limite. O olho
+               perde a linha na volta, que e exatamente a queixa da banca sobre leitura.
+               Titulo e acoes ficam de fora: titulo e curto, e acao e botao, nao texto. -->
+          <div class="mt-1.5 max-w-prose text-apoio leading-relaxed text-muted-foreground">
             <ng-content />
           </div>
 
