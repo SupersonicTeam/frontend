@@ -23,6 +23,7 @@ import { DashboardApi } from '@services/dashboard/data-access/dashboard.service'
 import { AssistenteDrawer } from '@shared/assistente/assistente-drawer';
 import { AssistenteLauncher } from '@shared/assistente/assistente-launcher';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import { ToastContainer } from '@shared/components/toast-container/toast-container';
 
 export interface NavItem {
@@ -66,6 +67,7 @@ export class AppLayout implements OnInit {
   readonly perfilService = inject(PerfilService);
   private readonly dashboardApi = inject(DashboardApi);
   private readonly assistenteStore = inject(AssistenteStore);
+  private readonly authApi = inject(AuthApi);
 
   mobileMenuOpen = signal(false);
   notificacoesOpen = signal(false);
@@ -78,6 +80,7 @@ export class AppLayout implements OnInit {
     // entrou -- e era assim que a topbar do contador dizia "Atendendo Joao da Silva Produtor".
     this.dashboardApi.limpar();
     this.assistenteStore.limpar();
+    this.authApi.limpar();
     this.perfilService.sair();
     this.router.navigateByUrl('/login');
   }

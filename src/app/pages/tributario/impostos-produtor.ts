@@ -16,7 +16,8 @@ import {
 import { RouterLink } from '@angular/router';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { switchMap } from 'rxjs';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
@@ -96,6 +97,7 @@ const MESES = [
 export class ImpostosProdutor implements OnInit {
   private readonly api = inject(TributarioApi);
   private readonly contadorApi = inject(ContadorApi);
+  private readonly authApi = inject(AuthApi);
   private readonly toast = inject(ToastService);
   protected readonly assistente = inject(AssistenteStore);
 
@@ -368,7 +370,12 @@ export class ImpostosProdutor implements OnInit {
   private carregarGuias(): void {
     this.guiasCarregadas.set(false);
     this.erroGuias.set(null);
-    this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(switchMap((sessao) => this.contadorApi.getGuias(sessao.usuarioId)))
+      .subscribe({
       next: (lista) => {
         this.guias.set(lista);
         this.guiasCarregadas.set(true);

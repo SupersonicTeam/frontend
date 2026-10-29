@@ -60,7 +60,7 @@ import { UiModal } from '@shared/ui/ui-modal';
 import { UiInsight } from '@shared/ui/ui-insight';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { UiStat } from '@shared/ui/ui-stat';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
 import { ToastService } from '@core/services/toast.service';
@@ -355,6 +355,7 @@ export class DashboardPage implements OnInit {
   readonly periodoAno = signal(new Date().getFullYear());
 
   private readonly tributarioApi = inject(TributarioApi);
+  private readonly authApi = inject(AuthApi);
 
   /** Periodo escolhido, no formato que os endpoints pedem. */
   readonly periodoSelecionado = computed(
@@ -606,7 +607,12 @@ export class DashboardPage implements OnInit {
     this.trocarPeriodo();
 
     this.loadingAlertas.set(true);
-    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID).subscribe({
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(switchMap((sessao) => this.calendarioService.getVencimentos(sessao.usuarioId)))
+      .subscribe({
       next: data => {
         const ordenados = data
           .slice()
@@ -649,7 +655,12 @@ export class DashboardPage implements OnInit {
 
   handleNotificarWhatsApp(): void {
     this.enviandoNotificacao.set(true);
-    this.notificacaoService.notificarProximasObrigacoes(LOGGED_PRODUCER_ID).subscribe({
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(switchMap((sessao) => this.notificacaoService.notificarProximasObrigacoes(sessao.usuarioId)))
+      .subscribe({
       next: res => {
         this.enviandoNotificacao.set(false);
         if (res.indisponivel) {

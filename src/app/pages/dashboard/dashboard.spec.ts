@@ -1,3 +1,5 @@
+import { AuthApi } from '@services/auth/data-access/auth.service';
+import { of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
@@ -49,6 +51,26 @@ function buildResponse(overrides: Partial<DashboardResponse> = {}): DashboardRes
   };
 }
 
+
+/**
+ * Identidade de teste (issue #106).
+ *
+ * A tela resolve o id do produtor em `GET /auth/me` em vez de carregar um UUID cravado. Estes
+ * testes sao sobre o que a tela FAZ com o id, nao sobre como ela o obtem -- isso tem spec propria
+ * em `AuthApi`. Entao aqui ele e dependencia injetada, e o `httpMock` fica so com as rotas que
+ * cada teste realmente examina.
+ */
+const SESSAO = {
+  usuarioId: 'produtor-de-teste',
+  papel: 'PRODUTOR' as const,
+  nome: 'João da Silva Produtor',
+};
+const authFalso = {
+  carregar: () => of(SESSAO),
+  sessao: () => SESSAO,
+  limpar: () => undefined,
+};
+
 describe('DashboardPage', () => {
   let httpMock: HttpTestingController;
 
@@ -62,6 +84,7 @@ describe('DashboardPage', () => {
         // O spec nao provia o router e so nao quebrava porque os blocos com
         // link nao chegavam a renderizar nestes fixtures.
         provideRouter([]),
+        { provide: AuthApi, useValue: authFalso },
       ],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);

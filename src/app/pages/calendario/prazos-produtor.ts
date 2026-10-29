@@ -13,7 +13,8 @@ import { CalendarioApi } from '@services/calendario/data-access/calendario.servi
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { ToastService } from '@core/services/toast.service';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { switchMap } from 'rxjs';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 
 @Component({
   selector: 'app-prazos-produtor',
@@ -32,6 +33,7 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 })
 export class PrazosProdutor implements OnInit {
   private readonly calendarioService = inject(CalendarioApi);
+  private readonly authApi = inject(AuthApi);
   private readonly notificacaoService = inject(NotificacaoApi);
   private readonly toastService = inject(ToastService);
 
@@ -345,7 +347,12 @@ export class PrazosProdutor implements OnInit {
     this.loading.set(true);
     this.vencimentosErro.set(false);
 
-    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID, { de, ate }).subscribe({
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(switchMap((sessao) => this.calendarioService.getVencimentos(sessao.usuarioId, { de, ate })))
+      .subscribe({
       next: (vencimentos) => {
         // Todo mês da janela entra no cache, inclusive vazio: sem isso a grade buscaria de novo
         // um mês que esta requisição já respondeu "não tem nada".
@@ -402,7 +409,16 @@ export class PrazosProdutor implements OnInit {
     this.loading.set(true);
     this.vencimentosErro.set(false);
 
-    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID, this.janelaDoMes(chave)).subscribe({
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(
+        switchMap((sessao) =>
+          this.calendarioService.getVencimentos(sessao.usuarioId, this.janelaDoMes(chave)),
+        ),
+      )
+      .subscribe({
       next: (vencimentos) => {
         this.vencimentosPorMes.update((mapa) => ({ ...mapa, [chave]: vencimentos }));
         this.vencimentosErro.set(false);
@@ -481,7 +497,12 @@ export class PrazosProdutor implements OnInit {
 
   handleNotificarWhatsApp(): void {
     this.enviandoNotificacao.set(true);
-    this.notificacaoService.notificarProximasObrigacoes(LOGGED_PRODUCER_ID).subscribe({
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(switchMap((sessao) => this.notificacaoService.notificarProximasObrigacoes(sessao.usuarioId)))
+      .subscribe({
       next: (res) => {
         this.enviandoNotificacao.set(false);
         if (res.indisponivel) {
