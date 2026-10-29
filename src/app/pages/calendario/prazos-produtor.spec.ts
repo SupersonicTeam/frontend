@@ -1,3 +1,5 @@
+import { AuthApi } from '@services/auth/data-access/auth.service';
+import { of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -12,35 +14,53 @@ import { PrazosProdutor } from './prazos-produtor';
  * Agora a fonte é uma só. O que estes testes protegem: o status real chega inteiro, o servidor é
  * quem recorta a janela, e a falha de uma fonte não apaga a outra.
  */
+
+/**
+ * Identidade de teste (issue #106).
+ *
+ * A tela resolve o id do produtor em `GET /auth/me` em vez de carregar um UUID cravado. Estes
+ * testes sao sobre o que a tela FAZ com o id, nao sobre como ela o obtem -- isso tem spec propria
+ * em `AuthApi`. Entao aqui ele e dependencia injetada, e o `httpMock` fica so com as rotas que
+ * cada teste realmente examina.
+ */
+const SESSAO = {
+  usuarioId: 'produtor-de-teste',
+  papel: 'PRODUTOR' as const,
+  nome: 'João da Silva Produtor',
+};
+const authFalso = {
+  carregar: () => of(SESSAO),
+  sessao: () => SESSAO,
+  limpar: () => undefined,
+};
+
 describe('PrazosProdutor', () => {
   let httpMock: HttpTestingController;
-
-  /** Uma pendência do contador com prazo — a outra fonte do calendário. */
-  const pendencia = (over: Record<string, unknown> = {}) => ({
-    id: 'p1',
-    produtorId: 'prod-1',
-    titulo: 'Enviar notas de agosto',
-    descricao: 'O escritório precisa das notas do mês',
-    dataLimite: '2026-08-15',
-    prioridade: 'alta',
-    status: 'pendente',
-    createdAt: '2026-08-01T00:00:00',
-    updatedAt: '2026-08-01T00:00:00',
-    ...over,
-  });
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [PrazosProdutor],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AuthApi, useValue: authFalso },
+      ],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
   });
 
   afterEach(() => httpMock.verify());
 
+  /**
+   * Era o flush da segunda fonte do calendario. Virou **guarda**.
+   *
+   * A tela buscava as solicitacoes do contador a parte, em `/contador/pendencias?produtorId=` --
+   * rota que nunca existiu e respondia 404 em toda abertura. Desde a backend#180 o proprio
+   * `/calendario-fiscal` devolve a pendencia com prazo como `tipo: "solicitacao"`, entao nao ha
+   * segunda fonte: cada chamada deste helper afirma que a rota morta ficou morta.
+   */
   function flushContadorVazio() {
-    httpMock.match((r) => r.url.includes('/contador')).forEach((r) => r.flush([]));
+    expect(httpMock.match((r) => r.url.includes('/contador')).length).toBe(0);
   }
 
   /** `AAAA-MM-DD` de `n` dias a partir de hoje (negativo para trás). */
@@ -142,9 +162,7 @@ describe('PrazosProdutor', () => {
           valor: 700,
         },
       ]);
-    httpMock.expectOne((r) => r.url === '/contador/pendencias').flush([]);
-
-    expect(httpMock.match((r) => r.url === '/contador/guias').length).toBe(0);
+    expect(httpMock.match((r) => r.url.includes('/contador')).length).toBe(0);
     expect(cmp.vencimentos().length).toBe(1);
   });
 
@@ -181,43 +199,49 @@ describe('PrazosProdutor', () => {
     expect(cmp.vencimentos().map((v) => v.id)).toEqual(['ok']);
   });
 
-  it('falha em /calendario-fiscal não esconde as solicitações do contador', () => {
+  /**
+   * A resiliencia de duas fontes saiu junto com a segunda fonte.
+   *
+   * Havia dois testes aqui provando que uma falha em `/calendario-fiscal` nao escondia as
+   * solicitacoes do contador, em qualquer ordem de resposta. A premissa deles era a busca paralela
+   * em `/contador/pendencias` -- que respondia 404, ou seja, a "segunda fonte" estava sempre
+   * vazia e a resiliencia protegia nada. Agora ha uma fonte so, e o que importa provar e que a
+   * pendencia **chega por ela**.
+   */
+  it('a pendencia com prazo chega pelo proprio calendario, como tipo solicitacao', () => {
     const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
     httpMock
       .expectOne((r) => r.url.includes('/calendario-fiscal'))
-      .flush('erro', { status: 500, statusText: 'Server Error' });
-    httpMock.expectOne((r) => r.url === '/contador/pendencias').flush([pendencia()]);
+      .flush([
+        {
+          id: '615ff9e2-418f-4aa5-9276-24ff369a7538',
+          evento: 'Comprovantes de frete de setembro',
+          descricao: null,
+          dataVencimento: emDias(3),
+          tipo: 'solicitacao',
+          status: 'pendente',
+        },
+      ]);
+    flushContadorVazio();
 
-    expect(cmp.vencimentosErro()).toBe(true);
-    expect(cmp.vencimentos()).toEqual([
-      {
-        id: 'sol-p1',
-        titulo: 'Enviar notas de agosto',
-        descricao: 'O escritório precisa das notas do mês',
-        dataVencimento: '2026-08-15',
-        tipo: 'solicitacao',
-        status: 'pendente',
-        prioridade: 'alta',
-      },
-    ]);
+    expect(cmp.vencimentos().map((v) => v.tipo)).toEqual(['solicitacao']);
   });
 
-  it('a resiliência não depende de quem responde primeiro', () => {
+  it('falha em /calendario-fiscal acende o erro, e nao sobra fonte para disfarcar', () => {
     const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
-    // Ordem invertida: o contador resolve antes de `/calendario-fiscal` falhar.
-    httpMock.expectOne((r) => r.url === '/contador/pendencias').flush([pendencia({ id: 'p3' })]);
     httpMock
       .expectOne((r) => r.url.includes('/calendario-fiscal'))
       .flush('erro', { status: 500, statusText: 'Server Error' });
+    flushContadorVazio();
 
     expect(cmp.vencimentosErro()).toBe(true);
-    expect(cmp.vencimentos().map((v) => v.id)).toEqual(['sol-p3']);
+    expect(cmp.vencimentos()).toEqual([]);
   });
 
   it('em sucesso, vencimentosErro fica false', () => {
@@ -397,7 +421,28 @@ describe('PrazosProdutor', () => {
     expect(texto).not.toContain('O próximo prazo');
   });
 
+  /**
+   * Relógio congelado em 15/10/2026, e não `new Date()`.
+   *
+   * A versão anterior montava o mês a partir de hoje e afirmava que o dia 28 seria "a vencer"
+   * "no pior caso em que o teste roda dia 28, porque a comparação inclui hoje". Não inclui:
+   * `diaClass` devolve o estilo do **dia selecionado** antes de olhar o prazo, e o dia selecionado
+   * começa sendo hoje. O teste passou até 27/10/2026 e virou vermelho sozinho em 28/10.
+   *
+   * Com a data fixa, os três dias escolhidos têm papel estável: o 5 já passou e está pago, o 28
+   * ainda vai vencer, o 14 não tem nada — e nenhum deles é "hoje".
+   */
   it('o dia com prazo vira célula colorida pela situação, não um ponto de 6px', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
+    try {
+      executarTesteDeCorDoDia();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  function executarTesteDeCorDoDia() {
     const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
@@ -419,15 +464,14 @@ describe('PrazosProdutor', () => {
     flushContadorVazio();
     fixture.detectChanges();
 
-    // O dia 28 ainda vai vencer (hoje é bem antes, no pior caso o teste roda dia 28 e ele é
-    // "a vencer" do mesmo jeito, porque a comparação inclui hoje).
+    // Com o relógio em 15/10, o 28 ainda vai vencer e não é o dia selecionado.
     expect(cmp.diaClass(28)).toContain('aviso');
     expect(cmp.diaClass(5)).toContain('sucesso');
     // Dia sem nada não ganha cor nenhuma.
     expect(cmp.diaClass(14)).not.toContain('aviso');
     expect(cmp.diaClass(14)).not.toContain('sucesso');
     expect(cmp.diaClass(14)).not.toContain('perigo');
-  });
+  }
 
   // O grupo lembrava da versao antiga "mostrando em que data mandar cada coisa". A celula so
   // pintava: o nome do que vencia morava num painel lateral, atras de um clique.
@@ -556,5 +600,81 @@ describe('PrazosProdutor', () => {
     expect(cmp.nomeMes()).not.toMatch(/ De /);
     expect(cmp.nomeMes()).toMatch(/^[A-Z]/);
     expect(cmp.nomeDiaSelecionado()).not.toMatch(/ De /);
+  });
+
+  /**
+   * Obrigacao nao e guia (backend#181).
+   *
+   * O calendario passou a devolver obrigacoes -- `tipo: "obrigacao"`, sem status e sem valor. Como
+   * o cliente supunha `pendente`, a data no passado as transformava em atrasadas, e o aviso
+   * "guia atrasada costuma ter multa e juros" saia no **primeiro atrasado qualquer**: o
+   * Fechamento da apuracao aparecia com conselho de pagamento para algo que nao se paga.
+   */
+  describe('obrigacoes (#181)', () => {
+    const obrigacaoAtrasada = {
+      id: '00000000-0000-4000-8181-0000000000ff:' + emDias(-5),
+      evento: 'Fechamento da apuracao do mes',
+      descricao: null,
+      dataVencimento: emDias(-5),
+      tipo: 'obrigacao',
+      status: null,
+      valor: null,
+      periodicidade: 'MENSAL',
+      origem: 'RN004 (apuracao mensal de IBS/CBS)',
+    };
+    const guiaAtrasada = {
+      id: 'g1',
+      evento: 'Guia GPS',
+      descricao: null,
+      dataVencimento: emDias(-2),
+      tipo: 'imposto',
+      status: 'pendente',
+      valor: 890,
+    };
+
+    function abrirCom(itens: unknown[]) {
+      const fixture = TestBed.createComponent(PrazosProdutor);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush(itens);
+      flushContadorVazio();
+      fixture.detectChanges();
+      return fixture.componentInstance;
+    }
+
+    it('o aviso de multa e juros se cola na primeira GUIA, nao no primeiro atrasado', () => {
+      // A obrigacao vem antes na lista (venceu ha mais tempo), e era nela que o aviso caia.
+      const cmp = abrirCom([obrigacaoAtrasada, guiaAtrasada]);
+
+      expect(cmp.atrasados()[0]!.tipo).toBe('obrigacao');
+      expect(cmp.primeiraGuiaAtrasada()?.id).toBe('g1');
+    });
+
+    it('so com obrigacao atrasada, o aviso de multa e juros nao aparece', () => {
+      const cmp = abrirCom([obrigacaoAtrasada]);
+
+      expect(cmp.atrasados().length).toBe(1);
+      expect(cmp.temGuiaAtrasada()).toBe(false);
+      expect(cmp.primeiraGuiaAtrasada()).toBeNull();
+    });
+
+    it('a obrigacao e "A fazer", nunca "Vencido"', () => {
+      const cmp = abrirCom([obrigacaoAtrasada]);
+
+      expect(cmp.statusLabel(cmp.atrasados()[0]!.status)).toBe('A fazer');
+      expect(cmp.statusColor(null)).not.toContain('perigo');
+    });
+
+    it('a obrigacao nao entra no total atrasado: nao ha o que somar', () => {
+      const cmp = abrirCom([obrigacaoAtrasada, guiaAtrasada]);
+
+      expect(cmp.totalAtrasado()).toBe(890);
+    });
+
+    it('a periodicidade sai em portugues, nao em caixa alta', () => {
+      const cmp = abrirCom([obrigacaoAtrasada]);
+
+      expect(cmp.rotuloPeriodicidade('MENSAL')).toBe('todo mês');
+      expect(cmp.atrasados()[0]!.origem).toBe('RN004 (apuracao mensal de IBS/CBS)');
+    });
   });
 });

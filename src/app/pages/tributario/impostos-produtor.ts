@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
+import { FormsModule } from '@angular/forms';
 import {
   LucideReceipt,
   LucideLoaderCircle,
@@ -15,7 +16,8 @@ import {
 import { RouterLink } from '@angular/router';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { switchMap } from 'rxjs';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
@@ -95,6 +97,7 @@ const MESES = [
 export class ImpostosProdutor implements OnInit {
   private readonly api = inject(TributarioApi);
   private readonly contadorApi = inject(ContadorApi);
+  private readonly authApi = inject(AuthApi);
   private readonly toast = inject(ToastService);
   protected readonly assistente = inject(AssistenteStore);
 
@@ -123,13 +126,16 @@ export class ImpostosProdutor implements OnInit {
   readonly reabrindo = signal(false);
 
   /**
-   * Os cinco meses **antes** do selecionado, por período (`AAAA-MM`). O valor é `null` quando a
-   * consulta falhou — um mês sem resposta é um buraco no histórico, não um mês de imposto zero.
+   * Os cinco meses **antes** do selecionado, por período (`AAAA-MM`).
    *
-   * São cinco requisições a `/apuracao`, uma por mês, porque **não existe endpoint de
-   * histórico**: `GET /apuracao` só aceita um período. Está pedido em
-   * SupersonicTeam/backend#179; com ele isto vira uma chamada só. Falham em silêncio: sem elas a
-   * tela perde a faixa dos seis meses, não o número principal.
+   * Eram **cinco requisições**, uma por mês, e havia aqui um comentário dizendo que era assim
+   * porque "não existe endpoint de histórico". Existe — `GET /apuracao?de=&ate=` — e foi conferido
+   * no OpenAPI do backend e medido contra a API em 29/10. Agora é **uma** chamada (#116).
+   *
+   * A faixa vem **sem buraco** por contrato: mês sem nota chega zerado. Então o `null` deixou de
+   * significar "este mês falhou" e passa a não acontecer: ou a faixa inteira responde, ou nenhuma
+   * parte dela. Continua falhando em silêncio — sem ela a tela perde o histórico, não o número
+   * principal.
    */
   private readonly mesesAnteriores = signal<Record<string, Apuracao | null>>({});
 
@@ -346,30 +352,46 @@ export class ImpostosProdutor implements OnInit {
   }
 
   /**
-   * Busca os cinco meses anteriores, um a um. Cada resposta entra no mapa pela chave do período
-   * que **ela** declara, e não pela ordem de chegada: trocar de mês rápido faz respostas se
-   * cruzarem, e um saldo no mês errado é pior que um buraco.
+   * Busca os cinco meses anteriores **numa requisição só** (#116).
+   *
+   * Cada item entra no mapa pela chave do período que **ele** declara, e não pela posição na
+   * lista: é a mesma precaução de antes, agora barata — trocar de mês rápido ainda faz respostas
+   * se cruzarem, e um saldo no mês errado é pior que um buraco.
    */
   private carregarMesesAnteriores(): void {
     this.mesesAnteriores.set({});
-    for (let atras = 1; atras < ImpostosProdutor.MESES_NO_HISTORICO; atras++) {
-      const periodo = this.periodoDeslocado(-atras);
-      this.api.apuracao(periodo).subscribe({
-        next: (a) => this.mesesAnteriores.update((m) => ({ ...m, [a.periodo ?? periodo]: a })),
-        error: () => this.mesesAnteriores.update((m) => ({ ...m, [periodo]: null })),
-      });
-    }
+    const ate = this.periodoDeslocado(-1);
+    const de = this.periodoDeslocado(-(ImpostosProdutor.MESES_NO_HISTORICO - 1));
+    this.api.apuracaoFaixa(de, ate).subscribe({
+      next: (faixa) => {
+        const mapa: Record<string, Apuracao | null> = {};
+        for (const a of faixa) if (a.periodo) mapa[a.periodo] = a;
+        this.mesesAnteriores.set(mapa);
+      },
+      error: () => this.mesesAnteriores.set({}),
+    });
   }
+
+  /** A falha da busca de guias, quando houve — separada de "não há guia" (#107). */
+  readonly erroGuias = signal<FalhaDaApi | null>(null);
 
   private carregarGuias(): void {
     this.guiasCarregadas.set(false);
-    this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
+    this.erroGuias.set(null);
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(switchMap((sessao) => this.contadorApi.getGuias(sessao.usuarioId)))
+      .subscribe({
       next: (lista) => {
         this.guias.set(lista);
         this.guiasCarregadas.set(true);
       },
-      error: () => {
-        this.guias.set([]);
+      // A lista **não** é zerada: o que estava na tela é o último dado verdadeiro do servidor.
+      // Zerar em falha fazia a guia sumir como se tivesse sido paga (#107).
+      error: (err: HttpErrorResponse) => {
+        this.erroGuias.set(falhaDaApi(err));
         this.guiasCarregadas.set(true);
       },
     });

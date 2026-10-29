@@ -17,11 +17,15 @@ interface VencimentoFiscalResponse {
   descricao?: string | null;
   /** `AAAA-MM-DD`. */
   dataVencimento: string;
-  /** Hoje sempre `imposto`; o backend reserva obrigacao/declaracao/solicitacao. */
+  /** `imposto`, `obrigacao`, `declaracao` ou `solicitacao` (backend#181). */
   tipo: string;
-  /** `pendente` · `pago` · `vencido`. */
-  status: string;
+  /** `pendente` · `pago` · `vencido`, ou **`null` na obrigação**, que não se paga. */
+  status: string | null;
   valor?: number | null;
+  /** Só em obrigação: `MENSAL`, `ANUAL`… */
+  periodicidade?: string | null;
+  /** Só em obrigação: a norma de onde ela vem. */
+  origem?: string | null;
 }
 
 const TIPOS: readonly VencimentoFiscal['tipo'][] = [
@@ -30,7 +34,7 @@ const TIPOS: readonly VencimentoFiscal['tipo'][] = [
   'declaracao',
   'solicitacao',
 ];
-const STATUS: readonly VencimentoFiscal['status'][] = ['pendente', 'pago', 'vencido'];
+const STATUS: readonly string[] = ['pendente', 'pago', 'vencido'];
 
 /** Janela pedida ao servidor. Datas em `AAAA-MM-DD`, extremos inclusivos. */
 export interface JanelaVencimentos {
@@ -81,11 +85,13 @@ export class CalendarioApi {
         tipo: this.tipoConhecido(item.tipo),
         status: this.statusConhecido(item.status),
         valor: item.valor ?? undefined,
+        periodicidade: item.periodicidade ?? undefined,
+        origem: item.origem ?? undefined,
       },
     ];
   }
 
-  /** O backend documenta `imposto` como o único tipo hoje; é o padrão para valor desconhecido. */
+  /** Tipo fora do contrato cai em `imposto`, que é o caso que não pode sumir da tela. */
   private tipoConhecido(tipo: string): VencimentoFiscal['tipo'] {
     return (TIPOS as readonly string[]).includes(tipo)
       ? (tipo as VencimentoFiscal['tipo'])
@@ -93,15 +99,23 @@ export class CalendarioApi {
   }
 
   /**
-   * `pago` e `vencido` precisam chegar inteiros à tela.
+   * `pago` e `vencido` precisam chegar inteiros à tela — e `null` também.
    *
-   * O mapeamento anterior reconhecia só `vencido` e jogava todo o resto em `pendente` — uma guia
-   * **paga** aparecia como pendente no calendário. O próprio `VencimentoFiscalResponse` do backend
-   * registra esse bug como pendência do frontend.
+   * Duas correções moram aqui. A primeira: o mapeamento reconhecia só `vencido` e jogava todo o
+   * resto em `pendente`, de modo que uma guia **paga** aparecia como pendente.
+   *
+   * A segunda é da #181: **`null` passa**. A obrigação não se paga e vem sem status; supor
+   * `pendente` fazia a data no passado transformá-la em "atrasada", e a tela do produtor mostrava
+   * o fechamento da apuração com o aviso "guia atrasada costuma ter multa e juros" — conselho de
+   * pagamento para algo que não se paga.
+   *
+   * Um status que **não reconhecemos** numa guia continua virando `pendente`: ali é ruído, e supor
+   * pendente é o que mantém a guia visível. `null` é informação; desconhecido é ruído.
    */
-  private statusConhecido(status: string): VencimentoFiscal['status'] {
+  private statusConhecido(status: string | null): VencimentoFiscal['status'] {
+    if (status === null || status === undefined) return null;
     return (STATUS as readonly string[]).includes(status)
-      ? (status as VencimentoFiscal['status'])
+      ? (status as Exclude<VencimentoFiscal['status'], null>)
       : 'pendente';
   }
 }

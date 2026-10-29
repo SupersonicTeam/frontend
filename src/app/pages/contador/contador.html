@@ -1,295 +1,234 @@
-<div class="page-container animate-entra-subindo flex flex-col gap-5">
-  <header class="flex flex-wrap items-end justify-between gap-3">
+<!--
+  A triagem da carteira. A tela responde "quais dos meus clientes estão com problema, e qual eu
+  atendo primeiro" — ver o javadoc de `ContadorPage` para o porquê de ela ter deixado de repetir as
+  outras três abas.
+-->
+<div class="page-container space-y-6 py-6">
+  <!-- ── Cabeçalho ── -->
+  <header class="flex flex-wrap items-end justify-between gap-4">
     <div>
-      <h1
-        class="flex items-center gap-2 font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl"
-      >
-        <svg lucideCalculator [size]="26" class="text-primary" />
-        Acompanhamento
-      </h1>
-      <p class="mt-1 text-apoio text-muted-foreground">{{ produtorNome() }}</p>
+      <h1 class="font-heading text-2xl font-semibold text-foreground">Acompanhamento</h1>
+      <p class="mt-1 text-apoio text-muted-foreground">
+        os clientes do escritório, na ordem de quem precisa de você
+      </p>
     </div>
 
-    <div class="flex flex-wrap gap-2">
-      <ui-button variant="ghost" [carregando]="baixandoRelatorio()" (click)="baixarRelatorio()">
-        <svg lucideDownload [size]="16" />
-        Relatório de conformidade
-      </ui-button>
-      <!-- Lancar guia e dar baixa moram em Prazos, que e a tela da cobranca. -->
-      <a
-        routerLink="/calendario"
-        class="tap-target inline-flex items-center gap-2 rounded-controle bg-primary px-4 text-apoio font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-      >
-        <svg lucideHandCoins [size]="16" aria-hidden="true" />
-        Prazos e cobrança
-      </a>
-    </div>
+    @if (!aindaNaoSabe() && !erro()) {
+      <p class="flex items-center gap-2 text-apoio text-muted-foreground">
+        <svg lucideUsers [size]="18" aria-hidden="true" />
+        <span>
+          <strong class="text-valor font-semibold text-foreground">{{ total() }}</strong>
+          {{ total() === 1 ? 'cliente' : 'clientes' }}
+          @if (quantosPedemAtencao() > 0) {
+            · <strong class="font-semibold text-perigo-ink">{{ quantosPedemAtencao() }}</strong>
+            {{ quantosPedemAtencao() === 1 ? 'pede atenção' : 'pedem atenção' }}
+          }
+        </span>
+      </p>
+    }
   </header>
 
-  <!-- Seletor de periodo. Governa os dois blocos abaixo; as guias ficam de fora de proposito. -->
-  <div class="flex flex-wrap items-center gap-2">
-    <span class="text-apoio text-muted-foreground">Fechando</span>
-    <select
-      class="tap-target rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
-      aria-label="Mês"
-      [value]="mes()"
-      (change)="mudarMes($any($event.target).value)"
-    >
-      @for (m of meses; track m.v) {
-        <option [value]="m.v" [selected]="m.v === mes()">{{ m.l }}</option>
-      }
-    </select>
-    <select
-      class="tap-target rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
-      aria-label="Ano"
-      [value]="ano()"
-      (change)="mudarAno($any($event.target).value)"
-    >
-      @for (a of anos(); track a) {
-        <option [value]="a" [selected]="a === ano()">{{ a }}</option>
-      }
-    </select>
+  <!-- ── Filtros ── -->
+  <div class="flex flex-wrap items-center gap-3 rounded-card border border-border bg-card p-3">
+    <label class="relative min-w-60 flex-1">
+      <span class="sr-only">Buscar cliente por nome ou CPF/CNPJ</span>
+      <svg
+        lucideSearch
+        [size]="18"
+        class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+        aria-hidden="true"
+      />
+      <input
+        type="search"
+        [value]="busca()"
+        (input)="busca.set($any($event.target).value)"
+        placeholder="Nome ou CPF/CNPJ completo"
+        class="tap-target w-full rounded-controle border border-border bg-background py-2 pl-10 pr-3 text-apoio text-foreground placeholder:text-muted-foreground focus-visible:border-primary"
+      />
+    </label>
+
+    <label class="tap-target flex cursor-pointer items-center gap-2 text-apoio text-foreground">
+      <input
+        type="checkbox"
+        [checked]="somenteAtencao()"
+        (change)="somenteAtencao.set($any($event.target).checked)"
+        class="size-4 rounded border-border accent-primary"
+      />
+      Só quem precisa de atenção
+    </label>
+
+    <label class="flex items-center gap-2 text-apoio text-muted-foreground">
+      Ordenar por
+      <select
+        [value]="ordem()"
+        (change)="ordem.set($any($event.target).value)"
+        class="tap-target rounded-controle border border-border bg-background px-2 py-2 text-apoio text-foreground"
+      >
+        <option value="urgencia">Urgência</option>
+        <option value="nome">Nome</option>
+      </select>
+    </label>
   </div>
 
-  <!--
-    ── 1. O QUE IMPEDE FECHAR ──
-    Primeiro bloco porque e a pergunta do contador. Antes a tela abria com tres numeros soltos
-    ("a pagar", "vencidas", "a corrigir") que nao diziam se o mes fecha ou nao.
-  -->
-  <section
-    class="rounded-card border p-5"
-    [class]="
-      apurandoImpedimentos()
-        ? 'border-border bg-card'
-        : podeFechar()
-          ? 'border-sucesso/30 bg-sucesso-soft'
-          : 'border-aviso/40 bg-aviso-soft'
-    "
-  >
-    <h2 class="flex items-center gap-2 font-heading text-lg font-semibold">
-      @if (apurandoImpedimentos()) {
-        <!-- Enquanto nao sabe, a tela nao opina. Ver `apurandoImpedimentos`. -->
-        <span class="text-muted-foreground">
-          Conferindo o que impede fechar {{ formatPeriodo(periodo()) }}…
-        </span>
-      } @else if (podeFechar()) {
-        <svg lucideCheck [size]="18" class="text-sucesso-ink" aria-hidden="true" />
-        <span class="text-sucesso-ink">Nada impede fechar {{ formatPeriodo(periodo()) }}</span>
-      } @else {
-        <svg lucideTriangleAlert [size]="18" class="text-aviso-ink" aria-hidden="true" />
-        <span class="text-aviso-ink">O que impede fechar {{ formatPeriodo(periodo()) }}</span>
-      }
-    </h2>
+  @if (buscaCurta()) {
+    <!--
+      O servidor recusa busca por trecho com menos de três caracteres (400). Em vez de mandar e
+      traduzir o erro, a tela diz o que falta e não gasta a requisição.
+    -->
+    <p class="text-apoio text-muted-foreground">
+      Digite ao menos três letras do nome — ou o CPF/CNPJ completo, que é buscado por igualdade
+      porque o documento é cifrado no banco.
+    </p>
+  }
 
-    @if (apurandoImpedimentos()) {
-      <ui-skeleton class="mt-2 block" [linhas]="2" />
-    } @else if (podeFechar()) {
-      <p class="mt-1 text-apoio text-sucesso-ink">
-        Sem nota pendente de correção no período e sem guia vencida.
+  <!-- ── Estados ── -->
+  @if (erro()) {
+    <ui-empty-state
+      titulo="Não foi possível carregar a carteira"
+      descricao="Se você entrou como produtor, esta tela é do escritório e o servidor responde 403. Sendo contador, pode ser queda de conexão."
+    >
+      <svg icone lucideTriangleAlert [size]="24" aria-hidden="true" />
+      <ui-button acao variant="ghost" (click)="recarregar()">Tentar de novo</ui-button>
+    </ui-empty-state>
+  } @else if (aindaNaoSabe()) {
+    <ui-skeleton [linhas]="3" formato="bloco" altura="5.5rem" />
+  } @else if (clientes().length === 0) {
+    <ui-empty-state
+      [titulo]="
+        somenteAtencao()
+          ? 'Nenhum cliente pedindo atenção'
+          : busca()
+            ? 'Nenhum cliente com esse nome ou documento'
+            : 'A carteira do escritório está vazia'
+      "
+      [descricao]="
+        somenteAtencao()
+          ? 'Desligue o filtro para ver a carteira inteira.'
+          : busca()
+            ? 'A busca por documento exige o número completo.'
+            : 'Um cliente entra na carteira quando o produtor aceita o convite do escritório.'
+      "
+    >
+      <svg icone lucideInbox [size]="24" aria-hidden="true" />
+      @if (somenteAtencao()) {
+        <ui-button acao variant="ghost" (click)="somenteAtencao.set(false)">
+          Ver a carteira inteira
+        </ui-button>
+      } @else if (busca()) {
+        <ui-button acao variant="ghost" (click)="limparBusca()">Limpar a busca</ui-button>
+      }
+    </ui-empty-state>
+  } @else {
+    @if (carteiraEmDia()) {
+      <!--
+        Só aparece depois que a carteira chegou (`carteiraEmDia` depende de `aindaNaoSabe`). Dizer
+        isto cedo e voltar atrás foi o defeito da versão anterior desta tela.
+      -->
+      <p
+        class="flex items-center gap-2 rounded-card border border-sucesso-borda bg-sucesso-soft px-4 py-3 text-apoio text-sucesso-ink"
+      >
+        <svg lucideCircleCheck [size]="18" aria-hidden="true" />
+        Nenhum cliente da carteira tem guia vencida, nota travada ou documento esperando.
       </p>
     }
 
-    <!-- Notas do periodo com inconsistencia. Expandir busca o que o fisco apontou de verdade. -->
-    @if (notasDoPeriodo().length) {
-      <h3 class="mt-4 text-apoio font-semibold tracking-wide text-aviso-ink uppercase">
-        {{
-          notasDoPeriodo().length === 1
-            ? '1 nota precisa de correção'
-            : notasDoPeriodo().length + ' notas precisam de correção'
-        }}
-      </h3>
-      <ul class="mt-1 flex flex-col">
-        @for (nota of notasDoPeriodo(); track nota.id) {
-          <li
-            class="animate-entra-subindo escalonado border-b border-aviso/20 last:border-0"
-            [style.--passo]="$index"
+    <ul class="space-y-3">
+      @for (cliente of clientes(); track cliente.vinculoId) {
+        <li>
+          <a
+            [routerLink]="['/contador', cliente.id]"
+            class="group flex items-center gap-4 rounded-card border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-surface"
           >
-            <button
-              type="button"
-              class="tap-target flex w-full items-center gap-2 py-2 text-left"
-              [attr.aria-expanded]="notaExpandida() === nota.id"
-              (click)="alternarNota(nota)"
-            >
-              @if (notaExpandida() === nota.id) {
-                <svg
-                  lucideChevronDown
-                  [size]="16"
-                  class="shrink-0 text-aviso-ink"
-                  aria-hidden="true"
-                />
-              } @else {
-                <svg
-                  lucideChevronRight
-                  [size]="16"
-                  class="shrink-0 text-aviso-ink"
-                  aria-hidden="true"
-                />
-              }
-              <span class="min-w-0 flex-1 text-apoio text-foreground">
-                <span class="font-medium">Nota {{ nota.numero }}</span>
-                · {{ nota.destinatarioNome }}
-                <span class="text-muted-foreground">· {{ formatDate(nota.dataEmissao) }}</span>
-              </span>
-              <ui-badge-status [status]="nota.status" />
-            </button>
-
-            @if (notaExpandida() === nota.id) {
-              <div class="pb-3 pl-6">
-                @if (carregandoValidacoes()) {
-                  <p class="flex items-center gap-2 text-apoio text-muted-foreground">
-                    <svg lucideLoaderCircle [size]="14" class="animate-spin" aria-hidden="true" />
-                    Buscando o que o fisco apontou…
-                  </p>
-                } @else if (validacoes().length) {
-                  <ul class="flex flex-col gap-1.5">
-                    @for (v of validacoes(); track v.code + (v.field ?? '')) {
-                      <li class="text-apoio leading-relaxed text-foreground">
-                        @if (v.field) {
-                          <span class="font-medium">{{ rotuloCampo(v.field) }}:</span>
-                        }
-                        {{ v.message }}
-                        @if (v.suggestion) {
-                          <span class="block text-muted-foreground">{{ v.suggestion }}</span>
-                        }
-                      </li>
-                    }
-                  </ul>
-                } @else {
-                  <p class="text-apoio text-muted-foreground">
-                    O backend não registrou validações para esta nota.
-                  </p>
+            <div class="min-w-0 flex-1 space-y-2">
+              <div class="flex flex-wrap items-center gap-2">
+                <h2 class="font-heading text-valor font-semibold text-foreground">
+                  {{ cliente.nomeCompleto }}
+                </h2>
+                @for (etiqueta of cliente.etiquetas; track etiqueta) {
+                  <span
+                    class="rounded-full bg-surface-2 px-2 py-0.5 text-apoio text-muted-foreground"
+                  >
+                    {{ etiqueta }}
+                  </span>
                 }
               </div>
-            }
-          </li>
-        }
-      </ul>
-      <p class="mt-2 text-apoio text-muted-foreground">
-        A correção é feita em
-        <a routerLink="/documentos" class="font-medium text-primary underline">Notas do produtor</a
-        >.
-      </p>
-    }
 
-    <!-- Guia vencida fica fora do filtro de periodo de proposito: atraso de agosto nao some
-         porque o contador esta olhando outubro. -->
-    @if (guiasVencidas().length) {
-      <h3 class="mt-4 text-apoio font-semibold tracking-wide text-aviso-ink uppercase">
-        {{
-          guiasVencidas().length === 1
-            ? '1 guia vencida'
-            : guiasVencidas().length + ' guias vencidas'
-        }}
-        <span class="font-normal normal-case">— de qualquer mês</span>
-      </h3>
-      <ul class="mt-1 flex flex-col gap-1">
-        @for (guia of guiasVencidas(); track guia.id) {
-          <li
-            class="animate-entra-subindo escalonado flex flex-wrap items-center justify-between gap-2 text-apoio"
-            [style.--passo]="$index"
-          >
-            <span class="text-foreground">
-              <span class="font-medium">{{ guia.tipoGuia }}</span>
-              · venceu {{ formatDate(guia.dataVencimento) }}
-            </span>
-            <span class="font-semibold tabular-nums text-foreground">
-              {{ formatCurrency(guia.valor) }}
-            </span>
-          </li>
-        }
-      </ul>
-      <a
-        routerLink="/calendario"
-        class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
-      >
-        Cobrar em Prazos
-      </a>
-    }
-  </section>
+              <p class="text-apoio text-muted-foreground">
+                {{ identificacao(cliente) }}
+                @if (cliente.responsavelNome) {
+                  · responsável: {{ cliente.responsavelNome }}
+                }
+              </p>
+
+              @if (cliente.situacaoVinculo !== 'ATIVO') {
+                <!--
+                  Vínculo não ativo vem sem `atencao`: o escritório não alcança os dados. A tela diz
+                  isso em vez de mostrar zeros, que se leriam como "está tudo em dia".
+                -->
+                <p class="text-apoio text-aviso-ink">{{ rotuloSituacao(cliente) }}</p>
+              } @else if (estaEmDia(cliente)) {
+                <p class="flex items-center gap-1.5 text-apoio text-sucesso-ink">
+                  <svg lucideCircleCheck [size]="16" aria-hidden="true" />
+                  Em dia
+                </p>
+              } @else {
+                <ul class="flex flex-wrap gap-2">
+                  @for (sinal of sinaisDe(cliente); track sinal.chave) {
+                    <li
+                      class="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-apoio font-medium"
+                      [class]="
+                        sinal.tom === 'perigo'
+                          ? 'bg-perigo-soft text-perigo-ink'
+                          : sinal.tom === 'aviso'
+                            ? 'bg-aviso-soft text-aviso-ink'
+                            : 'bg-info-soft text-info-ink'
+                      "
+                    >
+                      @switch (sinal.chave) {
+                        @case ('guiasVencidas') {
+                          <svg lucideHandCoins [size]="15" aria-hidden="true" />
+                        }
+                        @case ('vencimentosProximos7Dias') {
+                          <svg lucideHandCoins [size]="15" aria-hidden="true" />
+                        }
+                        @case ('notasComInconsistencia') {
+                          <svg lucideFileWarning [size]="15" aria-hidden="true" />
+                        }
+                        @case ('notasAguardandoAprovacao') {
+                          <svg lucideStamp [size]="15" aria-hidden="true" />
+                        }
+                        @default {
+                          <svg lucideInbox [size]="15" aria-hidden="true" />
+                        }
+                      }
+                      <strong class="font-semibold">{{ sinal.quantidade }}</strong>
+                      {{ sinal.rotulo }}
+                    </li>
+                  }
+                </ul>
+              }
+            </div>
+
+            <svg
+              lucideChevronRight
+              [size]="20"
+              class="shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+              aria-hidden="true"
+            />
+          </a>
+        </li>
+      }
+    </ul>
+  }
 
   <!--
-    ── 2. OS NUMEROS DO PERIODO ──
-    O relatorio de conformidade na tela, nao so no PDF: o contador nao deveria precisar baixar um
-    arquivo para saber quanto deu o mes.
+    O que esta tela não mostra, e por quê. O hábito da casa é dizer na tela o que não existe em vez
+    de preencher com dado de exemplo.
   -->
-  <section class="rounded-card border border-border bg-card p-5 shadow-suave">
-    <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h2 class="font-heading text-lg font-semibold text-foreground">
-          Os números de {{ formatPeriodo(periodo()) }}
-        </h2>
-        @if (apuracaoDoPeriodo(); as ap) {
-          <p class="text-apoio text-muted-foreground">
-            Apuração
-            {{
-              ap.status === 'FECHADO'
-                ? 'fechada'
-                : ap.status === 'EM_PROCESSAMENTO'
-                  ? 'em processamento'
-                  : 'aberta'
-            }}
-            @if (ap.dataFechamento) {
-              <span>em {{ formatDate(ap.dataFechamento) }}</span>
-            } @else {
-              <span>— os valores ainda mudam a cada nota autorizada</span>
-            }
-          </p>
-        }
-      </div>
-      @if (carregandoNumeros()) {
-        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-      }
-    </div>
-
-    @if (conta(); as c) {
-      <div class="grid gap-3 sm:grid-cols-3">
-        <ui-stat
-          compacto
-          rotulo="Débito das saídas"
-          [valor]="formatCurrency(c.debitoTotal)"
-          [apoio]="c.quantidadeSaidas + ' nota(s) autorizada(s)'"
-        />
-        <ui-stat
-          compacto
-          rotulo="Crédito das entradas"
-          [valor]="formatCurrency(c.creditoTotal)"
-          [apoio]="c.quantidadeEntradas + ' nota(s) de entrada'"
-          tom="positivo"
-        />
-        <ui-stat
-          compacto
-          [rotulo]="saldoCredor() ? 'Saldo credor' : 'Saldo a pagar'"
-          [valor]="formatCurrency(c.saldoAPagar)"
-          apoio="débito menos crédito"
-          [tom]="saldoCredor() ? 'positivo' : 'negativo'"
-        />
-      </div>
-      <p class="mt-3 text-apoio text-muted-foreground">
-        IBS {{ formatCurrency(c.debitoIbs) }} e CBS {{ formatCurrency(c.debitoCbs) }} no débito; IBS
-        {{ formatCurrency(c.creditoIbs) }} e CBS {{ formatCurrency(c.creditoCbs) }} no crédito.
-      </p>
-      <!-- A triagem da o titular; a conferencia inteira (matriz, notas de fora, variacao) e em
-           Fechamento. Esta tela aponta, nao repete. -->
-      <a
-        routerLink="/tributario"
-        class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
-      >
-        Conferir o fechamento
-      </a>
-    } @else if (erroNumeros()) {
-      <p class="text-apoio text-muted-foreground">
-        Não foi possível carregar os números do período.
-      </p>
-    } @else if (!carregandoNumeros()) {
-      <p class="text-apoio text-muted-foreground">Sem movimento no período.</p>
-    }
-  </section>
-
-  <!-- O que saiu da tela, dito com todas as letras (#50) -->
-  <p class="rounded-card border border-border bg-surface p-4 text-apoio text-muted-foreground">
-    Solicitações de documentos ao produtor, anexos e o checklist de fechamento
-    <strong class="text-foreground">ainda não existem no backend</strong> e por isso saíram desta
-    tela. Antes eles apareciam preenchidos com dados de exemplo, o que dava a impressão de haver
-    pendências reais.
+  <p class="border-t border-border pt-4 text-apoio text-muted-foreground">
+    A apuração e o relatório de conformidade de um cliente ainda não têm rota no escopo do
+    escritório — <code>/api/apuracao</code> responde 403 para contador e não há a versão por
+    cliente. Enquanto isso o Fechamento lê a identidade atual, não o cliente escolhido. Pedido em
+    SupersonicTeam/backend#255.
   </p>
 </div>

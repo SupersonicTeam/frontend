@@ -134,4 +134,97 @@ describe('CalendarioApi', () => {
     expect(erro).toBeTruthy();
     expect(resultado).toBeUndefined();
   });
+
+  /**
+   * Obrigacao nao e guia (backend#181).
+   *
+   * O calendario passou a devolver tres coisas: guia (`imposto`, com status e valor), pedido de
+   * documento (`solicitacao`) e **obrigacao** -- que vem com `status: null` e `valor: null`,
+   * mais `periodicidade` e `origem`. Medido em 28/10.
+   *
+   * O mapeamento jogava qualquer status desconhecido em `pendente`, inclusive o `null` da
+   * obrigacao. Dai a data no passado a transformava em "atrasada", e a tela do produtor mostrava
+   * o **Fechamento da apuracao** com o aviso "guia atrasada costuma ter multa e juros" -- um
+   * conselho de pagamento para algo que nao se paga.
+   */
+  describe('obrigacoes (#181)', () => {
+    const obrigacao = {
+      id: '00000000-0000-4000-8181-000000000007:2026-11-20',
+      evento: 'Funrural (recolhimento)',
+      descricao: 'Contribuicao do produtor rural sobre a comercializacao',
+      dataVencimento: '2026-11-20',
+      tipo: 'obrigacao',
+      status: null,
+      valor: null,
+      periodicidade: 'MENSAL',
+      origem: 'Lei 8.212/1991, art. 30',
+    };
+
+    function pedir() {
+      let recebidos: VencimentoFiscal[] | undefined;
+      service.getVencimentos('p1').subscribe((v) => (recebidos = v));
+      return () => recebidos;
+    }
+
+    it('obrigacao chega SEM status: ela nao se paga, entao nao esta pendente', () => {
+      const ler = pedir();
+      httpMock.expectOne((r) => r.url.includes('/vencimentos')).flush([obrigacao]);
+
+      expect(ler()![0]!.status).toBeNull();
+    });
+
+    it('obrigacao chega sem valor', () => {
+      const ler = pedir();
+      httpMock.expectOne((r) => r.url.includes('/vencimentos')).flush([obrigacao]);
+
+      expect(ler()![0]!.valor).toBeUndefined();
+    });
+
+    it('a periodicidade e a origem chegam: e a procedencia do prazo', () => {
+      const ler = pedir();
+      httpMock.expectOne((r) => r.url.includes('/vencimentos')).flush([obrigacao]);
+
+      expect(ler()![0]!.periodicidade).toBe('MENSAL');
+      expect(ler()![0]!.origem).toBe('Lei 8.212/1991, art. 30');
+    });
+
+    it('o id composto passa inteiro: nao e UUID nem numero', () => {
+      const ler = pedir();
+      httpMock.expectOne((r) => r.url.includes('/vencimentos')).flush([obrigacao]);
+
+      expect(ler()![0]!.id).toBe('00000000-0000-4000-8181-000000000007:2026-11-20');
+    });
+
+    it('a guia continua com status e valor', () => {
+      const ler = pedir();
+      httpMock
+        .expectOne((r) => r.url.includes('/vencimentos'))
+        .flush([
+          {
+            id: 'g1',
+            evento: 'Guia DARF',
+            dataVencimento: '2026-10-31',
+            tipo: 'imposto',
+            status: 'pendente',
+            valor: 640.9,
+          },
+        ]);
+
+      expect(ler()![0]!.status).toBe('pendente');
+      expect(ler()![0]!.valor).toBe(640.9);
+    });
+
+    it('status desconhecido numa GUIA continua virando pendente', () => {
+      const ler = pedir();
+      httpMock
+        .expectOne((r) => r.url.includes('/vencimentos'))
+        .flush([
+          { id: 'g1', evento: 'Guia', dataVencimento: '2026-10-31', tipo: 'imposto', status: 'ALGO' },
+        ]);
+
+      // O `null` da obrigacao e informacao; um status que nao reconhecemos numa guia e ruido,
+      // e supor "pendente" ali e o que mantem a guia visivel.
+      expect(ler()![0]!.status).toBe('pendente');
+    });
+  });
 });

@@ -76,7 +76,7 @@
             ></span>
             <div class="flex flex-wrap items-baseline justify-between gap-x-4">
               <p class="font-heading text-lg font-bold text-perigo-ink">
-                {{ rotuloPrazo(v.dataVencimento) }}
+                {{ rotuloPrazoDe(v) }}
               </p>
               @if (v.valor) {
                 <p class="font-heading text-lg font-bold tabular-nums text-perigo-ink">
@@ -86,11 +86,24 @@
             </div>
             <p class="text-valor font-medium text-foreground">{{ v.titulo }}</p>
             <p class="text-apoio text-muted-foreground">{{ frasePrazo(v) }}</p>
-            <!-- O aviso vem colado no item que o provoca, e so no primeiro: antes ele era uma
-               faixa vermelha no topo da tela, longe da guia de que falava. -->
-            @if ($first) {
+            <!-- O aviso vem colado no item que o provoca, e so na primeira GUIA: antes ele era
+                 uma faixa vermelha no topo da tela, longe da guia de que falava, e depois passou a
+                 sair no primeiro atrasado qualquer -- de modo que o Fechamento da apuracao, que
+                 nao se paga, aparecia com conselho de multa e juros (backend#181). -->
+            @if (primeiraGuiaAtrasada()?.id === v.id) {
               <p class="mt-1.5 text-apoio text-perigo-ink">
                 Guia atrasada costuma ter multa e juros. Procure o seu escritório de contabilidade.
+              </p>
+            }
+            <!-- A procedencia da obrigacao: de onde ela vem e de quanto em quanto tempo volta. -->
+            @if (v.origem || v.periodicidade) {
+              <p class="mt-1 text-apoio text-muted-foreground">
+                @if (v.periodicidade) {
+                  {{ rotuloPeriodicidade(v.periodicidade) }}
+                }
+                @if (v.origem) {
+                  · {{ v.origem }}
+                }
               </p>
             }
           </li>
@@ -123,7 +136,7 @@
                 class="font-heading font-bold"
                 [class]="$first ? 'text-2xl text-aviso-ink' : 'text-lg text-foreground'"
               >
-                {{ rotuloPrazo(v.dataVencimento) }}
+                {{ rotuloPrazoDe(v) }}
               </p>
               @if (v.valor) {
                 <p

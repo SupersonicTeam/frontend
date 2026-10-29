@@ -40,3 +40,46 @@ describe('rotas por papel', () => {
     expect(guardsDe(path)).toEqual([]);
   });
 });
+
+/**
+ * Todo `routerLink` do app aponta para uma rota que existe (issue #112).
+ *
+ * "Ver as minhas notas", em Impostos, apontava para `/notas` -- rota que nunca existiu. O Angular
+ * nao avisa: ele cai no `**`, que redirecionava para a raiz, e a pessoa ia parar no painel sem
+ * entender por que o link nao levou onde dizia.
+ *
+ * A lista e escrita a mao de proposito: o teste tem de reprovar quando **o codigo** ganhar um
+ * link novo para uma rota inexistente, e um teste que lesse os dois lados do mesmo lugar nao
+ * reprovaria nunca.
+ */
+describe('links do app (#112)', () => {
+  /** Todos os `routerLink="/..."` que existem nos templates, em 29/10/2026. */
+  const DESTINOS = [
+    '/calendario',
+    '/chat',
+    '/configuracoes',
+    '/contador',
+    '/dashboard',
+    '/documentos',
+    '/tributario',
+  ];
+
+  const caminhos = (routes.find((r) => r.path === '')?.children ?? [])
+    .map((r) => r.path)
+    .filter((p): p is string => typeof p === 'string');
+
+  it('cada destino tem rota', () => {
+    for (const destino of DESTINOS) {
+      expect(caminhos, destino).toContain(destino.replace('/', ''));
+    }
+  });
+
+  it('a rota desconhecida mostra uma pagina, nao um redirect mudo', () => {
+    const coringa = routes.find((r) => r.path === '**');
+
+    expect(coringa).toBeDefined();
+    // `redirectTo: ''` jogava a pessoa no painel sem dizer que o endereco nao existe.
+    expect(coringa?.redirectTo).toBeUndefined();
+    expect(coringa?.loadComponent).toBeDefined();
+  });
+});

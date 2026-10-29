@@ -37,6 +37,14 @@ export const routes: Routes = [
         canActivate: [contadorGuard],
         loadComponent: () => import('@pages/contador/contador').then((m) => m.ContadorPage),
       },
+      {
+        // Um cliente da carteira (#95). Rota filha e não query param: o endereço de um cliente é
+        // compartilhável e volta no histórico, e `/contador` continua sendo a fila de trabalho.
+        // O guard é o mesmo — a carteira é do escritório.
+        path: 'contador/:produtorId',
+        canActivate: [contadorGuard],
+        loadComponent: () => import('@pages/contador/cliente').then((m) => m.ClientePage),
+      },
 
       // ── Dos dois, com **telas diferentes** por papel. Não é o mesmo componente com textos
       // trocados: `/tributario` escolhe entre dois componentes próprios, porque produtor e contador
@@ -60,7 +68,13 @@ export const routes: Routes = [
       },
     ],
   },
-  // Cada papel tem a sua home; mandar todo mundo para /dashboard jogava o contador
-  // numa rota que o guard devolve na hora.
-  { path: '**', redirectTo: '' },
+  // Endereco desconhecido mostra uma PAGINA, nao um redirect mudo (#112). Com `redirectTo: ''`
+  // quem clicava num link quebrado ia parar no painel sem aviso, achando que o link nao tinha
+  // funcionado. A pagina fica fora do `AppLayout` de proposito: ela responde tambem a quem ainda
+  // nao escolheu perfil, e o botao dela leva ao inicio do papel certo.
+  {
+    path: '**',
+    loadComponent: () =>
+      import('@pages/nao-encontrada/nao-encontrada').then((m) => m.NaoEncontradaPage),
+  },
 ];

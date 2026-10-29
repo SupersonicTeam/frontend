@@ -1,4 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, EMPTY, catchError, switchMap, tap } from 'rxjs';
 import {
   LucideTrendingUp,
   LucideDollarSign,
@@ -50,12 +52,15 @@ import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiCard } from '@shared/ui/ui-card';
+import { UiTermo } from '@shared/ui/ui-termo';
+import { TERMOS_FISCAIS } from '@core/utils/glossario';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiModal } from '@shared/ui/ui-modal';
 import { UiInsight } from '@shared/ui/ui-insight';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { UiStat } from '@shared/ui/ui-stat';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
 import { ToastService } from '@core/services/toast.service';
@@ -75,6 +80,14 @@ interface DocItem {
 const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 /** Converte "YYYY-MM" (contrato do backend) no rótulo curto em pt-BR ("Mai/26"). */
+/** Os doze meses, por numero. O que a tela oferece sai de `meses()`, que corta os futuros. */
+const MESES_DO_ANO = [
+  { v: 1, nome: 'Janeiro' }, { v: 2, nome: 'Fevereiro' }, { v: 3, nome: 'Março' },
+  { v: 4, nome: 'Abril' }, { v: 5, nome: 'Maio' }, { v: 6, nome: 'Junho' },
+  { v: 7, nome: 'Julho' }, { v: 8, nome: 'Agosto' }, { v: 9, nome: 'Setembro' },
+  { v: 10, nome: 'Outubro' }, { v: 11, nome: 'Novembro' }, { v: 12, nome: 'Dezembro' },
+];
+
 function mesLabelFromPeriodo(periodo: string): string {
   const [ano, mes] = periodo.split('-').map(Number);
   if (!ano || !mes || mes < 1 || mes > 12) return periodo;
@@ -104,6 +117,7 @@ function mesLabelFromPeriodo(periodo: string): string {
     UiBadgeStatus,
     UiButton,
     UiCard,
+    UiTermo,
     UiEmptyState,
     UiInsight,
     UiModal,
@@ -272,36 +286,76 @@ export class DashboardPage implements OnInit {
   // Simulador — breakdown de impostos derivado dos KPIs do periodo (nao soma notas)
   showSimuladorDetalhe = signal(false);
 
+  /**
+   * O débito do período, por tributo — **só o que a API devolve** (issue #110).
+   *
+   * Antes isto eram três linhas com alíquota cravada: CBS 3,5% ("8,8%" riscado), IBS Estadual
+   * 5,1% e IBS Municipal 2,0%. Três coisas estavam erradas, todas medidas contra a API em 28/10:
+   *
+   * 1. **As alíquotas.** As de 2026 são `aliquotaCbs: 0.009` e `aliquotaIbs: 0.001` — 0,9% e 0,1%.
+   * 2. **A repartição.** O IBS era dividido 72/28 entre "Estadual" e "Municipal". O backend não
+   *    faz essa divisão nem a devolve em lugar nenhum: ela era invenção da tela.
+   * 3. **A redução.** O selo "-60%" saía em todos, quando só o milho tem base reduzida.
+   *
+   * Agora são os dois tributos do contrato, com o valor inteiro do KPI. A alíquota **não aparece
+   * aqui**: o KPI é a soma de itens com bases diferentes, e dividir isso daria um número que não é
+   * alíquota de nada. A alíquota real é por item, e o lugar dela é a nota.
+   */
   readonly impostoBreakdown = computed(() => {
     const kpis = this.dashboard()?.kpis;
     if (!kpis) return [];
     return [
-      { nome: 'CBS', aliquota: '3,5%', original: '8,8%', valor: kpis.debitoCbs, reducao: true },
-      { nome: 'IBS Estadual', aliquota: '5,1%', original: '12,7%', valor: kpis.debitoIbs * 0.72, reducao: true },
-      { nome: 'IBS Municipal', aliquota: '2,0%', original: '5,0%', valor: kpis.debitoIbs * 0.28, reducao: true },
-    ].filter(item => item.valor > 0);
+      { nome: 'IBS', valor: kpis.debitoIbs },
+      { nome: 'CBS', valor: kpis.debitoCbs },
+    ].filter((item) => item.valor > 0);
   });
 
   readonly totalImpostoCalculado = computed(() =>
-    this.impostoBreakdown().reduce((s, i) => s + i.valor, 0)
+    this.impostoBreakdown().reduce((s, i) => s + i.valor, 0),
   );
 
-  // Apuracao: periodo selecionavel (mes/ano) + status (#12) — exibicao apenas; MVP carrega so o mes corrente
-  readonly meses = [
-    { v: 1, nome: 'Janeiro' }, { v: 2, nome: 'Fevereiro' }, { v: 3, nome: 'Março' },
-    { v: 4, nome: 'Abril' }, { v: 5, nome: 'Maio' }, { v: 6, nome: 'Junho' },
-    { v: 7, nome: 'Julho' }, { v: 8, nome: 'Agosto' }, { v: 9, nome: 'Setembro' },
-    { v: 10, nome: 'Outubro' }, { v: 11, nome: 'Novembro' }, { v: 12, nome: 'Dezembro' },
-  ];
+  /**
+   * A carga efetiva do período, em porcentagem — **derivada**, nunca cravada.
+   *
+   * É o imposto sobre o que entrou: na base de setembro, 1.809,50 / 180.950 = **1,0%**. O template
+   * dizia "~10,6%", número que não vinha de lugar nenhum.
+   *
+   * `null` quando não há faturamento: sem denominador não há carga, e mostrar "0%" sugeriria que
+   * o produtor vendeu e não pagou nada.
+   */
+  readonly cargaEfetiva = computed(() => {
+    const entradas = this.dashboard()?.financeiro?.totalEntradas ?? 0;
+    if (entradas <= 0) return null;
+    return (this.totalImpostoCalculado() / entradas) * 100;
+  });
+
+  // Apuracao: periodo selecionavel (mes/ano) + status (#12).
   readonly anos = [
     new Date().getFullYear(),
     new Date().getFullYear() - 1,
     new Date().getFullYear() - 2,
   ];
+
+  /**
+   * Os meses que **ja aconteceram** no ano escolhido (#114).
+   *
+   * A lista era fixa nos doze. Em outubro de 2026 o produtor podia escolher novembro e dezembro
+   * de 2026 -- meses que nao existem ainda -- e o painel respondia com tudo zerado: faturamento
+   * zero, imposto zero, nenhuma nota. Parece app quebrado, e nao e: foi a tela que ofereceu uma
+   * pergunta sem resposta possivel.
+   *
+   * O corte so vale para o ano corrente; em 2025 os doze continuam validos.
+   */
+  readonly meses = computed(() => {
+    const hoje = new Date();
+    const ultimo = this.periodoAno() === hoje.getFullYear() ? hoje.getMonth() + 1 : 12;
+    return MESES_DO_ANO.filter((m) => m.v <= ultimo);
+  });
   readonly periodoMes = signal(new Date().getMonth() + 1);
   readonly periodoAno = signal(new Date().getFullYear());
 
   private readonly tributarioApi = inject(TributarioApi);
+  private readonly authApi = inject(AuthApi);
 
   /** Periodo escolhido, no formato que os endpoints pedem. */
   readonly periodoSelecionado = computed(
@@ -330,25 +384,57 @@ export class DashboardPage implements OnInit {
     return { label: 'Verificando…', classe: 'bg-surface-2 text-muted-foreground' };
   });
 
+  /**
+   * Cada troca de periodo entra por aqui, e **cancela a anterior** (issue #108).
+   *
+   * Antes `trocarPeriodo` disparava dois `subscribe` soltos, e nada cancelava os de antes. Maio ->
+   * Julho com a resposta de maio atrasada: ela chegava por ultimo e o `tap` do service gravava os
+   * valores de maio no signal, com Julho selecionado no seletor -- R$ 102.900 debaixo do rotulo
+   * errado. Reproduzivel, e foi assim que o teste manual de 28/10 pegou.
+   *
+   * O `switchMap` resolve na raiz: ao chegar o periodo novo ele desinscreve do anterior, e o
+   * `HttpClient` **aborta a requisicao**. Resposta que nao existe nao sobrescreve nada.
+   *
+   * O `catchError` fica **dentro** do `switchMap`: se subisse, o erro mataria o fluxo e a proxima
+   * troca de mes nao carregaria mais nada.
+   */
+  private readonly periodoPedido = new Subject<string>();
+
+  private readonly painelPorPeriodo = this.periodoPedido
+    .pipe(
+      tap(() => {
+        this.loading.set(true);
+        this.erro.set(false);
+      }),
+      switchMap((periodo) =>
+        this.dashboardService.carregar(periodo).pipe(
+          catchError(() => {
+            this.loading.set(false);
+            this.erro.set(true);
+            return EMPTY;
+          }),
+        ),
+      ),
+      takeUntilDestroyed(),
+    )
+    .subscribe(() => {
+      this.loading.set(false);
+      this.carregarNotasComProblema();
+    });
+
+  private readonly apuracaoPorPeriodo = this.periodoPedido
+    .pipe(
+      tap(() => this.statusDoBackend.set(null)),
+      switchMap((periodo) =>
+        this.tributarioApi.apuracao(periodo).pipe(catchError(() => EMPTY)),
+      ),
+      takeUntilDestroyed(),
+    )
+    .subscribe((a) => this.statusDoBackend.set(a.status ?? null));
+
   /** Recarrega painel e apuracao para o periodo escolhido. */
   private trocarPeriodo(): void {
-    const periodo = this.periodoSelecionado();
-    this.loading.set(true);
-    this.dashboardService.carregar(periodo).subscribe({
-      next: () => {
-        this.loading.set(false);
-        this.carregarNotasComProblema();
-      },
-      error: () => {
-        this.loading.set(false);
-        this.erro.set(true);
-      },
-    });
-    this.statusDoBackend.set(null);
-    this.tributarioApi.apuracao(periodo).subscribe({
-      next: (a) => this.statusDoBackend.set(a.status ?? null),
-      error: () => this.statusDoBackend.set(null),
-    });
+    this.periodoPedido.next(this.periodoSelecionado());
   }
 
   setMes(valor: string): void {
@@ -358,6 +444,11 @@ export class DashboardPage implements OnInit {
 
   setAno(valor: string): void {
     this.periodoAno.set(Number(valor));
+    // Vindo de um ano passado com mes alto (dezembro/2025) para o ano corrente, o mes escolhido
+    // passaria a ser futuro. Puxa para o ultimo mes que existe, senao o painel pediria um periodo
+    // que a lista de meses nem oferece mais.
+    const ultimo = this.meses().at(-1)?.v ?? 12;
+    if (this.periodoMes() > ultimo) this.periodoMes.set(ultimo);
     this.trocarPeriodo();
   }
 
@@ -487,23 +578,41 @@ export class DashboardPage implements OnInit {
     });
   }
 
-  /** Abre o glossario de um termo fiscal (IBS, CBS, credito). */
-  readonly termoExplicado = signal<string | null>(null);
+  /**
+   * O glossario fiscal (#105).
+   *
+   * Aqui havia um `termoExplicado` e um `explicar()` com o comentario "Abre o glossario de um
+   * termo fiscal (IBS, CBS, credito)" -- e **nenhum dos dois era referenciado em lugar nenhum**:
+   * nem template, nem teste, nem outro arquivo. Era andaime parecendo feature. O conteudo morava
+   * noutro lugar: um paragrafo corrido dentro do painel recolhido, explicando os cinco termos de
+   * uma vez. As frases sao as mesmas; cada uma agora presa ao termo que explica.
+   */
+  readonly termosFiscais = TERMOS_FISCAIS;
 
-  explicar(termo: string): void {
-    this.termoExplicado.set(this.termoExplicado() === termo ? null : termo);
+  private readonly assistenteStore = inject(AssistenteStore);
+
+  /** O verbete entrega a pergunta pronta a Ceres -- "glossario e atalhos alinhados" da issue. */
+  perguntarSobre(pergunta: string): void {
+    this.assistenteStore.abrirPerguntando(pergunta);
   }
 
   ngOnInit(): void {
-    this.carregarDashboard();
-    // O selo da apuracao tambem vem do backend na primeira carga.
-    this.tributarioApi.apuracao(this.periodoSelecionado()).subscribe({
-      next: a => this.statusDoBackend.set(a.status ?? null),
-      error: () => this.statusDoBackend.set(null),
-    });
+    // **Um caminho so** para carregar o painel (#114). Antes a primeira carga corria por fora dos
+    // pipelines: `carregarDashboard()` chamava `carregar()` SEM periodo enquanto o seletor ja
+    // exibia o mes corrente, e logo abaixo vinha um `apuracao(periodoSelecionado())` solto. Os
+    // numeros vinham do padrao do backend e o seletor afirmava outra coisa.
+    //
+    // `trocarPeriodo()` empurra o periodo escolhido nos dois pipelines, que ja fazem tudo o que
+    // aquelas duas chamadas faziam -- inclusive o estado de carregando e o selo da apuracao.
+    this.trocarPeriodo();
 
     this.loadingAlertas.set(true);
-    this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID).subscribe({
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(switchMap((sessao) => this.calendarioService.getVencimentos(sessao.usuarioId)))
+      .subscribe({
       next: data => {
         const ordenados = data
           .slice()
@@ -516,24 +625,10 @@ export class DashboardPage implements OnInit {
     });
   }
 
-  /** Carrega GET /api/dashboard (mes corrente). Sem fallback mock — erro vira estado de retry. */
-  carregarDashboard(): void {
-    this.loading.set(true);
-    this.erro.set(false);
-    this.dashboardService.carregar().subscribe({
-      next: () => {
-        this.loading.set(false);
-        this.carregarNotasComProblema();
-      },
-      error: () => {
-        this.loading.set(false);
-        this.erro.set(true);
-      },
-    });
-  }
-
   tentarNovamente(): void {
-    this.carregarDashboard();
+    // Refaz **o periodo escolhido**. Antes voltava ao padrao do backend com o seletor intacto:
+    // quem errasse num mes antigo e clicasse "tentar novamente" via o mes corrente aparecer.
+    this.trocarPeriodo();
   }
 
   abrirPreview(doc: DocItem): void {
@@ -560,7 +655,12 @@ export class DashboardPage implements OnInit {
 
   handleNotificarWhatsApp(): void {
     this.enviandoNotificacao.set(true);
-    this.notificacaoService.notificarProximasObrigacoes(LOGGED_PRODUCER_ID).subscribe({
+    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
+    // devolve o id do autenticado. Ver `AuthApi`.
+    this.authApi
+      .carregar()
+      .pipe(switchMap((sessao) => this.notificacaoService.notificarProximasObrigacoes(sessao.usuarioId)))
+      .subscribe({
       next: res => {
         this.enviandoNotificacao.set(false);
         if (res.indisponivel) {

@@ -166,7 +166,8 @@ export class AssistenteStore {
     if (this.carregou) return;
     this.carregou = true;
 
-    this.dashboardApi.carregar().subscribe({ error: () => undefined });
+    // A Ceres quer contexto, nao um periodo: nao pode derrubar o mes que o produtor escolheu.
+    this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
     this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
       next: (pagina) =>
         this.notasPendentes.set(
@@ -220,6 +221,24 @@ export class AssistenteStore {
 
   fechar(): void {
     this.aberto.set(false);
+  }
+
+  /**
+   * Esquece a conversa e o contexto. Chamado ao **sair** (trocar de perfil).
+   *
+   * `mensagens`, `notasPendentes` e `carregou` são estado de sessão num service `root`: sem isto,
+   * a conversa de quem saiu continuava na tela para quem entrou.
+   */
+  limpar(): void {
+    this.cancelar(false);
+    this.mensagens.set([]);
+    this.entrada.set('');
+    this.aberto.set(false);
+    this.enviando.set(false);
+    this.bloqueadoPorPapel.set(false);
+    this.notasPendentes.set(0);
+    this.carregou = false;
+    this.limparNota();
   }
 
   limparNota(): void {

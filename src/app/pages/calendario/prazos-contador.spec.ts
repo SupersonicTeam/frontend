@@ -44,9 +44,25 @@ describe('PrazosContador', () => {
 
   afterEach(() => httpMock.verify());
 
+  /**
+   * A carteira do escritorio (#106). A tela era cravada no produtor semente -- em duas chamadas,
+   * a que lista e a que **lanca**. Dois clientes aqui de proposito: e o que faz o seletor existir
+   * e prova que a guia nasce no escolhido, nao no primeiro.
+   */
+  const CLIENTES = [
+    { vinculoId: 'v1', id: 'p-joao', nomeCompleto: 'João da Silva Produtor', situacaoVinculo: 'ATIVO', etiquetas: [] },
+    { vinculoId: 'v2', id: 'p-maria', nomeCompleto: 'Maria Agricultora', situacaoVinculo: 'ATIVO', etiquetas: [] },
+  ];
+
+  /** Responde a carteira que o `ngOnInit` busca antes das guias. */
+  function flushCarteira(clientes: unknown[] = CLIENTES) {
+    httpMock.expectOne((r) => r.url === '/contador/produtores').flush(clientes);
+  }
+
   function montar(guias: GuiaFiscal[] = []) {
     const fixture = TestBed.createComponent(PrazosContador);
     fixture.detectChanges();
+    flushCarteira();
     httpMock.expectOne((r) => r.url === '/contador/guias').flush(guias);
     fixture.detectChanges();
     return fixture;
@@ -156,14 +172,136 @@ describe('PrazosContador', () => {
     expect(cmp.rotuloStatus('pago')).toBe('Paga');
   });
 
+  /**
+   * O produtor certo (issue #106).
+   *
+   * A tela era cravada em `LOGGED_PRODUCER_ID`, em **duas** chamadas: a que lista e a que lanca.
+   * Medido contra a API local em 29/10, a carteira semeada tem dois clientes -- o escritorio nunca
+   * via as guias do segundo, e qualquer guia que lancasse ia para o primeiro, mesmo achando que
+   * atendia o outro. Escrita no cliente errado e bem pior do que leitura errada.
+   */
+  describe('as guias sao do cliente escolhido (#106)', () => {
+    it('abre no primeiro da carteira e pergunta as guias DELE', () => {
+      const fixture = TestBed.createComponent(PrazosContador);
+      fixture.detectChanges();
+      flushCarteira();
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
+      expect(req.request.params.get('produtorId')).toBe('p-joao');
+      req.flush([]);
+      expect(fixture.componentInstance.clienteAtual()?.nomeCompleto).toBe('João da Silva Produtor');
+    });
+
+    it('trocar de cliente refaz a busca para o outro', () => {
+      const cmp = montar().componentInstance;
+
+      cmp.trocarCliente('p-maria');
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
+      expect(req.request.params.get('produtorId')).toBe('p-maria');
+      req.flush([]);
+      expect(cmp.clienteAtual()?.nomeCompleto).toBe('Maria Agricultora');
+    });
+
+    it('a guia lancada nasce no cliente ESCOLHIDO, nao no primeiro', () => {
+      const cmp = montar().componentInstance;
+      cmp.trocarCliente('p-maria');
+      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+
+      cmp.formTipo.set('ICMS');
+      cmp.formVencimento.set('2026-12-10');
+      cmp.formValor.set('1200');
+      cmp.salvarGuia();
+
+      const post = httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'POST');
+      expect(post.request.body.produtorId).toBe('p-maria');
+      post.flush({});
+      httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'GET').flush([]);
+    });
+
+    it('carteira vazia nao inventa produtor: nao pergunta guia de ninguem', () => {
+      const fixture = TestBed.createComponent(PrazosContador);
+      fixture.detectChanges();
+      flushCarteira([]);
+
+      httpMock.expectNone((r) => r.url === '/contador/guias');
+      expect(fixture.componentInstance.guias()).toEqual([]);
+    });
+  });
+
   it('em erro ao listar, mostra lista vazia — nunca dados de exemplo', () => {
     const fixture = TestBed.createComponent(PrazosContador);
     fixture.detectChanges();
+    flushCarteira();
     httpMock
       .expectOne((r) => r.url === '/contador/guias')
       .flush('erro', { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
 
     expect(fixture.componentInstance.guias()).toEqual([]);
+  });
+
+  /**
+   * Erro nao e lista vazia (issue #107).
+   *
+   * A pagina tinha `error: () => this.guias.set([])`: a falha da API virava a mesma tela de
+   * "Nenhuma guia lancada". Com o produtor errado da #106 (404), o escritorio via "nenhuma guia"
+   * enquanto havia oito no banco, uma de ICMS de R$ 3.420 vencida.
+   */
+  describe('erro separado do vazio (#107)', () => {
+    function abrir() {
+      const fixture = TestBed.createComponent(PrazosContador);
+      fixture.detectChanges();
+      flushCarteira();
+      return fixture.componentInstance;
+    }
+
+    it('404 vira estado de erro, nao lista vazia', () => {
+      const cmp = abrir();
+
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush(
+          { errors: [{ code: 'NAO_ENCONTRADO', message: 'Produtor nao encontrado.' }] },
+          { status: 404, statusText: 'Not Found' },
+        );
+
+      expect(cmp.erro()?.mensagem).toBe('Produtor nao encontrado.');
+      expect(cmp.carregando()).toBe(false);
+    });
+
+    it('no 404 nao oferece "tentar de novo": repetir nao faz o produtor existir', () => {
+      const cmp = abrir();
+
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush({ errors: [] }, { status: 404, statusText: 'Not Found' });
+
+      expect(cmp.erro()?.podeTentarDeNovo).toBe(false);
+    });
+
+    it('no 500 oferece tentar de novo', () => {
+      const cmp = abrir();
+
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush('falhou', { status: 500, statusText: 'Server Error' });
+
+      expect(cmp.erro()?.podeTentarDeNovo).toBe(true);
+    });
+
+    it('sucesso limpa o erro anterior', () => {
+      const cmp = abrir();
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush('falhou', { status: 500, statusText: 'Server Error' });
+      expect(cmp.erro()).not.toBeNull();
+
+      cmp.carregar();
+      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+
+      expect(cmp.erro()).toBeNull();
+      expect(cmp.guias()).toEqual([]);
+    });
   });
 });

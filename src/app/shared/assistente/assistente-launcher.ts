@@ -23,7 +23,7 @@ import { CeresAvatar } from './ceres-avatar';
     @if (!store.aberto() && store.disponivel()) {
       <button
         type="button"
-        class="tap-target fixed right-4 bottom-20 z-50 flex items-center gap-2 rounded-full bg-assistente py-1.5 pl-1.5 pr-4 text-apoio font-semibold text-assistente-foreground shadow-assistente transition-transform hover:scale-105 lg:bottom-6"
+        class="tap-target fixed right-4 bottom-20 z-40 flex items-center gap-2 rounded-full bg-assistente py-1.5 pl-1.5 pr-4 text-apoio font-semibold text-assistente-foreground shadow-assistente transition-transform hover:scale-105 lg:bottom-6"
         (click)="store.abrir()"
       >
         <app-ceres-avatar tamanho="sm" />

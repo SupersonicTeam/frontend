@@ -1,333 +1,301 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import {
-  LucideCalculator,
-  LucideCheck,
-  LucideChevronDown,
-  LucideChevronRight,
-  LucideDownload,
-  LucideHandCoins,
-  LucideLoaderCircle,
-  LucideTriangleAlert,
-} from '@lucide/angular';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
-import { filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
-import { ToastService } from '@core/services/toast.service';
-import type { GuiaFiscal } from '@models/solicitacao-contador.model';
-import type { NotaFiscal } from '@models/nota-fiscal.model';
-import type { Apuracao, RelatorioConformidade } from '@models/tributario.model';
-import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
-import { apenasUltimaChecagem, rotuloDoCampo } from '@core/utils/validacoes';
-import { ContadorApi } from '@services/contador/data-access/contador.service';
-import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
-import { NotasApi } from '@services/notas/data-access/notas.service';
-import { TributarioApi } from '@services/tributario/data-access/tributario.service';
-import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
+import { Subject, debounceTime, distinctUntilChanged, map, switchMap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {
+  LucideChevronRight,
+  LucideCircleCheck,
+  LucideFileWarning,
+  LucideHandCoins,
+  LucideInbox,
+  LucideSearch,
+  LucideStamp,
+  LucideTriangleAlert,
+  LucideUsers,
+} from '@lucide/angular';
+import { CarteiraApi } from '@services/contador/data-access/carteira.service';
+import {
+  type AtencaoCarteira,
+  type OrdemCarteira,
+  type ProdutorCarteira,
+  totalDeAtencao,
+} from '@models/carteira.model';
 import { UiButton } from '@shared/ui/ui-button';
+import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
-import { UiStat } from '@shared/ui/ui-stat';
-import { mesDeFechamento } from '@core/utils/periodo';
 
-const MESES = [
-  { v: 1, l: 'Janeiro' },
-  { v: 2, l: 'Fevereiro' },
-  { v: 3, l: 'Março' },
-  { v: 4, l: 'Abril' },
-  { v: 5, l: 'Maio' },
-  { v: 6, l: 'Junho' },
-  { v: 7, l: 'Julho' },
-  { v: 8, l: 'Agosto' },
-  { v: 9, l: 'Setembro' },
-  { v: 10, l: 'Outubro' },
-  { v: 11, l: 'Novembro' },
-  { v: 12, l: 'Dezembro' },
+/** Espera antes de consultar o servidor enquanto o contador digita. */
+const DEBOUNCE_BUSCA_MS = 300;
+
+/** Mínimo que o servidor aceita em `busca` por trecho de nome; menos que isso é 400. */
+const MINIMO_BUSCA = 3;
+
+/** Um indicador de atenção pronto para a tela: rótulo, contagem e para onde ele leva. */
+export interface SinalDeAtencao {
+  chave: keyof AtencaoCarteira;
+  /**
+   * Em linguagem de trabalho, não o nome do campo — e já no número certo.
+   *
+   * O plural é escrito, não derivado com um "s" no fim: "nota com inconsistência" pluraliza no
+   * **substantivo** ("notas com inconsistência"), e "vence em até 7 dias" não pluraliza nunca.
+   */
+  rotulo: string;
+  quantidade: number;
+  /** Abre a tela do cliente já focada neste trabalho. */
+  foco: string;
+  /** Severidade visual: o que custa dinheiro hoje pesa mais que o que vence depois. */
+  tom: 'perigo' | 'aviso' | 'info';
+}
+
+/**
+ * Ordem fixa dos indicadores — é a ordem em que o contador trabalha, não a do contrato.
+ *
+ * Guia vencida primeiro porque já está rendendo multa e juros; nota com inconsistência depois,
+ * porque trava a emissão; aprovação e documentos por último, que dependem de ida e volta.
+ */
+const SINAIS: readonly (Omit<SinalDeAtencao, 'quantidade' | 'rotulo'> & {
+  singular: string;
+  plural: string;
+})[] = [
+  {
+    chave: 'guiasVencidas',
+    singular: 'guia vencida',
+    plural: 'guias vencidas',
+    foco: 'guias',
+    tom: 'perigo',
+  },
+  {
+    chave: 'notasComInconsistencia',
+    singular: 'nota com inconsistência',
+    plural: 'notas com inconsistência',
+    foco: 'inconsistencia',
+    tom: 'perigo',
+  },
+  {
+    chave: 'notasAguardandoAprovacao',
+    singular: 'nota esperando a sua aprovação',
+    plural: 'notas esperando a sua aprovação',
+    foco: 'aprovacao',
+    tom: 'aviso',
+  },
+  {
+    chave: 'vencimentosProximos7Dias',
+    singular: 'vence em até 7 dias',
+    plural: 'vencem em até 7 dias',
+    foco: 'guias',
+    tom: 'aviso',
+  },
+  {
+    chave: 'pendenciasEnviadas',
+    singular: 'documento esperando conferência',
+    plural: 'documentos esperando conferência',
+    foco: 'documentos',
+    tom: 'info',
+  },
 ];
 
 /**
- * Acompanhamento do contador (#50).
+ * Acompanhamento do contador — **a triagem da carteira** (backend#177, frontend#95).
  *
- * **O que mudou e por quê.** A versão anterior tinha 703 linhas e seis abas
- * (contatos, solicitações, recebidos, rascunhos, concluídos, documentos), quase
- * todas alimentadas por dados de exemplo: o backend não tem `ContadorController`,
- * e o service devolvia fixtures quando a chamada falhava. A tela avisava "prévia
- * com dados de exemplo", mas na prática mostrava solicitações inventadas como se
- * fossem do produtor.
+ * ## Por que a tela mudou de pergunta
  *
- * Esta versão fica só com o que existe de verdade:
+ * Até aqui esta tela mostrava, para um produtor só: o que impede fechar o mês, os números do mês e
+ * um atalho para a cobrança. Era honesta, mas **repetia as outras três abas** — as notas com
+ * problema são a aba de Notas, a guia vencida é a de Prazos, a apuração é a de Fechamento. Repetia
+ * porque com um cliente só não há pergunta que seja desta tela.
  *
- * - **guias fiscais** — `GET/POST /contador/guias` e `PATCH /contador/guias/{id}/pagar`;
- * - **relatório de conformidade** — `GET /relatorios/conformidade` e o PDF;
- * - **notas que exigem atenção** — derivadas de `GET /notas`.
+ * A carteira dá a pergunta: **quais dos meus clientes estão com problema, e qual eu atendo
+ * primeiro.** Essa não é respondível em nenhuma outra aba, e é o ponto 1 da lista do grupo.
  *
- * Solicitações, documentos anexados e o checklist saíram da tela e viraram
- * pendência do backend. É preferível uma tela menor e verdadeira a uma tela
- * cheia que engana o contador.
+ * Então os blocos de um produtor saíram daqui e o trabalho de um cliente mora em
+ * `/contador/{produtorId}`. Esta tela ficou com a fila; aquela, com o atendimento.
  *
- * A densidade aqui é de desktop, ao contrário do dashboard do produtor: o
- * contador trabalha em tela grande e com muitos registros de uma vez.
+ * ## O que a tela não faz, e por quê
  *
- * ## A tela foi organizada em volta de fechar o mês (caminho A)
+ * Não mostra apuração nem relatório de conformidade de cliente nenhum. Não é escolha de desenho:
+ * `GET /api/apuracao` e `/api/relatorios/conformidade` derivam o produtor da identidade e
+ * respondem **403** para contador, e não existe a versão por cliente
+ * (`/api/contador/produtores/{id}/apuracao` responde 404 — só o `reabrir` existe lá). Pedido em
+ * SupersonicTeam/backend#255. Enquanto isso, o Fechamento continua lendo a identidade atual, o que
+ * só funciona por causa do mock de desenvolvimento.
  *
- * A versão anterior era uma pilha de listas sem pergunta: três números no topo, as notas com
- * problema, as guias. O contador não abre isto para "ver dados" — ele abre para saber **se dá
- * para fechar o mês e o que falta**. Então a ordem é essa:
+ * ## A lição que esta tela já aprendeu uma vez
  *
- * 1. **O que impede fechar** o período escolhido — nota com inconsistência (com o que o fisco
- *    apontou, de verdade, ao expandir) e guia vencida.
- * 2. **Os números do período** — a apuração e o relatório de conformidade na tela, não só no PDF.
- * 3. **O atalho para a cobrança** — as guias moraram aqui por um tempo, em tabela inteira, e
- *    passaram a morar em Prazos, que é a tela delas. Esta aponta para lá em vez de repetir.
- *
- * **O seletor de período governa 1 e 2, mas não as guias.** Guia atrasada de agosto não pode
- * sumir da tela porque o contador está olhando outubro — ela continua sendo problema dele hoje.
+ * `aindaNaoSabe()` existe porque a versão anterior afirmava "nada impede fechar setembro" no
+ * instante em que abria — a lista começa vazia, e vazio é exatamente o que uma soma zero entende
+ * como "tudo certo". Um segundo depois o problema chegava e a tela se contradizia. Dizer "está
+ * tudo bem" e voltar atrás é pior do que não dizer nada: o contador já fechou a aba.
  */
 @Component({
   selector: 'app-contador',
   standalone: true,
   imports: [
-    LucideCalculator,
-    LucideCheck,
-    LucideChevronDown,
     LucideChevronRight,
-    LucideDownload,
+    LucideCircleCheck,
+    LucideFileWarning,
     LucideHandCoins,
-    LucideLoaderCircle,
+    LucideInbox,
+    LucideSearch,
+    LucideStamp,
     LucideTriangleAlert,
+    LucideUsers,
     RouterLink,
-    UiBadgeStatus,
     UiButton,
+    UiEmptyState,
     UiSkeleton,
-    UiStat,
   ],
   templateUrl: './contador.html',
 })
-export class ContadorPage implements OnInit {
-  private readonly contadorApi = inject(ContadorApi);
-  private readonly dashboardApi = inject(DashboardApi);
-  private readonly notasApi = inject(NotasApi);
-  private readonly tributarioApi = inject(TributarioApi);
-  private readonly toast = inject(ToastService);
+export class ContadorPage {
+  private readonly carteiraApi = inject(CarteiraApi);
 
-  readonly carregandoGuias = signal(false);
-  readonly guias = signal<GuiaFiscal[]>([]);
-  readonly notasComProblema = signal<NotaFiscal[]>([]);
-  readonly carregandoNotas = signal(false);
-  readonly baixandoRelatorio = signal(false);
+  // ── Filtros ──
+  readonly busca = signal('');
+  /**
+   * Abre **desligado**. A fila já vem ordenada por urgência, então quem precisa de atenção está no
+   * topo de qualquer forma; esconder o resto por padrão faria o contador perder a noção do tamanho
+   * da carteira — e um escritório com tudo em dia veria uma tela vazia sem entender por quê.
+   */
+  readonly somenteAtencao = signal(false);
+  readonly ordem = signal<OrdemCarteira>('urgencia');
 
-  /** Nome do produtor vem do payload real do dashboard, não de constante no código. */
-  readonly produtorNome = computed(
-    () => this.dashboardApi.dashboard()?.produtor.nome ?? 'Produtor',
+  // ── Resposta ──
+  private readonly pagina = signal<{ itens: ProdutorCarteira[]; total: number } | null>(null);
+  readonly carregando = signal(true);
+  readonly erro = signal(false);
+
+  readonly clientes = computed(() => this.pagina()?.itens ?? []);
+  readonly total = computed(() => this.pagina()?.total ?? 0);
+
+  /**
+   * A tela ainda não tem resposta do servidor. Enquanto for verdade, nenhuma afirmação sobre o
+   * estado da carteira pode aparecer.
+   */
+  readonly aindaNaoSabe = computed(() => this.pagina() === null && !this.erro());
+
+  readonly quantosPedemAtencao = computed(
+    () => this.clientes().filter((c) => totalDeAtencao(c.atencao) > 0).length,
   );
 
-  readonly guiasPendentes = computed(() => this.guias().filter((g) => g.status !== 'pago'));
-  readonly totalAPagar = computed(() =>
-    this.guiasPendentes().reduce((soma, g) => soma + (g.valor ?? 0), 0),
+  /** Carteira inteira sem nenhum indicador — e já sabida. */
+  readonly carteiraEmDia = computed(
+    () => !this.aindaNaoSabe() && this.clientes().length > 0 && this.quantosPedemAtencao() === 0,
   );
-  readonly guiasVencidas = computed(() => this.guias().filter((g) => g.status === 'vencido'));
 
-  // ── Nova guia ──
-  // ── Período: governa os impedimentos e os números, nunca as guias ──
-  // Abre no mes que ACABOU, nao no corrente: ver `mesDeFechamento`.
-  readonly mes = signal(mesDeFechamento().mes);
-  readonly ano = signal(mesDeFechamento().ano);
-  readonly periodo = computed(() => `${this.ano()}-${String(this.mes()).padStart(2, '0')}`);
-  readonly meses = MESES;
-  readonly anos = computed(() => {
-    const atual = new Date().getFullYear();
-    return [atual, atual - 1, atual - 2];
+  /** O filtro de busca só chega ao servidor com três caracteres; menos que isso ele recusa. */
+  private readonly buscaEfetiva = computed(() => {
+    const texto = this.busca().trim();
+    return texto.length >= MINIMO_BUSCA ? texto : undefined;
   });
 
-  // ── Os números do período ──
-  readonly apuracao = signal<Apuracao | null>(null);
-  readonly relatorio = signal<RelatorioConformidade | null>(null);
-  readonly carregandoNumeros = signal(false);
-  readonly erroNumeros = signal(false);
+  readonly buscaCurta = computed(() => {
+    const texto = this.busca().trim();
+    return texto.length > 0 && texto.length < MINIMO_BUSCA;
+  });
 
-  /**
-   * Só usa o que é **deste** período. Trocar de mês dispara duas requisições que chegam uma de
-   * cada vez; sem isto a tela cruza o débito de um mês com o saldo de outro por um instante.
-   * Protege também de resposta fora de ordem.
-   */
-  private doPeriodo<T extends { periodo: string }>(valor: T | null): T | null {
-    return valor && valor.periodo === this.periodo() ? valor : null;
-  }
+  private readonly gatilho = new Subject<void>();
 
-  readonly conta = computed(() => this.doPeriodo(this.relatorio()));
-  readonly apuracaoDoPeriodo = computed(() => this.doPeriodo(this.apuracao()));
-  readonly saldoCredor = computed(() => (this.conta()?.saldoAPagar ?? 0) < 0);
+  constructor() {
+    this.gatilho
+      .pipe(
+        map(() => ({
+          busca: this.buscaEfetiva(),
+          precisaAtencao: this.somenteAtencao() ? true : undefined,
+          sort: this.ordem(),
+        })),
+        // Dois filtros diferentes que produzem a mesma consulta não gastam requisição: digitar
+        // "jo" e apagar volta ao mesmo pedido de antes.
+        distinctUntilChanged((a, b) => JSON.stringify(a) === JSON.stringify(b)),
+        debounceTime(DEBOUNCE_BUSCA_MS),
+        switchMap((filtro) => {
+          this.carregando.set(true);
+          this.erro.set(false);
+          return this.carteiraApi.listar(filtro);
+        }),
+        takeUntilDestroyed(),
+      )
+      .subscribe({
+        next: (pagina) => {
+          this.pagina.set(pagina);
+          this.carregando.set(false);
+        },
+        error: () => {
+          this.erro.set(true);
+          this.carregando.set(false);
+        },
+      });
 
-  // ── O que impede fechar ──
-
-  /**
-   * Nota com inconsistência **do período escolhido**.
-   *
-   * Uma nota de junho não impede fechar outubro: ela nunca foi autorizada, então nunca entrou na
-   * apuração de mês nenhum. O impedimento é do mês dela.
-   */
-  readonly notasDoPeriodo = computed(() =>
-    this.notasComProblema().filter((n) => (n.dataEmissao ?? '').startsWith(this.periodo())),
-  );
-
-  readonly podeFechar = computed(
-    () => this.notasDoPeriodo().length === 0 && this.guiasVencidas().length === 0,
-  );
-
-  /**
-   * Enquanto notas e guias nao chegaram, a tela NAO sabe se o mes fecha.
-   *
-   * Sem isto ela afirmava "Nada impede fechar setembro" no instante em que abria -- as duas
-   * listas comecam vazias, e vazio e exatamente o que `podeFechar()` entende como "tudo certo".
-   * Um segundo depois a guia vencida chegava e a tela se contradizia. Dizer "esta tudo bem" e
-   * voltar atras e pior do que nao dizer nada: o contador pode ter ja fechado a aba.
-   */
-  readonly apurandoImpedimentos = computed(() => this.carregandoNotas() || this.carregandoGuias());
-
-  // ── O que o fisco apontou, ao expandir a nota ──
-  readonly notaExpandida = signal<string | null>(null);
-  readonly validacoes = signal<NotaValidacaoResponse[]>([]);
-  readonly carregandoValidacoes = signal(false);
-
-  /**
-   * Abre (ou fecha) uma nota e busca o que impede emitir.
-   *
-   * O texto vem de `GET /notas/{id}/validacoes` — `code`, `field` e `message` do backend. Não é
-   * frase minha: o contador precisa ver o que o validador fiscal disse, para saber o que pedir
-   * ao produtor.
-   */
-  alternarNota(nota: NotaFiscal): void {
-    if (this.notaExpandida() === nota.id) {
-      this.notaExpandida.set(null);
-      return;
-    }
-
-    this.notaExpandida.set(nota.id);
-    this.validacoes.set([]);
-    this.carregandoValidacoes.set(true);
-    this.notasApi.listarValidacoes(nota.id).subscribe({
-      next: (lista) => {
-        this.validacoes.set(apenasUltimaChecagem(lista));
-        this.carregandoValidacoes.set(false);
-      },
-      error: () => {
-        this.validacoes.set([]);
-        this.carregandoValidacoes.set(false);
-      },
-    });
-  }
-
-  /** O campo em português; identificador desconhecido cai nele mesmo. */
-  rotuloCampo(campo?: string): string {
-    return campo ? rotuloDoCampo(campo) : '';
-  }
-
-  /** `2026-10` -> "outubro de 2026". */
-  formatPeriodo(periodo: string): string {
-    const [ano, mes] = periodo.split('-');
-    const d = new Date(Number(ano), Number(mes) - 1, 1);
-    return Number.isNaN(d.getTime())
-      ? periodo
-      : d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  }
-
-  mudarMes(m: string | number): void {
-    this.mes.set(Number(m));
-    this.carregarNumeros();
-  }
-
-  mudarAno(a: string | number): void {
-    this.ano.set(Number(a));
-    this.carregarNumeros();
-  }
-
-  /**
-   * Apuração e relatório do período, independentes entre si: a falha de um não apaga o outro.
-   * Os valores anteriores são limpos na hora — melhor um instante vazio que o número do mês
-   * passado passando por deste.
-   */
-  carregarNumeros(): void {
-    this.carregandoNumeros.set(true);
-    this.erroNumeros.set(false);
-    this.apuracao.set(null);
-    this.relatorio.set(null);
-    this.notaExpandida.set(null);
-
-    const periodo = this.periodo();
-    this.tributarioApi.apuracao(periodo).subscribe({
-      next: (a) => {
-        this.apuracao.set(a);
-        this.carregandoNumeros.set(false);
-      },
-      error: () => {
-        this.erroNumeros.set(true);
-        this.carregandoNumeros.set(false);
-      },
-    });
-    this.tributarioApi.relatorioConformidade(periodo).subscribe({
-      next: (r) => this.relatorio.set(r),
-      error: () => this.erroNumeros.set(true),
-    });
-  }
-
-  ngOnInit(): void {
-    this.carregarGuias();
-    this.carregarNumeros();
-    this.dashboardApi.carregar().subscribe({ error: () => undefined });
-    this.carregandoNotas.set(true);
-    this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
+    // A primeira carga não espera o debounce: a tela abre pedindo.
+    this.carteiraApi.listar({ sort: this.ordem() }).subscribe({
       next: (pagina) => {
-        this.notasComProblema.set(
-          pagina.content.filter(
-            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
-          ),
-        );
-        this.carregandoNotas.set(false);
+        this.pagina.set(pagina);
+        this.carregando.set(false);
       },
       error: () => {
-        this.notasComProblema.set([]);
-        this.carregandoNotas.set(false);
+        this.erro.set(true);
+        this.carregando.set(false);
       },
+    });
+
+    // A primeira execução do effect é só para registrar as dependências: a carga inicial já foi
+    // pedida acima, sem debounce. Sem este `primeira` a tela abriria pedindo duas vezes.
+    let primeira = true;
+    effect(() => {
+      // Lê os três para registrar a dependência; o valor é montado no `map` acima.
+      this.buscaEfetiva();
+      this.somenteAtencao();
+      this.ordem();
+      if (primeira) {
+        primeira = false;
+        return;
+      }
+      this.gatilho.next();
     });
   }
 
-  carregarGuias(): void {
-    this.carregandoGuias.set(true);
-    this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
-      next: (lista) => {
-        this.guias.set(lista);
-        this.carregandoGuias.set(false);
-      },
-      error: () => {
-        this.guias.set([]);
-        this.carregandoGuias.set(false);
-      },
-    });
+  /** Um cliente ativo com todos os indicadores em zero. */
+  estaEmDia(cliente: ProdutorCarteira): boolean {
+    return cliente.atencao !== null && totalDeAtencao(cliente.atencao) === 0;
   }
 
-  baixarRelatorio(): void {
-    this.baixandoRelatorio.set(true);
-    const periodo = this.periodo();
-    this.tributarioApi.relatorioConformidadePdf(periodo).subscribe({
-      next: (resposta) => {
-        this.baixandoRelatorio.set(false);
-        const nome = filenameDeContentDisposition(
-          resposta.headers.get('Content-Disposition'),
-          `conformidade-${periodo}.pdf`,
-        );
-        if (resposta.body) salvarBlob(resposta.body, nome);
-      },
-      error: () => {
-        this.baixandoRelatorio.set(false);
-        this.toast.error('Não foi possível baixar o relatório.');
-      },
-    });
+  /**
+   * Os indicadores deste cliente que estão acima de zero, na ordem de trabalho.
+   *
+   * Zero **não aparece**. Um "0 guias vencidas" cinza ao lado de um "2 notas" vermelho obriga o
+   * contador a ler os dois para descobrir que só um importa.
+   */
+  sinaisDe(cliente: ProdutorCarteira): SinalDeAtencao[] {
+    const atencao = cliente.atencao;
+    if (!atencao) return [];
+    return SINAIS.filter((s) => atencao[s.chave] > 0).map(({ singular, plural, ...s }) => ({
+      ...s,
+      quantidade: atencao[s.chave],
+      rotulo: atencao[s.chave] === 1 ? singular : plural,
+    }));
   }
 
-  formatCurrency(valor: number): string {
-    return (valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  /** Rótulo da situação do vínculo, para quem não está ativo. */
+  rotuloSituacao(cliente: ProdutorCarteira): string {
+    switch (cliente.situacaoVinculo) {
+      case 'SUSPENSO':
+        return 'Suspenso — o escritório não alcança os dados dele';
+      case 'ENCERRADO':
+        return 'Encerrado — histórico; atender de novo exige convite novo';
+      default:
+        return '';
+    }
   }
 
-  formatDate(iso?: string): string {
-    if (!iso) return '—';
-    return new Date(iso.split('T')[0] + 'T12:00:00').toLocaleDateString('pt-BR');
+  /** Documento e praça, quando o backend os manda (ele omite em vínculo encerrado). */
+  identificacao(cliente: ProdutorCarteira): string {
+    return [cliente.cpfCnpj, cliente.regime, cliente.uf].filter(Boolean).join(' · ');
+  }
+
+  limparBusca(): void {
+    this.busca.set('');
+  }
+
+  recarregar(): void {
+    this.gatilho.next();
   }
 }

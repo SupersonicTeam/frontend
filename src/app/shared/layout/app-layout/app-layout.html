@@ -65,7 +65,13 @@
                nao deve aparecer para leitor de tela.
                eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
           <div class="fixed inset-0 z-40" aria-hidden="true" (click)="closeNotificacoes()"></div>
-          <div class="absolute right-0 top-12 z-50 w-[22rem] max-w-[90vw] overflow-hidden rounded-card border border-border bg-card shadow-alta">
+          <!-- No celular o painel fica preso a VIEWPORT, nao ao botao (#109). Com `absolute right-0`
+               e 22rem de largura, a 390px ele comecava em **-109px** -- medido: um terco do
+               painel ficava fora da tela, pela esquerda. De `sm` para cima o ancoramento ao botao
+               volta, porque ali ha espaco. -->
+          <div
+            class="fixed inset-x-3 top-14 z-50 overflow-hidden rounded-card border border-border bg-card shadow-alta sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-[22rem] sm:max-w-[90vw]"
+          >
             <div class="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
               <h4 class="font-heading font-semibold text-foreground">Notificações</h4>
               <div class="flex gap-1">
@@ -149,7 +155,9 @@
         </span>
         <span class="flex flex-col leading-tight">
           <span class="text-apoio font-medium text-topbar-foreground">{{ nomeExibido() }}</span>
-          <span class="text-apoio text-muted-foreground">{{ papelExibido() }}</span>
+          @if (papelExibido()) {
+            <span class="text-apoio text-muted-foreground">{{ papelExibido() }}</span>
+          }
         </span>
       </span>
       <button

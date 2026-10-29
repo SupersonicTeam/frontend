@@ -14,12 +14,20 @@ const TOM_POR_STATUS: Record<StatusNotaFiscal, string> = {
   REJEITADA: 'bg-perigo-soft text-perigo-ink border-perigo/30',
   PENDENTE_SEFAZ: 'bg-aviso-soft text-aviso-ink border-aviso/30',
   CANCELADA: 'bg-surface-2 text-muted-foreground border-border line-through',
+  // A revisao do contador (#178). Esperando o escritorio e informacao, nao erro; devolvida e
+  // aviso, porque pede acao do produtor; aprovada e sucesso parcial -- falta emitir.
+  AGUARDANDO_APROVACAO: 'bg-info-soft text-info-ink border-info/30',
+  // Em transito para a SEFAZ: neutro, porque o resultado ainda nao existe.
+  ENVIANDO: 'bg-info-soft text-info-ink border-info/30',
+  CANCELANDO: 'bg-surface-2 text-muted-foreground border-border',
+  APROVADA: 'bg-sucesso-soft text-sucesso-ink border-sucesso/30',
+  DEVOLVIDA: 'bg-aviso-soft text-aviso-ink border-aviso/30',
 };
 
 /**
  * Selo de status da NF-e (#45).
  *
- * Os sete status já tinham tratamento claro/escuro desde a #15, via classes da
+ * Os status já tinham tratamento claro/escuro desde a #15, via classes da
  * paleta Tailwind (`bg-amber-100 dark:bg-amber-950`...). A migração aqui **não é
  * correção de bug** — é consistência: passam a usar os mesmos tokens semânticos do
  * resto da interface, então mudar a cor de "atenção" no `@theme` muda junto no
@@ -70,6 +78,11 @@ export class UiBadgeStatus {
       REJEITADA: 'bg-perigo',
       PENDENTE_SEFAZ: 'bg-aviso',
       CANCELADA: 'bg-muted-foreground',
+      AGUARDANDO_APROVACAO: 'bg-info',
+      ENVIANDO: 'bg-info',
+      CANCELANDO: 'bg-muted-foreground',
+      APROVADA: 'bg-sucesso',
+      DEVOLVIDA: 'bg-aviso',
     };
     return `size-1.5 rounded-full ${k ? cores[k] : 'bg-muted-foreground'}`;
   });

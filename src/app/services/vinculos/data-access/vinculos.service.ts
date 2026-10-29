@@ -1,0 +1,41 @@
+import { Injectable, inject } from '@angular/core';
+import type { Observable } from 'rxjs';
+import { ApiService } from '@core/services/api.service';
+
+/** O escritório que atende este produtor, visto do lado dele (backend#177). */
+export interface VinculoDoProdutor {
+  id: string;
+  escritorioId: string;
+  /** Nome do escritório. */
+  escritorio: string;
+  /** Membro responsável pelo cliente. */
+  responsavel: string | null;
+  crc: string | null;
+  situacao: 'ATIVO' | 'SUSPENSO' | 'ENCERRADO';
+  inicio: string;
+  fim: string | null;
+}
+
+/**
+ * Os vínculos do produtor com escritórios de contabilidade.
+ *
+ * Pequeno de propósito, mas não é detalhe: é esta resposta que diz à tela de notas se a emissão
+ * passa pela revisão do contador (backend#178). Com vínculo **ativo**, `gerar-xml` num rascunho
+ * responde 409 `APROVACAO_EXIGIDA`; sem vínculo, é o `enviar-para-revisao` que responde 409. Os
+ * dois fluxos existem e só um vale para cada produtor — perguntar antes evita oferecer o botão
+ * que vai falhar.
+ */
+@Injectable({ providedIn: 'root' })
+export class VinculosApi {
+  private readonly api = inject(ApiService);
+
+  /** `GET /api/vinculos` — todos os vínculos, inclusive os encerrados. */
+  listar(): Observable<VinculoDoProdutor[]> {
+    return this.api.get<VinculoDoProdutor[]>('/vinculos');
+  }
+
+  /** `POST /api/vinculos/{id}/encerrar` — o produtor corta o acesso do escritório na hora. */
+  encerrar(id: string): Observable<VinculoDoProdutor> {
+    return this.api.post<VinculoDoProdutor>(`/vinculos/${id}/encerrar`);
+  }
+}
