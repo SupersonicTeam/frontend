@@ -47,6 +47,7 @@ import { editavel, esperaOEscritorio, statusNotaLabel } from '@core/enums/status
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
 import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
+import { aplicarMascara, mascaraCep, mascaraCpfCnpj, soDigitos } from '@core/utils/mascaras';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
@@ -123,11 +124,6 @@ const MESES_PT = [
   'Novembro',
   'Dezembro',
 ];
-
-/** Só os dígitos de um CPF/CNPJ (remove máscara). */
-function soDigitos(v: string): string {
-  return (v ?? '').replace(/\D/g, '');
-}
 
 /** Valida os dígitos verificadores de um CPF (11 dígitos). */
 function cpfValido(cpf: string): boolean {
@@ -1333,7 +1329,10 @@ export class DocumentosPage implements OnInit {
     this.formNatureza.set(nota.naturezaOperacao ?? '');
     this.formData.set(nota.dataEmissao?.split('T')[0] ?? '');
     this.formDestNome.set(nota.destinatarioNome ?? '');
-    this.formDestCpfCnpj.set(nota.destinatarioCpfCnpj ?? '');
+    // Mascarado tambem ao ABRIR a nota para editar (#102). A API guarda e devolve so os digitos,
+    // entao sem isto o CPF de uma nota existente aparecia cru enquanto um digitado na hora
+    // aparecia pontuado -- o mesmo campo com duas caras, dependendo de como se chegou nele.
+    this.formDestCpfCnpj.set(mascaraCpfCnpj(nota.destinatarioCpfCnpj ?? ''));
     this.formDestIe.set(nota.destinatarioIe ?? '');
     const e = nota.destinatarioEndereco;
     this.formEndLogradouro.set(e?.logradouro ?? '');
@@ -1341,7 +1340,7 @@ export class DocumentosPage implements OnInit {
     this.formEndMunicipio.set(e?.municipio ?? '');
     this.formEndIbge.set(e?.codigoMunicipioIbge ?? '');
     this.formEndUf.set(e?.uf ?? '');
-    this.formEndCep.set(e?.cep ?? '');
+    this.formEndCep.set(mascaraCep(e?.cep ?? ''));
     this.formItens.set(
       (nota.itens ?? []).map((it) => ({
         descricao: it.descricao ?? '',
@@ -1780,24 +1779,25 @@ export class DocumentosPage implements OnInit {
   }
 
   // Máscara CPF/CNPJ do formulário
+  /**
+   * CPF/CNPJ com mascara (#102).
+   *
+   * A formatacao em si ja existia aqui; o que faltava era **nao perder o cursor**. Medido antes:
+   * com `123.456.789-09` e o cursor na posicao 2, digitar um `7` levava o cursor para a posicao
+   * **15**, o fim do campo. Ver `@core/utils/mascaras`.
+   */
   formatCpfCnpj(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const numeros = input.value.replace(/\D/g, '');
-    let formatted: string;
-    if (numeros.length <= 11) {
-      formatted = numeros
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    } else {
-      formatted = numeros
-        .replace(/(\d{2})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1.$2')
-        .replace(/(\d{3})(\d)/, '$1/$2')
-        .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
-    }
-    this.formDestCpfCnpj.set(formatted);
-    input.value = formatted;
+    this.formDestCpfCnpj.set(aplicarMascara(event, mascaraCpfCnpj));
+  }
+
+  /**
+   * CEP com mascara (#102).
+   *
+   * O campo prometia `78890-000` no placeholder e aceitava `78890000` -- o exemplo formatado
+   * sugeria um formato que a tela nao entregava.
+   */
+  formatCep(event: Event): void {
+    this.formEndCep.set(aplicarMascara(event, mascaraCep));
   }
 
   // Helpers
