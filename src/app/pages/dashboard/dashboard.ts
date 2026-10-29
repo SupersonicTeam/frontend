@@ -52,6 +52,9 @@ import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiCard } from '@shared/ui/ui-card';
+import { UiTermo } from '@shared/ui/ui-termo';
+import { TERMOS_FISCAIS } from '@core/utils/glossario';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiModal } from '@shared/ui/ui-modal';
 import { UiInsight } from '@shared/ui/ui-insight';
@@ -114,6 +117,7 @@ function mesLabelFromPeriodo(periodo: string): string {
     UiBadgeStatus,
     UiButton,
     UiCard,
+    UiTermo,
     UiEmptyState,
     UiInsight,
     UiModal,
@@ -573,11 +577,22 @@ export class DashboardPage implements OnInit {
     });
   }
 
-  /** Abre o glossario de um termo fiscal (IBS, CBS, credito). */
-  readonly termoExplicado = signal<string | null>(null);
+  /**
+   * O glossario fiscal (#105).
+   *
+   * Aqui havia um `termoExplicado` e um `explicar()` com o comentario "Abre o glossario de um
+   * termo fiscal (IBS, CBS, credito)" -- e **nenhum dos dois era referenciado em lugar nenhum**:
+   * nem template, nem teste, nem outro arquivo. Era andaime parecendo feature. O conteudo morava
+   * noutro lugar: um paragrafo corrido dentro do painel recolhido, explicando os cinco termos de
+   * uma vez. As frases sao as mesmas; cada uma agora presa ao termo que explica.
+   */
+  readonly termosFiscais = TERMOS_FISCAIS;
 
-  explicar(termo: string): void {
-    this.termoExplicado.set(this.termoExplicado() === termo ? null : termo);
+  private readonly assistenteStore = inject(AssistenteStore);
+
+  /** O verbete entrega a pergunta pronta a Ceres -- "glossario e atalhos alinhados" da issue. */
+  perguntarSobre(pergunta: string): void {
+    this.assistenteStore.abrirPerguntando(pergunta);
   }
 
   ngOnInit(): void {
