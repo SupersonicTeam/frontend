@@ -44,9 +44,25 @@ describe('PrazosContador', () => {
 
   afterEach(() => httpMock.verify());
 
+  /**
+   * A carteira do escritorio (#106). A tela era cravada no produtor semente -- em duas chamadas,
+   * a que lista e a que **lanca**. Dois clientes aqui de proposito: e o que faz o seletor existir
+   * e prova que a guia nasce no escolhido, nao no primeiro.
+   */
+  const CLIENTES = [
+    { vinculoId: 'v1', id: 'p-joao', nomeCompleto: 'João da Silva Produtor', situacaoVinculo: 'ATIVO', etiquetas: [] },
+    { vinculoId: 'v2', id: 'p-maria', nomeCompleto: 'Maria Agricultora', situacaoVinculo: 'ATIVO', etiquetas: [] },
+  ];
+
+  /** Responde a carteira que o `ngOnInit` busca antes das guias. */
+  function flushCarteira(clientes: unknown[] = CLIENTES) {
+    httpMock.expectOne((r) => r.url === '/contador/produtores').flush(clientes);
+  }
+
   function montar(guias: GuiaFiscal[] = []) {
     const fixture = TestBed.createComponent(PrazosContador);
     fixture.detectChanges();
+    flushCarteira();
     httpMock.expectOne((r) => r.url === '/contador/guias').flush(guias);
     fixture.detectChanges();
     return fixture;
@@ -156,9 +172,67 @@ describe('PrazosContador', () => {
     expect(cmp.rotuloStatus('pago')).toBe('Paga');
   });
 
+  /**
+   * O produtor certo (issue #106).
+   *
+   * A tela era cravada em `LOGGED_PRODUCER_ID`, em **duas** chamadas: a que lista e a que lanca.
+   * Medido contra a API local em 29/10, a carteira semeada tem dois clientes -- o escritorio nunca
+   * via as guias do segundo, e qualquer guia que lancasse ia para o primeiro, mesmo achando que
+   * atendia o outro. Escrita no cliente errado e bem pior do que leitura errada.
+   */
+  describe('as guias sao do cliente escolhido (#106)', () => {
+    it('abre no primeiro da carteira e pergunta as guias DELE', () => {
+      const fixture = TestBed.createComponent(PrazosContador);
+      fixture.detectChanges();
+      flushCarteira();
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
+      expect(req.request.params.get('produtorId')).toBe('p-joao');
+      req.flush([]);
+      expect(fixture.componentInstance.clienteAtual()?.nomeCompleto).toBe('João da Silva Produtor');
+    });
+
+    it('trocar de cliente refaz a busca para o outro', () => {
+      const cmp = montar().componentInstance;
+
+      cmp.trocarCliente('p-maria');
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
+      expect(req.request.params.get('produtorId')).toBe('p-maria');
+      req.flush([]);
+      expect(cmp.clienteAtual()?.nomeCompleto).toBe('Maria Agricultora');
+    });
+
+    it('a guia lancada nasce no cliente ESCOLHIDO, nao no primeiro', () => {
+      const cmp = montar().componentInstance;
+      cmp.trocarCliente('p-maria');
+      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+
+      cmp.formTipo.set('ICMS');
+      cmp.formVencimento.set('2026-12-10');
+      cmp.formValor.set('1200');
+      cmp.salvarGuia();
+
+      const post = httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'POST');
+      expect(post.request.body.produtorId).toBe('p-maria');
+      post.flush({});
+      httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'GET').flush([]);
+    });
+
+    it('carteira vazia nao inventa produtor: nao pergunta guia de ninguem', () => {
+      const fixture = TestBed.createComponent(PrazosContador);
+      fixture.detectChanges();
+      flushCarteira([]);
+
+      httpMock.expectNone((r) => r.url === '/contador/guias');
+      expect(fixture.componentInstance.guias()).toEqual([]);
+    });
+  });
+
   it('em erro ao listar, mostra lista vazia — nunca dados de exemplo', () => {
     const fixture = TestBed.createComponent(PrazosContador);
     fixture.detectChanges();
+    flushCarteira();
     httpMock
       .expectOne((r) => r.url === '/contador/guias')
       .flush('erro', { status: 500, statusText: 'Server Error' });
@@ -178,6 +252,7 @@ describe('PrazosContador', () => {
     function abrir() {
       const fixture = TestBed.createComponent(PrazosContador);
       fixture.detectChanges();
+      flushCarteira();
       return fixture.componentInstance;
     }
 
