@@ -275,7 +275,7 @@
         (change)="setMes($any($event.target).value)"
         aria-label="Mês de apuração"
       >
-        @for (m of meses; track m.v) {
+        @for (m of meses(); track m.v) {
           <option [value]="m.v" [selected]="m.v === periodoMes()">{{ m.nome }}</option>
         }
       </select>

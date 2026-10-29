@@ -95,8 +95,18 @@ export class AppLayout implements OnInit {
     // /documentos ve "Produtor" na topbar enquanto o painel mostra "Joao da
     // Silva Produtor" -- duas identidades para a mesma pessoa, dependendo de
     // por onde se entrou. O service guarda em signal, entao nao repete.
-    if (!this.dashboardApi.dashboard()) {
-      this.dashboardApi.carregar().subscribe({ error: () => undefined });
+    // O nome do produtor sai do painel, mas **a topbar nao e quem deve busca-lo no painel** (#114).
+    //
+    // O shell monta antes da pagina filha, entao o guard antigo (`if (!dashboard())`) olhava o
+    // resultado quando resposta nenhuma tinha voltado: a topbar pedia, a pagina pedia logo atras, e
+    // mediam-se **dois GET /api/dashboard** em toda abertura do painel. Pior, o pedido da topbar vai
+    // SEM periodo -- chegando depois de o produtor escolher um mes, jogava os KPIs de volta para o
+    // padrao do backend com o seletor ainda dizendo outra coisa.
+    //
+    // Em /dashboard a propria pagina busca, com o periodo certo, e o signal e compartilhado: a
+    // topbar so precisa esperar. Nas outras rotas ninguem busca, e aí sim ela pede.
+    if (!this.router.url.startsWith('/dashboard')) {
+      this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
     }
   }
 

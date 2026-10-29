@@ -92,4 +92,79 @@ describe('DashboardApi', () => {
     httpMock.expectOne('/dashboard').flush(buildResponse({ periodo: '2026-07' }));
     expect(service.dashboard()?.periodo).toBe('2026-07');
   });
+
+  /**
+   * Quatro telas chamam este service e só uma se importa com período (issue #114).
+   *
+   * Medido no navegador em 29/10, antes: **dois `GET /api/dashboard`** em toda abertura do painel,
+   * os dois **sem período**, ao lado de um `apuracao?periodo=2026-10`. Os três chamadores de fora
+   * já tinham `if (!dashboard())`, mas esse guard olha o resultado — e eles montam no mesmo tick,
+   * quando resposta nenhuma voltou.
+   */
+  describe('concorrência entre as telas que compartilham o painel (#114)', () => {
+    it('dois pedidos do mesmo periodo, com o primeiro em voo, viram UMA requisicao', () => {
+      const vistos: string[] = [];
+      service.carregar('2026-09').subscribe((r) => vistos.push(`a:${r.periodo}`));
+      service.carregar('2026-09').subscribe((r) => vistos.push(`b:${r.periodo}`));
+
+      httpMock
+        .expectOne((r) => r.url === '/dashboard' && r.params.get('periodo') === '2026-09')
+        .flush(buildResponse({ periodo: '2026-09' }));
+
+      // Uma requisicao, os dois assinantes atendidos.
+      expect(vistos).toEqual(['a:2026-09', 'b:2026-09']);
+    });
+
+    it('garantirCarregado pega carona no pedido da pagina em vez de abrir o seu', () => {
+      service.carregar('2026-09').subscribe();
+      // A topbar chega depois, querendo so o nome do produtor.
+      service.garantirCarregado().subscribe();
+
+      httpMock
+        .expectOne((r) => r.url === '/dashboard' && r.params.get('periodo') === '2026-09')
+        .flush(buildResponse({ periodo: '2026-09' }));
+      httpMock.expectNone((r) => r.url === '/dashboard' && !r.params.has('periodo'));
+    });
+
+    it('garantirCarregado nao busca nada se ja ha painel carregado', () => {
+      service.carregar().subscribe();
+      httpMock.expectOne('/dashboard').flush(buildResponse());
+
+      service.garantirCarregado().subscribe();
+      httpMock.expectNone('/dashboard');
+    });
+
+    /**
+     * O coracao do "periodo inconsistente": a topbar pede sem periodo, a pagina pede com. Se a da
+     * topbar chega depois, ela nao pode jogar os KPIs de volta para o padrao do backend enquanto o
+     * seletor continua dizendo Setembro.
+     */
+    it('quem NAO pediu periodo nunca sobrescreve quem pediu, mesmo chegando depois', () => {
+      service.garantirCarregado().subscribe();
+      service.carregar('2026-09').subscribe();
+
+      const semPeriodo = httpMock.expectOne((r) => r.url === '/dashboard' && !r.params.has('periodo'));
+      const comPeriodo = httpMock.expectOne((r) => r.params.get('periodo') === '2026-09');
+
+      comPeriodo.flush(buildResponse({ periodo: '2026-09' }));
+      expect(service.dashboard()?.periodo).toBe('2026-09');
+
+      // A topbar responde por ultimo — e tem de ser ignorada.
+      semPeriodo.flush(buildResponse({ periodo: '2026-10' }));
+      expect(service.dashboard()?.periodo).toBe('2026-09');
+    });
+
+    it('resposta atrasada de um periodo antigo nao passa a frente da mais nova', () => {
+      service.carregar('2026-08').subscribe();
+      service.carregar('2026-09').subscribe();
+
+      const agosto = httpMock.expectOne((r) => r.params.get('periodo') === '2026-08');
+      const setembro = httpMock.expectOne((r) => r.params.get('periodo') === '2026-09');
+
+      setembro.flush(buildResponse({ periodo: '2026-09' }));
+      agosto.flush(buildResponse({ periodo: '2026-08' }));
+
+      expect(service.dashboard()?.periodo).toBe('2026-09');
+    });
+  });
 });

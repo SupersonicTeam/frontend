@@ -77,6 +77,14 @@ interface DocItem {
 const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 /** Converte "YYYY-MM" (contrato do backend) no rótulo curto em pt-BR ("Mai/26"). */
+/** Os doze meses, por numero. O que a tela oferece sai de `meses()`, que corta os futuros. */
+const MESES_DO_ANO = [
+  { v: 1, nome: 'Janeiro' }, { v: 2, nome: 'Fevereiro' }, { v: 3, nome: 'Março' },
+  { v: 4, nome: 'Abril' }, { v: 5, nome: 'Maio' }, { v: 6, nome: 'Junho' },
+  { v: 7, nome: 'Julho' }, { v: 8, nome: 'Agosto' }, { v: 9, nome: 'Setembro' },
+  { v: 10, nome: 'Outubro' }, { v: 11, nome: 'Novembro' }, { v: 12, nome: 'Dezembro' },
+];
+
 function mesLabelFromPeriodo(periodo: string): string {
   const [ano, mes] = periodo.split('-').map(Number);
   if (!ano || !mes || mes < 1 || mes > 12) return periodo;
@@ -317,18 +325,28 @@ export class DashboardPage implements OnInit {
     return (this.totalImpostoCalculado() / entradas) * 100;
   });
 
-  // Apuracao: periodo selecionavel (mes/ano) + status (#12) — exibicao apenas; MVP carrega so o mes corrente
-  readonly meses = [
-    { v: 1, nome: 'Janeiro' }, { v: 2, nome: 'Fevereiro' }, { v: 3, nome: 'Março' },
-    { v: 4, nome: 'Abril' }, { v: 5, nome: 'Maio' }, { v: 6, nome: 'Junho' },
-    { v: 7, nome: 'Julho' }, { v: 8, nome: 'Agosto' }, { v: 9, nome: 'Setembro' },
-    { v: 10, nome: 'Outubro' }, { v: 11, nome: 'Novembro' }, { v: 12, nome: 'Dezembro' },
-  ];
+  // Apuracao: periodo selecionavel (mes/ano) + status (#12).
   readonly anos = [
     new Date().getFullYear(),
     new Date().getFullYear() - 1,
     new Date().getFullYear() - 2,
   ];
+
+  /**
+   * Os meses que **ja aconteceram** no ano escolhido (#114).
+   *
+   * A lista era fixa nos doze. Em outubro de 2026 o produtor podia escolher novembro e dezembro
+   * de 2026 -- meses que nao existem ainda -- e o painel respondia com tudo zerado: faturamento
+   * zero, imposto zero, nenhuma nota. Parece app quebrado, e nao e: foi a tela que ofereceu uma
+   * pergunta sem resposta possivel.
+   *
+   * O corte so vale para o ano corrente; em 2025 os doze continuam validos.
+   */
+  readonly meses = computed(() => {
+    const hoje = new Date();
+    const ultimo = this.periodoAno() === hoje.getFullYear() ? hoje.getMonth() + 1 : 12;
+    return MESES_DO_ANO.filter((m) => m.v <= ultimo);
+  });
   readonly periodoMes = signal(new Date().getMonth() + 1);
   readonly periodoAno = signal(new Date().getFullYear());
 
@@ -421,6 +439,11 @@ export class DashboardPage implements OnInit {
 
   setAno(valor: string): void {
     this.periodoAno.set(Number(valor));
+    // Vindo de um ano passado com mes alto (dezembro/2025) para o ano corrente, o mes escolhido
+    // passaria a ser futuro. Puxa para o ultimo mes que existe, senao o painel pediria um periodo
+    // que a lista de meses nem oferece mais.
+    const ultimo = this.meses().at(-1)?.v ?? 12;
+    if (this.periodoMes() > ultimo) this.periodoMes.set(ultimo);
     this.trocarPeriodo();
   }
 
@@ -558,12 +581,14 @@ export class DashboardPage implements OnInit {
   }
 
   ngOnInit(): void {
-    this.carregarDashboard();
-    // O selo da apuracao tambem vem do backend na primeira carga.
-    this.tributarioApi.apuracao(this.periodoSelecionado()).subscribe({
-      next: a => this.statusDoBackend.set(a.status ?? null),
-      error: () => this.statusDoBackend.set(null),
-    });
+    // **Um caminho so** para carregar o painel (#114). Antes a primeira carga corria por fora dos
+    // pipelines: `carregarDashboard()` chamava `carregar()` SEM periodo enquanto o seletor ja
+    // exibia o mes corrente, e logo abaixo vinha um `apuracao(periodoSelecionado())` solto. Os
+    // numeros vinham do padrao do backend e o seletor afirmava outra coisa.
+    //
+    // `trocarPeriodo()` empurra o periodo escolhido nos dois pipelines, que ja fazem tudo o que
+    // aquelas duas chamadas faziam -- inclusive o estado de carregando e o selo da apuracao.
+    this.trocarPeriodo();
 
     this.loadingAlertas.set(true);
     this.calendarioService.getVencimentos(LOGGED_PRODUCER_ID).subscribe({
@@ -579,24 +604,10 @@ export class DashboardPage implements OnInit {
     });
   }
 
-  /** Carrega GET /api/dashboard (mes corrente). Sem fallback mock — erro vira estado de retry. */
-  carregarDashboard(): void {
-    this.loading.set(true);
-    this.erro.set(false);
-    this.dashboardService.carregar().subscribe({
-      next: () => {
-        this.loading.set(false);
-        this.carregarNotasComProblema();
-      },
-      error: () => {
-        this.loading.set(false);
-        this.erro.set(true);
-      },
-    });
-  }
-
   tentarNovamente(): void {
-    this.carregarDashboard();
+    // Refaz **o periodo escolhido**. Antes voltava ao padrao do backend com o seletor intacto:
+    // quem errasse num mes antigo e clicasse "tentar novamente" via o mes corrente aparecer.
+    this.trocarPeriodo();
   }
 
   abrirPreview(doc: DocItem): void {

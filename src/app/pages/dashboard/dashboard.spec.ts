@@ -533,4 +533,67 @@ describe('DashboardPage', () => {
       expect(cmp.totalImpostoCalculado()).toBeCloseTo(1809.5, 2);
     });
   });
+
+  /**
+   * Mês futuro não é opção (issue #114).
+   *
+   * A lista era fixa nos doze. Em outubro de 2026 dava para escolher novembro e dezembro de 2026 —
+   * meses que não aconteceram — e o painel respondia tudo zerado: faturamento zero, imposto zero,
+   * nenhuma nota. Parece app quebrado, e não é: foi a tela que ofereceu uma pergunta sem resposta.
+   */
+  describe('o seletor nao oferece mes que ainda nao aconteceu (#114)', () => {
+    // **Relogio congelado de proposito.** Sem isto o teste passa hoje e reprova sozinho em janeiro,
+    // quando "o ano corrente" muda -- erro que ja custou um CI vermelho neste projeto.
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    /** Responde o que a troca de periodo dispara, ignorando o que o switchMap cancelou. */
+    function drenarTroca() {
+      httpMock
+        .match((r) => r.url === '/dashboard')
+        .filter((r) => !r.cancelled)
+        .forEach((r) => r.flush(buildResponse()));
+      flushNotasComPendencia();
+      flushApuracao();
+      flushVencimentos();
+    }
+
+    it('no ano corrente a lista para no mes de hoje; em ano passado traz os doze', () => {
+      const fixture = TestBed.createComponent(DashboardPage);
+      const cmp = fixture.componentInstance;
+      fixture.detectChanges();
+      drenarTroca();
+
+      expect(cmp.meses().length).toBe(10);
+      expect(cmp.meses().at(-1)?.nome).toBe('Outubro');
+      expect(cmp.meses().map((m) => m.nome)).not.toContain('Novembro');
+
+      cmp.setAno('2025');
+      drenarTroca();
+      expect(cmp.meses().length).toBe(12);
+      expect(cmp.meses().at(-1)?.nome).toBe('Dezembro');
+    });
+
+    it('voltando de dezembro/2025 para o ano corrente, o mes escolhido nao fica no futuro', () => {
+      const fixture = TestBed.createComponent(DashboardPage);
+      const cmp = fixture.componentInstance;
+      fixture.detectChanges();
+      drenarTroca();
+
+      cmp.setAno('2025');
+      drenarTroca();
+      cmp.setMes('12');
+      drenarTroca();
+      expect(cmp.periodoSelecionado()).toBe('2025-12');
+
+      // De volta ao ano corrente, dezembro nao existe: o mes e puxado para o ultimo que existe.
+      cmp.setAno('2026');
+      drenarTroca();
+      expect(cmp.periodoMes()).toBe(10);
+      expect(cmp.periodoSelecionado()).toBe('2026-10');
+    });
+  });
 });

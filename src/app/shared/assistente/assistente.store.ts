@@ -138,7 +138,8 @@ export class AssistenteStore {
     if (this.carregou) return;
     this.carregou = true;
 
-    this.dashboardApi.carregar().subscribe({ error: () => undefined });
+    // A Ceres quer contexto, nao um periodo: nao pode derrubar o mes que o produtor escolheu.
+    this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
     this.notasApi.listar({ size: 50, sort: 'dataEmissao,desc' }).subscribe({
       next: (pagina) =>
         this.notasPendentes.set(
