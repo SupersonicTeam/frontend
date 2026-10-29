@@ -169,6 +169,38 @@ export function aceitaAcao(status?: string): boolean {
   return !EM_TRANSITO.includes(status);
 }
 
+/**
+ * Os status em que o XML **existe** no servidor — e so neles o DANFE pode ser servido.
+ *
+ * Medido contra a API local em 29/10, numa nota `COM_INCONSISTENCIAS`: `/notas/{id}/pdf` e
+ * `/notas/{id}/xml` respondem **409**, com a mensagem do proprio backend -- "DANFE indisponivel
+ * para a nota ... no status 'COM_INCONSISTENCIAS'. Gere o XML".
+ *
+ * `APROVADA` fica de fora de proposito: o escritorio liberou, mas o XML so nasce no passo
+ * seguinte. Aprovacao e permissao, nao arquivo.
+ */
+const COM_ARQUIVOS_FISCAIS: readonly string[] = [
+  'XML_GERADO',
+  'ENVIANDO',
+  'PENDENTE_SEFAZ',
+  'AUTORIZADA',
+  'REJEITADA',
+  'CANCELANDO',
+  'CANCELADA',
+];
+
+/**
+ * O XML e o DANFE ja existem para baixar?
+ *
+ * **E pergunta de estado, nao de permissao** (issue #101). A tela decidia isto negando
+ * `podeGerarXml`, que carrega a regra de aprovacao do contador: para todo produtor com escritorio
+ * a negacao dava `true` num rascunho, e a nota oferecia "XML" e "DANFE" de arquivos que nao
+ * existiam -- dois botoes que so sabiam dar 409.
+ */
+export function temArquivosFiscais(status?: string): boolean {
+  return !!status && COM_ARQUIVOS_FISCAIS.includes(status);
+}
+
 /** A nota está na mesa do escritório, esperando aprovação. */
 export function esperaOEscritorio(status?: string): boolean {
   return status === 'AGUARDANDO_APROVACAO';

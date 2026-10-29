@@ -43,7 +43,12 @@ import { VinculosApi } from '@services/vinculos/data-access/vinculos.service';
 import { NotaFiscalRequest, NotaFiscalItemRequest } from '@dtos/notas/nota-fiscal.request';
 import { NotaValidacaoResponse, SefazRetorno } from '@dtos/notas/sefaz.response';
 import { ApiErrorEnvelope, FiscalError } from '@dtos/shared/responses/api-error.response';
-import { editavel, esperaOEscritorio, statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
+import {
+  editavel,
+  esperaOEscritorio,
+  statusNotaLabel,
+  temArquivosFiscais,
+} from '@core/enums/status-nota-fiscal.enum';
 import { gerarNotaPdf } from '@core/utils/nota-pdf';
 import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
@@ -999,9 +1004,29 @@ export class DocumentosPage implements OnInit {
     if (this.temContador()) return false;
     return nota?.status === 'RASCUNHO' || nota?.status === 'COM_INCONSISTENCIAS';
   }
-  /** XML/DANFE disponíveis após a geração do XML (409 em RASCUNHO/COM_INCONSISTENCIAS). */
+  /**
+   * XML/DANFE disponiveis apos a geracao do XML (409 antes dela).
+   *
+   * Isto era `!this.podeGerarXml(nota)` -- a negacao de uma checagem de **permissao**, nao de
+   * **estado** (#101). Quando a aprovacao do contador entrou no `podeGerarXml` (#178), ele passou
+   * a devolver `false` para todo produtor com escritorio, e a negacao virou `true` num rascunho:
+   * a nota exibia "XML" e "DANFE" de arquivos inexistentes. Agora a pergunta vai ao status, que e
+   * quem sabe a resposta.
+   */
   temArquivos(nota?: NotaFiscal | null): boolean {
-    return !!nota && !this.podeGerarXml(nota);
+    return !!nota && temArquivosFiscais(nota.status);
+  }
+
+  /**
+   * A previa simplificada e o que da para baixar **enquanto o documento fiscal nao existe** (#101).
+   *
+   * Ela e gerada aqui no navegador, a partir da nota que ja esta na tela: nao depende de XML, de
+   * SEFAZ nem de aprovacao. Mesmo assim vivia dentro do bloco do "Gerar XML", escondida justamente
+   * nas notas em que e a unica coisa baixavel. Onde o DANFE oficial existe, ele manda -- ninguem
+   * quer o rascunho tendo o documento com valor fiscal.
+   */
+  podeBaixarPrevia(nota?: NotaFiscal | null): boolean {
+    return !!nota && !this.temArquivos(nota);
   }
   /** Envio à SEFAZ só em XML_GERADO. */
   podeEnviarSefaz(nota?: NotaFiscal | null): boolean {

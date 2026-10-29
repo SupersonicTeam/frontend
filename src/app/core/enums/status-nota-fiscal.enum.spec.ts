@@ -5,6 +5,7 @@ import {
   esperaOEscritorio,
   statusNotaBadge,
   statusNotaLabel,
+  temArquivosFiscais,
 } from './status-nota-fiscal.enum';
 
 /**
@@ -107,5 +108,42 @@ describe('status da nota fiscal', () => {
     expect(esperaOEscritorio('AGUARDANDO_APROVACAO')).toBe(true);
     expect(esperaOEscritorio('APROVADA')).toBe(false);
     expect(esperaOEscritorio('DEVOLVIDA')).toBe(false);
+  });
+
+  /**
+   * Ter arquivo e pergunta de **estado**, nunca de permissao (issue #101).
+   *
+   * A tela respondia isto negando `podeGerarXml`, que carrega a regra de aprovacao do contador.
+   * Desde a #178 esse metodo devolve `false` para todo produtor com escritorio, entao a negacao
+   * virava `true` num rascunho e a nota oferecia "XML" e "DANFE" de arquivos que nao existiam.
+   *
+   * Medido contra a API local em 29/10, numa nota `COM_INCONSISTENCIAS`: `/notas/{id}/pdf` e
+   * `/notas/{id}/xml` respondem **409**.
+   */
+  describe('temArquivosFiscais (#101)', () => {
+    it('antes do XML nao ha arquivo nenhum para baixar', () => {
+      expect(temArquivosFiscais('RASCUNHO')).toBe(false);
+      expect(temArquivosFiscais('COM_INCONSISTENCIAS')).toBe(false);
+      expect(temArquivosFiscais('DEVOLVIDA')).toBe(false);
+    });
+
+    it('aprovada pelo escritorio ainda nao tem XML — aprovacao e permissao, nao arquivo', () => {
+      expect(temArquivosFiscais('AGUARDANDO_APROVACAO')).toBe(false);
+      expect(temArquivosFiscais('APROVADA')).toBe(false);
+    });
+
+    it('do XML gerado em diante, sim', () => {
+      expect(temArquivosFiscais('XML_GERADO')).toBe(true);
+      expect(temArquivosFiscais('ENVIANDO')).toBe(true);
+      expect(temArquivosFiscais('PENDENTE_SEFAZ')).toBe(true);
+      expect(temArquivosFiscais('AUTORIZADA')).toBe(true);
+      expect(temArquivosFiscais('REJEITADA')).toBe(true);
+      expect(temArquivosFiscais('CANCELADA')).toBe(true);
+    });
+
+    it('status desconhecido nao ganha botao — 409 e pior que botao nenhum', () => {
+      expect(temArquivosFiscais('INVENTADO')).toBe(false);
+      expect(temArquivosFiscais(undefined)).toBe(false);
+    });
   });
 });

@@ -216,7 +216,8 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `ceres.ts` | Vocabulário da Ceres em português: `rotuloRota()` (selo "das suas notas"), `etapaDaRota()` (o que mostrar enquanto ela trabalha), `rotuloFonte()`/`descreverFonte()` (as consultas de `fontesDados`) e `TAMANHO_MAXIMO_PERGUNTA` (1000). Função não documentada no contrato aparece com o nome cru — melhor que inventar rótulo. |
 | `chart-tokens.ts` | Cores do Chart.js a partir das custom properties do tema. O `<canvas>` não enxerga Tailwind. |
 | `guias.ts` | `statusDaGuia()` traduz `PENDENTE`/`PAGA`/`VENCIDA` para o vocabulário do modelo **e deriva o atraso da data** — o backend não devolve `VENCIDA` por conta própria em `/contador/guias`, mas a carteira conta a guia atrasada em `atencao.guiasVencidas`. Sem isso as duas telas discordavam sobre a mesma guia. |
-| `download.ts` · `nota-pdf.ts` | Salvar blob / DANFE. |
+| `mascaras.ts` | CPF/CNPJ e CEP nos campos (#102). `aplicarMascara()` formata **sem perder o cursor**: a âncora é quantos dígitos havia antes dele, não a posição no texto, que anda quando um ponto entra. Antes o cursor ia para o fim a cada tecla. O envio segue cru (`soDigitos` no payload). |
+| `download.ts` · `nota-pdf.ts` | Salvar blob / DANFE. O `nota-pdf` gera a **prévia** simplificada no navegador, a partir da nota que já está na tela — é o que dá para baixar enquanto não há XML (#101). Quem decide se o documento fiscal existe é `temArquivosFiscais(status)`, no enum: é pergunta de **estado**, não de permissão. |
 
 ## Assistente — a Ceres (`shared/assistente/`, issue #76)
 
