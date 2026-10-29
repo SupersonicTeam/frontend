@@ -96,49 +96,43 @@ describe('ImpostosProdutor', () => {
    * @param anterior dados do mês anterior, ou `null` para "não há com o que comparar" (404)
    */
   function flushApuracao(o: Partial<Apuracao> = {}, anterior: Partial<Apuracao> | null = null) {
-    const { atual, anterior: reqAnterior, resto } = apuracoesAbertas(periodoAtual());
+    const { atual, faixa } = apuracoesAbertas(periodoAtual());
     expect(atual).toBeTruthy();
     atual!.flush(buildApuracao({ periodo: periodoAtual(), ...o }));
-    if (anterior === null) {
-      reqAnterior?.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
-    } else {
-      reqAnterior?.flush(buildApuracao({ periodo: periodoAnteriorStr(), ...anterior }));
-    }
-    // Os outros quatro meses da faixa não interessam a quem chamou.
-    semDado(resto);
+    flushFaixa(faixa, anterior === null ? [] : [{ periodo: periodoAnteriorStr(), ...anterior }]);
     flushGuias();
   }
   /**
-   * As requisições de `/apuracao` que a tela dispara por carga: a do período na tela e as cinco
-   * anteriores (faixa dos seis meses, de onde sai também a comparação com o mês passado).
+   * As requisições de `/apuracao` que a tela dispara por carga: **duas**.
+   *
+   * A do período na tela (`?periodo=`) e a faixa dos cinco meses anteriores (`?de=&ate=`). Eram
+   * seis — uma por mês — até a #116: o endpoint de faixa existia e a tela não usava.
    *
    * **Tem de ser uma chamada só.** `httpMock.match()` esvazia a fila: pegar uma e depois procurar
-   * as outras devolve vazio, porque a primeira chamada já levou todas embora. Por isso `resto`
-   * vem junto — quem não se importa com o histórico fecha essas com 404.
+   * a outra devolve vazio, porque a primeira já levou todas embora.
    */
   function apuracoesAbertas(periodo: string) {
     const reqs = httpMock.match((r) => r.url === '/apuracao');
-    const de = (p: string) => reqs.find((r) => r.request.params.get('periodo') === p);
-    const anteriorA = mesAtras(periodo, 1);
     return {
-      atual: de(periodo),
-      anterior: de(anteriorA),
-      de,
-      resto: reqs.filter((r) => {
-        const p = r.request.params.get('periodo');
-        return p !== periodo && p !== anteriorA;
-      }),
+      atual: reqs.find((r) => r.request.params.get('periodo') === periodo),
+      faixa: reqs.find((r) => r.request.params.has('de')),
     };
+  }
+
+  /**
+   * Responde a faixa. Lista vazia = não há histórico com o que comparar.
+   *
+   * O contrato garante faixa **sem buraco** (mês sem nota vem zerado), então aqui não existe mais
+   * "este mês falhou sozinho": ou a faixa responde, ou nenhuma parte dela.
+   */
+  function flushFaixa(req: TestRequest | undefined, meses: Partial<Apuracao>[] = []) {
+    req?.flush(meses.map((m) => buildApuracao(m)));
   }
   /** `AAAA-MM` de `n` meses antes de `periodo`. */
   function mesAtras(periodo: string, n: number) {
     const [ano, mes] = periodo.split('-').map(Number);
     const d = new Date(ano, mes - 1 - n, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  }
-  /** Fecha sem dado os meses da faixa que o teste não examina. */
-  function semDado(reqs: TestRequest[]) {
-    reqs.forEach((r) => r.flush('sem apuracao', { status: 404, statusText: 'Not Found' }));
   }
   function flushGuias(lista: unknown[] = []) {
     httpMock.match((r) => r.url === '/contador/guias').forEach((r) => r.flush(lista));
@@ -173,11 +167,10 @@ describe('ImpostosProdutor', () => {
     const cmp = f.componentInstance;
     f.detectChanges();
 
-    const { atual, anterior, resto } = apuracoesAbertas(cmp.periodo());
+    const { atual, faixa } = apuracoesAbertas(cmp.periodo());
     expect(atual!.request.params.get('periodo')).toBe(cmp.periodo());
     atual!.flush(buildApuracao());
-    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
-    semDado(resto);
+    flushFaixa(faixa);
     flushGuias();
     const reqR = httpMock.expectOne((r) => r.url === '/relatorios/conformidade');
     expect(reqR.request.params.get('periodo')).toBe(cmp.periodo());
@@ -194,13 +187,12 @@ describe('ImpostosProdutor', () => {
     flushTodos();
 
     cmp.mudarMes(3);
-    const { atual, anterior, resto } = apuracoesAbertas(`${cmp.ano()}-03`);
+    const { atual, faixa } = apuracoesAbertas(`${cmp.ano()}-03`);
     expect(atual!.request.params.get('periodo')).toBe(`${cmp.ano()}-03`);
     atual!.flush(buildApuracao({ periodo: `${cmp.ano()}-03` }));
-    // Fevereiro é o mês anterior a março: a comparação vem junto.
-    expect(anterior!.request.params.get('periodo')).toBe(`${cmp.ano()}-02`);
-    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
-    semDado(resto);
+    // A faixa termina em fevereiro, o mês anterior a março: a comparação sai dela.
+    expect(faixa!.request.params.get('ate')).toBe(`${cmp.ano()}-02`);
+    flushFaixa(faixa);
     flushGuias();
     const reqR = httpMock.expectOne((r) => r.url === '/relatorios/conformidade');
     expect(reqR.request.params.get('periodo')).toBe(`${cmp.ano()}-03`);
@@ -246,10 +238,9 @@ describe('ImpostosProdutor', () => {
     const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;
     f.detectChanges();
-    const { atual, anterior, resto } = apuracoesAbertas(cmp.periodo());
+    const { atual, faixa } = apuracoesAbertas(cmp.periodo());
     atual!.flush('erro', { status: 500, statusText: 'Server Error' });
-    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
-    semDado(resto);
+    flushFaixa(faixa);
     flushGuias();
     flushRelatorio();
 
@@ -438,9 +429,9 @@ describe('ImpostosProdutor', () => {
     const periodo = cmp.periodo();
     f.detectChanges();
 
-    const { atual, anterior } = apuracoesAbertas(periodo);
+    const { atual, faixa } = apuracoesAbertas(periodo);
     atual!.flush(buildApuracao({ periodo }));
-    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
+    flushFaixa(faixa);
     flushGuias([
       {
         id: 'g1',
@@ -555,10 +546,9 @@ describe('ImpostosProdutor', () => {
 
     cmp.mudarMes(3);
     const alvo = `${cmp.ano()}-03`;
-    const { atual, anterior, resto } = apuracoesAbertas(alvo);
+    const { atual, faixa } = apuracoesAbertas(alvo);
     atual!.flush(buildApuracao({ periodo: alvo }));
-    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
-    semDado(resto);
+    flushFaixa(faixa);
     flushGuias();
 
     // O relatório de março ainda está no ar: a conta cai para a apuração de março em vez de
@@ -579,10 +569,9 @@ describe('ImpostosProdutor', () => {
 
     cmp.mudarMes(3);
     const alvo = `${cmp.ano()}-03`;
-    const { atual, anterior, resto } = apuracoesAbertas(alvo);
+    const { atual, faixa } = apuracoesAbertas(alvo);
     atual!.flush(buildApuracao({ periodo: alvo }));
-    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
-    semDado(resto);
+    flushFaixa(faixa);
     flushGuias();
     // Chega atrasada a resposta de fevereiro, com outro saldo.
     httpMock
@@ -628,12 +617,9 @@ describe('ImpostosProdutor', () => {
     const periodo = cmp.periodo();
     f.detectChanges();
 
-    const { atual, de, resto } = apuracoesAbertas(periodo);
+    const { atual, faixa: reqFaixa } = apuracoesAbertas(periodo);
     atual!.flush(buildApuracao({ periodo, saldoIbs: 10, saldoCbs: 90 }));
-    de(mesAtras(periodo, 1))!.flush(
-      buildApuracao({ periodo: mesAtras(periodo, 1), saldoIbs: 20, saldoCbs: 180 }),
-    );
-    semDado(resto.filter((r) => r.request.params.get('periodo') !== mesAtras(periodo, 1)));
+    flushFaixa(reqFaixa, [{ periodo: mesAtras(periodo, 1), saldoIbs: 20, saldoCbs: 180 }]);
     flushGuias();
     flushRelatorio();
     f.detectChanges();
@@ -664,12 +650,9 @@ describe('ImpostosProdutor', () => {
     const periodo = cmp.periodo();
     f.detectChanges();
 
-    const { atual, de, resto } = apuracoesAbertas(periodo);
+    const { atual, faixa } = apuracoesAbertas(periodo);
     atual!.flush(buildApuracao({ periodo, saldoIbs: 10, saldoCbs: 90 }));
-    de(mesAtras(periodo, 1))!.flush(
-      buildApuracao({ periodo: mesAtras(periodo, 1), saldoIbs: 60, saldoCbs: 240 }),
-    );
-    semDado(resto.filter((r) => r.request.params.get('periodo') !== mesAtras(periodo, 1)));
+    flushFaixa(faixa, [{ periodo: mesAtras(periodo, 1), saldoIbs: 60, saldoCbs: 240 }]);
     flushGuias();
     flushRelatorio();
     f.detectChanges();
@@ -724,12 +707,12 @@ describe('ImpostosProdutor', () => {
     expect(cmp.mes()).toBe(2);
     expect(cmp.periodo()).toBe('2025-02');
 
-    const { atual, anterior, resto } = apuracoesAbertas('2025-02');
+    const { atual, faixa } = apuracoesAbertas('2025-02');
     expect(atual).toBeTruthy();
-    expect(anterior!.request.params.get('periodo')).toBe('2025-01');
+    // A faixa termina em janeiro, o mes anterior a fevereiro.
+    expect(faixa!.request.params.get('ate')).toBe('2025-01');
     atual!.flush(buildApuracao({ periodo: '2025-02' }));
-    anterior!.flush('sem apuracao', { status: 404, statusText: 'Not Found' });
-    semDado(resto);
+    flushFaixa(faixa);
     flushGuias();
     httpMock
       .expectOne((r) => r.url === '/relatorios/conformidade')
@@ -742,9 +725,10 @@ describe('ImpostosProdutor', () => {
     const periodo = cmp.periodo();
     f.detectChanges();
 
-    const { atual, resto } = apuracoesAbertas(periodo);
+    const { atual, faixa } = apuracoesAbertas(periodo);
     atual!.flush(buildApuracao({ periodo }));
-    semDado(resto);
+    // Faixa vazia: nao ha mes anterior nenhum com que montar historico.
+    flushFaixa(faixa, []);
     flushGuias();
     flushRelatorio();
     f.detectChanges();
