@@ -115,4 +115,39 @@ describe('NotasApi', () => {
     expect(resp?.body).toBe('<nfe/>');
     expect(resp?.headers.get('Content-Disposition')).toBe('attachment; filename="nota-abc.xml"');
   });
+
+  /**
+   * `status` e `busca` passaram a ser do servidor (issue #104).
+   *
+   * Ate entao a rota so aceitava `Pageable`, e esta tela filtrava em memoria sobre a pagina
+   * carregada -- o filtro nao enxergava o que estivesse fora dela. Medido contra a API local em
+   * 29/10, com 15 notas na base: `?status=COM_INCONSISTENCIAS` devolve 2 e `?busca=Cafeeira`
+   * devolve 1, enquanto `?de=...&ate=...` **continua devolvendo as 15** -- por isso o recorte por
+   * data segue em memoria.
+   */
+  describe('filtros de servidor (#104)', () => {
+    it('manda status e busca quando existem', () => {
+      service.listar({ page: 0, size: 12, status: 'COM_INCONSISTENCIAS', busca: 'Cafeeira' }).subscribe();
+      const req = httpMock.expectOne((r) => r.url === '/notas');
+      expect(req.request.params.get('status')).toBe('COM_INCONSISTENCIAS');
+      expect(req.request.params.get('busca')).toBe('Cafeeira');
+      req.flush({ content: [], totalElements: 0 });
+    });
+
+    it('nao manda parametro vazio — ausente e diferente de "qualquer"', () => {
+      service.listar({ page: 0, size: 12 }).subscribe();
+      const req = httpMock.expectOne((r) => r.url === '/notas');
+      expect(req.request.params.has('status')).toBe(false);
+      expect(req.request.params.has('busca')).toBe(false);
+      req.flush({ content: [], totalElements: 0 });
+    });
+
+    it('string vazia tambem nao vira parametro', () => {
+      service.listar({ status: '', busca: '' }).subscribe();
+      const req = httpMock.expectOne((r) => r.url === '/notas');
+      expect(req.request.params.has('status')).toBe(false);
+      expect(req.request.params.has('busca')).toBe(false);
+      req.flush({ content: [], totalElements: 0 });
+    });
+  });
 });

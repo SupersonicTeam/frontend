@@ -65,7 +65,7 @@
           <button
             type="button"
             class="tap-target mt-1.5 inline-flex items-center rounded-controle border border-aviso/40 px-3 text-apoio font-medium text-aviso-ink transition-colors hover:bg-aviso-soft"
-            (click)="statusFilter.set('esperando')"
+            (click)="trocarSituacao('esperando')"
           >
             Ver essas notas
           </button>
@@ -101,7 +101,7 @@
                 : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
             "
             [attr.aria-pressed]="statusFilter() === caixa.chave"
-            (click)="statusFilter.set(caixa.chave)"
+            (click)="trocarSituacao(caixa.chave)"
           >
             {{ caixa.rotulo }}
             <span
@@ -174,7 +174,7 @@
         class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
         aria-label="Situação da nota"
         [value]="statusFilter()"
-        (change)="statusFilter.set($any($event.target).value)"
+        (change)="trocarSituacao($any($event.target).value)"
       >
         <option value="todos">Qualquer situação</option>
         <!-- O recorte de trabalho tambem mora aqui, senao o seletor fica EM BRANCO quando a faixa

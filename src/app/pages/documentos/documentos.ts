@@ -245,17 +245,20 @@ export class DocumentosPage implements OnInit {
   notasErro = signal(false);
   pageIndex = signal(0);
   /**
-   * **Provisório, e o número é o sintoma de um problema real.**
+   * **Ainda provisório, mas por menos tempo (issue #104).**
    *
-   * Filtrar é trabalho do servidor, mas o `GET /api/notas` aceita só `Pageable`
-   * — nenhum parâmetro de status, tipo, data ou busca. Então os filtros desta
-   * tela rodam em memória, sobre o que veio na página. Com 12 por página e 15
-   * notas na base, o filtro **não enxergava 3 delas**: digitar o nome de um
-   * destinatário da página 2 devolvia "nenhuma nota".
+   * Filtrar é trabalho do servidor. Quando esta tela foi escrita, `GET /api/notas` aceitava só
+   * `Pageable`, então todos os filtros rodavam em memória sobre a página carregada — e com 12 por
+   * página o filtro **não enxergava** o que estivesse fora dela: buscar um destinatário da página
+   * 2 devolvia "nenhuma nota". Subir para 100 era o remendo.
    *
-   * Subir para 100 faz o filtro parar de mentir enquanto o backend não expõe os
-   * parâmetros (issue aberta para o Murillo). Quando a rota existir, isto volta
-   * para 12 e o filtro em memória é apagado.
+   * O backend avançou. Medido contra a API local em 29/10: **`status` e `busca` filtram**, e o
+   * `status` já vai daqui para o servidor (`recarregarNotas`). Mas `de`/`ate` **continuam sendo
+   * ignorados** — `?de=2026-09-01&ate=2026-09-30` devolve as 15 notas, as mesmas de sem filtro.
+   *
+   * É isso que segura o número aqui: enquanto o recorte por data for em memória, cair para 12
+   * ressuscita o bug antigo no filtro de período. Quando `de`/`ate` valerem, isto volta para 12 e
+   * os filtros em memória saem junto.
    */
   pageSize = signal(100);
   totalElements = signal(0);
@@ -650,11 +653,31 @@ export class DocumentosPage implements OnInit {
       this.busca().trim().length > 0,
   );
 
+  /**
+   * Troca a situação **e recarrega**, porque agora ela é filtro de servidor (#104).
+   *
+   * O template chamava `statusFilter.set(...)` direto. Com o filtro subindo para a API, trocar o
+   * signal sem recarregar deixaria a lista mostrando o recorte anterior.
+   */
+  trocarSituacao(valor: string): void {
+    if (this.statusFilter() === valor) return;
+    this.statusFilter.set(valor);
+    this.pageIndex.set(0);
+    this.recarregarNotas();
+  }
+
   limparFiltros(): void {
+    const tinhaSituacao = this.statusFilter() !== 'todos';
     this.periodo.set('todos');
     this.tipo.set('todos');
     this.statusFilter.set('todos');
     this.busca.set('');
+    // A situacao e filtro de servidor (#104): limpa-la sem recarregar deixaria a lista presa no
+    // recorte anterior, agora que a API e quem o aplica. Periodo, tipo e busca seguem em memoria.
+    if (tinhaSituacao) {
+      this.pageIndex.set(0);
+      this.recarregarNotas();
+    }
   }
 
   readonly pendenciasFiltradas = computed(() => {
@@ -837,11 +860,27 @@ export class DocumentosPage implements OnInit {
    * Em falha (ex.: backend offline) exibe o banner de erro com "Tentar novamente"
    * (`notasErro`), sem dados mockados.
    */
+  /**
+   * A situação escolhida, quando ela é um status que o servidor entende (#104).
+   *
+   * `todos` não é filtro, e `esperando` é uma **composição da tela** (o que depende de uma ação do
+   * produtor) que não existe como status no backend — essas duas continuam em memória.
+   */
+  private statusParaOServidor(): string | undefined {
+    const s = this.statusFilter();
+    return s === 'todos' || s === 'esperando' ? undefined : s;
+  }
+
   recarregarNotas(): void {
     this.loading.set(true);
     this.notasErro.set(false);
     this.notasApi
-      .listar({ page: this.pageIndex(), size: this.pageSize(), sort: 'dataEmissao,desc' })
+      .listar({
+        page: this.pageIndex(),
+        size: this.pageSize(),
+        sort: 'dataEmissao,desc',
+        status: this.statusParaOServidor(),
+      })
       .subscribe({
         next: (page) => {
           this.notas.set(page.content);
