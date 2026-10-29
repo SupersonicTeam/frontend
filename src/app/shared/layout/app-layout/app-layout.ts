@@ -88,6 +88,9 @@ export class AppLayout implements OnInit {
   }
 
   ngOnInit(): void {
+    // O sino busca na fonte do papel atual (#113). Antes ele nascia com tres itens cravados
+    // no codigo, com datas de 2025 e uma nota que nao existe.
+    this.notificacoesService.carregar();
     // O nome do produtor vem do dashboard. Sem esta carga, quem entra direto em
     // /documentos ve "Produtor" na topbar enquanto o painel mostra "Joao da
     // Silva Produtor" -- duas identidades para a mesma pessoa, dependendo de
@@ -122,7 +125,7 @@ export class AppLayout implements OnInit {
     this.notificacoesOpen.set(false);
   }
 
-  handleNotificacaoClick(notif: { id: number; rota: string }): void {
+  handleNotificacaoClick(notif: { id: string; rota: string }): void {
     this.notificacoesService.marcarLida(notif.id);
     this.notificacoesOpen.set(false);
     this.router.navigate([notif.rota]);
