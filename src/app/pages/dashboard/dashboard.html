@@ -181,7 +181,7 @@
        card de vencimentos, que era estreito e quase sempre vazio, desce para perto
        dos documentos enviados, que e o contexto dele. -->
   <!-- Card: Notas por mês (gráfico) -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5 lg:col-span-2 2xl:col-span-2">
+  <div class="bg-card rounded-card border border-border shadow-suave p-5 min-w-0 lg:col-span-2 2xl:col-span-2">
     <div class="flex items-center justify-between mb-4">
       <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideTrendingUp [size]="20" class="text-primary" />
@@ -197,7 +197,10 @@
     @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
     } @else if ((dashboard()?.notasPorMes?.length ?? 0) > 0) {
-      <div class="h-64">
+      <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
+           no canvas, e a 360px o card ficava 342 (300 + padding) e estourava a grade -- era por isso
+           que faltava a barra de Out/26 (#109). Com a largura do pai, ele encolhe junto. -->
+      <div class="h-64 w-full min-w-0">
         <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions()"></canvas>
       </div>
       <!-- Sem isto o grafico parece quebrado: a serie laranja fica invisivel e
@@ -228,7 +231,10 @@
     @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
     } @else if (((dashboard()?.distribuicaoImpostos?.ibs ?? 0) + (dashboard()?.distribuicaoImpostos?.cbs ?? 0)) > 0) {
-      <div class="h-64">
+      <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
+           no canvas, e a 360px o card ficava 342 (300 + padding) e estourava a grade -- era por isso
+           que faltava a barra de Out/26 (#109). Com a largura do pai, ele encolhe junto. -->
+      <div class="h-64 w-full min-w-0">
         <canvas baseChart [type]="'pie'" [data]="pieChartData()" [options]="pieChartOptions()"></canvas>
       </div>
     } @else {
@@ -425,10 +431,12 @@
   </div>
 
   <!-- Card: Últimos documentos -->
-  <div class="bg-card rounded-card border border-border shadow-suave">
-    <div class="flex items-center gap-2 px-5 pt-5 pb-3">
-      <svg lucideFileText [size]="20" class="text-primary" />
-      <h2 class="font-heading text-lg font-semibold text-foreground">Últimos documentos enviados</h2>
+  <div class="bg-card rounded-card border border-border shadow-suave min-w-0">
+    <div class="flex flex-wrap items-center gap-2 px-5 pt-5 pb-3">
+      <svg lucideFileText [size]="20" class="shrink-0 text-primary" />
+      <h2 class="min-w-0 font-heading text-lg font-semibold text-foreground">
+        Últimos documentos enviados
+      </h2>
       @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       } @else if (documentos().length) {
@@ -456,7 +464,10 @@
             <li class="animate-entra-subindo escalonado flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-2" [style.--passo]="$index">
               <div class="min-w-0 flex-1">
                 <p class="text-apoio font-medium text-foreground truncate">{{ doc.nome }}</p>
-                <div class="flex items-center gap-2 mt-1">
+                <!-- `flex-wrap`: tipo, selo e valor numa linha so davam ao cartao uma largura
+                     minima de 365px, e a 360px ele estourava a grade -- era isso que truncava o
+                     valor do documento (#109). Quebrando, cada um cabe. -->
+                <div class="mt-1 flex min-w-0 flex-wrap items-center gap-2">
                   <span class="text-apoio text-muted-foreground">{{ doc.tipo }}</span>
                   <ui-badge-status [status]="doc.status" />
                   @if (doc.valor > 0) {
