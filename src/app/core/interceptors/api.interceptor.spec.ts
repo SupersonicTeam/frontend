@@ -127,7 +127,13 @@ describe('apiInterceptor (identidade X-Usuario-Id)', () => {
         provideHttpClient(withInterceptors([apiInterceptor])),
         provideHttpClientTesting(),
         ToastService,
-        { provide: IdentidadeService, useValue: { usuarioId: signal(usuarioId) } },
+        {
+          // O interceptor **pergunta** a identidade da rota; qual rota merece header é decisão do
+          // `IdentidadeService`, coberta no spec dele. Aqui só provamos que o que ele responde vai
+          // (ou não vai) no header.
+          provide: IdentidadeService,
+          useValue: { usuarioId: signal(usuarioId), paraRota: () => usuarioId },
+        },
       ],
     });
     return {

@@ -37,6 +37,14 @@ export const routes: Routes = [
         canActivate: [contadorGuard],
         loadComponent: () => import('@pages/contador/contador').then((m) => m.ContadorPage),
       },
+      {
+        // Um cliente da carteira (#95). Rota filha e não query param: o endereço de um cliente é
+        // compartilhável e volta no histórico, e `/contador` continua sendo a fila de trabalho.
+        // O guard é o mesmo — a carteira é do escritório.
+        path: 'contador/:produtorId',
+        canActivate: [contadorGuard],
+        loadComponent: () => import('@pages/contador/cliente').then((m) => m.ClientePage),
+      },
 
       // ── Dos dois, com **telas diferentes** por papel. Não é o mesmo componente com textos
       // trocados: `/tributario` escolhe entre dois componentes próprios, porque produtor e contador

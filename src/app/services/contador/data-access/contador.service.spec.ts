@@ -110,17 +110,24 @@ describe('ContadorApi', () => {
       // `pendente`/`pago`/`vencido`. O fixture antigo deste teste usava minusculo e por isso
       // escondia a divergencia: na tela, guia paga entrava no total a pagar e guia vencida
       // nunca acendia o alerta. Conferido contra o backend real em 05/10/2026.
+      // As datas aqui sao propositalmente inequivocas (uma bem no futuro, as outras bem no
+      // passado), porque desde a carteira (#95) o atraso e **derivado da data** em
+      // `@core/utils/guias`: a versao anterior deste fixture usava 20/10/2026 como "pendente" e
+      // passava so enquanto aquela data nao tinha chegado. O teste nao deve depender do calendario
+      // de quem roda a suite.
       const doBackend = [
-        { id: 'g1', produtorId: 'p1', tipoGuia: 'ICMS', dataVencimento: '2026-10-20', valor: 990, status: 'PENDENTE', createdAt: '2026-09-01T10:00:00Z' },
-        { id: 'g2', produtorId: 'p1', tipoGuia: 'FUNRURAL', dataVencimento: '2026-09-20', valor: 1840.55, status: 'PAGA', createdAt: '2026-09-01T10:00:00Z' },
-        { id: 'g3', produtorId: 'p1', tipoGuia: 'GPS', dataVencimento: '2026-09-10', valor: 890, status: 'VENCIDA', createdAt: '2026-09-01T10:00:00Z' },
+        { id: 'g1', produtorId: 'p1', tipoGuia: 'ICMS', dataVencimento: '2099-12-31', valor: 990, status: 'PENDENTE', createdAt: '2026-09-01T10:00:00Z' },
+        { id: 'g2', produtorId: 'p1', tipoGuia: 'FUNRURAL', dataVencimento: '2020-09-20', valor: 1840.55, status: 'PAGA', createdAt: '2026-09-01T10:00:00Z' },
+        { id: 'g3', produtorId: 'p1', tipoGuia: 'GPS', dataVencimento: '2020-09-10', valor: 890, status: 'VENCIDA', createdAt: '2026-09-01T10:00:00Z' },
+        // O caso que o backend nao resolve: venceu e ele ainda diz PENDENTE.
+        { id: 'g4', produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2020-01-10', valor: 310, status: 'PENDENTE', createdAt: '2026-09-01T10:00:00Z' },
       ];
       let resultado: GuiaFiscal[] | undefined;
       service.getGuias('p1').subscribe(res => (resultado = res));
 
       httpMock.expectOne(r => r.url === '/contador/guias').flush(doBackend);
 
-      expect(resultado?.map(g => g.status)).toEqual(['pendente', 'pago', 'vencido']);
+      expect(resultado?.map(g => g.status)).toEqual(['pendente', 'pago', 'vencido', 'vencido']);
       // O resto do payload passa intacto.
       expect(resultado?.[1]).toMatchObject({ id: 'g2', tipoGuia: 'FUNRURAL', valor: 1840.55 });
     });

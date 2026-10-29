@@ -1,0 +1,272 @@
+<!--
+  Um cliente da carteira. A triagem (`/contador`) diz quem precisa de atenção; esta tela mostra o
+  que fazer por ele. Ver o javadoc de `ClientePage` para o que ficou de fora e por quê.
+-->
+<div class="page-container space-y-6 py-6">
+  <a
+    routerLink="/contador"
+    class="tap-target inline-flex items-center gap-2 text-apoio text-muted-foreground hover:text-foreground"
+  >
+    <svg lucideArrowLeft [size]="16" aria-hidden="true" />
+    Carteira do escritório
+  </a>
+
+  @if (erro()) {
+    <ui-empty-state
+      titulo="Não foi possível carregar este cliente"
+      descricao="A carteira não respondeu. Se você entrou como produtor, esta tela é do escritório."
+    >
+      <svg icone lucideTriangleAlert [size]="24" aria-hidden="true" />
+      <ui-button acao variant="ghost" (click)="recarregar()">Tentar de novo</ui-button>
+    </ui-empty-state>
+  } @else if (naoECliente()) {
+    <!--
+      O backend responde 404 aqui, não 403, para não confirmar que o produtor existe. A tela
+      explica o caminho em vez de oferecer "tentar de novo", que não resolveria nada.
+    -->
+    <ui-empty-state
+      titulo="Este produtor não é cliente do escritório"
+      descricao="O vínculo nasce de um convite por e-mail aceito pelo produtor. Se ele foi suspenso ou encerrado, o escritório deixa de alcançar os dados dele na hora."
+    >
+      <svg icone lucideUserX [size]="24" aria-hidden="true" />
+      <ui-button acao variant="ghost" routerLink="/contador">Voltar para a carteira</ui-button>
+    </ui-empty-state>
+  } @else if (!cliente()) {
+    <ui-skeleton [linhas]="3" formato="bloco" altura="5rem" />
+  } @else {
+    @let c = cliente()!;
+
+    <!-- ── Quem é o cliente ── -->
+    <header class="space-y-2">
+      <div class="flex flex-wrap items-center gap-2">
+        <h1 class="font-heading text-2xl font-semibold text-foreground">{{ c.nomeCompleto }}</h1>
+        @for (etiqueta of c.etiquetas; track etiqueta) {
+          <span class="rounded-full bg-surface-2 px-2 py-0.5 text-apoio text-muted-foreground">
+            {{ etiqueta }}
+          </span>
+        }
+      </div>
+      <p class="text-apoio text-muted-foreground">
+        {{ identificacao(c) }}
+        @if (c.responsavelNome) {
+          · responsável: {{ c.responsavelNome }}
+        }
+      </p>
+    </header>
+
+    @if (nadaAFazer()) {
+      <ui-empty-state
+        titulo="Nada pendente com este cliente"
+        descricao="Sem nota travada, guia a cobrar ou documento esperando conferência."
+      >
+        <svg icone lucideInbox [size]="24" aria-hidden="true" />
+      </ui-empty-state>
+    }
+
+    <!-- ── Notas com inconsistência ── -->
+    @if (notasComInconsistencia().length) {
+      <section
+        class="rounded-card border bg-card p-4"
+        [class]="foco() === 'inconsistencia' ? 'border-perigo-borda' : 'border-border'"
+      >
+        <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
+          <svg lucideFileWarning [size]="18" class="text-perigo-ink" aria-hidden="true" />
+          {{ notasComInconsistencia().length }}
+          {{ notasComInconsistencia().length === 1 ? 'nota travada' : 'notas travadas' }}
+        </h2>
+        <p class="mt-1 text-apoio text-muted-foreground">
+          O validador fiscal recusou. Abra para ver o que ele apontou — é o que o produtor precisa
+          corrigir.
+        </p>
+
+        <ul class="mt-3 divide-y divide-border">
+          @for (nota of notasComInconsistencia(); track nota.id) {
+            <li>
+              <button
+                type="button"
+                class="tap-target flex w-full items-center gap-2 py-2 text-left"
+                [attr.aria-expanded]="notaExpandida() === nota.id"
+                (click)="alternarNota(nota.id)"
+              >
+                @if (notaExpandida() === nota.id) {
+                  <svg lucideChevronDown [size]="16" class="shrink-0 text-perigo-ink" aria-hidden="true" />
+                } @else {
+                  <svg lucideChevronRight [size]="16" class="shrink-0 text-perigo-ink" aria-hidden="true" />
+                }
+                <span class="min-w-0 flex-1 text-apoio text-foreground">
+                  <span class="font-medium">Nota {{ nota.numero }}</span>
+                  · {{ nota.destinatarioNome }}
+                  <span class="text-muted-foreground">· {{ dataCurta(nota.dataEmissao) }}</span>
+                </span>
+                <ui-badge-status [status]="nota.status" />
+              </button>
+
+              @if (notaExpandida() === nota.id) {
+                <div class="pb-3 pl-6">
+                  @if (carregandoValidacoes()) {
+                    <p class="flex items-center gap-2 text-apoio text-muted-foreground">
+                      <svg lucideLoaderCircle [size]="14" class="animate-spin" aria-hidden="true" />
+                      Buscando o que o fisco apontou…
+                    </p>
+                  } @else if (validacoes().length) {
+                    <ul class="flex flex-col gap-1.5">
+                      @for (v of validacoes(); track v.code + (v.field ?? '')) {
+                        <li class="text-apoio leading-relaxed text-foreground">
+                          @if (v.field) {
+                            <span class="font-medium">{{ rotuloDoCampo(v.field) }}:</span>
+                          }
+                          {{ v.message }}
+                          @if (v.suggestion) {
+                            <span class="block text-muted-foreground">{{ v.suggestion }}</span>
+                          }
+                        </li>
+                      }
+                    </ul>
+                  } @else {
+                    <p class="text-apoio text-muted-foreground">
+                      O backend não registrou validações para esta nota.
+                    </p>
+                  }
+                </div>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <!-- ── Esperando a aprovação do escritório ── -->
+    @if (notasAguardandoAprovacao().length) {
+      <section
+        class="rounded-card border bg-card p-4"
+        [class]="foco() === 'aprovacao' ? 'border-aviso-borda' : 'border-border'"
+      >
+        <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
+          <svg lucideStamp [size]="18" class="text-aviso-ink" aria-hidden="true" />
+          {{ notasAguardandoAprovacao().length }} na sua mesa
+        </h2>
+        <p class="mt-1 text-apoio text-muted-foreground">
+          O produtor montou e enviou para a sua revisão. Aprovar e devolver são verbos da
+          backend#178 e ainda não têm botão aqui.
+        </p>
+        <ul class="mt-3 divide-y divide-border">
+          @for (nota of notasAguardandoAprovacao(); track nota.id) {
+            <li class="flex items-center gap-2 py-2 text-apoio text-foreground">
+              <span class="min-w-0 flex-1">
+                <span class="font-medium">Nota {{ nota.numero }}</span>
+                · {{ nota.destinatarioNome }}
+                <span class="text-muted-foreground">· {{ dataCurta(nota.dataEmissao) }}</span>
+              </span>
+              <ui-badge-status [status]="nota.status" />
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <!-- ── Devolvidas: a bola está com o produtor ── -->
+    @if (notasDevolvidas().length) {
+      <section class="rounded-card border border-border bg-card p-4">
+        <h2 class="font-heading font-semibold text-foreground">
+          {{ notasDevolvidas().length }} devolvida(s) ao produtor
+        </h2>
+        <p class="mt-1 text-apoio text-muted-foreground">
+          Você já devolveu; está esperando ele corrigir.
+        </p>
+        <ul class="mt-3 divide-y divide-border">
+          @for (nota of notasDevolvidas(); track nota.id) {
+            <li class="flex items-center gap-2 py-2 text-apoio text-foreground">
+              <span class="min-w-0 flex-1">
+                <span class="font-medium">Nota {{ nota.numero }}</span>
+                · {{ nota.destinatarioNome }}
+              </span>
+              <ui-badge-status [status]="nota.status" />
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <!-- ── Guias a cobrar ── -->
+    @if (guiasACobrar().length) {
+      <section
+        class="rounded-card border bg-card p-4"
+        [class]="foco() === 'guias' ? 'border-perigo-borda' : 'border-border'"
+      >
+        <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
+          <svg lucideHandCoins [size]="18" class="text-perigo-ink" aria-hidden="true" />
+          {{ moeda(totalACobrar()) }} a cobrar
+        </h2>
+        <!--
+          Sem filtro de período: guia atrasada de agosto não pode sumir porque o contador está
+          olhando outubro.
+        -->
+        <p class="mt-1 text-apoio text-muted-foreground">
+          De qualquer mês. Lançar e dar baixa ficam em Prazos e cobrança, que é a tela delas.
+        </p>
+        <ul class="mt-3 divide-y divide-border">
+          @for (guia of guiasACobrar(); track guia.id) {
+            <li class="flex flex-wrap items-center gap-2 py-2 text-apoio">
+              <span
+                class="rounded-full px-2 py-0.5 font-medium"
+                [class]="
+                  guia.status === 'vencido'
+                    ? 'bg-perigo-soft text-perigo-ink'
+                    : 'bg-aviso-soft text-aviso-ink'
+                "
+              >
+                {{ guia.status === 'vencido' ? 'vencida' : 'a vencer' }}
+              </span>
+              <span class="min-w-0 flex-1 text-foreground">
+                <span class="font-medium">{{ guia.tipoGuia }}</span>
+                <span class="text-muted-foreground"> · {{ dataCurta(guia.dataVencimento) }}</span>
+              </span>
+              <strong class="font-semibold text-foreground">
+                {{ moeda(guia.valor) }}
+              </strong>
+            </li>
+          }
+        </ul>
+        <ui-button variant="ghost" routerLink="/calendario" class="mt-3 inline-block">
+          Cobrar em Prazos
+        </ui-button>
+      </section>
+    }
+
+    <!-- ── Documentos esperando conferência ── -->
+    @if (pendencias().length) {
+      <section
+        class="rounded-card border bg-card p-4"
+        [class]="foco() === 'documentos' ? 'border-info-borda' : 'border-border'"
+      >
+        <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
+          <svg lucideInbox [size]="18" class="text-info-ink" aria-hidden="true" />
+          {{ pendencias().length }} esperando a sua conferência
+        </h2>
+        <p class="mt-1 text-apoio text-muted-foreground">
+          O produtor anexou e o antivírus liberou. Concluir ou rejeitar são verbos da backend#180 e
+          ainda não têm botão aqui.
+        </p>
+        <ul class="mt-3 divide-y divide-border">
+          @for (pendencia of pendencias(); track pendencia.id) {
+            <li class="py-2 text-apoio">
+              <p class="font-medium text-foreground">{{ pendencia.titulo }}</p>
+              @if (pendencia.dataLimite) {
+                <p class="text-muted-foreground">
+                  prazo: {{ dataCurta(pendencia.dataLimite) }}
+                </p>
+              }
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <p class="border-t border-border pt-4 text-apoio text-muted-foreground">
+      A apuração e o relatório de conformidade deste cliente não aparecem aqui porque não existe
+      rota para eles no escopo do escritório — <code>/api/apuracao</code> devolve 403 para contador
+      e a versão por cliente responde 404. Mostrar os números da identidade atual seria mostrar o
+      dinheiro de outra pessoa nesta ficha. Pedido em SupersonicTeam/backend#255.
+    </p>
+  }
+</div>
