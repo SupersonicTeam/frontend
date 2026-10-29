@@ -44,56 +44,64 @@ export interface StatusNotaMeta {
 }
 
 /**
- * Metadados de apresentação por status. Cores usam a paleta Tailwind com variante
- * `dark:` para legibilidade nos dois temas (issue #15).
+ * Metadados de apresentação por status.
+ *
+ * **Uma família de cor só** (issue #115). Metade destes selos usava a paleta crua do Tailwind
+ * (`amber-100`, `emerald-100`, `zinc-200`…) e a outra metade os tokens semânticos, então na mesma
+ * lista de notas apareciam **três cinzas diferentes, dois azuis, dois âmbares mais um amarelo e
+ * dois verdes** — "Autorizada" em `emerald` encostada em "Aprovada" em `sucesso`.
+ *
+ * Agora a cor diz **gravidade** (`sucesso`, `aviso`, `info`, `perigo`, neutro) e o **rótulo** diz
+ * qual estado é. Isso junta estados que antes tinham matiz próprio: "Autorizada" e "Aprovada" são
+ * as duas verdes, e "Com inconsistências", "Pendente na SEFAZ" e "Devolvida" as três âmbares. É
+ * troca consciente — matiz é um canal ruim para distinguir doze coisas, e era justamente o que
+ * fazia dois estados vizinhos parecerem o mesmo com verdes quase iguais. Quem precisa do estado
+ * exato lê o rótulo, que está sempre ao lado.
  */
 export const STATUS_NOTA_META: Record<StatusNotaFiscal, StatusNotaMeta> = {
   RASCUNHO: {
     label: 'Rascunho',
-    badge: 'bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
+    badge: 'bg-surface-2 text-muted-foreground border border-border',
     desvio: false,
   },
   COM_INCONSISTENCIAS: {
     label: 'Com inconsistências',
-    badge: 'bg-amber-100 text-amber-800 border border-amber-200 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800',
+    badge: 'bg-aviso-soft text-aviso-ink border border-aviso-borda',
     desvio: true,
   },
   XML_GERADO: {
     label: 'XML gerado',
-    badge: 'bg-blue-100 text-blue-800 border border-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800',
+    badge: 'bg-info-soft text-info-ink border border-info-borda',
     desvio: false,
   },
   AUTORIZADA: {
     label: 'Autorizada',
-    badge: 'bg-emerald-100 text-emerald-800 border border-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800',
+    badge: 'bg-sucesso-soft text-sucesso-ink border border-sucesso-borda',
     desvio: false,
   },
   REJEITADA: {
     label: 'Rejeitada',
-    badge: 'bg-red-100 text-red-800 border border-red-200 dark:bg-red-950 dark:text-red-300 dark:border-red-800',
+    badge: 'bg-perigo-soft text-perigo-ink border border-perigo-borda',
     desvio: true,
   },
   PENDENTE_SEFAZ: {
     label: 'Pendente na SEFAZ',
-    badge: 'bg-yellow-100 text-yellow-800 border border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800',
+    badge: 'bg-aviso-soft text-aviso-ink border border-aviso-borda',
     desvio: true,
   },
   AGUARDANDO_APROVACAO: {
     label: 'Aguardando aprovação',
-    badge:
-      'bg-info-soft text-info-ink border border-info-borda',
+    badge: 'bg-info-soft text-info-ink border border-info-borda',
     desvio: false,
   },
   APROVADA: {
     label: 'Aprovada',
-    badge:
-      'bg-sucesso-soft text-sucesso-ink border border-sucesso-borda',
+    badge: 'bg-sucesso-soft text-sucesso-ink border border-sucesso-borda',
     desvio: false,
   },
   DEVOLVIDA: {
     label: 'Devolvida',
-    badge:
-      'bg-aviso-soft text-aviso-ink border border-aviso-borda',
+    badge: 'bg-aviso-soft text-aviso-ink border border-aviso-borda',
     desvio: true,
   },
   // Transitorios: a nota esta no meio de uma ida a SEFAZ. Nenhuma acao vale enquanto isso --
@@ -110,7 +118,7 @@ export const STATUS_NOTA_META: Record<StatusNotaFiscal, StatusNotaMeta> = {
   },
   CANCELADA: {
     label: 'Cancelada',
-    badge: 'bg-zinc-200 text-zinc-600 border border-zinc-300 line-through dark:bg-zinc-800 dark:text-zinc-400 dark:border-zinc-700',
+    badge: 'bg-surface-2 text-muted-foreground border border-border line-through',
     desvio: true,
   },
 };

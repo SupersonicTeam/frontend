@@ -72,19 +72,29 @@
   /* --- Cores semanticas (#45) ---------------------------------------------------
      Substituem as 257 cores hardcoded da paleta Tailwind espalhadas pelas telas,
      das quais 135 nao tinham variante dark. Cada uma tem o par soft (fundo) e
-     ink (texto sobre o soft), para badge e destaque legiveis nos dois temas. */
+     ink (texto sobre o soft) e borda (o fio em volta do soft), para badge e destaque
+     legiveis nos dois temas.
+
+     A borda existia so para o assistente, mas o codigo ja usava `border-info-borda`,
+     `-sucesso-`, `-aviso-` e `-perigo-` em 9 lugares. Sem o token, o Tailwind nao gera
+     classe nenhuma: os selos ficavam com o fio da cor padrao em vez do tom da familia.
+     Medido no CSS compilado -- `assistente-borda` aparecia, as outras quatro, zero vez. */
   --color-sucesso: hsl(152 52% 34%);
   --color-sucesso-soft: hsl(152 44% 94%);
   --color-sucesso-ink: hsl(152 58% 24%);
+  --color-sucesso-borda: hsl(152 36% 84%);
   --color-aviso: hsl(38 74% 44%);
   --color-aviso-soft: hsl(40 84% 94%);
   --color-aviso-ink: hsl(30 66% 29%);
+  --color-aviso-borda: hsl(39 60% 83%);
   --color-info: hsl(210 66% 45%);
   --color-info-soft: hsl(210 70% 95%);
   --color-info-ink: hsl(210 62% 31%);
+  --color-info-borda: hsl(210 54% 85%);
   --color-perigo: hsl(0 66% 48%);
   --color-perigo-soft: hsl(0 72% 96%);
   --color-perigo-ink: hsl(0 58% 35%);
+  --color-perigo-borda: hsl(0 52% 87%);
 
   /* --- Superficies (#45) --------------------------------------------------------
      Neutros com vies verde, em vez de cinza puro: a interface inteira fica no
@@ -344,12 +354,15 @@ html {
   --color-sucesso: hsl(152 48% 56%);
   --color-sucesso-soft: hsl(152 30% 15%);
   --color-sucesso-ink: hsl(152 52% 74%);
+  --color-sucesso-borda: hsl(152 24% 28%);
   --color-aviso: hsl(38 72% 60%);
   --color-aviso-soft: hsl(36 32% 16%);
   --color-aviso-ink: hsl(38 78% 76%);
+  --color-aviso-borda: hsl(37 26% 30%);
   --color-info: hsl(210 66% 64%);
   --color-info-soft: hsl(210 34% 17%);
   --color-info-ink: hsl(210 72% 80%);
+  --color-info-borda: hsl(210 28% 31%);
 
   /* Mesma validação, outra superfície: contra o card escuro os passos claros saem da
      banda de luminosidade. Ver o comentário no @theme. */
@@ -358,6 +371,7 @@ html {
   --color-perigo: hsl(0 68% 66%);
   --color-perigo-soft: hsl(0 30% 17%);
   --color-perigo-ink: hsl(0 72% 80%);
+  --color-perigo-borda: hsl(0 26% 31%);
 
   --color-surface: hsl(150 16% 11%);
   --color-surface-2: hsl(150 14% 16%);

@@ -175,8 +175,21 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
   - **Acento do assistente**: `assistente`, `assistente-soft`, `assistente-ink`, `assistente-borda`.
     Violeta, usado **só** onde o sistema interpreta, sugere ou explica algo. Nunca decoração — é o que
     dá presença visual à IA, que era a crítica da banca.
-  - **Cores semânticas** com par `soft`/`ink`: `sucesso`, `aviso`, `info`, `perigo`. Usar no lugar de
-    `bg-green-50`, `text-amber-800` e afins — há 257 dessas hardcoded no projeto, 135 sem variante `dark:`.
+  - **Cores semânticas** com trio `soft`/`ink`/`borda`: `sucesso`, `aviso`, `info`, `perigo`. Usar no
+    lugar de `bg-green-50`, `text-amber-800` e afins (eram 257 cravadas; em 29/10 restavam **101**, quase
+    todas no fac-símile da DANFE, onde são intencionais).
+  - **Classe de cor sem token não falha em lugar nenhum.** No Tailwind v4 ela simplesmente **não gera
+    CSS** — sem erro de build, sem warning de lint, sem teste vermelho; o elemento fica com o valor padrão
+    e ninguém nota. Foi o que aconteceu com `border-{info,sucesso,aviso,perigo}-borda`, usadas em **9
+    lugares** enquanto só `assistente-borda` existia (corrigido na #115). Para conferir, conte no CSS
+    **compilado**, não no fonte:
+
+    ```bash
+    grep -c "aviso-borda" dist/frontend/browser/styles-*.css   # 0 = a classe nao existe
+    ```
+
+    Tentei virar teste de unidade e **não dá**: o builder do Angular desvia `styles.css` para o próprio
+    processador, então `import.meta.glob('/src/styles.css', {query:'?raw'})` devolve string vazia.
   - **Superfícies** `surface` e `surface-2` (neutros com viés verde), **sombras** `shadow-suave|media|alta|assistente`
     e **raios** `rounded-controle|card|destaque`.
 
@@ -189,7 +202,7 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `<ui-modal>` | Diálogo acessível sobre CDK: foco preso, Esc, foco devolvido ao gatilho, rolagem travada. **Use sempre** — havia 14 modais à mão sem nada disso. Conteúdo por projeção, ações no slot `[rodape]`. |
 | `<ui-stat>` | KPI. Rótulo em linguagem de produtor grande, termo fiscal como `apoio`. Nunca o contrário. |
 | `<ui-insight>` | Superfície do assistente. **Só com conteúdo derivado de dado real** (ex.: `/notas/{id}/validacoes`). |
-| `<ui-badge-status>` | Os 7 status da NF-e, sobre tokens semânticos. Rótulo vem de `STATUS_NOTA_META`. |
+| `<ui-badge-status>` | Os 12 status da NF-e, sobre tokens semânticos. Rótulo vem de `STATUS_NOTA_META`. **É este que a UI usa.** O `STATUS_NOTA_META.badge` é outra lista de classes, com um único consumidor: a `nota-preview`. |
 | `<ui-empty-state>` | Estado vazio com saída (slot `[acao]`), no lugar de texto solto. |
 | `<ui-skeleton>` | Carregamento com a forma do conteúdo, no lugar de spinner. |
 | `<ui-table>` | Moldura de tabela: rolagem na moldura, cabeçalho fixo, densidade por contexto. |
