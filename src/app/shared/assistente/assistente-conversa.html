@@ -82,8 +82,26 @@
 
           @if (msg.modoFallback) {
             <p class="mt-2 text-apoio leading-relaxed text-muted-foreground">
-              Resposta montada apenas com o texto da lei, sem interpretação.
+              Montei isto sem interpretar: é o texto da lei como está escrito.
             </p>
+
+            <!-- Os atalhos existem porque, sem o modelo, a Ceres ainda sabe ONDE está a
+                 resposta, mesmo sem poder formulá-la. Mandar a pessoa para a tela certa é
+                 melhor do que um pedido de desculpas. -->
+            @if (msg.atalhos?.length) {
+              <p class="mt-2 text-apoio text-muted-foreground">Onde ver isso agora:</p>
+              <div class="mt-1 flex flex-wrap gap-2">
+                @for (atalho of msg.atalhos; track atalho.rota) {
+                  <a
+                    [routerLink]="atalho.rota"
+                    class="tap-target inline-flex items-center rounded-controle border border-assistente-borda bg-assistente-soft px-3 text-apoio font-medium text-assistente-ink transition-colors hover:bg-assistente/15"
+                    (click)="store.fechar()"
+                  >
+                    {{ atalho.rotulo }}
+                  </a>
+                }
+              </div>
+            }
           }
 
           <app-ceres-citacoes [citacoes]="msg.citacoes ?? []" />
@@ -152,6 +170,100 @@
         (input)="store.entrada.set($any($event.target).value)"
         (keydown)="aoTeclar($event)"
       ></textarea>
+      <!-- ── O MEDIDOR DA COTA ──
+           Ficava como uma linha de texto no cabecalho, longe de onde a decisao acontece. O
+           lugar dele e aqui: quem vai perguntar olha para o campo, nao para o titulo.
+
+           E um anel que esvazia, nao um numero solto: a proporcao se le sem contar. Mas anel
+           sozinho nao explica nada, e `title` so existe no mouse -- no celular, onde o produtor
+           usa isto, hover nao existe. Por isso ele ABRE: um toque mostra o detalhe. -->
+      @if (store.uso(); as uso) {
+        <div class="relative shrink-0" data-cota>
+          <button
+            type="button"
+            class="tap-target flex items-center justify-center rounded-full transition-colors hover:bg-muted"
+            [attr.aria-expanded]="cotaAberta()"
+            [attr.aria-label]="
+              uso.restantes + ' de ' + uso.creditosSemana + ' créditos nesta semana. Ver detalhes'
+            "
+            (click)="cotaAberta.set(!cotaAberta())"
+          >
+            <svg viewBox="0 0 24 24" class="size-7" aria-hidden="true">
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                class="text-border"
+              />
+              <circle
+                cx="12"
+                cy="12"
+                r="9"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"
+                transform="rotate(-90 12 12)"
+                [class]="corDaCota(uso)"
+                [attr.stroke-dasharray]="56.5"
+                [attr.stroke-dashoffset]="56.5 - 56.5 * fracaoDaCota(uso)"
+              />
+            </svg>
+          </button>
+
+          @if (cotaAberta()) {
+            <!-- Abre para CIMA: o campo mora no rodape da tela, e para baixo o painel sairia
+                 pela borda. `right-0` ancora na direita porque o anel fica colado no Enviar. -->
+            <div
+              class="animate-entra-subindo absolute right-0 bottom-full z-20 mb-2 w-64 rounded-card border border-border bg-card p-4 shadow-alta"
+              role="dialog"
+              aria-label="Créditos da Ceres"
+            >
+              <p class="font-heading text-base font-semibold text-foreground">Uso</p>
+
+              <!-- Barra do que foi GASTO, como qualquer medidor de consumo: ela enche conforme a
+                   semana corre. O anel do lado de fora faz o contrario, esvazia -- por isso cada
+                   um diz em palavras o que mostra ("usado" aqui, "restantes" na linha abaixo),
+                   em vez de deixar a direcao do desenho no ar. -->
+              <div class="mt-3">
+                <div class="flex items-baseline justify-between gap-2">
+                  <span class="text-apoio font-medium text-foreground">Créditos da semana</span>
+                  <span class="text-apoio tabular-nums text-muted-foreground">
+                    {{ percentualUsado(uso) }}% usado
+                  </span>
+                </div>
+                <div class="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface-2">
+                  <div
+                    class="h-full rounded-full"
+                    [class]="corDaBarra(uso)"
+                    [style.width.%]="percentualUsado(uso)"
+                  ></div>
+                </div>
+                <p class="mt-1.5 text-apoio text-muted-foreground">
+                  {{ uso.restantes }} de {{ uso.creditosSemana }} restantes
+                </p>
+                <p class="text-apoio text-muted-foreground">Renova em {{ dataDaRenovacao(uso) }}</p>
+              </div>
+
+              <div class="mt-3 border-t border-border pt-3">
+                <div class="flex items-baseline justify-between gap-2">
+                  <span class="text-apoio text-muted-foreground">Plano</span>
+                  <span class="text-apoio text-foreground">{{ nomeDoPlano(uso) }}</span>
+                </div>
+                <!-- Dizer o que consome evita a leitura errada de "sobraram 994 perguntas". -->
+                <p class="mt-2 text-apoio leading-relaxed text-muted-foreground">
+                  Cada pergunta gasta conforme o tamanho da conversa — uma longa consome mais que
+                  uma curta.
+                </p>
+              </div>
+            </div>
+          }
+        </div>
+      }
+
       <ui-button
         type="submit"
         variant="assistente"

@@ -1,11 +1,16 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, TimeoutError, catchError, throwError, timeout } from 'rxjs';
+import { Observable, TimeoutError, catchError, of, throwError, timeout } from 'rxjs';
 import { environment } from '@env/environment';
 import { ApiService } from '@core/services/api.service';
 import { IdentidadeService } from '@core/services/identidade.service';
 import type { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
-import type { CeresEvento, CeresResposta, RotaCeres } from '@dtos/assistente/ceres.response';
+import type {
+  CeresEvento,
+  CeresResposta,
+  CeresUso,
+  RotaCeres,
+} from '@dtos/assistente/ceres.response';
 
 /**
  * Códigos de erro da Ceres (seção 5 do contrato). A decisão na tela é **pelo
@@ -137,6 +142,17 @@ export class CeresApi {
   }
 
   /**
+   * A cota da semana.
+   *
+   * Falha em silencio de proposito (`of(null)`): ficar sem saber quantos creditos restam nao
+   * pode impedir de perguntar, e um erro vermelho no cabecalho do chat por causa de um numero
+   * acessorio assusta mais do que informa.
+   */
+  uso(): Observable<CeresUso | null> {
+    return this.api.get<CeresUso>('/assistente/uso').pipe(catchError(() => of(null)));
+  }
+
+  /**
    * Pergunta em streaming. Chama `aoEvento` para cada evento do SSE (`rota`,
    * `resposta`, `fim`) e **lança** `CeresError` no evento `erro` — e também nos
    * erros que acontecem antes de o stream abrir (400/401/403/413 e o 503
@@ -243,6 +259,7 @@ export class CeresApi {
       citacoes: bruto?.citacoes ?? [],
       fontesDados: bruto?.fontesDados ?? [],
       modoFallback: bruto?.modoFallback ?? false,
+      atalhos: bruto?.atalhos ?? [],
     };
   }
 

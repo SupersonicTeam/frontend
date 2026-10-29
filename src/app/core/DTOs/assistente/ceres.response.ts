@@ -54,8 +54,21 @@ export interface CeresResposta {
   citacoes: CeresCitacao[];
   /** Vazio quando a resposta não derivou de consulta: sem selo "calculado a partir das suas notas". */
   fontesDados: CeresFonteDado[];
-  /** Hoje sempre `false`. Reservado para a Sprint 7: trechos da lei sem geração. */
+  /**
+   * Resposta montada **sem o modelo**: trechos de lei verbatim e/ou atalhos para as telas.
+   *
+   * Deixou de ser "sempre false" na Sprint 7 do backend (#146): quando o modelo cai, a Ceres
+   * ainda responde o que dá — e diz que não interpretou nada.
+   */
   modoFallback: boolean;
+  /**
+   * Telas sugeridas no modo fallback. Vazio fora dele.
+   *
+   * O backend manda o código da tela, não a rota (`NOTAS`, `APURACAO`, `CREDITOS`,
+   * `CALENDARIO`): quem sabe para onde cada uma aponta é o frontend. Código desconhecido é
+   * ignorado, para uma tela nova do backend não quebrar esta.
+   */
+  atalhos: string[];
 }
 
 /**
@@ -70,3 +83,20 @@ export type CeresEvento =
   | { evento: 'rota'; dado: { rota: RotaCeres } }
   | { evento: 'resposta'; dado: CeresResposta }
   | { evento: 'fim'; dado: Record<string, never> };
+
+/**
+ * Cota semanal da Ceres (`GET /api/assistente/uso`, Sprint 7 do backend, #166).
+ *
+ * O credito e o custo real de cada pergunta (tokens x modelo), nao um contador de perguntas:
+ * uma pergunta longa consome mais que uma curta. Por isso a tela mostra o que RESTA, nao o que
+ * foi gasto -- o que resta e o que muda a decisao de perguntar.
+ */
+export interface CeresUso {
+  plano: string;
+  habilitada: boolean;
+  creditosSemana: number;
+  consumidos: number;
+  restantes: number;
+  /** ISO com fuso. Quando a cota volta ao cheio. */
+  renovaEm: string;
+}

@@ -4,15 +4,12 @@ import {
   booleanAttribute,
   effect,
   inject,
+  signal,
   input,
   viewChild,
 } from '@angular/core';
-import {
-  LucideCircleStop,
-  LucideSend,
-  LucideTriangleAlert,
-  LucideUser,
-} from '@lucide/angular';
+import { LucideCircleStop, LucideSend, LucideTriangleAlert, LucideUser } from '@lucide/angular';
+import { RouterLink } from '@angular/router';
 import { rotuloRota } from '@core/utils/ceres';
 import type { AssistenteMensagem } from '@models/assistente-mensagem.model';
 import { UiButton } from '@shared/ui/ui-button';
@@ -37,6 +34,7 @@ import { CeresFontes } from './ceres-fontes';
   selector: 'app-assistente-conversa',
   standalone: true,
   imports: [
+    RouterLink,
     CeresAvatar,
     CeresCitacoes,
     CeresFontes,
@@ -46,11 +44,105 @@ import { CeresFontes } from './ceres-fontes';
     LucideUser,
     UiButton,
   ],
-  host: { class: 'flex min-h-0 flex-1 flex-col gap-3' },
+  host: {
+    class: 'flex min-h-0 flex-1 flex-col gap-3',
+    // O painel da cota fecha como qualquer coisa que abre por cima: Esc e clique fora. Sem
+    // isto ele so fecharia clicando de novo no anel, que ninguem adivinha.
+    '(document:keydown.escape)': 'cotaAberta.set(false)',
+    '(document:click)': 'fecharCotaForaDela($event)',
+  },
   templateUrl: './assistente-conversa.html',
 })
 export class AssistenteConversa {
   protected readonly store = inject(AssistenteStore);
+
+  /**
+   * Fecha o painel quando o clique nasce fora do bloco do medidor.
+   *
+   * A ancora e o `data-cota` do bloco, nao o painel: no instante do clique que ABRE, o painel
+   * ainda nao existe no DOM (a deteccao de mudanca nao rodou), e procurar por ele fazia o
+   * proprio clique de abertura ser lido como clique fora -- abria e fechava no mesmo toque.
+   */
+  protected fecharCotaForaDela(evento: Event): void {
+    if (!this.cotaAberta()) return;
+    const alvo = evento.target as HTMLElement | null;
+    if (alvo?.closest('[data-cota]')) return;
+    this.cotaAberta.set(false);
+  }
+
+  /** O painel de detalhe da cota esta aberto? Fecha no Esc e ao clicar fora (ver `host`). */
+  protected readonly cotaAberta = signal(false);
+
+  /** "19 de outubro" — a data em que a cota volta ao cheio. */
+  protected dataDaRenovacao(uso: { renovaEm: string }): string {
+    const d = new Date(uso.renovaEm);
+    if (Number.isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+  }
+
+  /**
+   * Quanto da cota ainda resta, de 0 a 1 -- e o quanto do anel fica aceso.
+   *
+   * Cota zerada no servidor devolve 0 creditos na semana; dividir por ela daria `NaN` e o anel
+   * sumiria em vez de aparecer vazio, que e justamente o estado que importa mostrar.
+   */
+  protected fracaoDaCota(uso: { restantes: number; creditosSemana: number }): number {
+    if (!uso.creditosSemana) return 0;
+    return Math.max(0, Math.min(1, uso.restantes / uso.creditosSemana));
+  }
+
+  /**
+   * O nome do plano em portugues de gente.
+   *
+   * O backend manda o codigo (`padrao`), que e o certo para ele -- mas codigo cru na tela e
+   * vazamento de implementacao: "padrao" sem acento parece erro de digitacao. Plano que eu nao
+   * conheca aparece como veio, com a inicial maiuscula, em vez de sumir.
+   */
+  protected nomeDoPlano(uso: { plano: string }): string {
+    const conhecidos: Record<string, string> = {
+      padrao: 'Padrão',
+      gratuito: 'Gratuito',
+      ilimitado: 'Ilimitado',
+    };
+    const nome = conhecidos[uso.plano];
+    if (nome) return nome;
+    return uso.plano ? uso.plano.charAt(0).toUpperCase() + uso.plano.slice(1) : '—';
+  }
+
+  /**
+   * Quanto por cento da cota ja foi gasto -- o numero que vai no painel, ao lado da barra.
+   *
+   * Arredonda para cima acima de zero: com 1 credito gasto de 1000, "0% usado" ao lado de uma
+   * barra com um fiozinho aceso seria contraditorio. Zero e zero; qualquer gasto e ao menos 1%.
+   */
+  protected percentualUsado(uso: { restantes: number; creditosSemana: number }): number {
+    if (!uso.creditosSemana) return 0;
+    const usado = uso.creditosSemana - uso.restantes;
+    if (usado <= 0) return 0;
+    return Math.max(1, Math.round((usado / uso.creditosSemana) * 100));
+  }
+
+  /** A mesma escala de cor do anel, em fundo -- a barra e o anel nunca discordam. */
+  protected corDaBarra(uso: { restantes: number; creditosSemana: number }): string {
+    const fracao = this.fracaoDaCota(uso);
+    if (fracao <= 0.05) return 'bg-perigo';
+    if (fracao <= 0.2) return 'bg-aviso';
+    return 'bg-assistente';
+  }
+
+  /**
+   * A cor do anel: so muda quando a informacao muda de natureza.
+   *
+   * Acima de 20% e um dado neutro, e pintar de verde faria o olho conferir o saldo a cada
+   * pergunta sem necessidade. Abaixo de 20% vira aviso, e abaixo de 5%, urgencia -- ai sim a cor
+   * esta dizendo algo que o numero sozinho demoraria a dizer.
+   */
+  protected corDaCota(uso: { restantes: number; creditosSemana: number }): string {
+    const fracao = this.fracaoDaCota(uso);
+    if (fracao <= 0.05) return 'text-perigo';
+    if (fracao <= 0.2) return 'text-aviso';
+    return 'text-assistente';
+  }
 
   /** Na gaveta o espaço é curto: a saudação some e as sugestões ficam em uma linha. */
   readonly compacto = input(false, { transform: booleanAttribute });

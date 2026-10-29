@@ -1,11 +1,6 @@
 import { Component, ElementRef, HostListener, effect, inject, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import {
-  LucideExternalLink,
-  LucideFileText,
-  LucideTriangleAlert,
-  LucideX,
-} from '@lucide/angular';
+import { LucideExternalLink, LucideFileText, LucideTriangleAlert, LucideX } from '@lucide/angular';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { AssistenteConversa } from './assistente-conversa';
 import { AssistenteStore } from './assistente.store';
