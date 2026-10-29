@@ -98,29 +98,27 @@ export class AppLayout implements OnInit {
     // O sino busca na fonte do papel atual (#113). Antes ele nascia com tres itens cravados
     // no codigo, com datas de 2025 e uma nota que nao existe.
     this.notificacoesService.carregar();
-    // O nome do produtor vem do dashboard. Sem esta carga, quem entra direto em
-    // /documentos ve "Produtor" na topbar enquanto o painel mostra "Joao da
-    // Silva Produtor" -- duas identidades para a mesma pessoa, dependendo de
-    // por onde se entrou. O service guarda em signal, entao nao repete.
-    // O painel e do PRODUTOR: para contador a rota responde 403 "Operacao restrita ao papel
-    // PRODUTOR" (medido em 29/10), entao pedi-lo seria gastar uma ida ao servidor para receber
-    // erro em toda navegacao do escritorio. E a mesma regra que o `IdentidadeService.paraRota` ja
-    // aplica aos headers.
+    // ── O nome na topbar vem do painel, e quem o busca depende de onde se esta.
+    //
+    // Sem carga nenhuma, quem entra direto em /documentos ve "Produtor" na topbar enquanto o painel
+    // mostra "Joao da Silva Produtor" -- duas identidades para a mesma pessoa, dependendo de por
+    // onde se entrou. Mas as duas condicoes abaixo dizem quando NAO buscar:
+    //
+    // 1. **Contador nunca.** `/api/dashboard` responde 403 "Operacao restrita ao papel PRODUTOR"
+    //    (medido em 29/10) -- seria uma ida ao servidor para receber erro em toda navegacao do
+    //    escritorio. Mesma regra que o `IdentidadeService.paraRota` ja aplica aos headers. Ele nao
+    //    perde nada: `nomeExibido` nao usa o painel para contador.
+    //
+    // 2. **Em /dashboard, nao.** O shell monta antes da pagina filha, entao o guard antigo
+    //    (`if (!dashboard())`) olhava o RESULTADO quando resposta nenhuma tinha voltado: a topbar
+    //    pedia, a pagina pedia logo atras, e mediam-se **dois GET /api/dashboard** por abertura
+    //    (#114). Pior, o pedido da topbar vai SEM periodo -- chegando depois de o produtor escolher
+    //    um mes, jogava os KPIs de volta para o padrao do backend. Ali a pagina busca com o periodo
+    //    certo e o signal e compartilhado: a topbar so precisa esperar.
     if (!this.perfilService.ehProdutor()) return;
+    if (this.router.url.startsWith('/dashboard')) return;
 
-    // O nome do produtor sai do painel, mas **a topbar nao e quem deve busca-lo no painel** (#114).
-    //
-    // O shell monta antes da pagina filha, entao o guard antigo (`if (!dashboard())`) olhava o
-    // resultado quando resposta nenhuma tinha voltado: a topbar pedia, a pagina pedia logo atras, e
-    // mediam-se **dois GET /api/dashboard** em toda abertura do painel. Pior, o pedido da topbar vai
-    // SEM periodo -- chegando depois de o produtor escolher um mes, jogava os KPIs de volta para o
-    // padrao do backend com o seletor ainda dizendo outra coisa.
-    //
-    // Em /dashboard a propria pagina busca, com o periodo certo, e o signal e compartilhado: a
-    // topbar so precisa esperar. Nas outras rotas ninguem busca, e aí sim ela pede.
-    if (!this.router.url.startsWith('/dashboard')) {
-      this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
-    }
+    this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
   }
 
   /**

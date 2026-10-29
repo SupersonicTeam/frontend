@@ -667,7 +667,9 @@ export class DocumentosPage implements OnInit {
   }
 
   limparFiltros(): void {
-    const tinhaSituacao = this.statusFilter() !== 'todos';
+    // So recarrega se a situacao anterior ia ao SERVIDOR. "Esperando voce" e composicao da tela:
+    // limpa-la nao muda o recorte que a API aplicou, e recarregar seria pedir a mesma coisa.
+    const tinhaSituacao = this.statusParaOServidor() !== undefined;
     this.periodo.set('todos');
     this.tipo.set('todos');
     this.statusFilter.set('todos');

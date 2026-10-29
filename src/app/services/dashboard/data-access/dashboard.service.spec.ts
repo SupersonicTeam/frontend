@@ -154,6 +154,49 @@ describe('DashboardApi', () => {
       expect(service.dashboard()?.periodo).toBe('2026-09');
     });
 
+    /**
+     * A fresta que sobrou do `limpar()` na primeira versao.
+     *
+     * Zerar `sequencia` e `aceita` nao bastava: o pedido ja em voo guarda a sua vez no closure, e
+     * o `tap` dele roda quando a resposta chega -- depois do logout. Com os contadores zerados, a
+     * resposta passava na conferencia e **reescrevia o painel de quem acabou de sair**, trazendo
+     * de volta o vazamento que o `limpar()` existe para evitar.
+     */
+    it('resposta que chega DEPOIS do limpar nao ressuscita o painel da sessao anterior', () => {
+      service.carregar('2026-09').subscribe();
+      const req = httpMock.expectOne((r) => r.params.get('periodo') === '2026-09');
+
+      // O produtor sai enquanto a resposta ainda esta na estrada.
+      service.limpar();
+      req.flush(buildResponse({ periodo: '2026-09' }));
+
+      expect(service.dashboard()).toBeNull();
+    });
+
+    it('o mesmo vale para o pedido da topbar, que nao tem periodo', () => {
+      service.garantirCarregado().subscribe();
+      const req = httpMock.expectOne((r) => r.url === '/dashboard' && !r.params.has('periodo'));
+
+      service.limpar();
+      req.flush(buildResponse());
+
+      expect(service.dashboard()).toBeNull();
+    });
+
+    it('depois do limpar, um pedido NOVO volta a escrever normalmente', () => {
+      service.carregar('2026-09').subscribe();
+      const antigo = httpMock.expectOne((r) => r.params.get('periodo') === '2026-09');
+      service.limpar();
+      antigo.flush(buildResponse({ periodo: '2026-09' }));
+
+      service.carregar('2026-10').subscribe();
+      httpMock
+        .expectOne((r) => r.params.get('periodo') === '2026-10')
+        .flush(buildResponse({ periodo: '2026-10' }));
+
+      expect(service.dashboard()?.periodo).toBe('2026-10');
+    });
+
     it('resposta atrasada de um periodo antigo nao passa a frente da mais nova', () => {
       service.carregar('2026-08').subscribe();
       service.carregar('2026-09').subscribe();

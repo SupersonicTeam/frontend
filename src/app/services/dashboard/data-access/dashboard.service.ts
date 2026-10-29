@@ -55,6 +55,19 @@ export class DashboardApi {
   private aceita = 0;
 
   /**
+   * De qual **sessão** é cada pedido.
+   *
+   * Zerar `sequencia` e `aceita` no `limpar()` não bastava: um pedido já em voo guarda a sua vez
+   * no closure, e o `tap` dele roda quando a resposta chega — depois do logout. Com os contadores
+   * zerados a resposta passava na conferência e **reescrevia o painel de quem acabou de sair**,
+   * trazendo de volta exatamente o vazamento que o `limpar()` existe para evitar.
+   *
+   * Fresta estreita (sair enquanto a topbar ainda busca), mas é a única coisa que separa as duas
+   * sessões — e em rede lenta ela deixa de ser estreita.
+   */
+  private geracao = 0;
+
+  /**
    * `GET /api/dashboard` — o agregador (KPIs IBS/CBS, notas por mês, distribuição de impostos e
    * últimas notas do produtor autenticado). `periodo` opcional (`AAAA-MM`); omitido, o backend usa
    * o mês corrente.
@@ -76,10 +89,11 @@ export class DashboardApi {
     if (jaEmVoo) return jaEmVoo;
 
     const minhaVez = ++this.sequencia;
+    const minhaGeracao = this.geracao;
     const pedido = this.api
       .get<DashboardResponse>('/dashboard', periodo ? { periodo } : undefined)
       .pipe(
-        tap((res) => this.guardar(res, minhaVez)),
+        tap((res) => this.guardar(res, minhaVez, minhaGeracao)),
         finalize(() => this.emVoo.delete(chave)),
         shareReplay({ bufferSize: 1, refCount: true }),
       );
@@ -104,11 +118,12 @@ export class DashboardApi {
     const qualquerEmVoo = this.emVoo.values().next().value;
     if (qualquerEmVoo) return qualquerEmVoo;
 
+    const minhaGeracao = this.geracao;
     const pedido = this.api
       .get<DashboardResponse>('/dashboard')
       .pipe(
         // `0` nunca vence uma `sequencia` real: este pedido só preenche o vazio.
-        tap((res) => this.guardar(res, 0)),
+        tap((res) => this.guardar(res, 0, minhaGeracao)),
         finalize(() => this.emVoo.delete('')),
         shareReplay({ bufferSize: 1, refCount: true }),
       );
@@ -130,10 +145,13 @@ export class DashboardApi {
     this.emVoo.clear();
     this.sequencia = 0;
     this.aceita = 0;
+    // Tudo o que já saiu pertence à sessão anterior e não escreve mais.
+    this.geracao++;
   }
 
-  /** Só escreve se este pedido ainda for o mais recente — ou se não houver nada escrito. */
-  private guardar(res: DashboardResponse, minhaVez: number): void {
+  /** Só escreve se for desta sessão **e** o pedido mais recente — ou se não houver nada escrito. */
+  private guardar(res: DashboardResponse, minhaVez: number, geracao: number): void {
+    if (geracao !== this.geracao) return;
     if (minhaVez === 0) {
       if (this.aceita > 0) return;
       this.dashboardSignal.set(res);
