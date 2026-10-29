@@ -27,8 +27,20 @@ describe('DocumentosPage', () => {
 
   afterEach(() => httpMock.verify());
 
+  /**
+   * Responde a busca dos pedidos de documento que a tela faz ao abrir.
+   *
+   * Passou a casar `/pendencias` quando a #180 entrou: a rota antiga (`/contador/pendencias`)
+   * nunca existiu no backend. O `includes('/contador')` fica para o caso de alguma chamada do
+   * cliente antigo sobrar.
+   */
   function flushPendencias() {
-    httpMock.match((r) => r.url.includes('/contador')).forEach((r) => r.flush([]));
+    httpMock
+      .match((r) => r.url.includes('/pendencias') || r.url.includes('/contador'))
+      .forEach((r) => r.flush([]));
+    // Desde a #178 a tela tambem pergunta se ha escritorio vinculado: e isso que decide se o
+    // botao e "Emitir" ou "Enviar para revisao".
+    httpMock.match((r) => r.url === '/vinculos').forEach((r) => r.flush([]));
   }
 
   /** Uma página do Spring Data com as notas dadas. */
@@ -234,112 +246,448 @@ describe('DocumentosPage', () => {
     expect(cmp.notasErro()).toBe(false);
   });
 
-  it('CTD-13/14: salvarAnexo() chama ContadorApi.anexarDocumento() e muda o status da solicitação para enviado', () => {
-    const fixture = TestBed.createComponent(DocumentosPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
+  /**
+   * Os pedidos de documento do escritorio (backend#180).
+   *
+   * Os dois testes que havia aqui exercitavam `salvarAnexo()` contra `/contador/pendencias` e
+   * `/contador/documentos/anexar` -- rotas que **nunca existiram** no backend. Passavam porque o
+   * `HttpTestingController` responde o que mandarem responder; contra o servidor de verdade era
+   * 404 desde sempre, e a secao jamais apareceu na tela.
+   */
+  /**
+   * A revisao do contador antes da emissao (backend#178).
+   *
+   * Medido em 28/10: com escritorio vinculado, `gerar-xml` num rascunho responde
+   * **409 APROVACAO_EXIGIDA**. Ou seja, o botao "Gerar XML" desta tela **ja esta quebrado** para
+   * quem tem contador -- e o produtor semente tem.
+   */
+  /**
+   * "Precisam de revisao" voltou a significar uma coisa so (issue #111).
+   *
+   * O rotulo contava as notas **travadas pelo fisco** (`COM_INCONSISTENCIAS`/`REJEITADA`). Com a
+   * #178 no ar, "revisao" passou a ser outra coisa: a nota que o produtor **enviou para o
+   * contador aprovar**. No teste manual de 28/10 o painel dizia "Precisam de revisao: 0" com a
+   * nota 117 aguardando aprovacao -- as duas pilhas sob o mesmo nome, e a que importava invisivel.
+   *
+   * Agora `revisao` e `AGUARDANDO_APROVACAO`, e o que o fisco travou tem a aba propria.
+   */
+  /**
+   * Status desconhecido ou em transito nao oferece acao (#111, regra da #96).
+   *
+   * As predicates da tela sao **allowlists por status**, entao isso vale por construcao -- mas e
+   * exatamente o tipo de garantia que se perde na primeira vez que alguem escrever
+   * `status !== 'AUTORIZADA'` em vez de listar. O teste fixa a regra.
+   */
+  describe('acoes em estado transitorio ou desconhecido (#111)', () => {
+    const notaCom = (status: string) =>
+      ({ id: 'n1', numero: 1, status, dataEmissao: '2026-09-10T03:00:00Z', itens: [] }) as never;
 
-    httpMock
-      .expectOne((r) => r.url === '/notas')
-      .flush({
-        content: [],
-        totalElements: 0,
-        totalPages: 0,
-        number: 0,
-        size: 12,
-        first: true,
-        last: true,
-        numberOfElements: 0,
-        empty: true,
-      });
-    httpMock
-      .expectOne((r) => r.url === '/contador/pendencias')
-      .flush([
-        {
-          id: 'sol-1',
-          produtorId: 'p1',
-          titulo: 'Balancete',
-          descricao: 'Balancete',
-          dataLimite: '2026-08-01',
-          prioridade: 'media',
-          status: 'pendente',
-          tiposDocumentos: '["Balancete"]',
-          createdAt: '2026-07-01T00:00:00',
-          updatedAt: '2026-07-01T00:00:00',
-        },
-      ]);
+    function abrir() {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      flushPendencias();
+      return fixture.componentInstance;
+    }
 
-    cmp.solicitacaoSelecionada.set('sol-1');
-    cmp.arquivoSelecionado.set(
-      new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }),
-    );
-    cmp.salvarAnexo();
+    it('ENVIANDO e CANCELANDO nao aceitam editar, emitir nem cancelar', () => {
+      const cmp = abrir();
+      for (const status of ['ENVIANDO', 'CANCELANDO']) {
+        const nota = notaCom(status);
+        expect(cmp.podeEditar(nota), status).toBe(false);
+        expect(cmp.podeGerarXml(nota), status).toBe(false);
+        expect(cmp.podeCancelar(nota), status).toBe(false);
+        expect(cmp.podeEnviarParaRevisao(nota), status).toBe(false);
+      }
+    });
 
-    httpMock
-      .expectOne((r) => r.url === '/contador/documentos/anexar')
-      .flush({
-        id: 'doc-1',
-        solicitacaoId: 'sol-1',
-        nomeArquivo: 'balancete.pdf',
-        arquivoUrl: '',
-        tipo: 'Balancete',
-        createdAt: '2026-07-07T00:00:00',
-      });
+    it('um status que o backend invente tambem nao oferece nada', () => {
+      const cmp = abrir();
+      const nota = notaCom('ALGO_QUE_NAO_EXISTE_AINDA');
 
-    expect(cmp.solicitacoes().find((s) => s.id === 'sol-1')?.status).toBe('enviado');
-    expect(cmp.showAnexar()).toBe(false);
+      expect(cmp.podeEditar(nota)).toBe(false);
+      expect(cmp.podeGerarXml(nota)).toBe(false);
+      expect(cmp.podeCancelar(nota)).toBe(false);
+      expect(cmp.podeRetirarDaRevisao(nota)).toBe(false);
+    });
   });
 
-  it('bugfix (Copilot review): quando anexarDocumento() sucede mas retorna doc falsy, mostra erro e mantém o status/dialog', () => {
-    const fixture = TestBed.createComponent(DocumentosPage);
-    const cmp = fixture.componentInstance;
-    fixture.detectChanges();
+  describe('as duas pilhas do contador (#111)', () => {
+    const nota = (id: string, status: string) => ({
+      id,
+      numero: Number(id.replace(/\D/g, '')) || 1,
+      serie: 1,
+      status,
+      dataEmissao: '2026-09-10T03:00:00Z',
+      destinatarioNome: 'Cooperativa',
+      valorTotalNota: 1000,
+      itens: [],
+    });
 
-    httpMock
-      .expectOne((r) => r.url === '/notas')
-      .flush({
-        content: [],
-        totalElements: 0,
-        totalPages: 0,
-        number: 0,
-        size: 12,
-        first: true,
-        last: true,
-        numberOfElements: 0,
-        empty: true,
-      });
-    httpMock
-      .expectOne((r) => r.url === '/contador/pendencias')
-      .flush([
-        {
-          id: 'sol-1',
-          produtorId: 'p1',
-          titulo: 'Balancete',
-          descricao: 'Balancete',
-          dataLimite: '2026-08-01',
-          prioridade: 'media',
-          status: 'pendente',
-          tiposDocumentos: '["Balancete"]',
-          createdAt: '2026-07-01T00:00:00',
-          updatedAt: '2026-07-01T00:00:00',
-        },
+    function abrirContador(notas: Record<string, unknown>[]) {
+      localStorage.setItem('agrocontabil.perfil', 'contador');
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina(notas));
+      flushPendencias();
+      httpMock.match((r) => r.url.endsWith('/revisoes')).forEach((r) => r.flush([]));
+      return fixture.componentInstance;
+    }
+
+    afterEach(() => localStorage.clear());
+
+    it('"Precisam de revisao" conta o que aguarda aprovacao, nao o que o fisco travou', () => {
+      const cmp = abrirContador([
+        nota('n1', 'AGUARDANDO_APROVACAO'),
+        nota('n2', 'AGUARDANDO_APROVACAO'),
+        nota('n3', 'COM_INCONSISTENCIAS'),
       ]);
 
-    cmp.showAnexar.set(true);
-    cmp.solicitacaoSelecionada.set('sol-1');
-    cmp.arquivoSelecionado.set(
-      new File(['conteudo'], 'balancete.pdf', { type: 'application/pdf' }),
-    );
-    cmp.salvarAnexo();
+      const aba = cmp.triagemDoContador().find((t) => t.chave === 'revisao');
+      expect(aba?.quantidade).toBe(2);
+    });
 
-    httpMock
-      .expectOne((r) => r.url === '/contador/documentos/anexar')
-      .flush(null as unknown as object);
+    it('o que o fisco travou ganhou aba propria, em vez de sumir', () => {
+      const cmp = abrirContador([
+        nota('n1', 'AGUARDANDO_APROVACAO'),
+        nota('n3', 'COM_INCONSISTENCIAS'),
+        nota('n4', 'REJEITADA'),
+      ]);
 
-    expect(cmp.solicitacoes().find((s) => s.id === 'sol-1')?.status).toBe('pendente');
-    expect(cmp.showAnexar()).toBe(true);
-    const toasts = TestBed.inject(ToastService).toasts();
-    expect(toasts.some((t) => t.type === 'error')).toBe(true);
+      const aba = cmp.triagemDoContador().find((t) => t.chave === 'travadas');
+      expect(aba?.quantidade).toBe(2);
+    });
+
+    it('filtrar por revisao deixa so o que aguarda aprovacao', () => {
+      const cmp = abrirContador([
+        nota('n1', 'AGUARDANDO_APROVACAO'),
+        nota('n3', 'COM_INCONSISTENCIAS'),
+      ]);
+
+      cmp.statusFilter.set('revisao');
+      expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
+    });
+
+    it('filtrar por DEVOLVIDA e por AGUARDANDO_APROVACAO funciona: sao status do backend', () => {
+      const cmp = abrirContador([
+        nota('n1', 'AGUARDANDO_APROVACAO'),
+        nota('n5', 'DEVOLVIDA'),
+      ]);
+
+      cmp.statusFilter.set('DEVOLVIDA');
+      expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n5']);
+
+      cmp.statusFilter.set('AGUARDANDO_APROVACAO');
+      expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
+    });
+  });
+
+  describe('revisao do contador (#178)', () => {
+    const rascunho = (over: Record<string, unknown> = {}) => ({
+      id: 'n1',
+      numero: 10,
+      serie: 1,
+      status: 'RASCUNHO',
+      dataEmissao: '2026-10-01T03:00:00Z',
+      destinatarioNome: 'Cooperativa',
+      valorTotalNota: 1000,
+      itens: [],
+      ...over,
+    });
+
+    function abrir(notas: Record<string, unknown>[], vinculos: unknown[]) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina(notas));
+      httpMock.expectOne((r) => r.url === '/pendencias').flush([]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush(vinculos);
+      return fixture.componentInstance;
+    }
+
+    /** Responde o historico de revisao que as notas DEVOLVIDAS disparam. */
+    function flushRevisoes() {
+      httpMock.match((r) => r.url.endsWith('/revisoes')).forEach((r) => r.flush([]));
+    }
+
+    const comEscritorio = [{ id: 'v1', escritorio: 'Campo Certo', situacao: 'ATIVO' }];
+
+    it('pergunta ao servidor se ha escritorio vinculado', () => {
+      const cmp = abrir([rascunho()], comEscritorio);
+      expect(cmp.temContador()).toBe(true);
+    });
+
+    it('vinculo encerrado nao conta: so o ATIVO alcanca a nota', () => {
+      const cmp = abrir([rascunho()], [{ id: 'v1', situacao: 'ENCERRADO' }]);
+      expect(cmp.temContador()).toBe(false);
+    });
+
+    it('COM contador, o rascunho vai para revisao -- nao direto para o XML', () => {
+      const cmp = abrir([rascunho()], comEscritorio);
+      const nota = cmp.notas()[0]!;
+
+      expect(cmp.podeEnviarParaRevisao(nota)).toBe(true);
+      expect(cmp.podeGerarXml(nota)).toBe(false);
+    });
+
+    it('SEM contador, o fluxo antigo continua: rascunho gera XML direto', () => {
+      const cmp = abrir([rascunho()], []);
+      const nota = cmp.notas()[0]!;
+
+      expect(cmp.podeEnviarParaRevisao(nota)).toBe(false);
+      expect(cmp.podeGerarXml(nota)).toBe(true);
+    });
+
+    it('a nota aprovada volta a poder gerar XML, mesmo com contador', () => {
+      const cmp = abrir([rascunho({ status: 'APROVADA' })], comEscritorio);
+      expect(cmp.podeGerarXml(cmp.notas()[0]!)).toBe(true);
+    });
+
+    it('enviar para revisao troca a nota pela que o servidor devolveu', () => {
+      const cmp = abrir([rascunho()], comEscritorio);
+
+      cmp.enviarParaRevisao(cmp.notas()[0]!);
+
+      httpMock
+        .expectOne((r) => r.url === '/notas/n1/enviar-para-revisao')
+        .flush(rascunho({ status: 'AGUARDANDO_APROVACAO' }));
+
+      expect(cmp.notas()[0]!.status).toBe('AGUARDANDO_APROVACAO');
+    });
+
+    it('enquanto esta com o contador, a nota nao e editavel nem volta para o XML', () => {
+      const cmp = abrir([rascunho({ status: 'AGUARDANDO_APROVACAO' })], comEscritorio);
+      const nota = cmp.notas()[0]!;
+
+      expect(cmp.podeEditar(nota)).toBe(false);
+      expect(cmp.podeGerarXml(nota)).toBe(false);
+      // Mas da para desistir e trazer de volta.
+      expect(cmp.podeRetirarDaRevisao(nota)).toBe(true);
+    });
+
+    it('aprovada tambem nao e editavel: mudar invalidaria a aprovacao', () => {
+      const cmp = abrir([rascunho({ status: 'APROVADA' })], comEscritorio);
+      expect(cmp.podeEditar(cmp.notas()[0]!)).toBe(false);
+    });
+
+    it('devolvida volta a ser editavel, como rascunho', () => {
+      const cmp = abrir([rascunho({ status: 'DEVOLVIDA' })], comEscritorio);
+      flushRevisoes();
+      const nota = cmp.notas()[0]!;
+
+      expect(cmp.podeEditar(nota)).toBe(true);
+      expect(cmp.podeEnviarParaRevisao(nota)).toBe(true);
+    });
+
+    it('a nota devolvida busca o motivo no historico: e o que diz o que corrigir', () => {
+      const cmp = abrir([rascunho({ status: 'DEVOLVIDA' })], comEscritorio);
+
+      httpMock
+        .expectOne((r) => r.url === '/notas/n1/revisoes')
+        .flush([
+          { id: 'r2', acao: 'DEVOLVIDA', motivo: 'Falta o CFOP no item 2.', papel: 'CONTADOR', ocorridoEm: 'b' },
+          { id: 'r1', acao: 'ENVIADA', motivo: null, papel: 'PRODUTOR', ocorridoEm: 'a' },
+        ]);
+
+      expect(cmp.motivoDaDevolucao('n1')).toBe('Falta o CFOP no item 2.');
+    });
+  });
+
+  describe('pedidos de documento (#180)', () => {
+    const pendencia = (over: Record<string, unknown> = {}) => ({
+      id: 'pd-1',
+      produtorId: 'p1',
+      escritorioId: 'e1',
+      titulo: 'Comprovantes de frete de setembro',
+      descricao: 'Preciso dos comprovantes das tres cargas.',
+      observacoes: null,
+      dataLimite: '2026-11-05',
+      tiposDocumento: ['NOTA_FISCAL', 'COMPROVANTE_PAGAMENTO'],
+      status: 'PENDENTE',
+      motivo: null,
+      quantidadeAnexos: 0,
+      anexos: [] as Record<string, unknown>[],
+      createdAt: '2026-10-28T15:55:56Z',
+      updatedAt: '2026-10-28T15:55:56Z',
+      ...over,
+    });
+
+    const anexo = (situacao: string) => ({
+      id: 'a1',
+      nomeArquivo: 'comprovante.pdf',
+      mime: 'application/pdf',
+      tamanho: 125,
+      sha256: 'abc',
+      situacao,
+      enviadoEm: '2026-10-28T15:56:13Z',
+    });
+
+    function abrir(pendencias: Record<string, unknown>[] = [pendencia()]) {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      httpMock.expectOne((r) => r.url === '/pendencias').flush(pendencias);
+      // Desde a #178 a tela tambem pergunta se ha escritorio vinculado.
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
+      // Quem esta PENDENTE com anexo ganha uma busca de detalhe (ver `completarAnexosParados`);
+      // devolvemos o proprio item, sem anexos, que e o caso neutro.
+      httpMock
+        .match((r) => /\/pendencias\/[^/]+$/.test(r.url))
+        .forEach((r, i) => r.flush(pendencias[i] ?? pendencia()));
+      return fixture;
+    }
+
+    function evento(arquivo: File) {
+      return { target: { files: [arquivo], value: 'c:/fake/comprovante.pdf' } } as unknown as Event;
+    }
+
+    const pdf = (tamanho = 10) =>
+      new File([new Uint8Array(tamanho)], 'comprovante.pdf', { type: 'application/pdf' });
+
+    it('busca os pedidos na rota do produtor, sem produtorId', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+
+      const req = httpMock.expectOne((r) => r.url === '/pendencias');
+      expect(req.request.params.keys()).toEqual([]);
+      req.flush([pendencia()]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
+
+      expect(fixture.componentInstance.pendencias().length).toBe(1);
+      expect(fixture.componentInstance.pendenciasEsperandoVoce()).toBe(1);
+    });
+
+    /**
+     * A lista devolve `anexos: []` e so o `quantidadeAnexos` -- os metadados vem no detalhe.
+     *
+     * Sem buscar o detalhe, o aviso de "em verificacao" aparecia no instante do upload e **sumia
+     * ao recarregar a pagina**: o produtor voltava, via "esperando voce" com o arquivo ja enviado
+     * e nenhuma explicacao, e mandava de novo. E o unico caso em que vale gastar requisicao a
+     * mais, e so para quem tem arquivo parado (PENDENTE com anexo).
+     */
+    it('busca o detalhe de quem tem arquivo parado, para saber do antivirus ao recarregar', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      httpMock
+        .expectOne((r) => r.url === '/pendencias')
+        .flush([
+          pendencia({ id: 'pd-1', status: 'PENDENTE', quantidadeAnexos: 1 }),
+          pendencia({ id: 'pd-2', status: 'PENDENTE', quantidadeAnexos: 0 }),
+          pendencia({ id: 'pd-3', status: 'ENVIADA', quantidadeAnexos: 2 }),
+        ]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
+
+      // So a pd-1: a pd-2 nao tem arquivo e a pd-3 ja passou pelo antivirus.
+      httpMock.expectNone((r) => r.url === '/pendencias/pd-2');
+      httpMock.expectNone((r) => r.url === '/pendencias/pd-3');
+      httpMock
+        .expectOne((r) => r.url === '/pendencias/pd-1')
+        .flush(
+          pendencia({ id: 'pd-1', status: 'PENDENTE', quantidadeAnexos: 1, anexos: [anexo('EM_VERIFICACAO')] }),
+        );
+
+      const cmp = fixture.componentInstance;
+      expect(cmp.emVerificacao(cmp.pendencias().find((p) => p.id === 'pd-1')!)).toBe(true);
+    });
+
+    it('detalhe que falha nao derruba a lista: o pedido continua na tela', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      httpMock
+        .expectOne((r) => r.url === '/pendencias')
+        .flush([pendencia({ id: 'pd-1', status: 'PENDENTE', quantidadeAnexos: 1 })]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
+      httpMock
+        .expectOne((r) => r.url === '/pendencias/pd-1')
+        .flush('erro', { status: 500, statusText: 'Server Error' });
+
+      expect(fixture.componentInstance.pendencias().length).toBe(1);
+    });
+
+    it('anexar manda o arquivo e troca a pendencia pela versao que o servidor devolveu', () => {
+      const cmp = abrir().componentInstance;
+
+      cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf()));
+
+      const req = httpMock.expectOne((r) => r.url === '/pendencias/pd-1/anexos');
+      expect((req.request.body as FormData).get('arquivo')).toBeInstanceOf(File);
+      req.flush(pendencia({ status: 'ENVIADA', quantidadeAnexos: 1, anexos: [anexo('LIMPO')] }));
+
+      expect(cmp.pendencias()[0]!.status).toBe('ENVIADA');
+      expect(cmp.anexandoEm()).toBeNull();
+    });
+
+    it('antivirus fora do ar: o arquivo sobe, mas o pedido CONTINUA esperando o produtor', () => {
+      const cmp = abrir().componentInstance;
+
+      cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf()));
+      httpMock
+        .expectOne((r) => r.url === '/pendencias/pd-1/anexos')
+        .flush(
+          pendencia({ status: 'PENDENTE', quantidadeAnexos: 1, anexos: [anexo('EM_VERIFICACAO')] }),
+          { status: 201, statusText: 'Created' },
+        );
+
+      // E o caso que mais confunde: sem dizer isto, o produtor acha que falhou e manda de novo.
+      expect(cmp.emVerificacao(cmp.pendencias()[0]!)).toBe(true);
+      expect(cmp.pendencias()[0]!.status).toBe('PENDENTE');
+      expect(cmp.pendenciasEsperandoVoce()).toBe(1);
+    });
+
+    it('arquivo acima de 5 MB nem sai do navegador', () => {
+      const cmp = abrir().componentInstance;
+
+      cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf(5 * 1024 * 1024 + 1)));
+
+      // Gastar o upload inteiro do 4G da fazenda para receber 400 no fim seria cruel.
+      httpMock.expectNone((r) => r.url === '/pendencias/pd-1/anexos');
+      expect(cmp.anexandoEm()).toBeNull();
+    });
+
+    it('pedido que ja tem 10 arquivos nao tenta o 11o', () => {
+      const cmp = abrir([pendencia({ quantidadeAnexos: 10 })]).componentInstance;
+
+      cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf()));
+
+      httpMock.expectNone((r) => r.url === '/pendencias/pd-1/anexos');
+    });
+
+    it('a recusa do servidor para de ser generica: cada codigo tem a sua saida', () => {
+      const cmp = abrir().componentInstance;
+      const erros: string[] = [];
+      const toast = TestBed.inject(ToastService);
+      vi.spyOn(toast, 'error').mockImplementation(((m: string) => {
+        erros.push(m);
+      }) as typeof toast.error);
+
+      const casos: [string, string][] = [
+        ['ANEXO_INVALIDO', 'PDF, JPG, PNG ou XML'],
+        ['ANEXO_INFECTADO', 'antivirus recusou'],
+        ['LIMITE_ANEXOS', 'limite'],
+        ['TRANSICAO_PENDENCIA_INVALIDA', 'nao esta mais aceitando'],
+      ];
+      for (const [codigo, trecho] of casos) {
+        cmp.anexarNaPendencia(cmp.pendencias()[0]!, evento(pdf()));
+        httpMock
+          .expectOne((r) => r.url === '/pendencias/pd-1/anexos')
+          .flush({ errors: [{ code: codigo }] }, { status: 400, statusText: 'Bad Request' });
+        expect(erros.at(-1)).toContain(trecho);
+      }
+
+      expect(erros.length).toBe(4);
+    });
+
+    it('o status vira rotulo na voz do produtor, nao o codigo do backend', () => {
+      const cmp = abrir().componentInstance;
+
+      expect(cmp.pendenciaStatusLabel('PENDENTE')).toBe('Esperando você');
+      expect(cmp.pendenciaStatusLabel('ENVIADA')).toBe('Com o escritório');
+      expect(cmp.tiposAceitos(cmp.pendencias()[0]!)).toBe(
+        'nota fiscal ou comprovante de pagamento',
+      );
+    });
   });
 
   /**
@@ -886,19 +1234,24 @@ describe('DocumentosPage', () => {
       nota('n5', '2026-08-02T00:00:00Z', { status: 'CANCELADA' }),
     ];
 
-    it('"precisam de revisão" atravessa inconsistência e rejeição — é o trabalho, não o status', () => {
+    /**
+     * Este teste era de `revisao`. O recorte que ele descreve -- "atravessa inconsistencia e
+     * rejeicao, e o trabalho, nao o status" -- continua existindo e continua certo; so mudou de
+     * nome para **travadas**, porque "revisao" passou a ser a aprovacao do contador (#111).
+     */
+    it('"travadas pelo fisco" atravessa inconsistência e rejeição — é o trabalho, não o status', () => {
       const cmp = comNotas(carteira()).componentInstance;
 
       const caixas = Object.fromEntries(
         cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
       );
-      expect(caixas['revisao']).toBe(2);
+      expect(caixas['travadas']).toBe(2);
       expect(caixas['RASCUNHO']).toBe(1);
       expect(caixas['AUTORIZADA']).toBe(1);
       expect(caixas['CANCELADA']).toBe(1);
       expect(caixas['todos']).toBe(5);
 
-      cmp.statusFilter.set('revisao');
+      cmp.statusFilter.set('travadas');
       expect(
         cmp
           .notasFiltradas()
@@ -917,7 +1270,7 @@ describe('DocumentosPage', () => {
       const caixas = Object.fromEntries(
         cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
       );
-      expect(caixas['revisao']).toBe(2);
+      expect(caixas['travadas']).toBe(2);
       expect(caixas['todos']).toBe(5);
       expect(cmp.notasFiltradas()).toHaveLength(1);
     });
@@ -930,7 +1283,7 @@ describe('DocumentosPage', () => {
         cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
       );
       expect(caixas['todos']).toBe(2);
-      expect(caixas['revisao']).toBe(0);
+      expect(caixas['travadas']).toBe(0);
     });
   });
 

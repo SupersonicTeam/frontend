@@ -1,4 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, EMPTY, catchError, switchMap, tap } from 'rxjs';
 import {
   LucideTrendingUp,
   LucideDollarSign,
@@ -272,19 +274,48 @@ export class DashboardPage implements OnInit {
   // Simulador — breakdown de impostos derivado dos KPIs do periodo (nao soma notas)
   showSimuladorDetalhe = signal(false);
 
+  /**
+   * O débito do período, por tributo — **só o que a API devolve** (issue #110).
+   *
+   * Antes isto eram três linhas com alíquota cravada: CBS 3,5% ("8,8%" riscado), IBS Estadual
+   * 5,1% e IBS Municipal 2,0%. Três coisas estavam erradas, todas medidas contra a API em 28/10:
+   *
+   * 1. **As alíquotas.** As de 2026 são `aliquotaCbs: 0.009` e `aliquotaIbs: 0.001` — 0,9% e 0,1%.
+   * 2. **A repartição.** O IBS era dividido 72/28 entre "Estadual" e "Municipal". O backend não
+   *    faz essa divisão nem a devolve em lugar nenhum: ela era invenção da tela.
+   * 3. **A redução.** O selo "-60%" saía em todos, quando só o milho tem base reduzida.
+   *
+   * Agora são os dois tributos do contrato, com o valor inteiro do KPI. A alíquota **não aparece
+   * aqui**: o KPI é a soma de itens com bases diferentes, e dividir isso daria um número que não é
+   * alíquota de nada. A alíquota real é por item, e o lugar dela é a nota.
+   */
   readonly impostoBreakdown = computed(() => {
     const kpis = this.dashboard()?.kpis;
     if (!kpis) return [];
     return [
-      { nome: 'CBS', aliquota: '3,5%', original: '8,8%', valor: kpis.debitoCbs, reducao: true },
-      { nome: 'IBS Estadual', aliquota: '5,1%', original: '12,7%', valor: kpis.debitoIbs * 0.72, reducao: true },
-      { nome: 'IBS Municipal', aliquota: '2,0%', original: '5,0%', valor: kpis.debitoIbs * 0.28, reducao: true },
-    ].filter(item => item.valor > 0);
+      { nome: 'IBS', valor: kpis.debitoIbs },
+      { nome: 'CBS', valor: kpis.debitoCbs },
+    ].filter((item) => item.valor > 0);
   });
 
   readonly totalImpostoCalculado = computed(() =>
-    this.impostoBreakdown().reduce((s, i) => s + i.valor, 0)
+    this.impostoBreakdown().reduce((s, i) => s + i.valor, 0),
   );
+
+  /**
+   * A carga efetiva do período, em porcentagem — **derivada**, nunca cravada.
+   *
+   * É o imposto sobre o que entrou: na base de setembro, 1.809,50 / 180.950 = **1,0%**. O template
+   * dizia "~10,6%", número que não vinha de lugar nenhum.
+   *
+   * `null` quando não há faturamento: sem denominador não há carga, e mostrar "0%" sugeriria que
+   * o produtor vendeu e não pagou nada.
+   */
+  readonly cargaEfetiva = computed(() => {
+    const entradas = this.dashboard()?.financeiro?.totalEntradas ?? 0;
+    if (entradas <= 0) return null;
+    return (this.totalImpostoCalculado() / entradas) * 100;
+  });
 
   // Apuracao: periodo selecionavel (mes/ano) + status (#12) — exibicao apenas; MVP carrega so o mes corrente
   readonly meses = [
@@ -330,25 +361,57 @@ export class DashboardPage implements OnInit {
     return { label: 'Verificando…', classe: 'bg-surface-2 text-muted-foreground' };
   });
 
+  /**
+   * Cada troca de periodo entra por aqui, e **cancela a anterior** (issue #108).
+   *
+   * Antes `trocarPeriodo` disparava dois `subscribe` soltos, e nada cancelava os de antes. Maio ->
+   * Julho com a resposta de maio atrasada: ela chegava por ultimo e o `tap` do service gravava os
+   * valores de maio no signal, com Julho selecionado no seletor -- R$ 102.900 debaixo do rotulo
+   * errado. Reproduzivel, e foi assim que o teste manual de 28/10 pegou.
+   *
+   * O `switchMap` resolve na raiz: ao chegar o periodo novo ele desinscreve do anterior, e o
+   * `HttpClient` **aborta a requisicao**. Resposta que nao existe nao sobrescreve nada.
+   *
+   * O `catchError` fica **dentro** do `switchMap`: se subisse, o erro mataria o fluxo e a proxima
+   * troca de mes nao carregaria mais nada.
+   */
+  private readonly periodoPedido = new Subject<string>();
+
+  private readonly painelPorPeriodo = this.periodoPedido
+    .pipe(
+      tap(() => {
+        this.loading.set(true);
+        this.erro.set(false);
+      }),
+      switchMap((periodo) =>
+        this.dashboardService.carregar(periodo).pipe(
+          catchError(() => {
+            this.loading.set(false);
+            this.erro.set(true);
+            return EMPTY;
+          }),
+        ),
+      ),
+      takeUntilDestroyed(),
+    )
+    .subscribe(() => {
+      this.loading.set(false);
+      this.carregarNotasComProblema();
+    });
+
+  private readonly apuracaoPorPeriodo = this.periodoPedido
+    .pipe(
+      tap(() => this.statusDoBackend.set(null)),
+      switchMap((periodo) =>
+        this.tributarioApi.apuracao(periodo).pipe(catchError(() => EMPTY)),
+      ),
+      takeUntilDestroyed(),
+    )
+    .subscribe((a) => this.statusDoBackend.set(a.status ?? null));
+
   /** Recarrega painel e apuracao para o periodo escolhido. */
   private trocarPeriodo(): void {
-    const periodo = this.periodoSelecionado();
-    this.loading.set(true);
-    this.dashboardService.carregar(periodo).subscribe({
-      next: () => {
-        this.loading.set(false);
-        this.carregarNotasComProblema();
-      },
-      error: () => {
-        this.loading.set(false);
-        this.erro.set(true);
-      },
-    });
-    this.statusDoBackend.set(null);
-    this.tributarioApi.apuracao(periodo).subscribe({
-      next: (a) => this.statusDoBackend.set(a.status ?? null),
-      error: () => this.statusDoBackend.set(null),
-    });
+    this.periodoPedido.next(this.periodoSelecionado());
   }
 
   setMes(valor: string): void {

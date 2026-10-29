@@ -68,7 +68,13 @@ export const routes: Routes = [
       },
     ],
   },
-  // Cada papel tem a sua home; mandar todo mundo para /dashboard jogava o contador
-  // numa rota que o guard devolve na hora.
-  { path: '**', redirectTo: '' },
+  // Endereco desconhecido mostra uma PAGINA, nao um redirect mudo (#112). Com `redirectTo: ''`
+  // quem clicava num link quebrado ia parar no painel sem aviso, achando que o link nao tinha
+  // funcionado. A pagina fica fora do `AppLayout` de proposito: ela responde tambem a quem ainda
+  // nao escolheu perfil, e o botao dela leva ao inicio do papel certo.
+  {
+    path: '**',
+    loadComponent: () =>
+      import('@pages/nao-encontrada/nao-encontrada').then((m) => m.NaoEncontradaPage),
+  },
 ];

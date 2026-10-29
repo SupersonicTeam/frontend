@@ -104,32 +104,10 @@ export interface PaginaCarteira {
 }
 
 /**
- * Ciclo de um pedido de documento (backend#180): `PENDENTE` → `ENVIADA` (quando o anexo chega
- * limpo do antivírus) → `CONCLUIDA` ou `CANCELADA`.
- *
- * Em MAIÚSCULA, como o backend devolve — o `SolicitacaoContador` do cliente antigo usa minúscula
- * porque foi escrito contra um contrato imaginado, não contra este.
+ * Os pedidos de documento vivem em `@models/pendencia.model` — o mesmo tipo que a tela do produtor
+ * usa. Eram dois (`PendenciaCliente` aqui, `Pendencia` la) descrevendo o mesmo recurso; um deles
+ * ia envelhecer sozinho.
  */
-export type StatusPendencia = 'PENDENTE' | 'ENVIADA' | 'CONCLUIDA' | 'CANCELADA';
-
-/** Tipos de documento que o escritório pode pedir. */
-export type TipoDocumentoPedido =
-  | 'NOTA_FISCAL'
-  | 'COMPROVANTE_PAGAMENTO'
-  | 'EXTRATO'
-  | 'CONTRATO'
-  | 'OUTRO';
-
-/** Um pedido de documento feito pelo escritório ao produtor. */
-export interface PendenciaCliente {
-  id: string;
-  titulo: string;
-  descricao: string | null;
-  dataLimite: string | null;
-  tiposDocumento: TipoDocumentoPedido[];
-  status: StatusPendencia;
-  observacoes: string | null;
-}
 
 /** Soma dos indicadores de um cliente; 0 quando o vínculo não é ativo. */
 export function totalDeAtencao(atencao: AtencaoCarteira | null): number {

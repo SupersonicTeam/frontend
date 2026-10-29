@@ -5,6 +5,7 @@ import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/route
 import { ClientePage } from './cliente';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
+import type { Pendencia as PendenciaTeste } from '@models/pendencia.model';
 
 /**
  * A tela de um cliente da carteira: `/contador/{produtorId}`.
@@ -126,17 +127,6 @@ describe('ClientePage', () => {
     httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias').flush([]);
   });
 
-  it('pede só os documentos que esperam o escritório (status ENVIADA)', () => {
-    abrir();
-
-    httpMock.expectOne((r) => r.url === '/contador/produtores').flush([cliente()]);
-    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush([]);
-    httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
-    const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias');
-    expect(req.request.params.getAll('status')).toEqual(['ENVIADA']);
-    req.flush([]);
-  });
-
   it('produtor fora da carteira não é erro genérico: a tela diz que ele não é cliente', () => {
     const fixture = abrir();
     httpMock.expectOne((r) => r.url === '/contador/produtores').flush([cliente({ id: 'outro' })]);
@@ -209,6 +199,259 @@ describe('ClientePage', () => {
     fixture.componentInstance.alternarNota('n9');
     expect(fixture.componentInstance.notaExpandida()).toBeNull();
     httpMock.expectNone((r) => r.url.includes('validacoes'));
+  });
+
+  /**
+   * O lado do escritorio dos pedidos de documento (backend#180).
+   *
+   * O ciclo e PENDENTE -> ENVIADA -> CONCLUIDA/CANCELADA, e o servidor recusa o que estiver fora
+   * de ordem com **409**. Entao a tela so pode oferecer o que vale para aquele status -- oferecer
+   * "Aceitar" num pedido que o produtor nem respondeu e convidar o contador para um erro.
+   */
+  describe('pedidos de documento', () => {
+    const pedido = (over: Partial<PendenciaTeste> = {}): PendenciaTeste => ({
+      id: 'pd-1',
+      produtorId: 'p1',
+      escritorioId: 'e1',
+      titulo: 'Extrato bancario de outubro',
+      descricao: null,
+      observacoes: null,
+      dataLimite: '2026-11-10',
+      tiposDocumento: ['EXTRATO'],
+      status: 'ENVIADA',
+      motivo: null,
+      quantidadeAnexos: 1,
+      anexos: [],
+      createdAt: '2026-10-28T10:00:00Z',
+      updatedAt: '2026-10-28T10:00:00Z',
+      ...over,
+    });
+
+    function abrirCom(pendencias: PendenciaTeste[]) {
+      const fixture = abrir();
+      responder({ pendencias });
+      // Quem tem anexo ganha uma busca de detalhe (ver `completarAnexos`); devolvemos o proprio
+      // item, que e o caso neutro.
+      httpMock
+        .match((r) => /\/pendencias\/[^/]+$/.test(r.url))
+        .forEach((r) => {
+          const id = r.request.url.split('/').pop();
+          r.flush(pendencias.find((p) => p.id === id) ?? pendencias[0]);
+        });
+      return fixture.componentInstance;
+    }
+
+    it('pede TODOS os pedidos, nao so os que esperam conferencia', () => {
+      abrir();
+      httpMock.expectOne((r) => r.url === '/contador/produtores').flush([cliente()]);
+      httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush([]);
+      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias');
+      // Filtrar por ENVIADA escondia o que o escritorio pediu e ainda nao voltou -- justamente o
+      // que ele precisa ver para saber que ja cobrou.
+      expect(req.request.params.has('status')).toBe(false);
+      req.flush([]);
+    });
+
+    /**
+     * A listagem devolve `anexos: []` -- so o `quantidadeAnexos`. Para o produtor isso escondia o
+     * aviso do antivirus; para o escritorio e pior: **conferir e abrir o arquivo**, e sem os
+     * metadados nao ha o que baixar. O botao simplesmente nao existia.
+     */
+    it('busca o detalhe de quem tem arquivo, senao nao ha o que conferir', () => {
+      // Sem o `abrirCom`: este teste precisa responder o detalhe ele mesmo.
+      const fixture = abrir();
+      responder({
+        pendencias: [
+          pedido({ id: 'com', quantidadeAnexos: 1 }),
+          pedido({ id: 'sem', quantidadeAnexos: 0 }),
+        ],
+      });
+      const page = fixture.componentInstance;
+
+      httpMock.expectNone((r) => r.url === '/contador/produtores/p1/pendencias/sem');
+      httpMock
+        .expectOne((r) => r.url === '/contador/produtores/p1/pendencias/com')
+        .flush(
+          pedido({
+            id: 'com',
+            quantidadeAnexos: 1,
+            anexos: [
+              {
+                id: 'a1',
+                nomeArquivo: 'comprovante.pdf',
+                mime: 'application/pdf',
+                tamanho: 125,
+                sha256: 'abc',
+                situacao: 'LIMPO',
+                enviadoEm: '2026-10-28T15:56:13Z',
+              },
+            ],
+          }),
+        );
+
+      expect(page.pendencias().find((p) => p.id === 'com')!.anexos.length).toBe(1);
+    });
+
+    it('so oferece o que o status permite', () => {
+      const page = abrirCom([
+        pedido({ id: 'a', status: 'PENDENTE' }),
+        pedido({ id: 'b', status: 'ENVIADA' }),
+        pedido({ id: 'c', status: 'CONCLUIDA' }),
+        pedido({ id: 'd', status: 'CANCELADA' }),
+      ]);
+      const acoes = (id: string) =>
+        page.acoesDe(page.pendencias().find((p) => p.id === id)!).map((a) => a.verbo);
+
+      expect(acoes('a')).toEqual(['cancelar']);
+      expect(acoes('b')).toEqual(['concluir', 'rejeitar', 'cancelar']);
+      expect(acoes('c')).toEqual(['reabrir']);
+      expect(acoes('d')).toEqual(['reabrir']);
+    });
+
+    it('aceitar nao pede motivo e troca o pedido pelo que o servidor devolveu', () => {
+      const page = abrirCom([pedido()]);
+
+      page.executar(page.pendencias()[0]!, 'concluir');
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p1/pendencias/pd-1/concluir',
+      );
+      expect(req.request.body).toBeNull();
+      req.flush(pedido({ status: 'CONCLUIDA' }));
+
+      expect(page.pendencias()[0]!.status).toBe('CONCLUIDA');
+    });
+
+    it('devolver com motivo curto NAO vai ao servidor: ele recusa abaixo de 5 caracteres', () => {
+      const page = abrirCom([pedido()]);
+
+      page.abrirMotivo(page.pendencias()[0]!, 'rejeitar');
+      page.motivo.set('ruim');
+      page.confirmarMotivo();
+
+      httpMock.expectNone((r) => r.url.includes('/rejeitar'));
+      expect(page.motivoAberto()).not.toBeNull();
+    });
+
+    it('devolver manda o motivo e devolve o pedido ao produtor', () => {
+      const page = abrirCom([pedido()]);
+
+      page.abrirMotivo(page.pendencias()[0]!, 'rejeitar');
+      page.motivo.set('A foto do comprovante saiu ilegivel.');
+      page.confirmarMotivo();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p1/pendencias/pd-1/rejeitar',
+      );
+      expect(req.request.body).toEqual({ motivo: 'A foto do comprovante saiu ilegivel.' });
+      req.flush(pedido({ status: 'PENDENTE', motivo: 'A foto do comprovante saiu ilegivel.' }));
+
+      expect(page.pendencias()[0]!.status).toBe('PENDENTE');
+      expect(page.motivoAberto()).toBeNull();
+    });
+
+    it('criar o pedido manda o corpo e ele entra na lista', () => {
+      const page = abrirCom([]);
+
+      page.novoTitulo.set('Comprovantes de frete');
+      page.alternarTipo('COMPROVANTE_PAGAMENTO');
+      page.novoPrazo.set('2026-11-20');
+      page.criarPedido();
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias');
+      expect(req.request.body).toEqual({
+        titulo: 'Comprovantes de frete',
+        tiposDocumento: ['COMPROVANTE_PAGAMENTO'],
+        dataLimite: '2026-11-20',
+      });
+      req.flush(pedido({ id: 'novo', status: 'PENDENTE' }));
+
+      expect(page.pendencias().length).toBe(1);
+    });
+
+    it('pedido sem titulo ou sem tipo nao sai: o servidor exige os dois', () => {
+      const page = abrirCom([]);
+
+      page.novoTitulo.set('Algo');
+      page.criarPedido();
+      httpMock.expectNone((r) => r.url === '/contador/produtores/p1/pendencias');
+
+      page.novoTitulo.set('');
+      page.alternarTipo('EXTRATO');
+      page.criarPedido();
+      httpMock.expectNone((r) => r.url === '/contador/produtores/p1/pendencias');
+    });
+  });
+
+  /**
+   * A aprovação da nota antes da emissão (backend#178).
+   *
+   * Medido em 28/10: com escritório vinculado, `gerar-xml` num rascunho responde
+   * **409 APROVACAO_EXIGIDA**. Ou seja, enquanto o contador não aprova, a nota do produtor não
+   * sai — o que torna este bloco o gargalo do fluxo, não um enfeite.
+   */
+  describe('aprovação da nota', () => {
+    const emRevisao = () =>
+      nota({ id: 'nr', status: 'AGUARDANDO_APROVACAO' as NotaFiscal['status'] });
+
+    it('aprovar não pede motivo e troca a nota pela que o servidor devolveu', () => {
+      const fixture = abrir();
+      responder({ notas: [emRevisao()] });
+      const page = fixture.componentInstance;
+
+      page.aprovar(page.notasAguardandoAprovacao()[0]!);
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p1/notas/nr/aprovar',
+      );
+      expect(req.request.body).toBeNull();
+      req.flush(nota({ id: 'nr', status: 'APROVADA' as NotaFiscal['status'] }));
+
+      // Saiu da fila de aprovação: ela passou a estar com o produtor para emitir.
+      expect(page.notasAguardandoAprovacao().length).toBe(0);
+    });
+
+    it('devolver com motivo curto não vai ao servidor', () => {
+      const fixture = abrir();
+      responder({ notas: [emRevisao()] });
+      const page = fixture.componentInstance;
+
+      page.abrirMotivoDaNota(page.notasAguardandoAprovacao()[0]!);
+      page.motivo.set('ruim');
+      page.confirmarMotivo();
+
+      httpMock.expectNone((r) => r.url.includes('/devolver'));
+    });
+
+    it('devolver manda o motivo e a nota volta para o produtor', () => {
+      const fixture = abrir();
+      responder({ notas: [emRevisao()] });
+      const page = fixture.componentInstance;
+
+      page.abrirMotivoDaNota(page.notasAguardandoAprovacao()[0]!);
+      page.motivo.set('Falta o CFOP no item 2.');
+      page.confirmarMotivo();
+
+      const req = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p1/notas/nr/devolver',
+      );
+      expect(req.request.body).toEqual({ motivo: 'Falta o CFOP no item 2.' });
+      req.flush(nota({ id: 'nr', status: 'DEVOLVIDA' as NotaFiscal['status'] }));
+
+      expect(page.notasDevolvidas().length).toBe(1);
+      expect(page.motivoAberto()).toBeNull();
+    });
+
+    it('o motivo de um pedido e o de uma nota não se misturam', () => {
+      const fixture = abrir();
+      responder({ notas: [emRevisao()] });
+      const page = fixture.componentInstance;
+
+      page.abrirMotivoDaNota(page.notasAguardandoAprovacao()[0]!);
+      expect(page.motivoAberto()?.alvo).toBe('nota');
+    });
   });
 
   it('o foco da query string escolhe por qual bloco a tela começa', () => {

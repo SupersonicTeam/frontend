@@ -181,7 +181,7 @@
        card de vencimentos, que era estreito e quase sempre vazio, desce para perto
        dos documentos enviados, que e o contexto dele. -->
   <!-- Card: Notas por mês (gráfico) -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5 lg:col-span-2 2xl:col-span-2">
+  <div class="bg-card rounded-card border border-border shadow-suave p-5 min-w-0 lg:col-span-2 2xl:col-span-2">
     <div class="flex items-center justify-between mb-4">
       <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
         <svg lucideTrendingUp [size]="20" class="text-primary" />
@@ -197,7 +197,10 @@
     @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
     } @else if ((dashboard()?.notasPorMes?.length ?? 0) > 0) {
-      <div class="h-64">
+      <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
+           no canvas, e a 360px o card ficava 342 (300 + padding) e estourava a grade -- era por isso
+           que faltava a barra de Out/26 (#109). Com a largura do pai, ele encolhe junto. -->
+      <div class="h-64 w-full min-w-0">
         <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions()"></canvas>
       </div>
       <!-- Sem isto o grafico parece quebrado: a serie laranja fica invisivel e
@@ -228,7 +231,10 @@
     @if (loading() && !dashboard()) {
       <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
     } @else if (((dashboard()?.distribuicaoImpostos?.ibs ?? 0) + (dashboard()?.distribuicaoImpostos?.cbs ?? 0)) > 0) {
-      <div class="h-64">
+      <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
+           no canvas, e a 360px o card ficava 342 (300 + padding) e estourava a grade -- era por isso
+           que faltava a barra de Out/26 (#109). Com a largura do pai, ele encolhe junto. -->
+      <div class="h-64 w-full min-w-0">
         <canvas baseChart [type]="'pie'" [data]="pieChartData()" [options]="pieChartOptions()"></canvas>
       </div>
     } @else {
@@ -255,9 +261,9 @@
           <span class="rounded-full bg-primary/10 px-2.5 py-1.5 text-apoio leading-none font-medium whitespace-nowrap text-primary">
             Agropecuária
           </span>
-          <span class="rounded-full bg-sucesso-soft px-2.5 py-1.5 text-apoio leading-none font-medium whitespace-nowrap text-sucesso-ink">
-            -60% CBS/IBS
-          </span>
+<!-- O selo "-60% CBS/IBS" saía aqui para qualquer produtor. A redução é **por produto**: na
+               base atual só o milho tem base reduzida (30.680 de 76.700), e café, soja, algodão
+               não têm. Prometer 60% no cabeçalho do painel é prometer o que não vale (#110). -->
         </div>
       }
     </div>
@@ -300,7 +306,13 @@
           {{ formatCurrency(totalImpostoCalculado()) }}
         </p>
         <p class="text-apoio text-muted-foreground mt-1">
-          Regime: Pessoa Física Rural · Tributação efetiva: ~10,6%
+          <!-- A carga sai da conta imposto / faturamento do período. Antes era "~10,6%" cravado;
+               na base de setembro o valor real é 1,0% (#110). -->
+          @if (cargaEfetiva(); as carga) {
+            Sobre o que você faturou no período: {{ carga.toFixed(1).replace('.', ',') }}%
+          } @else {
+            Sem faturamento no período para calcular a carga.
+          }
         </p>
       }
     </div>
@@ -308,25 +320,16 @@
     <!-- Tabela breakdown -->
     @if (!(loading() && !dashboard()) && impostoBreakdown().length > 0) {
       <div class="space-y-1 mb-4">
-        <div class="grid grid-cols-3 text-apoio font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
+        <!-- Sem coluna de alíquota: o KPI é a soma de itens com bases diferentes, e dividir isso
+             daria um número que não é alíquota de nada. A alíquota real é por item, e vem da API
+             na própria nota (#110). -->
+        <div class="grid grid-cols-2 text-apoio font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
           <span>Tributo</span>
-          <span class="text-center">Alíquota</span>
           <span class="text-right">Valor</span>
         </div>
         @for (item of impostoBreakdown(); track item.nome) {
-          <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-apoio">
-            <div class="flex items-center gap-1.5">
-              <span class="font-medium text-foreground">{{ item.nome }}</span>
-              @if (item.reducao) {
-                <span class="rounded bg-sucesso-soft px-1.5 text-apoio font-medium text-sucesso-ink">-60%</span>
-              }
-            </div>
-            <div class="text-center">
-              <span class="text-foreground font-medium">{{ item.aliquota }}</span>
-              @if (item.original) {
-                <span class="text-apoio text-muted-foreground line-through ml-1">{{ item.original }}</span>
-              }
-            </div>
+          <div class="grid grid-cols-2 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-apoio">
+            <span class="font-medium text-foreground">{{ item.nome }}</span>
             <span class="text-right font-semibold text-foreground">{{ formatCurrency(item.valor) }}</span>
           </div>
         }
@@ -362,11 +365,17 @@
 
     @if (showSimuladorDetalhe()) {
       <div class="mt-2 pt-2 border-t border-border">
+        <!-- Este parágrafo afirmava "60% de redução nas alíquotas de CBS (8,8% → 3,5%) e IBS
+             (17,7% → 7,1%)" e "efetiva ~10,6% ao invés de 26,5%". Nenhum desses números vinha da
+             API, e a redução não é nas alíquotas: é na **base de cálculo**, e só de alguns
+             produtos. A regra de quem tem redução está sendo conferida na LC 214
+             (SupersonicTeam/backend#272); até lá a tela não assume nada (#110). -->
         <p class="text-apoio text-muted-foreground leading-relaxed">
-          No agronegócio, a <strong class="text-foreground">Reforma Tributária</strong> garante
-          <strong class="text-primary">60% de redução</strong> nas alíquotas de CBS (8,8% → 3,5%)
-          e IBS (17,7% → 7,1%). A tributação efetiva total é de aproximadamente
-          <strong class="text-primary">10,6%</strong> ao invés dos 26,5% do regime comum.
+          A <strong class="text-foreground">Reforma Tributária</strong> prevê redução para parte da
+          produção agropecuária, e ela é aplicada na <strong class="text-foreground">base de
+          cálculo</strong> de cada produto — não na alíquota, e não para todos. Os valores acima
+          são os que a apuração calculou para as suas notas do período; a redução de cada item
+          aparece na nota, quando houver.
         </p>
       </div>
     }
@@ -422,10 +431,12 @@
   </div>
 
   <!-- Card: Últimos documentos -->
-  <div class="bg-card rounded-card border border-border shadow-suave">
-    <div class="flex items-center gap-2 px-5 pt-5 pb-3">
-      <svg lucideFileText [size]="20" class="text-primary" />
-      <h2 class="font-heading text-lg font-semibold text-foreground">Últimos documentos enviados</h2>
+  <div class="bg-card rounded-card border border-border shadow-suave min-w-0">
+    <div class="flex flex-wrap items-center gap-2 px-5 pt-5 pb-3">
+      <svg lucideFileText [size]="20" class="shrink-0 text-primary" />
+      <h2 class="min-w-0 font-heading text-lg font-semibold text-foreground">
+        Últimos documentos enviados
+      </h2>
       @if (loading() && !dashboard()) {
         <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
       } @else if (documentos().length) {
@@ -453,7 +464,10 @@
             <li class="animate-entra-subindo escalonado flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-2" [style.--passo]="$index">
               <div class="min-w-0 flex-1">
                 <p class="text-apoio font-medium text-foreground truncate">{{ doc.nome }}</p>
-                <div class="flex items-center gap-2 mt-1">
+                <!-- `flex-wrap`: tipo, selo e valor numa linha so davam ao cartao uma largura
+                     minima de 365px, e a 360px ele estourava a grade -- era isso que truncava o
+                     valor do documento (#109). Quebrando, cada um cabe. -->
+                <div class="mt-1 flex min-w-0 flex-wrap items-center gap-2">
                   <span class="text-apoio text-muted-foreground">{{ doc.tipo }}</span>
                   <ui-badge-status [status]="doc.status" />
                   @if (doc.valor > 0) {

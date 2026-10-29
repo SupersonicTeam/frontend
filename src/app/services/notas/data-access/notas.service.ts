@@ -7,6 +7,19 @@ import { NotaFiscalRequest } from '@dtos/notas/nota-fiscal.request';
 import { Page } from '@dtos/shared/responses/page.response';
 import { SefazRetorno, NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
 
+/** Uma entrada do histórico de revisão de uma nota (backend#178). */
+export interface RevisaoNota {
+  id: string;
+  /** `ENVIADA`, `RETIRADA`, `APROVADA`, `DEVOLVIDA` ou `APROVACAO_CADUCADA`. */
+  acao: string;
+  /** Só na devolução: o que o produtor precisa corrigir. */
+  motivo: string | null;
+  usuarioId: string;
+  /** `PRODUTOR` ou `CONTADOR`. */
+  papel: string;
+  ocorridoEm: string;
+}
+
 /** Parâmetros de paginação/ordenação do Spring Data (`Pageable`). */
 export interface Pageable {
   page?: number;
@@ -53,6 +66,36 @@ export class NotasApi {
   /** DELETE /api/notas/{id} — exclui (só RASCUNHO/COM_INCONSISTENCIAS; 409 fora disso). */
   excluir(id: string): Observable<void> {
     return this.api.delete<void>(`/notas/${id}`);
+  }
+
+  /**
+   * `POST /api/notas/{id}/enviar-para-revisao` — manda a nota para o escritório (backend#178).
+   *
+   * Passa pela validação fiscal **antes** de mudar o status: se ela falhar, o servidor responde
+   * 422 e a nota vai para `COM_INCONSISTENCIAS` — ou seja, o produtor não consegue empurrar para o
+   * contador uma nota que o fisco já recusaria.
+   *
+   * Produtor **sem** escritório vinculado recebe 409 `TRANSICAO_REVISAO_INVALIDA`: para ele a
+   * emissão segue direta.
+   */
+  enviarParaRevisao(id: string): Observable<NotaFiscal> {
+    return this.api.post<NotaFiscal>(`/notas/${id}/enviar-para-revisao`);
+  }
+
+  /** `POST /api/notas/{id}/retirar-da-revisao` — volta a nota a `RASCUNHO`. */
+  retirarDaRevisao(id: string): Observable<NotaFiscal> {
+    return this.api.post<NotaFiscal>(`/notas/${id}/retirar-da-revisao`);
+  }
+
+  /**
+   * `GET /api/notas/{id}/revisoes` — o histórico da revisão.
+   *
+   * Ações: `ENVIADA`, `RETIRADA`, `APROVADA`, `DEVOLVIDA` e `APROVACAO_CADUCADA` (esta última
+   * aparece quando a geração do XML de uma nota aprovada falha). É onde mora o **motivo** da
+   * devolução, que é o texto que diz ao produtor o que corrigir.
+   */
+  revisoes(id: string): Observable<RevisaoNota[]> {
+    return this.api.get<RevisaoNota[]>(`/notas/${id}/revisoes`);
   }
 
   /** POST /api/notas/{id}/gerar-xml — gera/assina/valida; retorna a nota atualizada. */

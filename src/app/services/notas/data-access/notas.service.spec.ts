@@ -32,6 +32,41 @@ describe('NotasApi', () => {
     expect(recebido).toEqual(page);
   });
 
+  /**
+   * A revisao do contador (backend#178).
+   *
+   * Medido em 28/10: com escritorio vinculado, `gerar-xml` num rascunho responde
+   * **409 APROVACAO_EXIGIDA** -- a nota nao sai sem passar por aqui.
+   */
+  it('enviarParaRevisao faz POST e devolve a nota ja em AGUARDANDO_APROVACAO', () => {
+    let recebida: { status?: string } | undefined;
+    service.enviarParaRevisao('n1').subscribe((n) => (recebida = n));
+
+    const req = httpMock.expectOne((r) => r.url === '/notas/n1/enviar-para-revisao');
+    expect(req.request.method).toBe('POST');
+    req.flush({ id: 'n1', status: 'AGUARDANDO_APROVACAO' });
+
+    expect(recebida?.status).toBe('AGUARDANDO_APROVACAO');
+  });
+
+  it('retirarDaRevisao devolve a nota para rascunho', () => {
+    service.retirarDaRevisao('n1').subscribe();
+    httpMock.expectOne((r) => r.url === '/notas/n1/retirar-da-revisao').flush({});
+  });
+
+  it('revisoes traz o historico, que e como o produtor sabe por que voltou', () => {
+    let historico: unknown[] | undefined;
+    service.revisoes('n1').subscribe((h) => (historico = h));
+
+    httpMock
+      .expectOne((r) => r.url === '/notas/n1/revisoes')
+      .flush([
+        { id: 'r1', acao: 'DEVOLVIDA', motivo: 'Falta o CFOP', papel: 'CONTADOR', ocorridoEm: 'x' },
+      ]);
+
+    expect(historico?.length).toBe(1);
+  });
+
   it('criar faz POST em /notas com o request', () => {
     const req: NotaFiscalRequest = {
       numero: 1,

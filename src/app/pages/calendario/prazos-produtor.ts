@@ -10,11 +10,9 @@ import {
   LucideRefreshCw,
 } from '@lucide/angular';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
-import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
 import { ToastService } from '@core/services/toast.service';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
-import { SolicitacaoContador } from '@models/solicitacao-contador.model';
 import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 
 @Component({
@@ -34,7 +32,6 @@ import { LOGGED_PRODUCER_ID } from '@core/config/produtor-logado';
 })
 export class PrazosProdutor implements OnInit {
   private readonly calendarioService = inject(CalendarioApi);
-  private readonly contadorService = inject(ContadorApi);
   private readonly notificacaoService = inject(NotificacaoApi);
   private readonly toastService = inject(ToastService);
 
@@ -43,18 +40,19 @@ export class PrazosProdutor implements OnInit {
    * vira uma busca, e o que já veio fica guardado para voltar ao mês não custar outra requisição.
    */
   private readonly vencimentosPorMes = signal<Record<string, VencimentoFiscal[]>>({});
-  private readonly vencimentosContador = signal<VencimentoFiscal[]>([]);
 
   private readonly vencimentosReais = computed(() =>
     Object.values(this.vencimentosPorMes()).flat(),
   );
 
-  // As duas fontes carregam desacopladas: uma falha isolada em `/calendario-fiscal` não esconde
-  // as solicitações do contador, e vice-versa (ver design.md: "Resiliência do calendário").
-  readonly vencimentos = computed(() => [
-    ...this.vencimentosReais(),
-    ...this.vencimentosContador(),
-  ]);
+  // Fonte unica: `/calendario-fiscal/{id}/vencimentos`.
+  //
+  // Eram duas. A segunda buscava as solicitacoes do contador a parte e as convertia em eventos --
+  // contra `/contador/pendencias?produtorId=`, que **nunca existiu** e respondia 404 em toda
+  // abertura da tela. Desde a backend#180 o proprio calendario devolve a pendencia com prazo como
+  // `tipo: "solicitacao"` (medido em 28/10), entao a conversao a mao virou uma segunda verdade
+  // sobre o mesmo dado -- e a que estava sempre vazia.
+  readonly vencimentos = computed(() => this.vencimentosReais());
   loading = signal(false);
   vencimentosErro = signal(false);
   enviandoNotificacao = signal(false);
@@ -269,12 +267,19 @@ export class PrazosProdutor implements OnInit {
    */
   frasePrazo(v: VencimentoFiscal): string {
     const quando = this.dataPorExtenso(v.dataVencimento);
+    // "Vence" e verbo de guia. A obrigacao (status nulo, #181) nao se paga: dizer que ela "venceu"
+    // sugere divida, e no caso do fechamento da apuracao -- que acontece sozinho -- sugere uma
+    // falta que nao houve. Para ela o prazo apenas **era** aquela data.
     const verbo =
-      v.status === 'pago'
-        ? 'Venceu em'
-        : this.diasAte(v.dataVencimento) < 0
-          ? 'Vencia em'
-          : 'Vence em';
+      v.status === null
+        ? this.diasAte(v.dataVencimento) < 0
+          ? 'O prazo era'
+          : 'O prazo é'
+        : v.status === 'pago'
+          ? 'Venceu em'
+          : this.diasAte(v.dataVencimento) < 0
+            ? 'Vencia em'
+            : 'Vence em';
     const referencia = v.descricao ? `, ${v.descricao.toLowerCase()}` : '';
     return `${verbo} ${quando}${referencia}.`;
   }
@@ -286,13 +291,24 @@ export class PrazosProdutor implements OnInit {
     return d.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
   }
 
-  /** "vence hoje", "em 13 dias", "venceu há 27 dias" — a conta que o produtor faria de cabeça. */
-  rotuloPrazo(iso: string): string {
+  /**
+   * "vence hoje", "em 13 dias", "venceu há 27 dias" — a conta que o produtor faria de cabeça.
+   *
+   * `ehObrigacao` troca o verbo de pagamento pelo de prazo: a obrigação não vence, o prazo dela
+   * passa.
+   */
+  rotuloPrazo(iso: string, ehObrigacao = false): string {
     const dias = this.diasAte(iso);
-    if (dias === 0) return 'vence hoje';
-    if (dias === 1) return 'vence amanhã';
-    if (dias === -1) return 'venceu ontem';
-    return dias > 0 ? `em ${dias} dias` : `venceu há ${-dias} dias`;
+    if (dias === 0) return ehObrigacao ? 'é hoje' : 'vence hoje';
+    if (dias === 1) return ehObrigacao ? 'é amanhã' : 'vence amanhã';
+    if (dias === -1) return ehObrigacao ? 'era ontem' : 'venceu ontem';
+    if (dias > 0) return `em ${dias} dias`;
+    return ehObrigacao ? `passou há ${-dias} dias` : `venceu há ${-dias} dias`;
+  }
+
+  /** O rótulo relativo já no verbo certo para este item. */
+  rotuloPrazoDe(v: VencimentoFiscal): string {
+    return this.rotuloPrazo(v.dataVencimento, v.status === null);
   }
 
   /** O prazo aperta: até 3 dias o rótulo já fica em tom de alerta. */
@@ -315,7 +331,6 @@ export class PrazosProdutor implements OnInit {
   carregar(): void {
     this.hoje.set(PrazosProdutor.hojeISO());
     this.carregarJanela();
-    this.carregarVencimentosContador();
   }
 
   /**
@@ -416,34 +431,8 @@ export class PrazosProdutor implements OnInit {
     return `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}`;
   }
 
-  private carregarVencimentosContador(): void {
-    this.contadorService.getPendencias(LOGGED_PRODUCER_ID).subscribe({
-      next: (pendencias) => this.vencimentosContador.set(this.mapPendenciasParaEventos(pendencias)),
-      error: () => this.vencimentosContador.set([]),
-    });
-  }
-
   retry(): void {
     this.carregar();
-  }
-
-  // Converte solicitações do contador (com prazo) em eventos do calendário
-  private mapPendenciasParaEventos(pendencias: SolicitacaoContador[]): VencimentoFiscal[] {
-    return pendencias
-      .filter(
-        (p) =>
-          (p.status === 'pendente' || p.status === 'enviado' || p.status === 'rejeitado') &&
-          p.prazo,
-      )
-      .map((p) => ({
-        id: 'sol-' + p.id,
-        titulo: p.titulo,
-        descricao: p.descricao,
-        dataVencimento: (p.prazo || '').split('T')[0],
-        tipo: 'solicitacao' as const,
-        status: 'pendente' as const,
-        prioridade: p.prioridade,
-      }));
   }
 
   mesAnterior(): void {
@@ -577,7 +566,12 @@ export class PrazosProdutor implements OnInit {
     );
   }
 
-  statusColor(status: string): string {
+  /**
+   * A cor do selo. **`null` é a obrigação**, que não se paga: cor neutra, nunca a vermelha de
+   * guia vencida.
+   */
+  statusColor(status: string | null): string {
+    if (status === null) return 'bg-info-soft text-info-ink border border-info/30';
     return (
       {
         pago: 'bg-sucesso-soft text-sucesso-ink border border-sucesso/30',
@@ -587,9 +581,48 @@ export class PrazosProdutor implements OnInit {
     );
   }
 
-  statusLabel(status: string): string {
+  /**
+   * O rótulo do selo.
+   *
+   * A obrigação (`status` nulo) não é "pendente" nem "vencida" — ela é algo **a fazer**. Dizer
+   * "Vencido" ali empurraria o produtor a procurar uma guia que não existe.
+   */
+  statusLabel(status: string | null): string {
+    if (status === null) return 'A fazer';
     return { pago: 'Pago', vencido: 'Vencido', pendente: 'Pendente' }[status] ?? status;
   }
+
+  /** `MENSAL` → "todo mês". O backend fala em caixa alta; o produtor, não. */
+  rotuloPeriodicidade(periodicidade: string): string {
+    return (
+      {
+        MENSAL: 'todo mês',
+        BIMESTRAL: 'a cada dois meses',
+        TRIMESTRAL: 'a cada três meses',
+        SEMESTRAL: 'a cada seis meses',
+        ANUAL: 'uma vez por ano',
+      }[periodicidade] ?? periodicidade.toLowerCase()
+    );
+  }
+
+  /** O item é uma guia — ou seja, tem dinheiro e data de pagamento. */
+  ehGuia(vencimento: VencimentoFiscal): boolean {
+    return vencimento.tipo === 'imposto';
+  }
+
+  /**
+   * Há guia atrasada entre os atrasados.
+   *
+   * O aviso de multa e juros só vale para guia. Antes ele aparecia no **primeiro** item atrasado,
+   * qualquer que fosse: o fechamento da apuração aparecia com "guia atrasada costuma ter multa e
+   * juros", conselho de pagamento para algo que não se paga.
+   */
+  readonly temGuiaAtrasada = computed(() => this.atrasados().some((v) => this.ehGuia(v)));
+
+  /** A primeira guia atrasada — é nela que o aviso de multa e juros se cola. */
+  readonly primeiraGuiaAtrasada = computed(
+    () => this.atrasados().find((v) => this.ehGuia(v)) ?? null,
+  );
 
   /**
    * A cara do dia na grade.

@@ -107,7 +107,7 @@ exatamente o que produziu o bug acima.
 | `/contador/:produtorId` | **contador** (`contadorGuard`) | `pages/contador/cliente.{ts,html}` — **um cliente**: notas travadas (com as validações reais), guias a cobrar e documentos a conferir |
 | `/tributario` | **os dois** | `tributario.ts` escolhe: `ImpostosProdutor` (quanto eu pago, de onde vem, 6 meses) ou `ImpostosContador` (**Fechamento**: matriz IBS/CBS, notas que ficaram fora da apuração, variação decomposta) |
 | `/calendario` | **os dois** | `calendario.ts` escolhe: `PrazosProdutor` (o que vence pra mim + calendário) ou `PrazosContador` (**cobrança**: fila do que cobrar, lançar guia, dar baixa) |
-| `/documentos` | os dois | `pages/documentos/documentos.{ts,html}` — mesma lista, título e voz trocam |
+| `/documentos` | os dois | `pages/documentos/documentos.{ts,html}` — mesma lista, título e voz trocam. Para o produtor traz **"O que o escritório pediu"** (#180): ver o pedido e anexar ali mesmo |
 | `/configuracoes` | os dois | `pages/configuracoes/configuracoes.{ts,html}` |
 
 **As guias moram em `/calendario` (contador), não no Acompanhamento.** Elas apareciam inteiras nas
@@ -125,6 +125,7 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `CeresApi` | `@services/assistente/data-access/ceres.service` | **A Ceres**, assistente fiscal (issue #76). `perguntarEmStream()` em `POST /api/assistente/chat/stream` (SSE via `fetch`, padrão) e `perguntar()` em `POST /api/assistente/chat` (síncrono, timeout de 6 min — fallback de navegador sem `TextDecoderStream`). Erros viram `CeresError` com `codigo` (`CodigoCeres`) e `retryAfterSegundos`; cancelamento vira `CeresCancelada`. Nunca inventa texto de assistente. |
 | `CarteiraApi` | `@services/contador/data-access/carteira.service` | **A carteira do escritório** (backend#177): `GET /contador/produtores` (array + `X-Total-Count`, nunca `Page<T>`), e o que o contador alcança de um cliente — notas, validações, guias e pendências, todas em `/contador/produtores/{id}/...`. **Sem fallback silencioso**: 403 e 404 sobem para a tela. |
 | `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. O cliente antigo: `?produtorId=` na query e `catchError(() => of([]))`. `/contador/pendencias?produtorId=` ainda responde 404 — a rota real virou `/contador/produtores/{id}/pendencias` (#180, issue #95). |
+| `PendenciasApi` | `@services/pendencias/data-access/pendencias.service` | **Pedidos de documento do lado do produtor** (backend#180): `GET /api/pendencias`, detalhe e `POST /{id}/anexos` (multipart, parte `arquivo`, **sem** `Content-Type` — o boundary é do navegador). Erro sobe: a tela separa `ANEXO_INVALIDO`, `ANEXO_INFECTADO`, `LIMITE_ANEXOS` e `TRANSICAO_PENDENCIA_INVALIDA`. **A lista devolve `anexos: []`** — os metadados (e a `situacao` do antivírus) só vêm no detalhe. |
 | `NotificacaoApi` | `@services/notificacao/data-access/notificacao.service` | Notificações externas (WhatsApp). |
 
 **Cross-cutting** — permanecem em `core/services/`, importados via `@core/services/...`:
@@ -147,7 +148,9 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
 `ItemRascunhoNota`), `solicitacao-contador.model.ts` (`SolicitacaoContador`, `DocumentoContador`),
 `assistente-mensagem.model.ts` (`AssistenteMensagem` — texto, rota, citações, fontes e `falha`),
 `vencimento-fiscal.model.ts`, `notificacao.model.ts`, `fluxo-caixa.model.ts`,
-`carteira.model.ts` (`ProdutorCarteira`, `AtencaoCarteira`, `FiltroCarteira`, `PendenciaCliente`).
+`carteira.model.ts` (`ProdutorCarteira`, `AtencaoCarteira`, `FiltroCarteira`),
+`pendencia.model.ts` (`Pendencia`, `AnexoPendencia`, `StatusPendencia`, `SituacaoAnexo` — substitui o
+`SolicitacaoContador`, que foi escrito contra um contrato imaginado).
 `StatusRascunho` em `@core/enums/status-rascunho.enum`. Envelope de erro da API (`ApiErrorEnvelope`,
 `FiscalError`) em `@dtos/shared/responses/api-error.response`. Campos de status são unions de string.
 

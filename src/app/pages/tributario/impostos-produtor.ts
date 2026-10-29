@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
+import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
+import { FormsModule } from '@angular/forms';
 import {
   LucideReceipt,
   LucideLoaderCircle,
@@ -361,15 +362,21 @@ export class ImpostosProdutor implements OnInit {
     }
   }
 
+  /** A falha da busca de guias, quando houve — separada de "não há guia" (#107). */
+  readonly erroGuias = signal<FalhaDaApi | null>(null);
+
   private carregarGuias(): void {
     this.guiasCarregadas.set(false);
+    this.erroGuias.set(null);
     this.contadorApi.getGuias(LOGGED_PRODUCER_ID).subscribe({
       next: (lista) => {
         this.guias.set(lista);
         this.guiasCarregadas.set(true);
       },
-      error: () => {
-        this.guias.set([]);
+      // A lista **não** é zerada: o que estava na tela é o último dado verdadeiro do servidor.
+      // Zerar em falha fazia a guia sumir como se tivesse sido paga (#107).
+      error: (err: HttpErrorResponse) => {
+        this.erroGuias.set(falhaDaApi(err));
         this.guiasCarregadas.set(true);
       },
     });

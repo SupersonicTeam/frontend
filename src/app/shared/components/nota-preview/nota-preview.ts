@@ -20,9 +20,22 @@ import {
 export class NotaPreview {
   readonly nota = input.required<NotaFiscal>();
 
-  readonly STEPPER_STEPS = ['Rascunho', 'XML gerado', 'Enviada', 'Autorizada'];
+  /**
+   * As etapas do contrato (#111): **rascunho → em revisão → aprovada → emitida**.
+   *
+   * Eram "Rascunho · XML gerado · Enviada · Autorizada", e a revisão do contador não tinha etapa
+   * nenhuma — ela aparecia espremida como estado da primeira bolinha. Com o fluxo da #178 valendo
+   * para todo produtor que tem escritório, a revisão é uma etapa de verdade; e o "XML gerado",
+   * que é detalhe técnico da emissão, sai do caminho que o produtor acompanha.
+   */
+  readonly STEPPER_STEPS = ['Rascunho', 'Em revisão', 'Aprovada', 'Emitida'];
 
-  /** Estado visual de cada etapa do stepper para o status atual da nota. */
+  /**
+   * Estado visual de cada etapa para o status atual.
+   *
+   * Quem **não tem contador** pula a revisão: `XML_GERADO` fecha o rascunho e acende a emissão,
+   * deixando as duas etapas do meio sem marca — é verdade, elas não aconteceram.
+   */
   stepperEstado(
     status: StatusNotaFiscal | undefined,
     idx: number,
@@ -32,14 +45,25 @@ export class NotaPreview {
         return idx === 0 ? 'current' : 'todo';
       case 'COM_INCONSISTENCIAS':
         return idx === 0 ? 'error' : 'todo';
+      // A nota está na mesa do contador: o rascunho ficou pronto, a revisão está em andamento.
+      case 'AGUARDANDO_APROVACAO':
+        return idx === 0 ? 'done' : idx === 1 ? 'current' : 'todo';
+      case 'APROVADA':
+        return idx < 2 ? 'done' : idx === 2 ? 'current' : 'todo';
+      // Devolvida volta para a mão do produtor, e a revisão fica marcada como o que deu errado.
+      case 'DEVOLVIDA':
+        return idx === 0 ? 'current' : idx === 1 ? 'error' : 'todo';
       case 'XML_GERADO':
-        return idx < 1 ? 'done' : idx === 1 ? 'current' : 'todo';
+        return idx === 0 ? 'done' : idx === 3 ? 'current' : 'todo';
+      case 'ENVIANDO':
+        return idx === 3 ? 'current' : idx === 0 ? 'done' : 'todo';
       case 'AUTORIZADA':
         return 'done';
       case 'REJEITADA':
-        return idx < 2 ? 'done' : idx === 2 ? 'error' : 'todo';
+        return idx === 3 ? 'error' : idx === 0 ? 'done' : 'todo';
       case 'PENDENTE_SEFAZ':
-        return idx < 2 ? 'done' : idx === 2 ? 'warn' : 'todo';
+        return idx === 3 ? 'warn' : idx === 0 ? 'done' : 'todo';
+      case 'CANCELANDO':
       case 'CANCELADA':
         return 'done';
       default:

@@ -34,6 +34,11 @@ describe('AppLayout', () => {
     const fixture = TestBed.createComponent(AppLayout);
     fixture.detectChanges();
     httpMock.match(r => r.url === '/dashboard').forEach(r => r.flush(dashboard));
+    // O sino busca na fonte do papel atual desde a #113: `/alertas` para o produtor,
+    // `/contador/produtores` para o escritorio. Drenar aqui mantem os testes do shell focados
+    // no que eles provam -- nome, papel e paineis.
+    httpMock.match(r => r.url === '/alertas').forEach(r => r.flush([]));
+    httpMock.match(r => r.url === '/contador/produtores').forEach(r => r.flush([]));
     fixture.detectChanges();
     return fixture;
   }
