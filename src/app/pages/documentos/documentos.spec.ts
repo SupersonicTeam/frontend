@@ -1344,4 +1344,89 @@ describe('DocumentosPage', () => {
       expect(cmp.resumoDoPeriodo().rascunhos).toBe(1);
     });
   });
+
+  /**
+   * A importação diz o que aconteceu com cada arquivo (issue #117).
+   *
+   * Antes a tela descartava a resposta e disparava sempre "Importação processada. Confira a lista
+   * de notas." — inclusive quando o arquivo tinha sido **recusado** na conferência de destinatário,
+   * assinatura ou SEFAZ. Mensagem de sucesso para uma recusa é pior do que um erro: a pessoa vai
+   * embora achando que a nota entrou.
+   */
+  describe('importação relata cada arquivo (#117)', () => {
+    function espiarToasts() {
+      const toast = TestBed.inject(ToastService);
+      const ditos: { tom: string; msg: string }[] = [];
+      for (const tom of ['success', 'error', 'info'] as const) {
+        vi.spyOn(toast, tom).mockImplementation(((m: string) => {
+          ditos.push({ tom, msg: m });
+        }) as never);
+      }
+      return ditos;
+    }
+
+    function importar(resultados: unknown[]) {
+      const fixture = comNotas([]);
+      const ditos = espiarToasts();
+      fixture.componentInstance.importarArquivo(
+        new File(['<nfe/>'], 'nota.xml', { type: 'text/xml' }),
+      );
+      httpMock.expectOne((r) => r.url === '/notas/importar').flush(resultados);
+      // A lista recarrega depois da importacao.
+      httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush(pagina([])));
+      flushPendencias();
+      return ditos;
+    }
+
+    it('recusa NAO vira sucesso: mostra o motivo que o servidor deu', () => {
+      const ditos = importar([
+        {
+          arquivo: 'nota.xml',
+          sucesso: false,
+          status: 'INVALIDA',
+          notaId: null,
+          chaveAcesso: null,
+          motivo: 'O destinatário não é você.',
+        },
+      ]);
+
+      expect(ditos.some((d) => d.tom === 'success')).toBe(false);
+      const erro = ditos.find((d) => d.tom === 'error');
+      expect(erro?.msg).toContain('O destinatário não é você.');
+      expect(erro?.msg).toContain('nota.xml');
+    });
+
+    it('duplicada e aviso, nao erro — a nota ja esta na conta', () => {
+      const ditos = importar([
+        {
+          arquivo: 'nota.xml',
+          sucesso: false,
+          status: 'DUPLICADA',
+          notaId: null,
+          chaveAcesso: '352',
+          motivo: 'Esta nota já está na sua conta.',
+        },
+      ]);
+
+      expect(ditos.find((d) => d.tom === 'info')?.msg).toContain('já está na sua conta');
+      expect(ditos.some((d) => d.tom === 'error')).toBe(false);
+    });
+
+    it('importada e sucesso, e cada arquivo ganha o seu recado', () => {
+      const ditos = importar([
+        { arquivo: 'a.xml', sucesso: true, status: 'IMPORTADA', notaId: 'n1', chaveAcesso: null, motivo: 'Nota importada.' },
+        { arquivo: 'b.xml', sucesso: false, status: 'INVALIDA', notaId: null, chaveAcesso: null, motivo: 'Assinatura não confere.' },
+      ]);
+
+      expect(ditos.filter((d) => d.tom === 'success')).toHaveLength(1);
+      expect(ditos.find((d) => d.tom === 'error')?.msg).toContain('b.xml');
+    });
+
+    it('lista vazia nao e sucesso: o servidor nao disse nada sobre o arquivo', () => {
+      const ditos = importar([]);
+
+      expect(ditos.some((d) => d.tom === 'success')).toBe(false);
+      expect(ditos.find((d) => d.tom === 'info')?.msg).toContain('não informou');
+    });
+  });
 });
