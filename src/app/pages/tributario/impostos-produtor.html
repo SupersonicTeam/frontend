@@ -144,22 +144,6 @@
             </span>
           }
         </div>
-        @if (podeReabrir()) {
-          <!--
-            Reabrir desabilitado (A-7/OQ-1): POST /apuracao/{id}/reabrir exige um id que o
-            ApuracaoResponse não expõe. Reativa quando o backend passar a enviar o id.
-          -->
-          <div class="mt-3 flex w-fit flex-col gap-1">
-            <!-- O porque fica escrito abaixo, visivel: `title` so aparece no mouse parado,
-                 e quem usa teclado ou celular nunca ve. -->
-            <ui-button variant="ghost" [disabled]="true">
-              <svg lucideLockOpen [size]="14" /> Reabrir apuração
-            </ui-button>
-            <span class="text-apoio text-muted-foreground">
-              Reabertura indisponível — o backend ainda não expõe o id da apuração.
-            </span>
-          </div>
-        }
       } @else if (!loadingApuracao()) {
         <p class="text-apoio text-muted-foreground">Sem apuração para o período.</p>
       }

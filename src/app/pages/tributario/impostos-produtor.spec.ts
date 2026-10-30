@@ -252,43 +252,14 @@ describe('ImpostosProdutor', () => {
     expect(cmp.conta()?.saldo).toBe(60);
   });
 
-  it('TRIB-04: podeReabrir só quando status FECHADO', () => {
-    const f = TestBed.createComponent(ImpostosProdutor);
-    const cmp = f.componentInstance;
-    f.detectChanges();
-    flushApuracao({ status: 'ABERTO', dataFechamento: null });
-    flushRelatorio();
-    expect(cmp.podeReabrir()).toBe(false);
+  /**
+   * TRIB-04 e TRIB-05 sairam daqui (#117): a reabertura **nao e mais do produtor**.
+   *
+   * Passou a ser do escritorio, em `POST /contador/produtores/{id}/apuracao/{periodo}/reabrir`.
+   * A rota antiga esta deprecated e responde 403 a todos. Os testes seguiam verdes porque
+   * exercitavam um metodo que a tela nunca conseguiu chamar -- o botao vivia desabilitado.
+   */
 
-    cmp.apuracao.set(buildApuracao({ status: 'FECHADO' }));
-    expect(cmp.podeReabrir()).toBe(true);
-  });
-
-  it('TRIB-05: reabrir ramifica 409 APURACAO_NAO_REABRIVEL vs 422 REABERTURA_FORA_PRAZO por code', () => {
-    const f = TestBed.createComponent(ImpostosProdutor);
-    const cmp = f.componentInstance;
-    const toast = TestBed.inject(ToastService);
-    f.detectChanges();
-    flushTodos();
-
-    cmp.reabrir('ap-1');
-    httpMock
-      .expectOne((r) => r.url === '/apuracao/ap-1/reabrir')
-      .flush(
-        { errors: [{ code: 'APURACAO_NAO_REABRIVEL', message: 'x' }] },
-        { status: 409, statusText: 'Conflict' },
-      );
-    expect(toast.toasts().at(-1)?.message).toBe('A apuração não está fechada.');
-
-    cmp.reabrir('ap-1');
-    httpMock
-      .expectOne((r) => r.url === '/apuracao/ap-1/reabrir')
-      .flush(
-        { errors: [{ code: 'REABERTURA_FORA_PRAZO', message: 'x' }] },
-        { status: 422, statusText: 'Unprocessable Entity' },
-      );
-    expect(toast.toasts().at(-1)?.message).toBe('Reabertura fora do prazo de 3 meses (RN005).');
-  });
 
   it('TRIB-07: saldoAPagar negativo → saldoCredor true (valor não é alterado)', () => {
     const f = TestBed.createComponent(ImpostosProdutor);

@@ -290,4 +290,43 @@ describe('CarteiraApi', () => {
     expect(req.request.params.get('size')).toBe('200');
     req.flush([]);
   });
+
+  /**
+   * A reabertura da apuracao mudou de dono (issue #117).
+   *
+   * Era `POST /apuracao/{id}/reabrir`, do produtor -- e o botao vivia **desabilitado nos dois
+   * lados** porque o `ApuracaoResponse` nunca expos o `id` que essa rota pedia. A rota nova nao
+   * pede id: pede produtor e periodo. A antiga esta deprecated e responde 403 a todos.
+   */
+  describe('reabrir a apuracao de um cliente (#117)', () => {
+    it('vai na rota do contador, com produtor e periodo no caminho e sem corpo', () => {
+      service.reabrirApuracao('p-1', '2026-09').subscribe();
+
+      const req = httpMock.expectOne('/contador/produtores/p-1/apuracao/2026-09/reabrir');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toBeNull();
+      req.flush({ periodo: '2026-09', status: 'ABERTO' });
+    });
+
+    it('nao usa mais a rota antiga, que responde 403 a todos', () => {
+      service.reabrirApuracao('p-1', '2026-09').subscribe();
+
+      httpMock.expectNone((r) => r.url.startsWith('/apuracao/'));
+      httpMock.expectOne('/contador/produtores/p-1/apuracao/2026-09/reabrir').flush({});
+    });
+
+    it('o erro sobe com o codigo, para a tela dizer o motivo certo', () => {
+      let erro: { status: number } | undefined;
+      service.reabrirApuracao('p-1', '2025-01').subscribe({ error: (e) => (erro = e) });
+
+      httpMock
+        .expectOne('/contador/produtores/p-1/apuracao/2025-01/reabrir')
+        .flush(
+          { errors: [{ code: 'REABERTURA_FORA_PRAZO', message: 'Mais de 3 meses.' }] },
+          { status: 422, statusText: 'Unprocessable Entity' },
+        );
+
+      expect(erro?.status).toBe(422);
+    });
+  });
 });
