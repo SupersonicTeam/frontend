@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
 import { ImpostosProdutor } from './impostos-produtor';
 import { ImpostosContador } from './impostos-contador';
 
@@ -16,7 +16,7 @@ import { ImpostosContador } from './impostos-contador';
   standalone: true,
   imports: [ImpostosProdutor, ImpostosContador],
   template: `
-    @if (perfil.ehContador()) {
+    @if (sessao.ehContador()) {
       <app-impostos-contador />
     } @else {
       <app-impostos-produtor />
@@ -24,5 +24,5 @@ import { ImpostosContador } from './impostos-contador';
   `,
 })
 export class TributarioPage {
-  protected readonly perfil = inject(PerfilService);
+  protected readonly sessao = inject(SessaoService);
 }

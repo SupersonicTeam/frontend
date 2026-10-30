@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { PerfilService } from '@core/services/perfil.service';
+import { entrarComo } from '@core/services/sessao.testing';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { ChatPage } from './chat';
 
@@ -28,7 +28,7 @@ describe('ChatPage (#51, ligada à Ceres na #76)', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
-    TestBed.inject(PerfilService).entrar('produtor');
+    entrarComo('PRODUTOR');
   });
 
   /** A cota da semana (#166): o store a busca junto com o contexto e depois de cada resposta. */

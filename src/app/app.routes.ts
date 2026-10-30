@@ -1,10 +1,14 @@
 import { Routes } from '@angular/router';
 import { AppLayout } from '@shared/layout/app-layout/app-layout';
-import { perfilGuard } from '@core/guards/perfil.guard';
+import { sessaoGuard } from '@core/guards/sessao.guard';
 import { produtorGuard } from '@core/guards/produtor.guard';
 import { contadorGuard } from '@core/guards/contador.guard';
 
 export const routes: Routes = [
+  // A tela de entrada fica FORA do `AppLayout`: o shell tem sidebar, sino de notificacoes e a
+  // gaveta da Ceres, todos pedindo dado de um usuario que ainda nao existe. Ela tambem e a unica
+  // rota sem `sessaoGuard` -- se estivesse guardada, quem nao tem sessao seria mandado para o
+  // login pelo proprio login, em volta.
   {
     path: 'login',
     loadComponent: () => import('@pages/login/login').then((m) => m.LoginPage),
@@ -12,7 +16,7 @@ export const routes: Routes = [
   {
     path: '',
     component: AppLayout,
-    canActivate: [perfilGuard],
+    canActivate: [sessaoGuard],
     children: [
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
       // ── Do produtor. Falam na voz dele ("você tem a pagar", "procure o seu escritório de

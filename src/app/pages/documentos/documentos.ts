@@ -27,7 +27,7 @@ import {
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
 import { NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
 import {
   type Pendencia,
@@ -212,7 +212,7 @@ export class DocumentosPage implements OnInit {
    * botão de perguntar sobre a nota só existe para quem ela atende.
    */
   protected readonly assistenteDisponivel = this.assistente.disponivel;
-  protected readonly perfilService = inject(PerfilService);
+  protected readonly sessao = inject(SessaoService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly contadorService = inject(ContadorApi);
@@ -431,8 +431,7 @@ export class DocumentosPage implements OnInit {
     // nome deixavam a que importa invisivel: o painel dizia "Precisam de revisao: 0" com nota
     // aguardando aprovacao (#111). Agora sao duas, cada uma com o seu nome.
     const situacao = this.statusFilter();
-    if (situacao === 'revisao')
-      lista = lista.filter((n) => esperaOEscritorio(n.status));
+    if (situacao === 'revisao') lista = lista.filter((n) => esperaOEscritorio(n.status));
     else if (situacao === 'travadas') lista = lista.filter((n) => this.podeVerValidacoes(n));
     // `esperando` e o recorte do produtor: o que ainda depende dele. Atravessa tres status
     // (inconsistencia, rejeitada, rascunho) porque o que une os tres e a pendencia, nao a
@@ -687,8 +686,7 @@ export class DocumentosPage implements OnInit {
     if (!busca) return this.pendencias();
     return this.pendencias().filter(
       (p) =>
-        p.titulo.toLowerCase().includes(busca) ||
-        (p.descricao ?? '').toLowerCase().includes(busca),
+        p.titulo.toLowerCase().includes(busca) || (p.descricao ?? '').toLowerCase().includes(busca),
     );
   });
 
@@ -1593,7 +1591,9 @@ export class DocumentosPage implements OnInit {
     if (!arquivo) return;
 
     if (arquivo.size > TAMANHO_MAXIMO_ANEXO) {
-      this.toastService.error('O arquivo passa de 5 MB. Mande uma foto menor ou um PDF comprimido.');
+      this.toastService.error(
+        'O arquivo passa de 5 MB. Mande uma foto menor ou um PDF comprimido.',
+      );
       return;
     }
     if (pendencia.quantidadeAnexos >= MAXIMO_ANEXOS) {
@@ -1908,5 +1908,4 @@ export class DocumentosPage implements OnInit {
   notaStatusLabel(status?: string): string {
     return statusNotaLabel(status);
   }
-
 }

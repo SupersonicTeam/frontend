@@ -1,9 +1,18 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
-import { Observable, TimeoutError, catchError, of, throwError, timeout } from 'rxjs';
+import {
+  Observable,
+  TimeoutError,
+  catchError,
+  firstValueFrom,
+  of,
+  throwError,
+  timeout,
+} from 'rxjs';
 import { environment } from '@env/environment';
 import { ApiService } from '@core/services/api.service';
-import { IdentidadeService } from '@core/services/identidade.service';
+import { SessaoService } from '@core/services/sessao.service';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import type { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import type {
   CeresEvento,
@@ -112,13 +121,20 @@ const ROTAS: readonly RotaCeres[] = ['DADOS', 'LEGISLACAO', 'MISTO', 'FORA_DE_ES
  *
  * O streaming vai de `fetch` e não de `HttpClient` por dois motivos do contrato:
  * `EventSource` só faz `GET` e não manda header, e o interceptor do `HttpClient`
- * não alcança o `fetch` — então o `X-Usuario-Id` vai à mão aqui, lido do mesmo
- * `IdentidadeService` que o interceptor usa.
+ * não alcança o `fetch` — então o `Authorization: Bearer` vai à mão aqui, lido da
+ * mesma `SessaoService` que o `authInterceptor` usa (issue #93; antes era o
+ * `X-Usuario-Id`, que só o profile `dev` do backend aceita).
+ *
+ * Porque o interceptor não alcança este caminho, ele também não renova o token
+ * sozinho: uma pergunta feita com token vencido receberia 401 e viraria um erro na
+ * conversa. Então aqui a renovação é **preventiva** — se o token já venceu, troca-se
+ * antes de abrir o stream. A fila do `AuthApi.renovar()` cuida de não duplicar.
  */
 @Injectable({ providedIn: 'root' })
 export class CeresApi {
   private readonly api = inject(ApiService);
-  private readonly identidade = inject(IdentidadeService);
+  private readonly sessao = inject(SessaoService);
+  private readonly auth = inject(AuthApi);
 
   /** O navegador sabe ler um corpo de resposta como stream de texto? */
   suportaStream(): boolean {
@@ -170,8 +186,8 @@ export class CeresApi {
       'Content-Type': 'application/json',
       Accept: 'text/event-stream',
     };
-    const usuarioId = this.identidade.usuarioId();
-    if (usuarioId) cabecalhos['X-Usuario-Id'] = usuarioId;
+    const token = await this.tokenValido();
+    if (token) cabecalhos['Authorization'] = `Bearer ${token}`;
 
     let resposta: Response;
     try {
@@ -225,6 +241,26 @@ export class CeresApi {
    * Converte um bloco do SSE em evento do contrato. O evento `erro` traz o
    * envelope `ApiError` e é lançado — a falha é do fluxo, não um evento a tratar.
    */
+  /**
+   * O token a mandar no stream, renovado antes se já venceu.
+   *
+   * O `authInterceptor` não alcança o `fetch`, então a renovação por 401 que vale para o resto do
+   * app não vale aqui: uma pergunta feita depois de 15 min de tela aberta viraria erro na conversa.
+   * Renovar antes custa uma requisição só quando o token de fato venceu.
+   *
+   * Falha de renovação **não** interrompe a pergunta: segue-se com o token velho e deixa-se o
+   * backend responder 401, que o `classificar()` traduz. Decidir aqui que a sessão acabou, a
+   * partir de um caminho secundário, encerraria a sessão de quem só fez uma pergunta.
+   */
+  private async tokenValido(): Promise<string | null> {
+    if (!this.sessao.logado() || !this.sessao.expirado()) return this.sessao.token();
+    try {
+      return await firstValueFrom(this.auth.renovar());
+    } catch {
+      return this.sessao.token();
+    }
+  }
+
   private interpretar(bloco: BlocoSse): CeresEvento | null {
     const dado: unknown = this.jsonOuNulo(bloco.dados);
 

@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
 
 /**
  * Rotas que só existem para o produtor.
@@ -11,8 +11,8 @@ import { PerfilService } from '@core/services/perfil.service';
  * cujo único conteúdo possível é um erro. Ele volta para a home do seu perfil.
  */
 export const produtorGuard: CanActivateFn = () => {
-  const perfil = inject(PerfilService);
+  const sessao = inject(SessaoService);
   const router = inject(Router);
 
-  return perfil.ehProdutor() ? true : router.createUrlTree([perfil.homeDoPerfil()]);
+  return sessao.ehProdutor() ? true : router.createUrlTree([sessao.homeDoPerfil()]);
 };

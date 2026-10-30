@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree, provideRouter } from '@angular/router';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
+import { entrarComo } from '@core/services/sessao.testing';
 import { contadorGuard } from './contador.guard';
 
 /**
@@ -8,12 +9,13 @@ import { contadorGuard } from './contador.guard';
  * — uma tela escrita para quem atende *outra pessoa*.
  */
 describe('contadorGuard', () => {
-  let perfil: PerfilService;
-
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideRouter([])] });
-    perfil = TestBed.inject(PerfilService);
+    // A sessao e persistida no localStorage: sem limpar, um teste herda a do anterior.
+    localStorage.clear();
+    TestBed.configureTestingModule({ providers: [provideRouter([]), SessaoService] });
   });
+
+  afterEach(() => localStorage.clear());
 
   function rodar(): boolean | UrlTree {
     return TestBed.runInInjectionContext(
@@ -22,12 +24,12 @@ describe('contadorGuard', () => {
   }
 
   it('deixa o contador entrar', () => {
-    perfil.entrar('contador');
+    entrarComo('CONTADOR');
     expect(rodar()).toBe(true);
   });
 
   it('manda o produtor para a home do perfil dele', () => {
-    perfil.entrar('produtor');
+    entrarComo('PRODUTOR');
     const destino = rodar();
 
     expect(destino).toBeInstanceOf(UrlTree);

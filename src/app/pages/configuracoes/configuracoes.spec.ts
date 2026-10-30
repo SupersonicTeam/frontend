@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { ConfiguracoesPage } from './configuracoes';
 import type { ObrigacaoCatalogo } from '@services/contador/data-access/obrigacoes.service';
+import { entrarComo } from '@core/services/sessao.testing';
 
 /**
  * A tela era quase toda encenação: nome e e-mail cravados no código, um botão
@@ -34,7 +35,7 @@ describe('ConfiguracoesPage', () => {
   it('mostra o produtor que veio da API, não um nome cravado no código', () => {
     const fixture = TestBed.createComponent(ConfiguracoesPage);
     fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/dashboard').flush(dashboard);
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(dashboard);
     fixture.detectChanges();
 
     const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -47,7 +48,7 @@ describe('ConfiguracoesPage', () => {
   it('traduz o tipo do produtor em vez de mostrar o valor do banco', () => {
     const fixture = TestBed.createComponent(ConfiguracoesPage);
     fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/dashboard').flush(dashboard);
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(dashboard);
     fixture.detectChanges();
 
     const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
@@ -58,7 +59,7 @@ describe('ConfiguracoesPage', () => {
   it('não oferece campo de senha nem botão de salvar — nada disso existe no servidor', () => {
     const fixture = TestBed.createComponent(ConfiguracoesPage);
     fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/dashboard').flush(dashboard);
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(dashboard);
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
@@ -70,7 +71,9 @@ describe('ConfiguracoesPage', () => {
   it('com o dashboard fora do ar, a tela continua de pé', () => {
     const fixture = TestBed.createComponent(ConfiguracoesPage);
     fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/dashboard').flush('erro', { status: 500, statusText: 'x' });
+    httpMock
+      .expectOne((r) => r.url === '/dashboard')
+      .flush('erro', { status: 500, statusText: 'x' });
     fixture.detectChanges();
 
     // O tema é local e não depende do backend: precisa continuar disponível.
@@ -104,8 +107,8 @@ describe('ConfiguracoesPage', () => {
       ...over,
     });
 
-    function abrirComo(perfil: 'produtor' | 'contador') {
-      localStorage.setItem('agrocontabil.perfil', perfil);
+    function abrirComo(papel: 'PRODUTOR' | 'CONTADOR') {
+      entrarComo(papel);
       const fixture = TestBed.createComponent(ConfiguracoesPage);
       fixture.detectChanges();
       return fixture.componentInstance;
@@ -114,14 +117,14 @@ describe('ConfiguracoesPage', () => {
     afterEach(() => localStorage.clear());
 
     it('o produtor nem pede o catalogo: nao e tela dele', () => {
-      abrirComo('produtor');
+      abrirComo('PRODUTOR');
       httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
 
       httpMock.expectNone((r) => r.url === '/contador/obrigacoes');
     });
 
     it('o contador recebe o catalogo e separa o que esta no calendario do que saiu', () => {
-      const cmp = abrirComo('contador');
+      const cmp = abrirComo('CONTADOR');
       httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
       httpMock
         .expectOne((r) => r.url === '/contador/obrigacoes')
@@ -132,7 +135,7 @@ describe('ConfiguracoesPage', () => {
     });
 
     it('tirar do calendario usa DELETE e troca o item pelo que o servidor devolveu', () => {
-      const cmp = abrirComo('contador');
+      const cmp = abrirComo('CONTADOR');
       httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
       httpMock.expectOne((r) => r.url === '/contador/obrigacoes').flush([obrigacao()]);
 
@@ -149,7 +152,7 @@ describe('ConfiguracoesPage', () => {
     });
 
     it('reativar devolve a obrigacao ao calendario', () => {
-      const cmp = abrirComo('contador');
+      const cmp = abrirComo('CONTADOR');
       httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
       httpMock
         .expectOne((r) => r.url === '/contador/obrigacoes')
@@ -162,7 +165,7 @@ describe('ConfiguracoesPage', () => {
     });
 
     it('so a versao do escritorio pode voltar ao padrao', () => {
-      const cmp = abrirComo('contador');
+      const cmp = abrirComo('CONTADOR');
       httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
       httpMock.expectOne((r) => r.url === '/contador/obrigacoes').flush([]);
 
@@ -172,14 +175,17 @@ describe('ConfiguracoesPage', () => {
     });
 
     it('o 403 vira a explicacao certa: so o administrador altera o catalogo', () => {
-      const cmp = abrirComo('contador');
+      const cmp = abrirComo('CONTADOR');
       httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
       httpMock.expectOne((r) => r.url === '/contador/obrigacoes').flush([obrigacao()]);
 
       cmp.alternarNoCalendario(cmp.obrigacoesAtivas()[0]!);
       httpMock
         .expectOne((r) => r.url === '/contador/obrigacoes/o1')
-        .flush({ errors: [{ code: 'PAPEL_NAO_AUTORIZADO' }] }, { status: 403, statusText: 'Forbidden' });
+        .flush(
+          { errors: [{ code: 'PAPEL_NAO_AUTORIZADO' }] },
+          { status: 403, statusText: 'Forbidden' },
+        );
 
       expect(cmp.erroDoCatalogo()).toContain('administrador');
       // E a obrigacao continua como estava: nada mudou no servidor.
@@ -187,7 +193,7 @@ describe('ConfiguracoesPage', () => {
     });
 
     it('a periodicidade sai legivel, com o dia', () => {
-      const cmp = abrirComo('contador');
+      const cmp = abrirComo('CONTADOR');
       httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush(dashboard));
       httpMock.expectOne((r) => r.url === '/contador/obrigacoes').flush([]);
 

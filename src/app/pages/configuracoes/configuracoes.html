@@ -99,12 +99,12 @@
   <!-- ── Catálogo de obrigações do escritório (backend#181) ──
        É o que alimenta as obrigações no calendário dos clientes: o que estiver aqui como ativa
        aparece lá. Coisa do escritório, então só o contador vê. -->
-  @if (perfilService.ehContador()) {
+  @if (sessao.ehContador()) {
     <div class="rounded-card border border-border bg-card p-5 shadow-suave">
       <h2 class="font-heading text-lg font-semibold text-foreground">Obrigações do escritório</h2>
       <p class="mt-1 text-apoio text-muted-foreground">
-        O que está aqui aparece no calendário dos seus clientes, conforme o regime e o tipo de
-        cada um. Tirar do calendário não apaga: dá para devolver depois.
+        O que está aqui aparece no calendário dos seus clientes, conforme o regime e o tipo de cada
+        um. Tirar do calendário não apaga: dá para devolver depois.
       </p>
 
       @if (erroDoCatalogo()) {

@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
 import { TAMANHO_MAXIMO_PERGUNTA, etapaDaRota } from '@core/utils/ceres';
 import { apenasUltimaChecagem } from '@core/utils/validacoes';
 import type { CeresResposta, RotaCeres } from '@dtos/assistente/ceres.response';
@@ -71,7 +71,7 @@ export class AssistenteStore {
   private readonly ceres = inject(CeresApi);
   private readonly dashboardApi = inject(DashboardApi);
   private readonly notasApi = inject(NotasApi);
-  private readonly perfil = inject(PerfilService);
+  private readonly sessao = inject(SessaoService);
 
   /** A gaveta flutuante está aberta? A página `/chat` não usa isto. */
   readonly aberto = signal(false);
@@ -104,7 +104,7 @@ export class AssistenteStore {
    * A Ceres só atende produtor (`403 PAPEL_NAO_AUTORIZADO`). Para o contador a
    * conversa não existe — nem a gaveta, nem o botão, nem a rota `/chat`.
    */
-  readonly disponivel = computed(() => this.perfil.ehProdutor() && !this.bloqueadoPorPapel());
+  readonly disponivel = computed(() => this.sessao.ehProdutor() && !this.bloqueadoPorPapel());
 
   readonly perguntasSugeridas = [
     'Quanto eu tenho que pagar este mês?',

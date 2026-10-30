@@ -9,7 +9,7 @@ import {
   LucideUser,
 } from '@lucide/angular';
 import { ThemeService } from '@core/services/theme.service';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { UiCard } from '@shared/ui/ui-card';
 import { UiButton } from '@shared/ui/ui-button';
@@ -55,20 +55,26 @@ const MESES_POR_EXTENSO = [
 @Component({
   selector: 'app-configuracoes',
   standalone: true,
-  imports: [UiCard, UiButton, LucideCircleAlert, LucideLock, LucideMoon, LucideSettings, LucideUser],
+  imports: [
+    UiCard,
+    UiButton,
+    LucideCircleAlert,
+    LucideLock,
+    LucideMoon,
+    LucideSettings,
+    LucideUser,
+  ],
   templateUrl: './configuracoes.html',
 })
 export class ConfiguracoesPage implements OnInit {
   readonly themeService = inject(ThemeService);
-  readonly perfilService = inject(PerfilService);
+  readonly sessao = inject(SessaoService);
   private readonly dashboardApi = inject(DashboardApi);
 
   /** Produtor real, do backend. Antes era um nome inventado no código. */
   readonly produtor = computed(() => this.dashboardApi.dashboard()?.produtor ?? null);
 
-  readonly nome = computed(
-    () => this.produtor()?.nome ?? (this.perfilService.nome() || 'Produtor'),
-  );
+  readonly nome = computed(() => this.produtor()?.nome ?? (this.sessao.nome() || 'Produtor'));
 
   readonly inicial = computed(() => this.nome().trim().charAt(0).toUpperCase() || '?');
 
@@ -76,7 +82,9 @@ export class ConfiguracoesPage implements OnInit {
   readonly tipoProdutor = computed(() => {
     const tipo = this.produtor()?.tipoProdutor;
     if (!tipo) return 'Produtor rural';
-    return tipo === 'PESSOA_FISICA' ? 'Produtor rural (pessoa física)' : 'Produtor rural (pessoa jurídica)';
+    return tipo === 'PESSOA_FISICA'
+      ? 'Produtor rural (pessoa física)'
+      : 'Produtor rural (pessoa jurídica)';
   });
 
   // ── Catálogo de obrigações do escritório (backend#181) ──
@@ -96,7 +104,7 @@ export class ConfiguracoesPage implements OnInit {
 
   /** Busca o catálogo. Só o contador: é coisa do escritório, não do produtor. */
   private carregarCatalogo(): void {
-    if (!this.perfilService.ehContador()) return;
+    if (!this.sessao.ehContador()) return;
     this.carregandoCatalogo.set(true);
     this.obrigacoesApi.catalogo().subscribe({
       next: (lista) => {
@@ -142,10 +150,7 @@ export class ConfiguracoesPage implements OnInit {
    * altera. Dizer "erro" ali faria o assistente achar que o sistema quebrou, quando o sistema
    * apenas disse não.
    */
-  private aplicar(
-    obrigacao: ObrigacaoCatalogo,
-    chamada: Observable<ObrigacaoCatalogo>,
-  ): void {
+  private aplicar(obrigacao: ObrigacaoCatalogo, chamada: Observable<ObrigacaoCatalogo>): void {
     this.erroDoCatalogo.set('');
     this.mexendoEm.set(obrigacao.id);
     chamada.subscribe({

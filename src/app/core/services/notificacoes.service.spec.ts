@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { NotificacoesService } from './notificacoes.service';
-import { PerfilService } from './perfil.service';
+import { entrarComo } from './sessao.testing';
 
 /**
  * O sino deixou de ser um mock fixo (issue #113).
@@ -28,9 +28,9 @@ describe('NotificacoesService', () => {
   function montar(perfil: 'produtor' | 'contador') {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-      providers: [NotificacoesService, PerfilService, provideHttpClient(), provideHttpClientTesting()],
+      providers: [NotificacoesService, provideHttpClient(), provideHttpClientTesting()],
     });
-    TestBed.inject(PerfilService).entrar(perfil);
+    entrarComo(perfil === 'contador' ? 'CONTADOR' : 'PRODUTOR');
     service = TestBed.inject(NotificacoesService);
     httpMock = TestBed.inject(HttpTestingController);
   }
@@ -67,10 +67,12 @@ describe('NotificacoesService', () => {
   it('o alerta vira uma notificacao que leva para onde se resolve', () => {
     criar('produtor');
     service.carregar();
-    httpMock.expectOne((r) => r.url === '/alertas').flush([
-      alerta({ tipo: 'VENCIMENTO_GUIA' }),
-      alerta({ id: 'a2', tipo: 'FECHAMENTO_APURACAO', descricao: 'Apuração de outubro fecha' }),
-    ]);
+    httpMock
+      .expectOne((r) => r.url === '/alertas')
+      .flush([
+        alerta({ tipo: 'VENCIMENTO_GUIA' }),
+        alerta({ id: 'a2', tipo: 'FECHAMENTO_APURACAO', descricao: 'Apuração de outubro fecha' }),
+      ]);
 
     const [guia, apuracao] = service.notificacoes();
     expect(guia!.rota).toBe('/calendario');
@@ -89,22 +91,24 @@ describe('NotificacoesService', () => {
     criar('contador');
     service.carregar();
 
-    httpMock.expectOne((r) => r.url === '/contador/produtores').flush([
-      {
-        vinculoId: 'v1',
-        id: 'p1',
-        nomeCompleto: 'João da Silva Produtor',
-        situacaoVinculo: 'ATIVO',
-        etiquetas: [],
-        atencao: {
-          notasComInconsistencia: 2,
-          notasAguardandoAprovacao: 1,
-          guiasVencidas: 0,
-          vencimentosProximos7Dias: 0,
-          pendenciasEnviadas: 0,
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores')
+      .flush([
+        {
+          vinculoId: 'v1',
+          id: 'p1',
+          nomeCompleto: 'João da Silva Produtor',
+          situacaoVinculo: 'ATIVO',
+          etiquetas: [],
+          atencao: {
+            notasComInconsistencia: 2,
+            notasAguardandoAprovacao: 1,
+            guiasVencidas: 0,
+            vencimentosProximos7Dias: 0,
+            pendenciasEnviadas: 0,
+          },
         },
-      },
-    ]);
+      ]);
 
     // Uma notificacao por tipo de atencao que existe, nomeando o cliente.
     const titulos = service.notificacoes().map((n) => n.titulo);
@@ -115,22 +119,24 @@ describe('NotificacoesService', () => {
   it('cliente sem nada pendente nao gera notificacao', () => {
     criar('contador');
     service.carregar();
-    httpMock.expectOne((r) => r.url === '/contador/produtores').flush([
-      {
-        vinculoId: 'v1',
-        id: 'p1',
-        nomeCompleto: 'Maria',
-        situacaoVinculo: 'ATIVO',
-        etiquetas: [],
-        atencao: {
-          notasComInconsistencia: 0,
-          notasAguardandoAprovacao: 0,
-          guiasVencidas: 0,
-          vencimentosProximos7Dias: 0,
-          pendenciasEnviadas: 0,
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores')
+      .flush([
+        {
+          vinculoId: 'v1',
+          id: 'p1',
+          nomeCompleto: 'Maria',
+          situacaoVinculo: 'ATIVO',
+          etiquetas: [],
+          atencao: {
+            notasComInconsistencia: 0,
+            notasAguardandoAprovacao: 0,
+            guiasVencidas: 0,
+            vencimentosProximos7Dias: 0,
+            pendenciasEnviadas: 0,
+          },
         },
-      },
-    ]);
+      ]);
 
     expect(service.notificacoes()).toEqual([]);
   });

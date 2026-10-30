@@ -1,79 +1,98 @@
 <div class="min-h-screen flex items-center justify-center p-4 bg-background">
-  <div class="w-full max-w-xl space-y-6">
-
+  <div class="w-full max-w-md space-y-6">
     <!-- Marca -->
     <div class="flex flex-col items-center text-center gap-2">
-      <div class="flex items-center gap-2">
-          <img
-            src="/agrocontabil-horizontal.svg"
-            width="1590"
-            height="503"
-            alt="AgroContábil"
-            class="block h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 md:h-[4.75rem] dark:hidden"
-          />
-          <img
-            src="/agrocontabil-horizontal-claro.svg"
-            width="1590"
-            height="503"
-            alt=""
-            aria-hidden="true"
-            class="hidden h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 md:h-[4.75rem] dark:block"
-          />
-      </div>
+      <img
+        src="/agrocontabil-horizontal.svg"
+        width="1590"
+        height="503"
+        alt="AgroContábil"
+        class="block h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 md:h-[4.75rem] dark:hidden"
+      />
+      <img
+        src="/agrocontabil-horizontal-claro.svg"
+        width="1590"
+        height="503"
+        alt=""
+        aria-hidden="true"
+        class="hidden h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 md:h-[4.75rem] dark:block"
+      />
       <p class="text-apoio text-muted-foreground">
         Conformidade na reforma tributária 2026 (IBS/CBS) para o produtor rural e o contador.
       </p>
     </div>
 
-    <div class="bg-card rounded-card shadow-suave border border-border p-6 space-y-5">
-      <!-- Nome (cosmético, opcional) -->
+    <form
+      class="bg-card rounded-card shadow-suave border border-border p-6 space-y-5"
+      (ngSubmit)="entrar()"
+      novalidate
+    >
+      <h1 class="font-heading text-xl font-semibold text-foreground">Entrar</h1>
+
+      <!--
+        O erro fica num `role="alert"` acima dos campos: leitor de tela anuncia sem o usuário
+        precisar procurar, e quem usa o teclado não perde o aviso ao voltar para o campo.
+      -->
+      @if (erro()) {
+        <p
+          role="alert"
+          class="rounded-controle border border-perigo-borda bg-perigo-soft px-3 py-2 text-apoio text-perigo-ink"
+        >
+          {{ erro() }}
+        </p>
+      }
+
       <div>
-        <label for="login-nome" class="mb-1.5 block text-apoio font-medium text-foreground">Seu nome (opcional)</label>
+        <label for="login-email" class="mb-1.5 block text-apoio font-medium text-foreground">
+          E-mail
+        </label>
         <input
-          id="login-nome"
-          type="text"
-          placeholder="Ex: João da Silva"
-          class="tap-target w-full rounded-controle border border-border bg-background px-3 text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
-          [value]="nome()" (input)="nome.set($any($event.target).value)" />
+          id="login-email"
+          name="email"
+          type="email"
+          autocomplete="username"
+          inputmode="email"
+          required
+          placeholder="voce@exemplo.com.br"
+          class="tap-target w-full rounded-controle border border-border bg-background px-3 text-valor focus:outline-none focus:ring-2 focus:ring-primary/30"
+          [value]="email()"
+          (input)="email.set($any($event.target).value)"
+        />
       </div>
 
-      <p class="text-apoio font-medium text-foreground">Entrar como:</p>
-
-      <div class="grid gap-3 sm:grid-cols-2">
-        <!-- Produtor -->
-        <button
-          type="button"
-          class="group flex flex-col items-start gap-2 rounded-card border border-border bg-background p-4 text-left hover:border-primary hover:ring-2 hover:ring-primary/20 transition-all"
-          (click)="entrar('produtor')">
-          <span class="flex items-center justify-center w-11 h-11 rounded-full bg-primary/10 text-primary">
-            <svg lucideUser [size]="22" />
-          </span>
-          <span class="font-heading font-semibold text-foreground">Produtor rural</span>
-          <span class="text-apoio text-muted-foreground">Emissão de NF-e, documentos, calendário fiscal e assistente.</span>
-          <span class="mt-1 inline-flex items-center gap-1 text-apoio font-medium text-primary">
-            Entrar <svg lucideArrowRight [size]="15" class="group-hover:translate-x-0.5 transition-transform" />
-          </span>
-        </button>
-
-        <!-- Contador -->
-        <button
-          type="button"
-          class="group flex flex-col items-start gap-2 rounded-card border border-border bg-background p-4 text-left hover:border-primary hover:ring-2 hover:ring-primary/20 transition-all"
-          (click)="entrar('contador')">
-          <span class="flex items-center justify-center w-11 h-11 rounded-full bg-accent/15 text-accent">
-            <svg lucideCalculator [size]="22" />
-          </span>
-          <span class="font-heading font-semibold text-foreground">Contador</span>
-          <span class="text-apoio text-muted-foreground">Pendências, documentos e acompanhamento dos produtores.</span>
-          <span class="mt-1 inline-flex items-center gap-1 text-apoio font-medium text-primary">
-            Entrar <svg lucideArrowRight [size]="15" class="group-hover:translate-x-0.5 transition-transform" />
-          </span>
-        </button>
+      <div>
+        <label for="login-senha" class="mb-1.5 block text-apoio font-medium text-foreground">
+          Senha
+        </label>
+        <input
+          id="login-senha"
+          name="senha"
+          type="password"
+          autocomplete="current-password"
+          required
+          class="tap-target w-full rounded-controle border border-border bg-background px-3 text-valor focus:outline-none focus:ring-2 focus:ring-primary/30"
+          [value]="senha()"
+          (input)="senha.set($any($event.target).value)"
+        />
       </div>
+
+      <button
+        type="submit"
+        class="tap-target inline-flex w-full items-center justify-center gap-2 rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        [disabled]="!podeEnviar()"
+      >
+        @if (enviando()) {
+          <svg lucideLoaderCircle [size]="18" class="animate-spin" aria-hidden="true"></svg>
+          Entrando…
+        } @else {
+          <svg lucideLogIn [size]="18" aria-hidden="true"></svg>
+          Entrar
+        }
+      </button>
 
       <p class="text-apoio text-center text-muted-foreground">
-        Acesso demonstrativo — sem senha. Serve apenas para separar os perfis na apresentação.
+        Produtor rural ou contador: o acesso é o mesmo. Suas telas vêm da conta.
       </p>
-    </div>
+    </form>
   </div>
 </div>
