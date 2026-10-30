@@ -41,11 +41,6 @@ export class TributarioApi {
     return this.api.get<Apuracao[]>('/apuracao', { de, ate });
   }
 
-  /** POST /api/apuracao/{id}/reabrir — reabre uma apuração FECHADA (RN005). */
-  reabrirApuracao(id: string): Observable<Apuracao> {
-    return this.api.post<Apuracao>(`/apuracao/${id}/reabrir`);
-  }
-
   /** GET /api/creditos?periodo=YYYY-MM. */
   saldoCredito(periodo: string): Observable<CreditoSaldo> {
     return this.api.get<CreditoSaldo>('/creditos', { periodo });

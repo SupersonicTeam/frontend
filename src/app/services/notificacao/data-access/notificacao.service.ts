@@ -28,12 +28,12 @@ export class NotificacaoApi {
       .pipe(catchError(() => of({ enviados: 0, indisponivel: true })));
   }
 
-  // Backend: POST /notificacao/enviar
-  enviarNotificacao(produtorId: string, mensagem: string): Observable<unknown> {
-    return this.api
-      .post('/notificacao/enviar', { produtorId, mensagem })
-      .pipe(catchError(() => of(null)));
-  }
+  // `enviarNotificacao` saiu daqui: **sem chamador** e engolindo a falha com
+  // `catchError(() => of(null))` -- quem chamasse nao saberia distinguir "enviado" de "falhou".
+  // E o padrao que a #107 apagou em 17 metodos; este escapou, e a auditoria das issues fechadas
+  // (30/10) o encontrou. Os dois que ficam tratam a falha com honestidade: devolvem
+  // `indisponivel: true`, e a tela diz que o envio ainda nao existe no servidor em vez de mentir
+  // "0 enviados".
 
   // Backend: POST /notificacao/:produtorId/todos-atrasados
   notificarTodosAtrasados(produtorId: string): Observable<NotificarResult> {

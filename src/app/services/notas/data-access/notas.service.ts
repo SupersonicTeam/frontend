@@ -1,3 +1,4 @@
+import type { ImportacaoNotaResultado } from '@dtos/notas/importacao.response';
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -199,11 +200,17 @@ export class NotasApi {
     return this.api.get<NotaValidacaoResponse[]>(`/notas/${id}/validacoes`);
   }
 
-  /** POST /api/notas/importar — importa notas a partir de arquivos XML (multipart). */
-  importar(arquivos: File[]): Observable<unknown[]> {
+  /**
+   * `POST /api/notas/importar` — importa notas a partir de arquivos XML (multipart).
+   *
+   * Devolve **um resultado por arquivo** (issue #117). Era `unknown[]`, e a tela descartava a
+   * resposta: dizia "Importação processada" mesmo quando o arquivo tinha sido **recusado**.
+   * Agora o tipo obriga a olhar.
+   */
+  importar(arquivos: File[]): Observable<ImportacaoNotaResultado[]> {
     const form = new FormData();
     arquivos.forEach((f) => form.append('arquivos', f));
-    return this.http.post<unknown[]>('/notas/importar', form);
+    return this.http.post<ImportacaoNotaResultado[]>('/notas/importar', form);
   }
 
   /** Helper: parâmetros HTTP a partir de um `Pageable` (para chamadas ad-hoc). */

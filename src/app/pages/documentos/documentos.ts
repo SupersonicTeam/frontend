@@ -52,6 +52,7 @@ import {
 import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 import { aplicarMascara, mascaraCep, mascaraCpfCnpj, soDigitos } from '@core/utils/mascaras';
+import type { ImportacaoNotaResultado } from '@dtos/notas/importacao.response';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
@@ -1857,16 +1858,48 @@ export class DocumentosPage implements OnInit {
     }
     this.importando.set(true);
     this.notasApi.importar([file]).subscribe({
-      next: () => {
+      next: (resultados) => {
         this.importando.set(false);
         this.recarregarNotas();
-        this.toastService.success('Importação processada. Confira a lista de notas.');
+        this.relatarImportacao(resultados);
       },
       error: () => {
         this.importando.set(false);
         this.toastService.error('Não foi possível importar a nota.');
       },
     });
+  }
+
+  /**
+   * Diz o que aconteceu com **cada arquivo** (issue #117).
+   *
+   * Isto era um `success('Importação processada. Confira a lista de notas.')` disparado sem olhar
+   * a resposta. Desde o lote de segurança do backend a importação **confere** o destinatário, a
+   * assinatura e o que a SEFAZ autorizou, e recusa com um motivo escrito — então "processada"
+   * virava mensagem de sucesso para uma recusa, e a pessoa ia embora achando que a nota entrou.
+   *
+   * O `motivo` vem pronto do servidor e é mostrado como veio: ele é quem sabe por que recusou. A
+   * tela só escolhe o **tom** — recusa é erro, duplicada é aviso, importada é sucesso.
+   */
+  private relatarImportacao(resultados: ImportacaoNotaResultado[]): void {
+    if (!resultados?.length) {
+      // Lista vazia não é sucesso: é o servidor não dizendo nada sobre o arquivo.
+      this.toastService.info('O servidor não informou o resultado da importação.');
+      return;
+    }
+
+    for (const r of resultados) {
+      const arquivo = r.arquivo ? `${r.arquivo}: ` : '';
+      if (r.status === 'INVALIDA') {
+        this.toastService.error(`${arquivo}${r.motivo ?? 'arquivo recusado na conferência.'}`);
+      } else if (r.status === 'DUPLICADA') {
+        // Só é duplicada quando a chave já está **nesta** conta. A nota que outro emitiu para o
+        // produtor passou a importar normalmente, então isto deixou de ser falso positivo comum.
+        this.toastService.info(`${arquivo}${r.motivo ?? 'esta nota já está na sua conta.'}`);
+      } else {
+        this.toastService.success(`${arquivo}${r.motivo ?? 'nota importada.'}`);
+      }
+    }
   }
 
   // Máscara CPF/CNPJ do formulário

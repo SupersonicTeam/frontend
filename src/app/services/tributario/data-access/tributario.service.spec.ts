@@ -74,18 +74,9 @@ describe('TributarioApi', () => {
     expect(resultado).toEqual(buildApuracao());
   });
 
-  it('AC-5: reabrirApuracao(id) faz POST /apuracao/{id}/reabrir e retorna a Apuracao reaberta', () => {
-    let resultado: Apuracao | undefined;
-    service.reabrirApuracao('id-1').subscribe(res => (resultado = res));
+  // AC-5 saiu: `POST /apuracao/{id}/reabrir` esta deprecated e responde 403 a todos (#117).
+  // A reabertura virou do contador, e o teste dela mora em `carteira.service.spec`.
 
-    const req = httpMock.expectOne(r => r.url === '/apuracao/id-1/reabrir');
-    expect(req.request.method).toBe('POST');
-
-    const reaberta = buildApuracao({ status: 'ABERTO' });
-    req.flush(reaberta);
-
-    expect(resultado).toEqual(reaberta);
-  });
 
   it('AC-2: saldoCredito(periodo) faz GET /creditos?periodo= e retorna o CreditoSaldo mapeado', () => {
     let resultado: CreditoSaldo | undefined;
