@@ -8,6 +8,7 @@ import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { statusDaGuia } from '@core/utils/guias';
 import type { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
+import type { Apuracao } from '@models/tributario.model';
 
 /**
  * Status de nota que o backend aceita no filtro, incluindo os três que a aprovação
@@ -119,6 +120,30 @@ export class CarteiraApi {
       sort: filtro.sort,
     });
     return this.http.get<NotaFiscal[]>(`/contador/produtores/${produtorId}/notas`, { params });
+  }
+
+  /**
+   * `POST /api/contador/produtores/{produtorId}/apuracao/{periodo}/reabrir` — reabre o mês
+   * fechado de um cliente (RN005, issue #117). `periodo` em `AAAA-MM`; **sem corpo**.
+   *
+   * A reabertura **passou a ser do escritório**. A rota antiga (`POST /apuracao/{id}/reabrir`)
+   * está marcada como *deprecated* no OpenAPI e responde **403 a todos** — e ela pedia um `id`
+   * que o `ApuracaoResponse` nunca expôs, que era a razão escrita na tela para o botão viver
+   * desabilitado nos dois lados. Esta não pede id nenhum.
+   *
+   * O que o servidor recusa, por código:
+   *
+   * - `403 PAPEL_NAO_AUTORIZADO` — assistente do escritório (administrador e contador podem);
+   * - `404` — mês sem apuração, ou produtor fora da carteira;
+   * - `409` — o período não está `FECHADO`;
+   * - `422` — mais de 3 meses para trás;
+   * - `400` — `periodo` fora de `AAAA-MM`.
+   */
+  reabrirApuracao(produtorId: string, periodo: string): Observable<Apuracao> {
+    return this.http.post<Apuracao>(
+      `/contador/produtores/${produtorId}/apuracao/${periodo}/reabrir`,
+      null,
+    );
   }
 
   /** `GET /api/contador/produtores/{produtorId}/notas/{notaId}/validacoes` — o que o fisco apontou. */

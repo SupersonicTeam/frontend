@@ -256,16 +256,22 @@
 
         @if (fechada()) {
           <!--
-            Reabrir desabilitado (A-7/OQ-1): POST /apuracao/{id}/reabrir exige um id que o
-            ApuracaoResponse nao expoe. O porque fica escrito e visivel -- `title` so aparece no
-            mouse parado, e quem usa teclado ou celular nunca ve.
+            Reabrir ainda desabilitado, mas a razao MUDOU (#117). Nao e mais o id: a rota nova
+            e POST /contador/produtores/{produtorId}/apuracao/{periodo}/reabrir, sem id nenhum, e o
+            cliente dela ja existe (`CarteiraApi.reabrirApuracao`). O que falta e saber DE QUEM e o
+            mes mostrado aqui: esta tela le /apuracao sem identidade de contador, entao os numeros
+            sao do produtor que o backend resolve, nao de um cliente escolhido. Oferecer "reabrir"
+            sobre numeros de dono incerto seria pior que nao oferecer. Destrava com a apuracao por
+            cliente (backend#255) ou com um seletor de carteira, como o de Prazos (#106).
+            O porque fica escrito e visivel -- `title` so aparece no mouse parado, e quem usa
+            teclado ou celular nunca ve.
           -->
           <div class="mt-3 flex w-fit flex-col gap-1">
             <ui-button variant="ghost" [disabled]="true" [carregando]="reabrindo()">
               <svg lucideLockOpen [size]="14" /> Reabrir apuração
             </ui-button>
             <span class="text-apoio text-muted-foreground">
-              Indisponível — o backend ainda não expõe o id da apuração.
+              Indisponível aqui — esta tela ainda não sabe de qual cliente é o mês.
             </span>
           </div>
         }

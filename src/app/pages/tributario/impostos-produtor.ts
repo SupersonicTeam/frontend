@@ -22,7 +22,6 @@ import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
 import { ToastService } from '@core/services/toast.service';
-import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
 import { UiButton } from '@shared/ui/ui-button';
@@ -121,9 +120,9 @@ export class ImpostosProdutor implements OnInit {
     const s = this.apuracao()?.status;
     return s ? STATUS_APURACAO[s] : null;
   });
-  /** A reabertura só faz sentido quando a apuração está FECHADA (RN005). */
-  readonly podeReabrir = computed(() => this.apuracao()?.status === 'FECHADO');
-  readonly reabrindo = signal(false);
+  // A reabertura **saiu daqui** (#117): passou a ser do escritorio, numa rota do contador. O botao
+  // vivia desabilitado, com um aviso dizendo que o backend nao expunha o id da apuracao -- a rota
+  // nova nao pede id, e sim produtor e periodo. Ver `CarteiraApi.reabrirApuracao`.
 
   /**
    * Os cinco meses **antes** do selecionado, por período (`AAAA-MM`).
@@ -471,36 +470,7 @@ export class ImpostosProdutor implements OnInit {
     });
   }
 
-  /**
-   * Reabre uma apuração FECHADA (RN005), ramificando o erro por `errors[].code` (não por texto):
-   * 409 `APURACAO_NAO_REABRIVEL` e 422 `REABERTURA_FORA_PRAZO` têm mensagens específicas.
-   *
-   * **Não conectável hoje (A-7/OQ-1):** `ApuracaoResponse` não expõe `id` e o endpoint é
-   * `POST /apuracao/{id}/reabrir` — a UI mantém o botão desabilitado com aviso. Este método fica
-   * pronto (e testado com mocks) para ativar quando o backend expuser o `id`.
-   */
-  reabrir(id: string): void {
-    this.reabrindo.set(true);
-    this.api.reabrirApuracao(id).subscribe({
-      next: (a) => {
-        this.apuracao.set(a);
-        this.reabrindo.set(false);
-        this.toast.success('Apuração reaberta.');
-      },
-      error: (err: HttpErrorResponse) => {
-        this.reabrindo.set(false);
-        const env = err?.error as ApiErrorEnvelope | undefined;
-        const code = env?.errors?.[0]?.code;
-        if (code === 'APURACAO_NAO_REABRIVEL') {
-          this.toast.error('A apuração não está fechada.');
-        } else if (code === 'REABERTURA_FORA_PRAZO') {
-          this.toast.error('Reabertura fora do prazo de 3 meses (RN005).');
-        } else {
-          this.toast.error(mensagemDeEnvelope(env, err?.status ?? 0));
-        }
-      },
-    });
-  }
+
 
   /**
    * Abre a Ceres já perguntando sobre a apuração na tela.
