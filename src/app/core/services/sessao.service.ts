@@ -1,4 +1,4 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 
 /** Os dois papéis que o backend emite no token (`LoginResponse.papel`). */
 export type Papel = 'PRODUTOR' | 'CONTADOR';
@@ -76,13 +76,65 @@ export class SessaoService {
   });
 
   constructor() {
-    // Uma aba renovou o token: as outras passam a usar o novo em vez de insistirem no vencido
-    // (e de disputarem uma renovação que revogaria a linhagem). Sair numa aba sai em todas.
-    if (typeof window !== 'undefined') {
-      window.addEventListener('storage', (evento) => {
-        if (evento.key === SessaoService.CHAVE) this.estado.set(this.carregar());
-      });
-    }
+    if (typeof window === 'undefined') return;
+
+    // O `storage` avisa que **outra aba** mexeu na sessão — e isso são duas coisas diferentes.
+    //
+    // 1. **Mesma pessoa, token novo** (renovação): a aba parada passa a usar o token novo em vez
+    //    de insistir no vencido e disputar uma renovação que revogaria a linhagem.
+    //
+    // 2. **Outra pessoa, ou ninguém** (entrou com outra conta, ou saiu): aí trocar o signal
+    //    **não basta**, e foi o que esta classe fazia. Os services de dados são `root` e guardam
+    //    o painel, a conversa com a Ceres e o sino de **quem estava aqui**; adotar a identidade
+    //    da outra aba sem limpá-los deixa a aba parada mostrando o dado de um usuário sob o nome
+    //    de outro. É o mesmo vazamento que o `EncerramentoService` existe para evitar, por um
+    //    caminho que ele não alcança — nenhum guard roda numa troca de signal, e ninguém observa
+    //    a sessão com `effect()`. Em `/configuracoes` seriam os dados cadastrais do produtor
+    //    anterior, e o contexto que vai para a Ceres sairia com o painel dele.
+    //
+    //    Então a página é **recarregada**: nenhum cache sobrevive a isso, nem os dos services que
+    //    ainda não existem. Limpar por lista dependeria de alguém manter a lista em dia, que é
+    //    justamente como isto voltaria.
+    const aoMudarOStorage = (evento: StorageEvent) => {
+      if (evento.key !== SessaoService.CHAVE) return;
+
+      const nova = this.carregar();
+      if (SessaoService.ehMesmaIdentidade(this.estado(), nova)) {
+        this.estado.set(nova);
+        return;
+      }
+
+      // A identidade nova **não** é adotada aqui de propósito: se o recarregamento não acontecer,
+      // a aba continua coerente com quem ela era — o comportamento de antes deste listener — em
+      // vez de misturar as duas pessoas. E seguir como quem saiu se cura sozinho: o refresh
+      // daquela sessão foi revogado, então a próxima chamada cai no 401 e no `EncerramentoService`.
+      this.recarregarPagina();
+    };
+
+    window.addEventListener('storage', aoMudarOStorage);
+    // O service é `root` e vive o quanto a aplicação vive, então na prática isto nunca dispara.
+    // Mas um ouvinte sem remoção **vaza no TestBed**: cada injector novo pendura mais um no MESMO
+    // `window`, e um único evento acaba atendido por todas as instâncias já criadas na suíte.
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('storage', aoMudarOStorage));
+  }
+
+  /**
+   * É a mesma pessoa, só com um token novo?
+   *
+   * Sem sessão **aqui** não há cache de ninguém para vazar — quem saiu nesta aba já passou pelo
+   * `EncerramentoService` —, então adotar a sessão de lá é seguro, e é o que faz uma aba parada no
+   * `/login` acompanhar quem entrou na outra. O papel entra na comparação junto com o id porque é
+   * ele que decide o shell: divergir nele é identidade diferente, mesmo com o id igual.
+   */
+  private static ehMesmaIdentidade(atual: Sessao | null, nova: Sessao | null): boolean {
+    if (!nova) return false;
+    if (!atual) return true;
+    return atual.usuarioId === nova.usuarioId && atual.papel === nova.papel;
+  }
+
+  /** Num método só para o teste poder observá-lo: o jsdom não implementa navegação. */
+  protected recarregarPagina(): void {
+    window.location.reload();
   }
 
   /** O token já venceu (ou vence nos próximos instantes)? */

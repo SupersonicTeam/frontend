@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { SessaoService, type Sessao } from './sessao.service';
 import { sessaoDeTeste, sessaoVencida } from './sessao.testing';
@@ -187,38 +188,119 @@ describe('SessaoService', () => {
   });
 
   /**
-   * As abas compartilham o `localStorage` **e** o cookie de refresh. Sem ouvir o evento `storage`,
-   * a aba parada insistiria no token vencido e tentaria a própria renovação — reusando o cookie
-   * que a outra aba já rotacionou, o que derruba as duas.
+   * O `storage` avisa que outra aba mexeu na sessão — e isso são **duas** coisas.
+   *
+   * Renovação é a mesma pessoa com um token novo, e a aba parada só precisa adotá-lo: sem isso ela
+   * insistiria no vencido e tentaria a própria renovação, reusando o cookie que a outra já
+   * rotacionou — o que derruba as duas.
+   *
+   * **Troca de usuário é outra história.** Os services de dados são `root` e guardam o painel, a
+   * conversa e o sino de quem estava nesta aba; adotar a identidade de lá sem limpá-los deixaria a
+   * aba mostrando o dado de um usuário sob o nome de outro. Nenhum guard roda numa troca de
+   * signal, então aí a página é recarregada — nenhum cache sobrevive a isso.
    */
-  it('acompanha a aba que renovou (evento storage)', () => {
-    const sessao = criar();
-    sessao.abrir(sessaoDeTeste('PRODUTOR'));
+  describe('outra aba mexeu na sessão (evento storage)', () => {
+    /** O reload é isolado num método porque o jsdom não implementa navegação. */
+    function espiarReload() {
+      return vi
+        .spyOn(
+          SessaoService.prototype as unknown as { recarregarPagina: () => void },
+          'recarregarPagina',
+        )
+        .mockImplementation(() => undefined);
+    }
 
-    const renovada: Sessao = { ...sessaoDeTeste('PRODUTOR'), token: 'token.da.outra.aba' };
-    localStorage.setItem(CHAVE, JSON.stringify(renovada));
-    window.dispatchEvent(new StorageEvent('storage', { key: CHAVE }));
+    afterEach(() => vi.restoreAllMocks());
 
-    expect(sessao.token()).toBe('token.da.outra.aba');
-  });
+    it('mesma pessoa com token novo: adota, sem recarregar', () => {
+      const recarregou = espiarReload();
+      const sessao = criar();
+      sessao.abrir(sessaoDeTeste('PRODUTOR'));
 
-  it('a aba que saiu leva as outras: storage sem valor é sessão encerrada', () => {
-    const sessao = criar();
-    sessao.abrir(sessaoDeTeste('PRODUTOR'));
+      const renovada: Sessao = { ...sessaoDeTeste('PRODUTOR'), token: 'token.da.outra.aba' };
+      localStorage.setItem(CHAVE, JSON.stringify(renovada));
+      window.dispatchEvent(new StorageEvent('storage', { key: CHAVE }));
 
-    localStorage.removeItem(CHAVE);
-    window.dispatchEvent(new StorageEvent('storage', { key: CHAVE }));
+      expect(sessao.token()).toBe('token.da.outra.aba');
+      expect(recarregou).not.toHaveBeenCalled();
+    });
 
-    expect(sessao.logado()).toBe(false);
-  });
+    /**
+     * O vazamento que a revisão de segurança pegou.
+     *
+     * Antes daqui o listener só trocava o signal: a aba adotava o contador e seguia mostrando os
+     * números do produtor, com o nome do contador na topbar. Em `/configuracoes` seriam os dados
+     * cadastrais do produtor anterior, e o contexto que vai para a Ceres sairia com o painel dele.
+     */
+    it('outra pessoa entrou: recarrega, e NÃO adota a identidade nova', () => {
+      const recarregou = espiarReload();
+      const sessao = criar();
+      sessao.abrir(sessaoDeTeste('PRODUTOR', 'João'));
 
-  it('ignora mudança de outra chave', () => {
-    const sessao = criar();
-    sessao.abrir(sessaoDeTeste('PRODUTOR'));
+      localStorage.setItem(CHAVE, JSON.stringify(sessaoDeTeste('CONTADOR', 'Escritorio')));
+      window.dispatchEvent(new StorageEvent('storage', { key: CHAVE }));
 
-    localStorage.setItem('agrocontabil.tema', 'escuro');
-    window.dispatchEvent(new StorageEvent('storage', { key: 'agrocontabil.tema' }));
+      expect(recarregou).toHaveBeenCalledTimes(1);
+      // Se o recarregamento não acontecer, a aba continua coerente com quem ela era, em vez de
+      // misturar as duas pessoas.
+      expect(sessao.papel()).toBe('PRODUTOR');
+      expect(sessao.nome()).toBe('João');
+    });
 
-    expect(sessao.logado()).toBe(true);
+    /** O papel decide o shell: divergir nele é identidade diferente, mesmo com o id igual. */
+    it('mesmo id com outro papel também recarrega', () => {
+      const recarregou = espiarReload();
+      const sessao = criar();
+      const original = sessaoDeTeste('PRODUTOR');
+      sessao.abrir(original);
+
+      localStorage.setItem(
+        CHAVE,
+        JSON.stringify({ ...original, papel: 'CONTADOR', token: 'outro' }),
+      );
+      window.dispatchEvent(new StorageEvent('storage', { key: CHAVE }));
+
+      expect(recarregou).toHaveBeenCalledTimes(1);
+      expect(sessao.papel()).toBe('PRODUTOR');
+    });
+
+    it('a aba que saiu leva as outras: storage sem valor recarrega', () => {
+      const recarregou = espiarReload();
+      const sessao = criar();
+      sessao.abrir(sessaoDeTeste('PRODUTOR'));
+
+      localStorage.removeItem(CHAVE);
+      window.dispatchEvent(new StorageEvent('storage', { key: CHAVE }));
+
+      expect(recarregou).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * Sem sessão aqui não há cache de ninguém para vazar — quem saiu nesta aba já passou pelo
+     * `EncerramentoService`. É o que faz uma aba parada no `/login` acompanhar quem entrou na outra.
+     */
+    it('sem sessão aqui, adota a de lá sem recarregar', () => {
+      const recarregou = espiarReload();
+      const sessao = criar();
+      expect(sessao.logado()).toBe(false);
+
+      localStorage.setItem(CHAVE, JSON.stringify(sessaoDeTeste('CONTADOR', 'Escritorio')));
+      window.dispatchEvent(new StorageEvent('storage', { key: CHAVE }));
+
+      expect(sessao.papel()).toBe('CONTADOR');
+      expect(recarregou).not.toHaveBeenCalled();
+    });
+
+    it('ignora mudança de outra chave', () => {
+      const recarregou = espiarReload();
+      const sessao = criar();
+      sessao.abrir(sessaoDeTeste('PRODUTOR'));
+
+      localStorage.setItem('agrocontabil.tema', 'escuro');
+      window.dispatchEvent(new StorageEvent('storage', { key: 'agrocontabil.tema' }));
+
+      expect(sessao.logado()).toBe(true);
+      expect(recarregou).not.toHaveBeenCalled();
+    });
   });
 });

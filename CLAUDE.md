@@ -142,7 +142,7 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `NotificacoesService` | Estado **local** de notificações da UI (signal). Não confundir com `NotificacaoApi`. |
 | `ToastService` | Toasts (auto-dismiss 4s), renderizados por `ToastContainer`. |
 | `ThemeService` | Tema claro/escuro. |
-| `SessaoService` | **Quem está logado** (#93): token, validade, `usuarioId`, `papel` e `nome`, persistidos em `localStorage` (`agrocontabil.sessao`). `ehProdutor()`/`ehContador()`/`logado()`/`homeDoPerfil()`/`expirado()`. Substituiu o `PerfilService` (papel escolhido num storage editável), o `TokenService` (devolvia `null`) e o `IdentidadeService` (o `X-Usuario-Id`, com o UUID do contador cravado). **O que vem do storage é validado** — sessão meia-boca vira ausência de sessão. Ouve o evento `storage` para acompanhar a aba que renovou. |
+| `SessaoService` | **Quem está logado** (#93): token, validade, `usuarioId`, `papel` e `nome`, persistidos em `localStorage` (`agrocontabil.sessao`). `ehProdutor()`/`ehContador()`/`logado()`/`homeDoPerfil()`/`expirado()`. Substituiu o `PerfilService` (papel escolhido num storage editável), o `TokenService` (devolvia `null`) e o `IdentidadeService` (o `X-Usuario-Id`, com o UUID do contador cravado). **O que vem do storage é validado** — sessão meia-boca vira ausência de sessão. Ouve o evento `storage` para acompanhar a outra aba, e **separa renovação de troca de usuário**: mesma pessoa com token novo é adotada; outra pessoa (ou ninguém) **recarrega a página**, porque trocar o signal deixaria os caches `root` com o dado de quem estava aqui — ver a nota abaixo. |
 | `EncerramentoService` | **Sair** — um lugar só, porque há dois caminhos (botão Sair e renovação que falhou). Avisa o servidor (`POST /auth/logout`), **limpa os caches de sessão** (`DashboardApi`, `AssistenteStore`, `NotificacoesService`, `AuthApi`) e vai ao `/login`. Os services são `root` e sobrevivem à troca de usuário: era assim que a topbar do contador exibia o nome do produtor da sessão anterior. **Service `root` novo que guarde resposta do servidor em signal entra nesta lista.** |
 
 **A identidade de demonstração morreu na #93.** `LOGGED_PRODUCER_ID`, `LOGGED_ACCOUNTANT_ID`, o
@@ -163,6 +163,22 @@ O que o contrato impõe e o que foi **medido** contra a API local em 30/10:
 | refresh ausente/vencido/revogado | 401 `SESSAO_INVALIDA` → `EncerramentoService.encerrar('expirada')` |
 | **reusar um refresh já trocado encerra toda a linhagem** | o cookie obtido na renovação anterior **também** passa a 401. É por isso que `AuthApi.renovar()` tem fila: um painel dispara 4 chamadas, logo 4 × 401 juntos, e sem fila a 2ª renovação derrubaria a sessão que a 1ª salvou. Verificado no navegador: 4 × 401 → **1** `POST /auth/refresh` → 4 repetições 200 |
 | 401 **não** vira toast | o `apiInterceptor` o suprime: a renovação é bem-sucedida e um toast diria que falhou o que funcionou. Quem avisa é o `EncerramentoService` |
+
+### Troca de usuário em outra aba recarrega a página
+
+O `storage` avisa que outra aba mexeu na sessão, e são **duas** coisas: renovação (mesma pessoa, token
+novo) e troca de usuário. A primeira versão do listener só trocava o signal, e isso vazava — a revisão
+de segurança pegou. Os services de dados são `root` e guardam o painel, a conversa e o sino de **quem
+estava naquela aba**; adotar a identidade de lá sem limpá-los deixa a aba mostrando o dado de um usuário
+sob o nome de outro. **Nenhum guard roda numa troca de signal** e ninguém observa a sessão com
+`effect()`, então nada se corrigiria sozinho: em `/configuracoes` seriam os dados cadastrais do produtor
+anterior, e o contexto que vai para a Ceres sairia com o painel dele.
+
+Por isso a troca de identidade **recarrega a página**, em vez de chamar a limpeza do
+`EncerramentoService`: nenhum cache sobrevive a um reload, **nem os dos services que ainda não
+existem**. Limpar por lista dependeria de alguém manter a lista em dia, que é exatamente como isto
+voltaria. A identidade nova não é adotada antes do reload — se ele não acontecer, a aba continua
+coerente com quem ela era, em vez de misturar as duas pessoas.
 
 **O profile `dev` do backend ainda aceita `X-Usuario-Id` sem token** — e é por isso que a demonstração
 funcionava local e morria publicada. O app não manda mais esse header em lugar nenhum.
