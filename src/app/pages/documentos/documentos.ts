@@ -50,10 +50,13 @@ import {
   temArquivosFiscais,
 } from '@core/enums/status-nota-fiscal.enum';
 import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
-import { salvarBlob, filenameDeContentDisposition, apiErrorDeBlob } from '@core/utils/download';
+import {
+  salvarBlob,
+  filenameDeContentDisposition,
+  mensagemDeErroDeDownload,
+} from '@core/utils/download';
 import { aplicarMascara, mascaraCep, mascaraCpfCnpj, soDigitos } from '@core/utils/mascaras';
 import type { ImportacaoNotaResultado } from '@dtos/notas/importacao.response';
-import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
@@ -1261,7 +1264,7 @@ export class DocumentosPage implements OnInit {
       error: async (err: HttpErrorResponse) => {
         this.baixandoDanfe.set(false);
         this.toastService.error(
-          await this.mensagemErroDownload(err, 'DANFE indisponível (gere o XML primeiro).'),
+          await mensagemDeErroDeDownload(err, 'DANFE indisponível (gere o XML primeiro).'),
         );
       },
     });
@@ -1763,31 +1766,9 @@ export class DocumentosPage implements OnInit {
       },
       error: async (err: HttpErrorResponse) => {
         this.baixandoXml.set(false);
-        this.toastService.error(await this.mensagemErroDownload(err, 'Erro ao baixar o XML.'));
+        this.toastService.error(await mensagemDeErroDeDownload(err, 'Erro ao baixar o XML.'));
       },
     });
-  }
-
-  /**
-   * Deriva a mensagem de erro de um download por blob/text: o corpo do erro chega como `Blob`
-   * (responseType blob) ou string (responseType text) de `ApiError` JSON — desserializa e ramifica
-   * por `errors[].code` (via `mensagemDeEnvelope`); usa o `fallback` quando não é um envelope.
-   */
-  private async mensagemErroDownload(err: HttpErrorResponse, fallback: string): Promise<string> {
-    const body: unknown = err?.error;
-    let env: ApiErrorEnvelope | null = null;
-    if (body instanceof Blob) {
-      env = await apiErrorDeBlob(body);
-    } else if (typeof body === 'string') {
-      try {
-        env = JSON.parse(body) as ApiErrorEnvelope;
-      } catch {
-        env = null;
-      }
-    } else if (body && typeof body === 'object') {
-      env = body as ApiErrorEnvelope;
-    }
-    return env ? mensagemDeEnvelope(env, err?.status ?? 0) : fallback;
   }
 
   /**
@@ -1817,7 +1798,7 @@ export class DocumentosPage implements OnInit {
       error: async (err: HttpErrorResponse) => {
         this.baixandoPrevia.set(false);
         this.toastService.error(
-          await this.mensagemErroDownload(err, 'Prévia indisponível para esta nota.'),
+          await mensagemDeErroDeDownload(err, 'Prévia indisponível para esta nota.'),
         );
       },
     });

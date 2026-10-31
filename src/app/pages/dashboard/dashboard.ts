@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subject, EMPTY, catchError, switchMap, tap } from 'rxjs';
@@ -38,16 +39,31 @@ import {
 // Registro enxuto: so barras e pizza (mantem Chart.js no chunk lazy do dashboard).
 // O controlador de linha saiu junto com o card "Tendencia mensal".
 Chart.register(
-  BarController, BarElement,
-  PieController, ArcElement,
-  CategoryScale, LinearScale, Legend, Tooltip,
+  BarController,
+  BarElement,
+  PieController,
+  ArcElement,
+  CategoryScale,
+  LinearScale,
+  Legend,
+  Tooltip,
 );
 import { ThemeService } from '@core/services/theme.service';
-import { coresDeEixo, corDeSuperficie, limparCacheDeCores, paletaDeSeries }
-  from '@core/utils/chart-tokens';
+import {
+  coresDeEixo,
+  corDeSuperficie,
+  limparCacheDeCores,
+  paletaDeSeries,
+} from '@core/utils/chart-tokens';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
+import { temArquivosFiscais } from '@core/enums/status-nota-fiscal.enum';
+import {
+  filenameDeContentDisposition,
+  mensagemDeErroDeDownload,
+  salvarBlob,
+} from '@core/utils/download';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
@@ -77,15 +93,36 @@ interface DocItem {
   valor: number;
 }
 
-const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const MESES_PT = [
+  'Jan',
+  'Fev',
+  'Mar',
+  'Abr',
+  'Mai',
+  'Jun',
+  'Jul',
+  'Ago',
+  'Set',
+  'Out',
+  'Nov',
+  'Dez',
+];
 
 /** Converte "YYYY-MM" (contrato do backend) no rótulo curto em pt-BR ("Mai/26"). */
 /** Os doze meses, por numero. O que a tela oferece sai de `meses()`, que corta os futuros. */
 const MESES_DO_ANO = [
-  { v: 1, nome: 'Janeiro' }, { v: 2, nome: 'Fevereiro' }, { v: 3, nome: 'Março' },
-  { v: 4, nome: 'Abril' }, { v: 5, nome: 'Maio' }, { v: 6, nome: 'Junho' },
-  { v: 7, nome: 'Julho' }, { v: 8, nome: 'Agosto' }, { v: 9, nome: 'Setembro' },
-  { v: 10, nome: 'Outubro' }, { v: 11, nome: 'Novembro' }, { v: 12, nome: 'Dezembro' },
+  { v: 1, nome: 'Janeiro' },
+  { v: 2, nome: 'Fevereiro' },
+  { v: 3, nome: 'Março' },
+  { v: 4, nome: 'Abril' },
+  { v: 5, nome: 'Maio' },
+  { v: 6, nome: 'Junho' },
+  { v: 7, nome: 'Julho' },
+  { v: 8, nome: 'Agosto' },
+  { v: 9, nome: 'Setembro' },
+  { v: 10, nome: 'Outubro' },
+  { v: 11, nome: 'Novembro' },
+  { v: 12, nome: 'Dezembro' },
 ];
 
 function mesLabelFromPeriodo(periodo: string): string {
@@ -187,18 +224,18 @@ export class DashboardPage implements OnInit {
     const dados = this.dashboard()?.notasPorMes ?? [];
     const [entradas, saidas] = this.paleta();
     return {
-      labels: dados.map(d => mesLabelFromPeriodo(d.periodo)),
+      labels: dados.map((d) => mesLabelFromPeriodo(d.periodo)),
       datasets: [
         {
           label: 'Entradas',
-          data: dados.map(d => d.entradas),
+          data: dados.map((d) => d.entradas),
           backgroundColor: entradas,
           borderRadius: 6,
           maxBarThickness: 28,
         },
         {
           label: 'Saídas',
-          data: dados.map(d => d.saidas),
+          data: dados.map((d) => d.saidas),
           backgroundColor: saidas,
           borderRadius: 6,
           maxBarThickness: 28,
@@ -214,7 +251,7 @@ export class DashboardPage implements OnInit {
    */
   readonly semNotasDeEntrada = computed(() => {
     const dados = this.dashboard()?.notasPorMes ?? [];
-    return dados.length > 0 && dados.every(d => d.entradas === 0);
+    return dados.length > 0 && dados.every((d) => d.entradas === 0);
   });
 
   readonly barChartOptions = computed<ChartConfiguration<'bar'>['options']>(() => {
@@ -227,7 +264,10 @@ export class DashboardPage implements OnInit {
         legend: {
           position: 'bottom',
           labels: {
-            usePointStyle: true, boxWidth: 8, font: { family: 'Inter' }, color: texto,
+            usePointStyle: true,
+            boxWidth: 8,
+            font: { family: 'Inter' },
+            color: texto,
           },
         },
       },
@@ -271,12 +311,15 @@ export class DashboardPage implements OnInit {
         legend: {
           position: 'bottom',
           labels: {
-            usePointStyle: true, boxWidth: 8, font: { family: 'Inter' }, color: texto,
+            usePointStyle: true,
+            boxWidth: 8,
+            font: { family: 'Inter' },
+            color: texto,
           },
         },
         tooltip: {
           callbacks: {
-            label: ctx => ` ${ctx.label}: ${this.formatCurrency(ctx.parsed as number)}`,
+            label: (ctx) => ` ${ctx.label}: ${this.formatCurrency(ctx.parsed as number)}`,
           },
         },
       },
@@ -425,9 +468,7 @@ export class DashboardPage implements OnInit {
   private readonly apuracaoPorPeriodo = this.periodoPedido
     .pipe(
       tap(() => this.statusDoBackend.set(null)),
-      switchMap((periodo) =>
-        this.tributarioApi.apuracao(periodo).pipe(catchError(() => EMPTY)),
-      ),
+      switchMap((periodo) => this.tributarioApi.apuracao(periodo).pipe(catchError(() => EMPTY))),
       takeUntilDestroyed(),
     )
     .subscribe((a) => this.statusDoBackend.set(a.status ?? null));
@@ -465,7 +506,7 @@ export class DashboardPage implements OnInit {
         status: nota.status,
         notaId: nota.id,
         valor: nota.valorTotalNota ?? 0,
-      }))
+      })),
   );
 
   /**
@@ -613,16 +654,16 @@ export class DashboardPage implements OnInit {
       .carregar()
       .pipe(switchMap((sessao) => this.calendarioService.getVencimentos(sessao.usuarioId)))
       .subscribe({
-      next: data => {
-        const ordenados = data
-          .slice()
-          .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento))
-          .slice(0, 5);
-        this.alertas.set(ordenados);
-        this.loadingAlertas.set(false);
-      },
-      error: () => this.loadingAlertas.set(false),
-    });
+        next: (data) => {
+          const ordenados = data
+            .slice()
+            .sort((a, b) => a.dataVencimento.localeCompare(b.dataVencimento))
+            .slice(0, 5);
+          this.alertas.set(ordenados);
+          this.loadingAlertas.set(false);
+        },
+        error: () => this.loadingAlertas.set(false),
+      });
   }
 
   tentarNovamente(): void {
@@ -637,7 +678,7 @@ export class DashboardPage implements OnInit {
     if (!doc.notaId) return;
     this.loadingDetalhes.set(true);
     this.notasApi.obter(doc.notaId).subscribe({
-      next: nota => {
+      next: (nota) => {
         this.notaDetalhada.set(nota);
         this.loadingDetalhes.set(false);
       },
@@ -651,6 +692,49 @@ export class DashboardPage implements OnInit {
   fecharPreview(): void {
     this.previewDoc.set(null);
     this.notaDetalhada.set(null);
+    this.baixandoDanfe.set(false);
+  }
+
+  readonly baixandoDanfe = signal(false);
+
+  /**
+   * O botão "Baixar" só existe quando há o que baixar (#103).
+   *
+   * Quem decide é `temArquivosFiscais()`, no enum: é pergunta de **estado**, não de permissão — em
+   * rascunho a DANFE oficial não existe e a rota responde 409. Mostrar o botão e deixar o erro
+   * explicar seria oferecer uma ação que não se pode cumprir, que é o defeito que ele tinha antes
+   * (ele nem handler possuía).
+   */
+  readonly podeBaixarDanfe = computed(() => {
+    const nota = this.notaDetalhada();
+    return !!nota && temArquivosFiscais(nota.status);
+  });
+
+  /** Baixa a DANFE oficial (PDF do backend) da nota aberta na prévia. */
+  baixarDanfe(): void {
+    const nota = this.notaDetalhada();
+    if (!nota) return;
+
+    this.baixandoDanfe.set(true);
+    this.notasApi.baixarPdf(nota.id).subscribe({
+      next: (resp) => {
+        this.baixandoDanfe.set(false);
+        salvarBlob(
+          resp.body!,
+          filenameDeContentDisposition(
+            resp.headers.get('Content-Disposition'),
+            `danfe-${nota.numero ?? nota.id}.pdf`,
+          ),
+        );
+        this.toastService.success('DANFE baixada.');
+      },
+      error: async (err: HttpErrorResponse) => {
+        this.baixandoDanfe.set(false);
+        this.toastService.error(
+          await mensagemDeErroDeDownload(err, 'DANFE indisponível (gere o XML primeiro).'),
+        );
+      },
+    });
   }
 
   handleNotificarWhatsApp(): void {
@@ -659,24 +743,28 @@ export class DashboardPage implements OnInit {
     // devolve o id do autenticado. Ver `AuthApi`.
     this.authApi
       .carregar()
-      .pipe(switchMap((sessao) => this.notificacaoService.notificarProximasObrigacoes(sessao.usuarioId)))
+      .pipe(
+        switchMap((sessao) =>
+          this.notificacaoService.notificarProximasObrigacoes(sessao.usuarioId),
+        ),
+      )
       .subscribe({
-      next: res => {
-        this.enviandoNotificacao.set(false);
-        if (res.indisponivel) {
-          // Ver `NotificarResult.indisponivel`: dizer "nada pendente" aqui era mentira.
-          this.toastService.error('O envio de avisos ainda não existe no servidor.');
-        } else if (res.enviados > 0) {
-          this.toastService.success(`${res.enviados} notificação(ões) enviada(s) via WhatsApp.`);
-        } else {
-          this.toastService.info('Nenhuma obrigação pendente para notificar.');
-        }
-      },
-      error: () => {
-        this.enviandoNotificacao.set(false);
-        this.toastService.error('Erro ao enviar notificações.');
-      },
-    });
+        next: (res) => {
+          this.enviandoNotificacao.set(false);
+          if (res.indisponivel) {
+            // Ver `NotificarResult.indisponivel`: dizer "nada pendente" aqui era mentira.
+            this.toastService.error('O envio de avisos ainda não existe no servidor.');
+          } else if (res.enviados > 0) {
+            this.toastService.success(`${res.enviados} notificação(ões) enviada(s) via WhatsApp.`);
+          } else {
+            this.toastService.info('Nenhuma obrigação pendente para notificar.');
+          }
+        },
+        error: () => {
+          this.enviandoNotificacao.set(false);
+          this.toastService.error('Erro ao enviar notificações.');
+        },
+      });
   }
 
   formatCurrency(value: number): string {
@@ -684,7 +772,10 @@ export class DashboardPage implements OnInit {
   }
 
   formatDate(iso: string): string {
-    return new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+    return new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: 'short',
+    });
   }
 
   private getMesAtual(): string {
