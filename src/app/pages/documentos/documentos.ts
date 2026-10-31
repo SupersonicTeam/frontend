@@ -56,6 +56,7 @@ import {
   mensagemDeErroDeDownload,
 } from '@core/utils/download';
 import { aplicarMascara, mascaraCep, mascaraCpfCnpj, soDigitos } from '@core/utils/mascaras';
+import { hojeEmBrasilia } from '@core/utils/periodo';
 import type { ImportacaoNotaResultado } from '@dtos/notas/importacao.response';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
@@ -1289,7 +1290,9 @@ export class DocumentosPage implements OnInit {
     this.formSerie.set('1');
     this.formTipoDoc.set('NFE');
     this.formNatureza.set('');
-    this.formData.set('');
+    // Nota nova nasce datada de hoje (#115): e a data da esmagadora maioria das emissoes, e
+    // deixa-la vazia cobrava uma digitacao por nota. Quem emite com outra data so troca.
+    this.formData.set(hojeEmBrasilia());
     this.formDestNome.set('');
     this.formDestCpfCnpj.set('');
     this.formDestIe.set('');
