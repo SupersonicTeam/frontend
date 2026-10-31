@@ -2,7 +2,6 @@ import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { catchError, throwError } from 'rxjs';
 import { environment } from '@env/environment';
-import { IdentidadeService } from '@core/services/identidade.service';
 import { ToastService } from '@core/services/toast.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import { SKIP_ERROR_NOTIFY } from './error-notify.context';
@@ -35,7 +34,10 @@ const PREFIXOS_SEM_TOAST = [
  * `HttpErrorResponse` — reusável no fluxo de download por blob, onde o erro chega como `Blob` de
  * JSON e é desserializado por `apiErrorDeBlob` antes de passar por aqui. Ramifica por `errors[]`.
  */
-export function mensagemDeEnvelope(env: ApiErrorEnvelope | null | undefined, status: number): string {
+export function mensagemDeEnvelope(
+  env: ApiErrorEnvelope | null | undefined,
+  status: number,
+): string {
   if (env?.errors?.length && env.errors[0]?.message) return env.errors[0].message;
   if (env?.message) return env.message;
   if (status >= 500) return 'Erro no servidor. Tente novamente em instantes.';
@@ -52,15 +54,17 @@ export function mensagemAmigavel(err: HttpErrorResponse): string {
  * Interceptor da API: ponto único que
  *  - prefixa a baseURL (`environment.apiUrl`) nas chamadas relativas;
  *  - adiciona o header `Accept: application/json`;
- *  - declara a identidade (`X-Usuario-Id`) quando existe uma — ver
- *    `IdentidadeService` para o porquê de normalmente **não** existir;
  *  - exibe um toast global amigável (derivado de `ApiError.errors[]`) para erros
- *    HTTP não tratados localmente (issue #21). Suprime 404, chamadas que optam por
+ *    HTTP não tratados localmente (issue #21). Suprime 404, 401, chamadas que optam por
  *    `skipErrorNotify()` e os prefixos tratados/mock em `PREFIXOS_SEM_TOAST`.
+ *
+ * **A identidade saiu daqui (issue #93).** Ele declarava `X-Usuario-Id`, o header que só o profile
+ * `dev` do backend aceita, com o UUID do contador cravado no código. Quem autentica agora é o
+ * `authInterceptor`, com o `Authorization: Bearer` do token — e por isso o remendo de mandar
+ * identidade **por rota** (`IdentidadeService.paraRota`) deixou de existir: o token vale em todas.
  */
 export const apiInterceptor: HttpInterceptorFn = (req, next) => {
   const toast = inject(ToastService);
-  const identidade = inject(IdentidadeService);
   const base = environment.apiUrl;
 
   // Prefixa a baseURL apenas em paths relativos que ainda não a tenham.
@@ -70,11 +74,7 @@ export const apiInterceptor: HttpInterceptorFn = (req, next) => {
     req.url !== base &&
     !req.url.startsWith(`${base}/`);
 
-  // Por rota, nao global: ver `IdentidadeService.paraRota` para o porque.
-  const usuarioId = identidade.paraRota(req.url);
-
   const cabecalhos: Record<string, string> = {};
-  if (usuarioId) cabecalhos['X-Usuario-Id'] = usuarioId;
 
   // `Accept` so onde ele e verdade (issue #99).
   //
@@ -106,14 +106,19 @@ export const apiInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(apiReq).pipe(
     catchError((err: HttpErrorResponse) => {
-      if (err.status !== 404) {
+      if (err.status !== 404 && err.status !== 401) {
         console.error('API Error:', err);
       }
 
+      // 401 nao vira toast aqui: o `authInterceptor` o trata ANTES de a tela saber que houve
+      // erro -- ele renova o token e repete a requisicao, que entao da certo. Um toast "token
+      // invalido" apareceria no meio de uma recuperacao bem-sucedida, dizendo que falhou o que
+      // funcionou. Quando a sessao acaba de verdade, quem avisa e o `EncerramentoService`.
       const suprimido =
         apiReq.context.get(SKIP_ERROR_NOTIFY) ||
         err.status === 404 ||
-        PREFIXOS_SEM_TOAST.some(p => apiReq.url.includes(p));
+        err.status === 401 ||
+        PREFIXOS_SEM_TOAST.some((p) => apiReq.url.includes(p));
 
       if (!suprimido) {
         toast.error(mensagemAmigavel(err));

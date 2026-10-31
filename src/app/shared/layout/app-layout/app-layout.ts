@@ -18,11 +18,10 @@ import {
   LucideClipboardList,
 } from '@lucide/angular';
 import { NotificacoesService } from '@core/services/notificacoes.service';
-import { PerfilService } from '@core/services/perfil.service';
-import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
+import { SessaoService } from '@core/services/sessao.service';
+import { EncerramentoService } from '@core/services/encerramento.service';
 import { AssistenteDrawer } from '@shared/assistente/assistente-drawer';
 import { AssistenteLauncher } from '@shared/assistente/assistente-launcher';
-import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { ToastContainer } from '@shared/components/toast-container/toast-container';
 
@@ -64,25 +63,24 @@ export interface NavItem {
 export class AppLayout implements OnInit {
   private readonly router = inject(Router);
   readonly notificacoesService = inject(NotificacoesService);
-  readonly perfilService = inject(PerfilService);
-  private readonly dashboardApi = inject(DashboardApi);
-  private readonly assistenteStore = inject(AssistenteStore);
+  readonly sessao = inject(SessaoService);
+  private readonly encerramento = inject(EncerramentoService);
   private readonly authApi = inject(AuthApi);
 
   mobileMenuOpen = signal(false);
   notificacoesOpen = signal(false);
 
-  /** Sai do perfil demonstrativo e volta ao /login (issue #23). */
+  /**
+   * Sair.
+   *
+   * A limpeza dos caches de sessao -- que e o que impedia a topbar de quem entra de mostrar o nome
+   * de quem saiu -- mudou para o `EncerramentoService` na #93. Ela precisava existir tambem no
+   * `authInterceptor`, quando a renovacao falha e a sessao morre sem ninguem clicar aqui, e duas
+   * listas de caches para limpar significa uma delas esquecida.
+   */
   sair(): void {
     this.closeMobileMenu();
-    // **Sair precisa esquecer o que a sessao guardou.** Os services sao `root` e sobrevivem a
-    // troca de perfil: sem isto o painel e a conversa de quem saiu seguiam em memoria para quem
-    // entrou -- e era assim que a topbar do contador dizia "Atendendo Joao da Silva Produtor".
-    this.dashboardApi.limpar();
-    this.assistenteStore.limpar();
-    this.authApi.limpar();
-    this.perfilService.sair();
-    this.router.navigateByUrl('/login');
+    this.encerramento.encerrar();
   }
 
   readonly navItems = [
@@ -94,34 +92,24 @@ export class AppLayout implements OnInit {
   ];
 
   toggleMobileMenu(): void {
-    this.mobileMenuOpen.update(v => !v);
+    this.mobileMenuOpen.update((v) => !v);
   }
 
   ngOnInit(): void {
     // O sino busca na fonte do papel atual (#113). Antes ele nascia com tres itens cravados
     // no codigo, com datas de 2025 e uma nota que nao existe.
     this.notificacoesService.carregar();
-    // ── O nome na topbar vem do painel, e quem o busca depende de onde se esta.
-    //
-    // Sem carga nenhuma, quem entra direto em /documentos ve "Produtor" na topbar enquanto o painel
-    // mostra "Joao da Silva Produtor" -- duas identidades para a mesma pessoa, dependendo de por
-    // onde se entrou. Mas as duas condicoes abaixo dizem quando NAO buscar:
-    //
-    // 1. **Contador nunca.** `/api/dashboard` responde 403 "Operacao restrita ao papel PRODUTOR"
-    //    (medido em 29/10) -- seria uma ida ao servidor para receber erro em toda navegacao do
-    //    escritorio. Mesma regra que o `IdentidadeService.paraRota` ja aplica aos headers. Ele nao
-    //    perde nada: `nomeExibido` nao usa o painel para contador.
-    //
-    // 2. **Em /dashboard, nao.** O shell monta antes da pagina filha, entao o guard antigo
-    //    (`if (!dashboard())`) olhava o RESULTADO quando resposta nenhuma tinha voltado: a topbar
-    //    pedia, a pagina pedia logo atras, e mediam-se **dois GET /api/dashboard** por abertura
-    //    (#114). Pior, o pedido da topbar vai SEM periodo -- chegando depois de o produtor escolher
-    //    um mes, jogava os KPIs de volta para o padrao do backend. Ali a pagina busca com o periodo
-    //    certo e o signal e compartilhado: a topbar so precisa esperar.
-    if (!this.perfilService.ehProdutor()) return;
-    if (this.router.url.startsWith('/dashboard')) return;
 
-    this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
+    // ── O nome na topbar vem de quem o servidor diz que eu sou (#93).
+    //
+    // Antes ele vinha do `GET /api/dashboard`, e isso custava uma requisicao de painel em CADA
+    // navegacao do produtor fora do /dashboard -- so para preencher um nome. Pior, era um nome
+    // que o contador nao tinha: o painel e do produtor (403 para contador), e usar aquele nome
+    // para ele identificava o escritorio como o proprio cliente.
+    //
+    // Agora os dois papeis leem o mesmo `/auth/me`, e `carregar()` so vai a rede se o nome ainda
+    // nao estiver na sessao -- o que, depois do login, nao acontece.
+    this.authApi.carregar().subscribe({ error: () => undefined });
   }
 
   /**
@@ -142,7 +130,7 @@ export class AppLayout implements OnInit {
   }
 
   toggleNotificacoes(): void {
-    this.notificacoesOpen.update(v => !v);
+    this.notificacoesOpen.update((v) => !v);
   }
 
   closeNotificacoes(): void {
@@ -163,52 +151,43 @@ export class AppLayout implements OnInit {
    * o ícone agora é do mesmo conjunto do resto do produto.
    */
   /**
-   * Nome mostrado no chip da topbar.
+   * Nome mostrado no chip da topbar — o que o servidor respondeu em `/auth/me` (#93).
    *
-   * O "login" da demo (#23) aceita o nome em branco e cai no rótulo do perfil,
-   * o que fazia o chip ler **"Produtor · Produtor"** enquanto a mesma tela
-   * saudava "Olá, João da Silva Produtor". Quando quem entrou não digitou nada,
-   * usamos o nome do produtor que veio do backend — o mesmo da saudação.
+   * Era aqui o vazamento. O nome vinha do `GET /api/dashboard`, que é do **produtor**, e o
+   * `DashboardApi` é `providedIn: 'root'`: trocando de usuário sem recarregar a página, o chip do
+   * contador exibia o produtor da sessão anterior. Havia ainda um "nome digitado" do login de
+   * demonstração, que podia ser qualquer coisa — a mesma tela saudava "Olá, João da Silva" com
+   * outro nome em cima.
+   *
+   * Agora é um nome só, dos dois papéis, da mesma fonte que emite o token. O rótulo do papel só
+   * entra se o `/auth/me` não tiver respondido ainda.
    */
-  readonly nomeExibido = computed(() => {
-    const digitado = this.perfilService.nome().trim();
-    const padrao = this.perfilService.perfil()
-      ? this.perfilService.rotuloPadrao(this.perfilService.perfil()!)
-      : '';
-    if (digitado && digitado !== padrao) return digitado;
-
-    // O nome do backend e o do PRODUTOR. Usa-lo para o contador o identificava
-    // como o proprio cliente: a topbar dizia "Joao da Silva Produtor" com
-    // "Contador" embaixo -- duas pessoas diferentes no mesmo chip.
-    if (!this.perfilService.ehProdutor()) return padrao;
-    return this.dashboardApi.dashboard()?.produtor.nome ?? padrao;
-  });
+  readonly nomeExibido = computed(() => this.sessao.nome().trim() || this.rotuloDoPapel());
 
   /**
    * Segunda linha do chip.
    *
-   * Para o produtor e o papel. Para o contador, dizer "Contador" embaixo de
-   * "Contador" e gaguejo -- o espaco rende mais mostrando de quem sao os
-   * numeros que ele esta vendo.
+   * **Sem "Atendendo X".** Ela lia o nome do painel do produtor — outra pessoa — e para o
+   * escritório nem existe "o" cliente: ele tem uma carteira. Fica vazia quando a primeira linha
+   * já diz o papel, para não gaguejar "Contador / Contador" enquanto o nome não chegou.
    */
   readonly papelExibido = computed(() => {
-    if (this.perfilService.ehContador()) {
-      // **Sem "Atendendo X".** Lia o nome do painel do PRODUTOR -- outra pessoa, e para o
-      // escritorio nem existe "o" cliente: ele tem uma carteira. Trocando de perfil sem recarregar
-      // a pagina, isso exibia o produtor da sessao anterior como se fosse quem ele atende.
-      //
-      // Vazio quando a primeira linha ja diz "Contador", para nao gaguejar; quem digitou um nome
-      // no login ve o nome em cima e o papel embaixo.
-      return this.nomeExibido() === this.perfilService.rotuloPadrao('contador') ? '' : 'Contador';
-    }
-    return 'Produtor rural';
+    if (this.nomeExibido() === this.rotuloDoPapel()) return '';
+    return this.sessao.ehContador() ? 'Contador' : 'Produtor rural';
   });
 
-  readonly inicialDoPerfil = computed(() => this.nomeExibido().trim().charAt(0).toUpperCase() || '?');
+  /** O que mostrar enquanto o nome da conta não chegou. */
+  private rotuloDoPapel(): string {
+    return this.sessao.ehContador() ? 'Contador' : 'Produtor';
+  }
+
+  readonly inicialDoPerfil = computed(
+    () => this.nomeExibido().trim().charAt(0).toUpperCase() || '?',
+  );
 
   classeTipo(tipo: string): string {
     const map: Record<string, string> = {
-      'Solicitação': 'bg-info-soft text-info',
+      Solicitação: 'bg-info-soft text-info',
       Documento: 'bg-assistente-soft text-assistente-ink',
       Pagamento: 'bg-aviso-soft text-aviso-ink',
     };

@@ -68,10 +68,9 @@ src/
       models/*.model.ts        # tipos de domínio (1 arquivo por domínio)
       enums/*.enum.ts          # unions/enums (ex.: status-rascunho)
       DTOs/shared/responses/   # DTOs de API (ex.: api-error.response — envelope de erro)
-      config/                  # constantes (ex.: produtor-logado → LOGGED_PRODUCER_ID)
       services/                # services CROSS-CUTTING (api, toast, theme, notificacoes-UI)
-      guards/                  # perfil.guard (logado), produtor.guard / contador.guard (rotas por papel)
-      interceptors/            # api.interceptor (baseURL, Accept, X-Usuario-Id, toast de erro)
+      guards/                  # sessao.guard (token), produtor.guard / contador.guard (rotas por papel)
+      interceptors/            # auth.interceptor (Bearer + renovacao no 401), api.interceptor (baseURL, Accept, toast)
       utils/                   # nota-pdf
     services/<feat>/data-access/<feat>.service.ts   # services de NEGÓCIO, classes XxxApi (ver tabela)
     pages/<nome>/<nome>.ts + <nome>.html            # páginas rotáveis, classes XxxPage (lazy-loaded)
@@ -88,7 +87,13 @@ Imports sempre via alias (sem `../../`): `@core/*` · `@services/*` · `@pages/*
 
 ## Rotas (`app.routes.ts`)
 
-Tudo sob `AppLayout`, lazy via `loadComponent`. `''` → redirect `dashboard`; `**` → `''`.
+Tudo sob `AppLayout` e atrás do `sessaoGuard`, lazy via `loadComponent`. `''` → redirect `dashboard`;
+`**` → página de não encontrada.
+
+**`/login` é a exceção: fora do `AppLayout` e sem guard** (#93). O shell tem sidebar, sino e a gaveta da
+Ceres, todos pedindo dado de um usuário que ainda não existe; e uma tela de login guardada mandaria ao
+login quem não tem sessão — em volta. Sem sessão, o `sessaoGuard` manda para lá **com `returnUrl`**, para
+que o endereço pedido (uma nota, um cliente da carteira) não se perca no caminho.
 
 **As telas dos dois papéis são separadas, e isso é imposto por guard** — endereço é digitável, esconder o
 link do menu não protege. O contador chegava em `/calendario` e `/tributario` e lia texto escrito para o
@@ -126,6 +131,7 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `CarteiraApi` | `@services/contador/data-access/carteira.service` | **A carteira do escritório** (backend#177): `GET /contador/produtores` (array + `X-Total-Count`, nunca `Page<T>`), e o que o contador alcança de um cliente — notas, validações, guias e pendências, todas em `/contador/produtores/{id}/...`. **Sem fallback silencioso**: 403 e 404 sobem para a tela. |
 | `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. O cliente antigo: `?produtorId=` na query e `catchError(() => of([]))`. `/contador/pendencias?produtorId=` ainda responde 404 — a rota real virou `/contador/produtores/{id}/pendencias` (#180, issue #95). |
 | `PendenciasApi` | `@services/pendencias/data-access/pendencias.service` | **Pedidos de documento do lado do produtor** (backend#180): `GET /api/pendencias`, detalhe e `POST /{id}/anexos` (multipart, parte `arquivo`, **sem** `Content-Type` — o boundary é do navegador). Erro sobe: a tela separa `ANEXO_INVALIDO`, `ANEXO_INFECTADO`, `LIMITE_ANEXOS` e `TRANSICAO_PENDENCIA_INVALIDA`. **A lista devolve `anexos: []`** — os metadados (e a `situacao` do antivírus) só vêm no detalhe. |
+| `AuthApi` | `@services/auth/data-access/auth.service` | **Autenticação** (#93): `entrar()` (`POST /auth/login` → `{accessToken, tokenType, expiraEm, papel, usuarioId}`, e o nome vem de um `GET /auth/me` em seguida — o login **não** o devolve), `renovar()` (`POST /auth/refresh`, **fila de uma renovação por vez**), `sair()` (`POST /auth/logout`, nunca falha para quem chama) e `carregar()` (`/auth/me`, que responde da sessão quando já há uma). As três primeiras usam `HttpClient` direto com **`withCredentials`**: o refresh mora num cookie HttpOnly (`agro_refresh`, `Path=/api/auth`, `SameSite=Strict`) que o `ApiService` não saberia pedir. |
 | `NotificacaoApi` | `@services/notificacao/data-access/notificacao.service` | Notificações externas (WhatsApp). |
 
 **Cross-cutting** — permanecem em `core/services/`, importados via `@core/services/...`:
@@ -136,10 +142,54 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `NotificacoesService` | Estado **local** de notificações da UI (signal). Não confundir com `NotificacaoApi`. |
 | `ToastService` | Toasts (auto-dismiss 4s), renderizados por `ToastContainer`. |
 | `ThemeService` | Tema claro/escuro. |
-| `IdentidadeService` | Fonte única do header **`X-Usuario-Id`** (interceptor **e** `fetch` do SSE). Produtor: `null` de propósito — sem header o backend resolve o produtor semente, e UUID inexistente dá **401 em toda chamada**. Contador: desde a #95 manda `LOGGED_ACCOUNTANT_ID`, **mas só em `/api/contador/**`** (`paraRota`), porque `/dashboard`, `/notas`, `/apuracao` e `/relatorios` dão **403** para contador e não têm versão por cliente (backend#255) — mandar em tudo quebraria Fechamento, Notas e Prazos. Escape hatch por `localStorage` (`agrocontabil.usuario-id`), que vence o perfil. |
+| `SessaoService` | **Quem está logado** (#93): token, validade, `usuarioId`, `papel` e `nome`, persistidos em `localStorage` (`agrocontabil.sessao`). `ehProdutor()`/`ehContador()`/`logado()`/`homeDoPerfil()`/`expirado()`. Substituiu o `PerfilService` (papel escolhido num storage editável), o `TokenService` (devolvia `null`) e o `IdentidadeService` (o `X-Usuario-Id`, com o UUID do contador cravado). **O que vem do storage é validado** — sessão meia-boca vira ausência de sessão. Ouve o evento `storage` para acompanhar a outra aba, e **separa renovação de troca de usuário**: mesma pessoa com token novo é adotada; outra pessoa (ou ninguém) **recarrega a página**, porque trocar o signal deixaria os caches `root` com o dado de quem estava aqui — ver a nota abaixo. |
+| `EncerramentoService` | **Sair** — um lugar só, porque há dois caminhos (botão Sair e renovação que falhou). Avisa o servidor (`POST /auth/logout`), **limpa os caches de sessão** (`DashboardApi`, `AssistenteStore`, `NotificacoesService`, `AuthApi`) e vai ao `/login`. Os services são `root` e sobrevivem à troca de usuário: era assim que a topbar do contador exibia o nome do produtor da sessão anterior. **Service `root` novo que guarde resposta do servidor em signal entra nesta lista.** |
 
-`LOGGED_PRODUCER_ID` e `LOGGED_ACCOUNTANT_ID` moram em `@core/config/produtor-logado`. As duas morrem
-com a #93: com JWT o produtor vem do token e o papel vem do `/api/auth/me`.
+**A identidade de demonstração morreu na #93.** `LOGGED_PRODUCER_ID`, `LOGGED_ACCOUNTANT_ID`, o
+`@core/config/produtor-logado`, o header `X-Usuario-Id` e o remendo de identidade **por rota**
+(`paraRota`) não existem mais: o papel e o id vêm do token, e o token vale em todas as rotas. Medido em
+30/10 contra a API local, `GET /api/contador/produtores` responde **200 só com o `Bearer`** — era essa
+rota que exigia o UUID cravado.
+
+## Autenticação (issue #93)
+
+O que o contrato impõe e o que foi **medido** contra a API local em 30/10:
+
+| Regra | Medido |
+|---|---|
+| `POST /auth/login` → `{accessToken, tokenType, expiraEm, papel, usuarioId}` | token de **15 min**; cookie `agro_refresh` (7 dias) com `Path=/api/auth`, `HttpOnly`, `SameSite=Strict` |
+| e-mail sem conta, senha errada e conta desativada → **o mesmo** 401 | `errors[0].code = CREDENCIAIS_INVALIDAS`; a mensagem do backend já é escrita para o usuário final (inclui o aviso de bloqueio por tentativas) e é usada como está |
+| token vencido numa rota protegida | 401 `NAO_AUTENTICADO` → o `authInterceptor` **renova e repete**; a tela não vê o erro |
+| refresh ausente/vencido/revogado | 401 `SESSAO_INVALIDA` → `EncerramentoService.encerrar('expirada')` |
+| **reusar um refresh já trocado encerra toda a linhagem** | o cookie obtido na renovação anterior **também** passa a 401. É por isso que `AuthApi.renovar()` tem fila: um painel dispara 4 chamadas, logo 4 × 401 juntos, e sem fila a 2ª renovação derrubaria a sessão que a 1ª salvou. Verificado no navegador: 4 × 401 → **1** `POST /auth/refresh` → 4 repetições 200 |
+| 401 **não** vira toast | o `apiInterceptor` o suprime: a renovação é bem-sucedida e um toast diria que falhou o que funcionou. Quem avisa é o `EncerramentoService` |
+
+### Troca de usuário em outra aba recarrega a página
+
+O `storage` avisa que outra aba mexeu na sessão, e são **duas** coisas: renovação (mesma pessoa, token
+novo) e troca de usuário. A primeira versão do listener só trocava o signal, e isso vazava — a revisão
+de segurança pegou. Os services de dados são `root` e guardam o painel, a conversa e o sino de **quem
+estava naquela aba**; adotar a identidade de lá sem limpá-los deixa a aba mostrando o dado de um usuário
+sob o nome de outro. **Nenhum guard roda numa troca de signal** e ninguém observa a sessão com
+`effect()`, então nada se corrigiria sozinho: em `/configuracoes` seriam os dados cadastrais do produtor
+anterior, e o contexto que vai para a Ceres sairia com o painel dele.
+
+Por isso a troca de identidade **recarrega a página**, em vez de chamar a limpeza do
+`EncerramentoService`: nenhum cache sobrevive a um reload, **nem os dos services que ainda não
+existem**. Limpar por lista dependeria de alguém manter a lista em dia, que é exatamente como isto
+voltaria. A identidade nova não é adotada antes do reload — se ele não acontecer, a aba continua
+coerente com quem ela era, em vez de misturar as duas pessoas.
+
+**O profile `dev` do backend ainda aceita `X-Usuario-Id` sem token** — e é por isso que a demonstração
+funcionava local e morria publicada. O app não manda mais esse header em lugar nenhum.
+
+**Em 30/10 a tabela `credencial_usuario` estava vazia:** o seed do backend cria produtor e contador mas
+**nenhuma credencial**, então o produtor semente (o que tem notas e números) não tem como entrar. Para
+testar, crie contas pelo `POST /api/auth/cadastro` (público; CPF/CNPJ só dígitos com DV, senha ≥ 10
+caracteres). Pedido ao backend — ver o PR da #93.
+
+Fora de escopo da #93, mas **já no contrato**: `/auth/cadastro`, `/auth/cadastro/equipe`,
+`/auth/senha/esqueci`, `/auth/senha/redefinir`, `/auth/senha/alterar` e `/auth/logout-todos`.
 
 ## Models (`core/models/*.model.ts`, via `@models/...`)
 
@@ -252,8 +302,8 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 - `noPropertyAccessFromIndexSignature`: acessar propriedades de index-signature com **bracket** `obj['x']`.
 - Prettier: `printWidth: 100`, `singleQuote: true` (config no `package.json`); HTML usa parser `angular`.
 - Budgets (`angular.json`): bundle inicial warn 500 kB / erro 1 MB; estilos warn 4 kB / erro 8 kB.
-  (Baseline medido em 27/10 na `main`: **469,81 kB**; com a carteira (#95): **486,10 kB** / 118,81 kB gzip —
-  folga de ~14 kB para o teto de aviso. A Ceres custou ~19 kB: a gaveta
+  (Baseline medido em 27/10 na `main`: **469,81 kB**; com a carteira (#95): **486,10 kB**; com o login JWT
+  (#93): **490,96 kB** / 119,99 kB gzip — folga de **~9 kB** para o teto de aviso. A Ceres custou ~19 kB: a gaveta
   entra no bundle inicial pelo `AppLayout`. Se apertar, o caminho é `@defer` na gaveta, não cortar a camada de IA.)
 - **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
   conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
@@ -275,7 +325,8 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 
 ## Estado das sprints (frontend)
 
-Frontend ~85-90% pronto. Gaps reais (em ordem de sprint): ~~gráficos ng2-charts no dashboard (S1)~~ ✅ feito ·
+Frontend ~85-90% pronto. **Login JWT de verdade entrou na #93** (o `X-Usuario-Id` e os UUIDs cravados
+saíram). Gaps reais (em ordem de sprint): ~~gráficos ng2-charts no dashboard (S1)~~ ✅ feito ·
 filtros grupo/status em Documentos (S2) · ~~seletor multi-produtor no Contador~~ ✅ **feito** (#95):
 a carteira (backend#177) existe e o Acompanhamento virou a triagem dela, com `/contador/:produtorId`
 por cliente. **O que continua bloqueado é só a leitura de números por cliente**: `/apuracao`,

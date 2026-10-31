@@ -1,10 +1,8 @@
-import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { apiInterceptor, mensagemDeEnvelope } from './api.interceptor';
 import { skipErrorNotify } from './error-notify.context';
-import { IdentidadeService } from '@core/services/identidade.service';
 import { ToastService } from '@core/services/toast.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 
@@ -30,10 +28,12 @@ describe('apiInterceptor (toast global de erro)', () => {
 
   it('exibe toast amigável (do ApiError) em endpoint não tratado localmente', () => {
     http.get('/produtores/1').subscribe({ next: () => undefined, error: () => undefined });
-    httpMock.expectOne('/api/produtores/1').flush(
-      { message: 'Falha', errors: [{ code: 'X', message: 'Período inválido' }] },
-      { status: 500, statusText: 'Server Error' },
-    );
+    httpMock
+      .expectOne('/api/produtores/1')
+      .flush(
+        { message: 'Falha', errors: [{ code: 'X', message: 'Período inválido' }] },
+        { status: 500, statusText: 'Server Error' },
+      );
     const toasts = toast.toasts();
     expect(toasts.length).toBe(1);
     expect(toasts[0].type).toBe('error');
@@ -47,14 +47,22 @@ describe('apiInterceptor (toast global de erro)', () => {
   });
 
   it('respeita skipErrorNotify() na requisição', () => {
-    http.get('/produtores/1', { context: skipErrorNotify() }).subscribe({ next: () => undefined, error: () => undefined });
-    httpMock.expectOne('/api/produtores/1').flush({ message: 'x' }, { status: 500, statusText: 'x' });
+    http
+      .get('/produtores/1', { context: skipErrorNotify() })
+      .subscribe({ next: () => undefined, error: () => undefined });
+    httpMock
+      .expectOne('/api/produtores/1')
+      .flush({ message: 'x' }, { status: 500, statusText: 'x' });
     expect(toast.toasts().length).toBe(0);
   });
 
   it('não exibe toast em 404 (endpoint ainda inexistente)', () => {
-    http.get('/relatorios/conformidade').subscribe({ next: () => undefined, error: () => undefined });
-    httpMock.expectOne('/api/relatorios/conformidade').flush({}, { status: 404, statusText: 'Not Found' });
+    http
+      .get('/relatorios/conformidade')
+      .subscribe({ next: () => undefined, error: () => undefined });
+    httpMock
+      .expectOne('/api/relatorios/conformidade')
+      .flush({}, { status: 404, statusText: 'Not Found' });
     expect(toast.toasts().length).toBe(0);
   });
 });
@@ -111,54 +119,62 @@ describe('apiInterceptor (sem toast onde a tela já trata)', () => {
 });
 
 /**
- * O header de identidade sai daqui para **todas** as chamadas do `HttpClient` — e
- * o `fetch` do streaming da Ceres lê a mesma fonte à mão, porque o interceptor
- * não o alcança (contrato #76).
+ * A identidade saiu daqui (issue #93).
  *
- * O caso de ausência não é detalhe: com um UUID que não existe no banco o backend
- * responde 401 em toda chamada, enquanto **sem** o header ele resolve o produtor
- * semente. Mandar header errado é pior que não mandar.
+ * O interceptor declarava `X-Usuario-Id`, com o UUID do contador **cravado no código** e enviado
+ * só em `/api/contador/**` (o remendo `paraRota`). Aquele header **só o profile `dev` do backend
+ * aceita**: em homologação e em produção a requisição sem `Bearer` responde 401 `NAO_AUTENTICADO`.
+ * Quem autentica agora é o `authInterceptor`, com o token — e o token vale em todas as rotas, de
+ * modo que a identidade por rota deixou de existir.
  */
-describe('apiInterceptor (identidade X-Usuario-Id)', () => {
-  function comIdentidade(usuarioId: string | null) {
+describe('apiInterceptor (a identidade saiu — issue #93)', () => {
+  function cliente() {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([apiInterceptor])),
         provideHttpClientTesting(),
         ToastService,
-        {
-          // O interceptor **pergunta** a identidade da rota; qual rota merece header é decisão do
-          // `IdentidadeService`, coberta no spec dele. Aqui só provamos que o que ele responde vai
-          // (ou não vai) no header.
-          provide: IdentidadeService,
-          useValue: { usuarioId: signal(usuarioId), paraRota: () => usuarioId },
-        },
       ],
     });
     return {
       http: TestBed.inject(HttpClient),
       httpMock: TestBed.inject(HttpTestingController),
+      toast: TestBed.inject(ToastService),
     };
   }
 
-  it('declara a identidade quando existe uma', () => {
-    const { http, httpMock } = comIdentidade('aaee3cd4-9e47-41f9-bf0b-26ae5531c8a8');
-    http.get('/assistente/chat').subscribe({ next: () => undefined, error: () => undefined });
+  it.each(['/dashboard', '/contador/produtores', '/assistente/chat'])(
+    'não manda X-Usuario-Id em %s',
+    (endpoint) => {
+      const { http, httpMock } = cliente();
+      http.get(endpoint).subscribe({ next: () => undefined, error: () => undefined });
 
-    const req = httpMock.expectOne('/api/assistente/chat');
-    expect(req.request.headers.get('X-Usuario-Id')).toBe('aaee3cd4-9e47-41f9-bf0b-26ae5531c8a8');
-    req.flush({});
-    httpMock.verify();
-  });
+      const req = httpMock.expectOne(`/api${endpoint}`);
+      expect(req.request.headers.has('X-Usuario-Id')).toBe(false);
+      req.flush({});
+      httpMock.verify();
+    },
+  );
 
-  it('não manda o header quando não há identidade — o backend usa o produtor semente', () => {
-    const { http, httpMock } = comIdentidade(null);
-    http.get('/dashboard').subscribe({ next: () => undefined, error: () => undefined });
+  /**
+   * **401 não vira toast.** O `authInterceptor` o trata antes de a tela saber que houve erro: ele
+   * renova o token e repete a requisição, que então dá certo. Um toast "token inválido" apareceria
+   * no meio de uma recuperação bem-sucedida, dizendo que falhou justamente o que funcionou. Quem
+   * avisa quando a sessão acaba de verdade é o `EncerramentoService`.
+   */
+  it('401 não vira toast: a renovação é silenciosa', () => {
+    const { http, httpMock, toast } = cliente();
+    http.get('/apuracao').subscribe({ next: () => undefined, error: () => undefined });
 
-    const req = httpMock.expectOne('/api/dashboard');
-    expect(req.request.headers.has('X-Usuario-Id')).toBe(false);
-    req.flush({});
+    httpMock
+      .expectOne('/api/apuracao')
+      .flush(
+        { errors: [{ code: 'NAO_AUTENTICADO', message: 'Token expirado.' }] },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+
+    expect(toast.toasts().length).toBe(0);
     httpMock.verify();
   });
 });
@@ -188,15 +204,6 @@ describe('apiInterceptor (Accept — issue #99)', () => {
         provideHttpClient(withInterceptors([apiInterceptor])),
         provideHttpClientTesting(),
         ToastService,
-        {
-          // `paraRota` nao existe neste ramo -- o interceptor ainda le `usuarioId()`. O stub o
-          // declara mesmo assim porque a branch da carteira (#95) troca a leitura por ele, e o
-          // merge das duas **nao da conflito**: o git junta os dois lados limpo e a suite amanhece
-          // vermelha, com o stub sem o metodo que o interceptor passou a chamar. Uma propriedade a
-          // mais num stub nao custa nada; descobrir isso depois do push custa.
-          provide: IdentidadeService,
-          useValue: { usuarioId: signal(null), paraRota: () => null },
-        },
       ],
     });
     return {

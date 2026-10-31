@@ -1,6 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import type { Notificacao } from '@models/notificacao.model';
-import { PerfilService } from './perfil.service';
+import { SessaoService } from './sessao.service';
 import { AlertasApi, type AlertaTributario } from '@services/alertas/data-access/alertas.service';
 import { CarteiraApi } from '@services/contador/data-access/carteira.service';
 import type { ProdutorCarteira } from '@models/carteira.model';
@@ -27,7 +27,7 @@ const CHAVE_LIDAS = 'agrocontabil.notificacoes-lidas';
  */
 @Injectable({ providedIn: 'root' })
 export class NotificacoesService {
-  private readonly perfis = inject(PerfilService);
+  private readonly sessao = inject(SessaoService);
   private readonly alertasApi = inject(AlertasApi);
   private readonly carteiraApi = inject(CarteiraApi);
 
@@ -41,9 +41,21 @@ export class NotificacoesService {
 
   readonly naoLidas = computed(() => this.notificacoes().filter((n) => !n.lida).length);
 
+  /**
+   * Esquece o que o sino mostrava.
+   *
+   * O service e `root` e sobrevive a troca de usuario: sem isto o sino de quem entra mostraria os
+   * alertas de quem saiu, carregados da fonte do papel anterior, ate a primeira busca responder.
+   * O "lido" (`CHAVE_LIDAS`) **fica**: ele e indexado por id de alerta, nao por usuario, e apagar
+   * reacenderia como nao lido o que a pessoa ja tinha visto.
+   */
+  limpar(): void {
+    this.itens.set([]);
+  }
+
   /** Busca na fonte do papel atual. */
   carregar(): void {
-    if (this.perfis.ehContador()) {
+    if (this.sessao.ehContador()) {
       this.carteiraApi.listar().subscribe({
         next: (pagina) => this.itens.set(pagina.itens.flatMap((c) => this.doCliente(c))),
         error: () => this.itens.set([]),

@@ -8,7 +8,7 @@
       <!-- A navegacao diz "Minhas notas" (e "Notas do produtor" para o contador);
            o titulo dizia "Documentos". Mesma tela, tres nomes. -->
       <h1 class="font-heading text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-        {{ perfilService.ehContador() ? 'Notas do produtor' : 'Minhas notas' }}
+        {{ sessao.ehContador() ? 'Notas do produtor' : 'Minhas notas' }}
       </h1>
     </div>
     <button
@@ -21,7 +21,7 @@
   </div>
 
   <!-- ── O RESUMO DO PRODUTOR ── -->
-  @if (!perfilService.ehContador() && notas().length) {
+  @if (!sessao.ehContador() && notas().length) {
     <!--
       Duas perguntas que a tela nunca respondia: quanto saiu, e o que ainda falta de mim. O
       faturamento estava espalhado por 15 cartões para somar de cabeça, e a nota com
@@ -82,7 +82,7 @@
   }
 
   <!-- ── A TRIAGEM DO CONTADOR ── -->
-  @if (perfilService.ehContador()) {
+  @if (sessao.ehContador()) {
     <!--
       O contador abria a MESMA lista do produtor, com outro título, e não tinha como saber o que
       estava vendo nem por onde começar. Cada caixa aqui é uma pergunta do trabalho dele, e a
@@ -179,7 +179,7 @@
         <option value="todos">Qualquer situação</option>
         <!-- O recorte de trabalho tambem mora aqui, senao o seletor fica EM BRANCO quando a faixa
            de cima o aplica: o filtro esta valendo e o controle nao mostra qual. -->
-        @if (perfilService.ehContador()) {
+        @if (sessao.ehContador()) {
           <option value="revisao">Precisam de revisão</option>
           <option value="travadas">Travadas pelo fisco</option>
         } @else {
@@ -508,7 +508,9 @@
           <svg lucideClipboardList [size]="18" class="text-muted-foreground" aria-hidden="true" />
           <h2 class="text-base font-semibold text-foreground">O que o escritório pediu</h2>
           @if (pendenciasEsperandoVoce() > 0) {
-            <span class="text-apoio rounded-full bg-aviso-soft px-2 py-0.5 font-medium text-aviso-ink">
+            <span
+              class="text-apoio rounded-full bg-aviso-soft px-2 py-0.5 font-medium text-aviso-ink"
+            >
               {{ pendenciasEsperandoVoce() }} esperando você
             </span>
           }
@@ -562,8 +564,15 @@
                    você" porque o antivírus ainda não liberou. Sem dizer isso, o produtor acha
                    que o envio falhou e manda tudo de novo. -->
               @if (emVerificacao(p)) {
-                <p class="text-apoio flex items-start gap-2 rounded-controle bg-info-soft px-3 py-2 text-info-ink">
-                  <svg lucideLoaderCircle [size]="15" class="mt-0.5 shrink-0 animate-spin" aria-hidden="true" />
+                <p
+                  class="text-apoio flex items-start gap-2 rounded-controle bg-info-soft px-3 py-2 text-info-ink"
+                >
+                  <svg
+                    lucideLoaderCircle
+                    [size]="15"
+                    class="mt-0.5 shrink-0 animate-spin"
+                    aria-hidden="true"
+                  />
                   <span>
                     Arquivo em verificação de segurança. Ele chega ao escritório quando terminar —
                     não precisa mandar de novo.

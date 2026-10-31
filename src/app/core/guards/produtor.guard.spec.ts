@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { Router, UrlTree } from '@angular/router';
 import { provideRouter } from '@angular/router';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
+import { entrarComo } from '@core/services/sessao.testing';
 import { produtorGuard } from './produtor.guard';
 
 /**
@@ -10,12 +11,13 @@ import { produtorGuard } from './produtor.guard';
  * `403 PAPEL_NAO_AUTORIZADO` da Ceres.
  */
 describe('produtorGuard', () => {
-  let perfil: PerfilService;
-
   beforeEach(() => {
-    TestBed.configureTestingModule({ providers: [provideRouter([])] });
-    perfil = TestBed.inject(PerfilService);
+    // A sessao e persistida no localStorage: sem limpar, um teste herda a do anterior.
+    localStorage.clear();
+    TestBed.configureTestingModule({ providers: [provideRouter([]), SessaoService] });
   });
+
+  afterEach(() => localStorage.clear());
 
   /** Executa o guard no contexto de injeção, como o Router faria. */
   function rodar(): boolean | UrlTree {
@@ -25,12 +27,12 @@ describe('produtorGuard', () => {
   }
 
   it('deixa o produtor entrar', () => {
-    perfil.entrar('produtor');
+    entrarComo('PRODUTOR');
     expect(rodar()).toBe(true);
   });
 
   it('manda o contador para a home do perfil dele', () => {
-    perfil.entrar('contador');
+    entrarComo('CONTADOR');
     const destino = rodar();
 
     expect(destino).toBeInstanceOf(UrlTree);

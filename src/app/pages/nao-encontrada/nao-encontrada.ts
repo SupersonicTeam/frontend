@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { LucideCompass } from '@lucide/angular';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
 import { UiButton } from '@shared/ui/ui-button';
 
 /**
@@ -39,10 +39,10 @@ import { UiButton } from '@shared/ui/ui-button';
   `,
 })
 export class NaoEncontradaPage {
-  private readonly perfis = inject(PerfilService);
+  private readonly sessao = inject(SessaoService);
 
   /** O início de cada papel: o contador não tem o que fazer em `/dashboard`. */
   inicio(): string {
-    return this.perfis.homeDoPerfil();
+    return this.sessao.homeDoPerfil();
   }
 }

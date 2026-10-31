@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Observable, of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
-import { PerfilService } from '@core/services/perfil.service';
+import { entrarComo } from '@core/services/sessao.testing';
 import type { CeresEvento, CeresResposta } from '@dtos/assistente/ceres.response';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import { CeresApi, CeresError } from '@services/assistente/data-access/ceres.service';
@@ -52,7 +52,7 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
     httpMock = TestBed.inject(HttpTestingController);
-    TestBed.inject(PerfilService).entrar('produtor');
+    entrarComo('PRODUTOR');
     // Sem streaming no jsdom o caminho exercitado é o síncrono — que é
     // justamente o fallback que roda em navegador sem `TextDecoderStream`.
     vi.spyOn(TestBed.inject(CeresApi), 'suportaStream').mockReturnValue(false);
@@ -396,7 +396,7 @@ describe('AssistenteStore — streaming e reenvio quando a Ceres está ocupada',
         { provide: CeresApi, useValue: fake },
       ],
     });
-    TestBed.inject(PerfilService).entrar('produtor');
+    entrarComo('PRODUTOR');
     store = TestBed.inject(AssistenteStore);
   });
 

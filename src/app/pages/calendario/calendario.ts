@@ -1,5 +1,5 @@
 import { Component, inject } from '@angular/core';
-import { PerfilService } from '@core/services/perfil.service';
+import { SessaoService } from '@core/services/sessao.service';
 import { PrazosProdutor } from './prazos-produtor';
 import { PrazosContador } from './prazos-contador';
 
@@ -15,7 +15,7 @@ import { PrazosContador } from './prazos-contador';
   standalone: true,
   imports: [PrazosProdutor, PrazosContador],
   template: `
-    @if (perfil.ehContador()) {
+    @if (sessao.ehContador()) {
       <app-prazos-contador />
     } @else {
       <app-prazos-produtor />
@@ -23,5 +23,5 @@ import { PrazosContador } from './prazos-contador';
   `,
 })
 export class CalendarioPage {
-  protected readonly perfil = inject(PerfilService);
+  protected readonly sessao = inject(SessaoService);
 }

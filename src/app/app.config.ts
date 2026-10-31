@@ -11,9 +11,11 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    // authInterceptor antes do apiInterceptor: anexa Authorization (inócuo hoje) na req relativa,
-    // depois o apiInterceptor prefixa a baseURL, adiciona Accept e trata erro.
+    // **A ordem importa.** O `authInterceptor` vem primeiro: ele anexa o `Authorization` e, no 401,
+    // renova o token e **repete** a requisição. Como o `apiInterceptor` está depois (mais perto da
+    // rede), a repetição passa por ele de novo e ganha a baseURL e o `Accept` como qualquer outra.
+    // Invertidos, o 401 seria tratado antes de a URL existir, e a repetição sairia sem baseURL.
     provideHttpClient(withFetch(), withInterceptors([authInterceptor, apiInterceptor])),
     provideAnimationsAsync(),
-  ]
+  ],
 };
