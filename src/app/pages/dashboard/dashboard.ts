@@ -78,7 +78,10 @@ import { UiInsight } from '@shared/ui/ui-insight';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { UiStat } from '@shared/ui/ui-stat';
 import { AuthApi } from '@services/auth/data-access/auth.service';
-import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
+import {
+  NotificacaoApi,
+  type NotificacaoError,
+} from '@services/notificacao/data-access/notificacao.service';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
 import { ToastService } from '@core/services/toast.service';
 import { NotaFiscal } from '@models/nota-fiscal.model';
@@ -768,30 +771,22 @@ export class DashboardPage implements OnInit {
     this.enviandoNotificacao.set(true);
     // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
     // devolve o id do autenticado. Ver `AuthApi`.
-    this.authApi
-      .carregar()
-      .pipe(
-        switchMap((sessao) =>
-          this.notificacaoService.notificarProximasObrigacoes(sessao.usuarioId),
-        ),
-      )
-      .subscribe({
-        next: (res) => {
-          this.enviandoNotificacao.set(false);
-          if (res.indisponivel) {
-            // Ver `NotificarResult.indisponivel`: dizer "nada pendente" aqui era mentira.
-            this.toastService.error('O envio de avisos ainda não existe no servidor.');
-          } else if (res.enviados > 0) {
-            this.toastService.success(`${res.enviados} notificação(ões) enviada(s) via WhatsApp.`);
-          } else {
-            this.toastService.info('Nenhuma obrigação pendente para notificar.');
-          }
-        },
-        error: () => {
-          this.enviandoNotificacao.set(false);
-          this.toastService.error('Erro ao enviar notificações.');
-        },
-      });
+    this.notificacaoService.notificarProximasObrigacoes().subscribe({
+      next: (res) => {
+        this.enviandoNotificacao.set(false);
+        if (res.enviados > 0) {
+          const urgentes = res.urgentes > 0 ? ` (${res.urgentes} urgente(s))` : '';
+          this.toastService.success(`${res.enviados} aviso(s) enviado(s) no WhatsApp${urgentes}.`);
+        } else {
+          // `enviados: 0` e SUCESSO -- quer dizer que nao havia nada a avisar.
+          this.toastService.info('Nada a avisar: nenhum vencimento nos proximos 7 dias.');
+        }
+      },
+      error: (erro: NotificacaoError) => {
+        this.enviandoNotificacao.set(false);
+        this.toastService.error(DashboardPage.mensagemDoErro(erro));
+      },
+    });
   }
 
   formatCurrency(value: number): string {
@@ -808,5 +803,24 @@ export class DashboardPage implements OnInit {
   private getMesAtual(): string {
     const mes = new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
     return mes.charAt(0).toUpperCase() + mes.slice(1);
+  }
+
+  /**
+   * O que dizer quando o aviso nao sai (#94).
+   *
+   * Cada motivo tem o seu nome, e isso importa: **produtor sem WhatsApp cadastrado nao e "nada
+   * pendente"** -- a tela tem de pedir o numero, senao a pessoa fica achando que esta tudo em dia
+   * enquanto ha guia vencida na mesma pagina.
+   */
+  protected static mensagemDoErro(erro: NotificacaoError): string {
+    if (erro?.codigo === 'CONTATO_AUSENTE') {
+      return 'Cadastre um WhatsApp em Configuracoes para receber os avisos.';
+    }
+    if (erro?.codigo === 'LIMITE_NOTIFICACOES') {
+      const espera = erro.retryAfterSegundos;
+      const quando = espera ? ` Tente de novo em ${Math.ceil(espera / 60)} min.` : '';
+      return `Muitos avisos seguidos para este produtor.${quando}`;
+    }
+    return erro?.message || 'Nao foi possivel enviar os avisos.';
   }
 }

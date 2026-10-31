@@ -10,7 +10,10 @@ import {
   LucideRefreshCw,
 } from '@lucide/angular';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
-import { NotificacaoApi } from '@services/notificacao/data-access/notificacao.service';
+import {
+  NotificacaoApi,
+  type NotificacaoError,
+} from '@services/notificacao/data-access/notificacao.service';
 import { ToastService } from '@core/services/toast.service';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
 import { switchMap } from 'rxjs';
@@ -351,28 +354,30 @@ export class PrazosProdutor implements OnInit {
     // devolve o id do autenticado. Ver `AuthApi`.
     this.authApi
       .carregar()
-      .pipe(switchMap((sessao) => this.calendarioService.getVencimentos(sessao.usuarioId, { de, ate })))
+      .pipe(
+        switchMap((sessao) => this.calendarioService.getVencimentos(sessao.usuarioId, { de, ate })),
+      )
       .subscribe({
-      next: (vencimentos) => {
-        // Todo mês da janela entra no cache, inclusive vazio: sem isso a grade buscaria de novo
-        // um mês que esta requisição já respondeu "não tem nada".
-        const mapa: Record<string, VencimentoFiscal[]> = {};
-        for (let i = -PrazosProdutor.MESES_ATRAS; i <= PrazosProdutor.MESES_FRENTE; i++) {
-          mapa[this.chaveDoMes(this.mesDeslocado(i))] = [];
-        }
-        vencimentos.forEach((v) => {
-          const chave = v.dataVencimento.slice(0, 7);
-          (mapa[chave] ??= []).push(v);
-        });
-        this.vencimentosPorMes.update((atual) => ({ ...atual, ...mapa }));
-        this.vencimentosErro.set(false);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.vencimentosErro.set(true);
-        this.loading.set(false);
-      },
-    });
+        next: (vencimentos) => {
+          // Todo mês da janela entra no cache, inclusive vazio: sem isso a grade buscaria de novo
+          // um mês que esta requisição já respondeu "não tem nada".
+          const mapa: Record<string, VencimentoFiscal[]> = {};
+          for (let i = -PrazosProdutor.MESES_ATRAS; i <= PrazosProdutor.MESES_FRENTE; i++) {
+            mapa[this.chaveDoMes(this.mesDeslocado(i))] = [];
+          }
+          vencimentos.forEach((v) => {
+            const chave = v.dataVencimento.slice(0, 7);
+            (mapa[chave] ??= []).push(v);
+          });
+          this.vencimentosPorMes.update((atual) => ({ ...atual, ...mapa }));
+          this.vencimentosErro.set(false);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.vencimentosErro.set(true);
+          this.loading.set(false);
+        },
+      });
   }
 
   /** Primeiro dia do mês `offset` meses a partir de hoje (ou o último, com `fimDoMes`). */
@@ -419,21 +424,21 @@ export class PrazosProdutor implements OnInit {
         ),
       )
       .subscribe({
-      next: (vencimentos) => {
-        this.vencimentosPorMes.update((mapa) => ({ ...mapa, [chave]: vencimentos }));
-        this.vencimentosErro.set(false);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.vencimentosPorMes.update((mapa) => {
-          const copia = { ...mapa };
-          delete copia[chave];
-          return copia;
-        });
-        this.vencimentosErro.set(true);
-        this.loading.set(false);
-      },
-    });
+        next: (vencimentos) => {
+          this.vencimentosPorMes.update((mapa) => ({ ...mapa, [chave]: vencimentos }));
+          this.vencimentosErro.set(false);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.vencimentosPorMes.update((mapa) => {
+            const copia = { ...mapa };
+            delete copia[chave];
+            return copia;
+          });
+          this.vencimentosErro.set(true);
+          this.loading.set(false);
+        },
+      });
   }
 
   /** `2026-10` → primeiro e último dia do mês, que é o que o endpoint espera. */
@@ -499,24 +504,20 @@ export class PrazosProdutor implements OnInit {
     this.enviandoNotificacao.set(true);
     // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
     // devolve o id do autenticado. Ver `AuthApi`.
-    this.authApi
-      .carregar()
-      .pipe(switchMap((sessao) => this.notificacaoService.notificarProximasObrigacoes(sessao.usuarioId)))
-      .subscribe({
+    this.notificacaoService.notificarProximasObrigacoes().subscribe({
       next: (res) => {
         this.enviandoNotificacao.set(false);
-        if (res.indisponivel) {
-          // Ver `NotificarResult.indisponivel`: dizer "nada pendente" aqui era mentira.
-          this.toastService.error('O envio de avisos ainda não existe no servidor.');
-        } else if (res.enviados > 0) {
-          this.toastService.success(`${res.enviados} notificação(ões) enviada(s) via WhatsApp.`);
+        if (res.enviados > 0) {
+          const urgentes = res.urgentes > 0 ? ` (${res.urgentes} urgente(s))` : '';
+          this.toastService.success(`${res.enviados} aviso(s) enviado(s) no WhatsApp${urgentes}.`);
         } else {
-          this.toastService.info('Nenhuma obrigação pendente para notificar.');
+          // `enviados: 0` e SUCESSO -- quer dizer que nao havia nada a avisar.
+          this.toastService.info('Nada a avisar: nenhum vencimento nos proximos 7 dias.');
         }
       },
-      error: () => {
+      error: (erro: NotificacaoError) => {
         this.enviandoNotificacao.set(false);
-        this.toastService.error('Erro ao enviar notificações.');
+        this.toastService.error(PrazosProdutor.mensagemDoErro(erro));
       },
     });
   }
@@ -713,5 +714,24 @@ export class PrazosProdutor implements OnInit {
     for (let i = 0; i < primeiroDia; i++) dias.push(null);
     for (let d = 1; d <= ultimoDia; d++) dias.push(d);
     return dias;
+  }
+
+  /**
+   * O que dizer quando o aviso nao sai (#94).
+   *
+   * Cada motivo tem o seu nome, e isso importa: **produtor sem WhatsApp cadastrado nao e "nada
+   * pendente"** -- a tela tem de pedir o numero, senao a pessoa fica achando que esta tudo em dia
+   * enquanto ha guia vencida na mesma pagina.
+   */
+  protected static mensagemDoErro(erro: NotificacaoError): string {
+    if (erro?.codigo === 'CONTATO_AUSENTE') {
+      return 'Cadastre um WhatsApp em Configuracoes para receber os avisos.';
+    }
+    if (erro?.codigo === 'LIMITE_NOTIFICACOES') {
+      const espera = erro.retryAfterSegundos;
+      const quando = espera ? ` Tente de novo em ${Math.ceil(espera / 60)} min.` : '';
+      return `Muitos avisos seguidos para este produtor.${quando}`;
+    }
+    return erro?.message || 'Nao foi possivel enviar os avisos.';
   }
 }
