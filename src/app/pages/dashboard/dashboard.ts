@@ -54,6 +54,7 @@ import {
   corDeSuperficie,
   limparCacheDeCores,
   paletaDeSeries,
+  paletaDeImpostos,
 } from '@core/utils/chart-tokens';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
@@ -215,6 +216,19 @@ export class DashboardPage implements OnInit {
     return paletaDeSeries();
   });
 
+  /**
+   * Cores por imposto, `[CBS, IBS]`, na ordem dos rotulos da pizza.
+   *
+   * Limpa o cache como a `paleta` faz, e pelo mesmo motivo: a ordem em que dois `computed`
+   * reagem a troca de tema nao e garantida, entao quem ler primeiro tem de invalidar. Limpar
+   * duas vezes nao custa nada -- e nao limpar devolve a cor do tema anterior.
+   */
+  readonly paletaDeImposto = computed<[string, string]>(() => {
+    this.themeService.tema();
+    limparCacheDeCores();
+    return paletaDeImpostos();
+  });
+
   private readonly eixo = computed(() => {
     this.themeService.tema();
     return coresDeEixo();
@@ -293,7 +307,9 @@ export class DashboardPage implements OnInit {
       datasets: [
         {
           data: [d?.cbs ?? 0, d?.ibs ?? 0],
-          backgroundColor: this.paleta(),
+          // Paleta de IMPOSTO, nao a de entradas/saidas (#115): o IBS e azul em todo o app, e
+          // emprestar o verde de "saidas" aqui fazia a mesma sigla ter duas cores.
+          backgroundColor: this.paletaDeImposto(),
           borderColor: corDeSuperficie(),
           borderWidth: 2,
         },
@@ -301,22 +317,33 @@ export class DashboardPage implements OnInit {
     };
   });
 
+  /**
+   * As fatias da pizza com rotulo, valor e cor -- a legenda que o canvas nao da.
+   *
+   * Ordem igual a dos rotulos do grafico (`[CBS, IBS]`), senao a cor do quadradinho nao casa com a
+   * da fatia. Fatia zerada sai da lista: legenda com "R$ 0,00" ocupa espaco para nao dizer nada.
+   */
+  readonly fatiasDeImposto = computed(() => {
+    const d = this.dashboard()?.distribuicaoImpostos;
+    return [
+      { rotulo: 'CBS', valor: d?.cbs ?? 0, classe: 'bg-serie-cbs' },
+      { rotulo: 'IBS', valor: d?.ibs ?? 0, classe: 'bg-serie-ibs' },
+    ].filter((f) => f.valor > 0);
+  });
+
   readonly pieChartOptions = computed<ChartConfiguration<'pie'>['options']>(() => {
-    const { texto } = this.eixo();
+    // Sem leitura do tema aqui: desde que a legenda saiu, nada nestas opcoes depende de cor. Quem
+    // reage a troca de tema e o `pieChartData`, pela `paletaDeImposto`.
     return {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 700 },
       plugins: {
-        legend: {
-          position: 'bottom',
-          labels: {
-            usePointStyle: true,
-            boxWidth: 8,
-            font: { family: 'Inter' },
-            color: texto,
-          },
-        },
+        // **Legenda desligada de proposito** (#115): a do Chart.js mostrava so "CBS" e "IBS", e o
+        // valor de cada fatia so aparecia no tooltip -- que no toque nao existe. A legenda em HTML
+        // logo abaixo do canvas traz o numero junto, e de quebra e texto de verdade, que o leitor
+        // de tela alcanca e o canvas nao.
+        legend: { display: false },
         tooltip: {
           callbacks: {
             label: (ctx) => ` ${ctx.label}: ${this.formatCurrency(ctx.parsed as number)}`,

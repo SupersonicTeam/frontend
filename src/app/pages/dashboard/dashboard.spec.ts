@@ -397,6 +397,61 @@ describe('DashboardPage', () => {
   });
 
   /**
+   * **Cada imposto tem uma cor só no app** (#115).
+   *
+   * A pizza emprestava a paleta de entradas/saídas, então o IBS saía **verde** nela e **azul** em
+   * Impostos — a mesma sigla com duas cores, em duas telas que a pessoa compara. E a legenda do
+   * Chart.js só dizia "CBS"/"IBS": o valor ficava no tooltip, que no toque não existe.
+   */
+  describe('distribuição de impostos (#115)', () => {
+    function abrir() {
+      const fixture = TestBed.createComponent(DashboardPage);
+      const cmp = fixture.componentInstance;
+      fixture.detectChanges();
+      flushDashboard();
+      flushVencimentos();
+      return cmp;
+    }
+
+    it('a pizza usa a paleta de imposto, não a de entradas/saídas', () => {
+      const cmp = abrir();
+
+      expect(cmp.pieChartData().datasets[0]!.backgroundColor).toEqual(cmp.paletaDeImposto());
+      expect(cmp.pieChartData().datasets[0]!.backgroundColor).not.toEqual(
+        cmp.barChartData().datasets[0]!.backgroundColor,
+      );
+    });
+
+    it('a legenda traz o valor de cada imposto, na ordem dos rótulos', () => {
+      const cmp = abrir();
+
+      expect(cmp.pieChartData().labels).toEqual(['CBS', 'IBS']);
+      expect(cmp.fatiasDeImposto().map((f) => f.rotulo)).toEqual(['CBS', 'IBS']);
+      expect(cmp.fatiasDeImposto().map((f) => f.valor)).toEqual([420, 860]);
+    });
+
+    /** Legenda com "R$ 0,00" ocupa espaço para não dizer nada. */
+    it('imposto zerado sai da legenda', () => {
+      const fixture = TestBed.createComponent(DashboardPage);
+      const cmp = fixture.componentInstance;
+      fixture.detectChanges();
+      httpMock
+        .match((r) => r.url === '/dashboard')
+        .forEach((r) => r.flush(buildResponse({ distribuicaoImpostos: { ibs: 860, cbs: 0 } })));
+      flushNotasComPendencia();
+      flushApuracao();
+      flushVencimentos();
+
+      expect(cmp.fatiasDeImposto().map((f) => f.rotulo)).toEqual(['IBS']);
+    });
+
+    /** A legenda do Chart.js fica desligada: ela não mostra valor. */
+    it('o gráfico não desenha legenda própria', () => {
+      expect(abrir().pieChartOptions()?.plugins?.legend?.display).toBe(false);
+    });
+  });
+
+  /**
    * O botão "Baixar" da prévia **não fazia nada** (#103): nem `(click)`, nem handler. Prometia o
    * download e ficava quieto — a mesma falha que a tela de Configurações já tinha removido por
    * princípio ("nenhuma promessa de ação que o servidor não cumpre").

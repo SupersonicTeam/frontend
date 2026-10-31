@@ -147,10 +147,7 @@
            Antes a falha caía no "Nenhuma guia lançada", e o escritório lia que não havia guia
            enquanto a API respondia 404 com oito guias no banco. "Tentar de novo" só aparece onde
            repetir pode dar outro resultado: num 404 ou 403 seria uma promessa falsa. -->
-      <ui-empty-state
-        titulo="Não foi possível carregar as guias"
-        [descricao]="falha.mensagem"
-      >
+      <ui-empty-state titulo="Não foi possível carregar as guias" [descricao]="falha.mensagem">
         <svg icone lucideTriangleAlert [size]="22" />
         @if (falha.podeTentarDeNovo) {
           <ui-button acao variant="ghost" (click)="carregar()">Tentar de novo</ui-button>
@@ -266,10 +263,19 @@
         min="0"
         step="0.01"
         placeholder="0,00"
-        class="tap-target w-full rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+        class="tap-target w-full rounded-controle border bg-card px-3 text-apoio text-foreground"
+        [class.border-border]="!erroDoValor()"
+        [class.border-perigo]="erroDoValor()"
+        [attr.aria-invalid]="erroDoValor() ? 'true' : null"
+        [attr.aria-describedby]="erroDoValor() ? 'guia-valor-erro' : null"
         [value]="formValor()"
         (input)="formValor.set($any($event.target).value)"
       />
+      @if (erroDoValor(); as erro) {
+        <p id="guia-valor-erro" role="alert" class="mt-1.5 text-apoio text-perigo-ink">
+          {{ erro }}
+        </p>
+      }
     </div>
 
     <div>
