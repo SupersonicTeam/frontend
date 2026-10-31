@@ -149,7 +149,12 @@
     <div class="flex w-full flex-wrap gap-2 sm:contents" [class.max-sm:hidden]="!filtrosAbertos()">
       <!-- Periodo: as opcoes saem das notas que existem, agrupadas por ano. Ver `periodosPorAno`. -->
       <select
-        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        class="tap-target rounded-controle border bg-card px-3 py-2.5 text-apoio focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        [class.border-border]="periodo() === 'todos'"
+        [class.text-foreground]="periodo() === 'todos'"
+        [class.border-primary]="periodo() !== 'todos'"
+        [class.text-primary]="periodo() !== 'todos'"
+        [class.font-medium]="periodo() !== 'todos'"
         aria-label="Período"
         [value]="periodo()"
         (change)="periodo.set($any($event.target).value)"
@@ -171,7 +176,12 @@
       <!-- O filtro de status existia no componente sem nenhum controle na tela: dava para
          filtrar por rascunho/autorizada pelo codigo, mas nao pela interface. -->
       <select
-        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        class="tap-target rounded-controle border bg-card px-3 py-2.5 text-apoio focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        [class.border-border]="statusFilter() === 'todos'"
+        [class.text-foreground]="statusFilter() === 'todos'"
+        [class.border-primary]="statusFilter() !== 'todos'"
+        [class.text-primary]="statusFilter() !== 'todos'"
+        [class.font-medium]="statusFilter() !== 'todos'"
         aria-label="Situação da nota"
         [value]="statusFilter()"
         (change)="trocarSituacao($any($event.target).value)"
@@ -198,7 +208,12 @@
       </select>
 
       <select
-        class="tap-target rounded-controle border border-border bg-card px-3 py-2.5 text-apoio text-foreground focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        class="tap-target rounded-controle border bg-card px-3 py-2.5 text-apoio focus:ring-2 focus:ring-primary/30 focus:outline-none"
+        [class.border-border]="tipo() === 'todos'"
+        [class.text-foreground]="tipo() === 'todos'"
+        [class.border-primary]="tipo() !== 'todos'"
+        [class.text-primary]="tipo() !== 'todos'"
+        [class.font-medium]="tipo() !== 'todos'"
         aria-label="Tipo de documento"
         [value]="tipo()"
         (change)="tipo.set($any($event.target).value)"
@@ -216,13 +231,29 @@
         class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
       />
       <input
-        type="text"
+        type="search"
         placeholder="Buscar por natureza, número ou destinatário..."
         aria-label="Buscar notas"
-        class="tap-target w-full pl-9 pr-4 py-2 rounded-controle border border-border bg-card text-apoio text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        class="tap-target w-full pl-9 pr-11 py-2 rounded-controle border bg-card text-apoio text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 [&::-webkit-search-cancel-button]:appearance-none"
+        [class.border-border]="!busca().trim()"
+        [class.border-primary]="busca().trim()"
         [value]="busca()"
         (input)="busca.set($any($event.target).value)"
+        (keydown.escape)="busca.set('')"
       />
+      <!-- Apagar a busca exigia selecionar o texto e apagar (#104). O `x` nativo do
+           `type="search"` não serve: o Firefox não o desenha e o do Chrome ignora o tema, por isso
+           ele é suprimido acima e este entra no lugar — com `Esc` fazendo o mesmo no teclado. -->
+      @if (busca().trim()) {
+        <button
+          type="button"
+          class="tap-target absolute right-1 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Limpar busca"
+          (click)="busca.set('')"
+        >
+          <svg lucideX [size]="15" aria-hidden="true" />
+        </button>
+      }
     </div>
 
     <select

@@ -51,7 +51,6 @@ function buildResponse(overrides: Partial<DashboardResponse> = {}): DashboardRes
   };
 }
 
-
 /**
  * Identidade de teste (issue #106).
  *
@@ -99,7 +98,7 @@ describe('DashboardPage', () => {
   });
 
   function flushDashboard(overrides: Partial<DashboardResponse> = {}) {
-    const req = httpMock.expectOne(r => r.url === '/dashboard');
+    const req = httpMock.expectOne((r) => r.url === '/dashboard');
     req.flush(buildResponse(overrides));
     // Na volta do dashboard o componente busca as notas com pendencia, para o
     // bloco do assistente (#47). Drenar aqui mantem os testes existentes validos
@@ -114,26 +113,30 @@ describe('DashboardPage', () => {
    */
   function flushApuracao(status: string | null = 'ABERTO') {
     httpMock
-      .match(r => r.url === '/apuracao')
+      .match((r) => r.url === '/apuracao')
       // Desde a #108 a troca de periodo CANCELA a requisicao anterior, e responder uma requisicao
       // cancelada lanca. Pular e o correto: ela nunca vai chegar a tela.
-      .filter(r => !r.cancelled)
-      .forEach(r => (status ? r.flush({ periodo: '2026-09', status }) : r.flush('x', { status: 500, statusText: 'x' })));
+      .filter((r) => !r.cancelled)
+      .forEach((r) =>
+        status
+          ? r.flush({ periodo: '2026-09', status })
+          : r.flush('x', { status: 500, statusText: 'x' }),
+      );
   }
 
   /** Responde a busca por notas com pendencia; por padrao, nenhuma. */
   function flushNotasComPendencia(notas: Partial<NotaFiscal>[] = []) {
     httpMock
-      .match(r => r.url === '/notas')
-      .filter(r => !r.cancelled)
-      .forEach(r => r.flush({ content: notas, totalElements: notas.length }));
+      .match((r) => r.url === '/notas')
+      .filter((r) => !r.cancelled)
+      .forEach((r) => r.flush({ content: notas, totalElements: notas.length }));
   }
 
   function flushVencimentos() {
     httpMock
-      .match(r => r.url.includes('/calendario-fiscal'))
-      .filter(r => !r.cancelled)
-      .forEach(r => r.flush([]));
+      .match((r) => r.url.includes('/calendario-fiscal'))
+      .filter((r) => !r.cancelled)
+      .forEach((r) => r.flush([]));
   }
 
   it('#47: o assistente aponta pendência antiga, mesmo fora das 3 últimas notas', () => {
@@ -141,7 +144,7 @@ describe('DashboardPage', () => {
     fixture.detectChanges();
 
     // O payload do dashboard traz só notas AUTORIZADAS (as 3 mais recentes)...
-    httpMock.expectOne(r => r.url === '/dashboard').flush(buildResponse());
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(buildResponse());
     // ...mas existe uma nota antiga com inconsistência na base.
     flushNotasComPendencia([
       {
@@ -152,8 +155,10 @@ describe('DashboardPage', () => {
       } as NotaFiscal,
     ]);
     httpMock
-      .match(r => r.url.includes('/validacoes'))
-      .forEach(r => r.flush([{ code: 'NOTA_INVALIDA_EMISSAO', message: 'Endereço obrigatório' }]));
+      .match((r) => r.url.includes('/validacoes'))
+      .forEach((r) =>
+        r.flush([{ code: 'NOTA_INVALIDA_EMISSAO', message: 'Endereço obrigatório' }]),
+      );
     flushVencimentos();
 
     expect(fixture.componentInstance.notasComProblema().length).toBe(1);
@@ -183,7 +188,9 @@ describe('DashboardPage', () => {
     const fixture = TestBed.createComponent(DashboardPage);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/dashboard').flush('erro', { status: 500, statusText: 'Server Error' });
+    httpMock
+      .expectOne((r) => r.url === '/dashboard')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
     flushVencimentos();
     expect(cmp.erro()).toBe(true);
     expect(cmp.dashboard()).toBeNull();
@@ -199,7 +206,15 @@ describe('DashboardPage', () => {
     const fixture = TestBed.createComponent(DashboardPage);
     fixture.detectChanges();
     flushDashboard({
-      kpis: { debitoIbs: 0, debitoCbs: 0, creditoIbs: 0, creditoCbs: 0, saldoIbs: 0, saldoCbs: 0, totalNotas: 0 },
+      kpis: {
+        debitoIbs: 0,
+        debitoCbs: 0,
+        creditoIbs: 0,
+        creditoCbs: 0,
+        saldoIbs: 0,
+        saldoCbs: 0,
+        totalNotas: 0,
+      },
     });
     flushVencimentos();
     expect(fixture.componentInstance.dashboard()?.kpis.saldoIbs).toBe(0);
@@ -243,18 +258,20 @@ describe('DashboardPage', () => {
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
 
-    httpMock.expectOne(r => r.url === '/dashboard').flush(buildResponse());
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(buildResponse());
     // A pagina traz 2 notas, mas o produtor tem 15: e o total que decide se o
     // card mostra a saida "Ver todas as N notas".
-    httpMock.match(r => r.url === '/notas').forEach(r =>
-      r.flush({
-        content: [
-          { id: 'a', numero: 1, status: 'AUTORIZADA' },
-          { id: 'b', numero: 2, status: 'AUTORIZADA' },
-        ],
-        totalElements: 15,
-      }),
-    );
+    httpMock
+      .match((r) => r.url === '/notas')
+      .forEach((r) =>
+        r.flush({
+          content: [
+            { id: 'a', numero: 1, status: 'AUTORIZADA' },
+            { id: 'b', numero: 2, status: 'AUTORIZADA' },
+          ],
+          totalElements: 15,
+        }),
+      );
     flushVencimentos();
 
     expect(cmp.totalDeNotas()).toBe(15);
@@ -268,11 +285,12 @@ describe('DashboardPage', () => {
     const fixture = TestBed.createComponent(DashboardPage);
     const cmp = fixture.componentInstance;
     fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/dashboard').flush(buildResponse());
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(buildResponse());
     flushNotasComPendencia();
     flushVencimentos();
 
-    httpMock.expectOne(r => r.url === '/apuracao')
+    httpMock
+      .expectOne((r) => r.url === '/apuracao')
       .flush({ periodo: '2026-09', status: 'FECHADO' });
     expect(cmp.statusApuracao().label).toBe('Fechada');
   });
@@ -280,7 +298,7 @@ describe('DashboardPage', () => {
   it('DASH-10b: trocar o mes recarrega o painel com o periodo escolhido', () => {
     const fixture = TestBed.createComponent(DashboardPage);
     fixture.detectChanges();
-    httpMock.expectOne(r => r.url === '/dashboard').flush(buildResponse());
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(buildResponse());
     flushNotasComPendencia();
     flushVencimentos();
     flushApuracao();
@@ -289,7 +307,7 @@ describe('DashboardPage', () => {
 
     // Antes os selects nao chamavam nada: o comentario no codigo dizia
     // "exibicao apenas; MVP carrega so o mes corrente".
-    const req = httpMock.expectOne(r => r.url === '/dashboard');
+    const req = httpMock.expectOne((r) => r.url === '/dashboard');
     expect(req.request.params.get('periodo')).toBe(new Date().getFullYear() + '-06');
     req.flush(buildResponse());
     flushNotasComPendencia();
@@ -357,7 +375,7 @@ describe('DashboardPage', () => {
       destinatarioCpfCnpj: '12345678000190',
       itens: [],
     };
-    httpMock.expectOne(r => r.url === '/notas/n1').flush(notaCompleta);
+    httpMock.expectOne((r) => r.url === '/notas/n1').flush(notaCompleta);
     expect(cmp.loadingDetalhes()).toBe(false);
     expect(cmp.notaDetalhada()?.id).toBe('n1');
   });
@@ -370,10 +388,93 @@ describe('DashboardPage', () => {
     flushVencimentos();
 
     cmp.abrirPreview(cmp.documentos()[0]);
-    httpMock.expectOne(r => r.url === '/notas/n1').flush('erro', { status: 500, statusText: 'Server Error' });
+    httpMock
+      .expectOne((r) => r.url === '/notas/n1')
+      .flush('erro', { status: 500, statusText: 'Server Error' });
     expect(cmp.loadingDetalhes()).toBe(false);
     expect(cmp.notaDetalhada()).toBeNull();
     expect(cmp.previewDoc()).not.toBeNull();
+  });
+
+  /**
+   * O botão "Baixar" da prévia **não fazia nada** (#103): nem `(click)`, nem handler. Prometia o
+   * download e ficava quieto — a mesma falha que a tela de Configurações já tinha removido por
+   * princípio ("nenhuma promessa de ação que o servidor não cumpre").
+   *
+   * E ele não pode valer sempre: `temArquivosFiscais()` é pergunta de **estado**, não de permissão.
+   * Em rascunho a DANFE oficial não existe e a rota responde 409, então o botão nem aparece.
+   */
+  describe('baixar a DANFE da prévia (#103)', () => {
+    /** Abre a prévia com uma nota no status pedido. */
+    function abrirCom(status: NotaFiscal['status']) {
+      const fixture = TestBed.createComponent(DashboardPage);
+      const cmp = fixture.componentInstance;
+      fixture.detectChanges();
+      flushDashboard();
+      flushVencimentos();
+
+      cmp.abrirPreview(cmp.documentos()[0]);
+      httpMock
+        .expectOne((r) => r.url === '/notas/n1')
+        .flush({
+          id: 'n1',
+          numero: 1023,
+          naturezaOperacao: 'Venda de soja',
+          status,
+          dataEmissao: '2026-07-01T10:00:00-03:00',
+          destinatarioNome: 'Cerealista Boa Safra LTDA',
+          destinatarioCpfCnpj: '12345678000190',
+          itens: [],
+        } satisfies NotaFiscal);
+      return cmp;
+    }
+
+    it('nota autorizada oferece o download', () => {
+      expect(abrirCom('AUTORIZADA').podeBaixarDanfe()).toBe(true);
+    });
+
+    it.each(['RASCUNHO', 'COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO'] as const)(
+      'em %s o botão nem aparece: o documento fiscal ainda não existe',
+      (status) => {
+        expect(abrirCom(status).podeBaixarDanfe()).toBe(false);
+      },
+    );
+
+    it('sem nota carregada não há o que baixar', () => {
+      const fixture = TestBed.createComponent(DashboardPage);
+      const cmp = fixture.componentInstance;
+      fixture.detectChanges();
+      flushDashboard();
+      flushVencimentos();
+
+      expect(cmp.podeBaixarDanfe()).toBe(false);
+      // E chamar à mão não dispara requisição nenhuma.
+      cmp.baixarDanfe();
+      httpMock.expectNone((r) => r.url.includes('/pdf'));
+    });
+
+    it('baixa o PDF e usa o nome que o servidor mandou', () => {
+      const cmp = abrirCom('AUTORIZADA');
+      cmp.baixarDanfe();
+      expect(cmp.baixandoDanfe()).toBe(true);
+
+      const req = httpMock.expectOne((r) => r.url === '/notas/n1/pdf');
+      req.flush(new Blob(['%PDF-1.4'], { type: 'application/pdf' }), {
+        headers: { 'Content-Disposition': 'attachment; filename="danfe-1023.pdf"' },
+      });
+
+      expect(cmp.baixandoDanfe()).toBe(false);
+    });
+
+    it('fechar a prévia no meio do download não deixa o botão travado em "Baixando…"', () => {
+      const cmp = abrirCom('AUTORIZADA');
+      cmp.baixarDanfe();
+      httpMock.expectOne((r) => r.url === '/notas/n1/pdf');
+
+      cmp.fecharPreview();
+
+      expect(cmp.baixandoDanfe()).toBe(false);
+    });
   });
 
   /**

@@ -1,5 +1,4 @@
 <div class="page-container animate-entra-subindo flex flex-col gap-5">
-
   <!-- Cabeçalho -->
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div>
@@ -20,7 +19,9 @@
   </header>
 
   @if (erro()) {
-    <div class="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-apoio text-destructive flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+    <div
+      class="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-apoio text-destructive flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2"
+    >
       <span>Não foi possível carregar os dados do dashboard.</span>
       <button
         class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-destructive/40 text-destructive text-apoio hover:bg-destructive/10 transition-colors"
@@ -46,16 +47,14 @@
 
       @if (notasComProblema().length) {
         <p>
-          A nota <strong>{{ notasComProblema()[0].numero }}</strong>, para
-          {{ notasComProblema()[0].destinatarioNome }}, não pode ser emitida como está.
+          A nota <strong>{{ notasComProblema()[0].numero }}</strong
+          >, para {{ notasComProblema()[0].destinatarioNome }}, não pode ser emitida como está.
           @if (motivoPendencia()) {
             <br />O que o fisco aponta: <em>{{ motivoPendencia() }}</em>
           }
         </p>
       } @else if (proximoVencimento(); as venc) {
-        <p>
-          {{ venc.descricao }} vence em {{ formatDate(venc.dataVencimento) }}.
-        </p>
+        <p>{{ venc.descricao }} vence em {{ formatDate(venc.dataVencimento) }}.</p>
       }
 
       <div acoes>
@@ -141,376 +140,432 @@
        (Alertas tinha 192px ao lado de Notas por mes com 342px). Esticados, os
        cards da mesma linha terminam juntos. -->
   <div class="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
-  <!-- Dinheiro do periodo. Semantica do backend: totalEntradas = vendas (PROPRIA),
+    <!-- Dinheiro do periodo. Semantica do backend: totalEntradas = vendas (PROPRIA),
        totalSaidas = compras (IMPORTADA). Ja vem aplicada - NAO re-inverter. -->
-  @if (temFinanceiro()) {
-    <section class="flex flex-col gap-3 lg:col-span-2 2xl:col-span-3">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideTrendingUp [size]="20" class="text-primary" />
-        Dinheiro do período
-      </h2>
-      <div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
-        <ui-stat
-          compacto
-          rotulo="Entrou"
-          [valor]="formatCurrency(financeiro()!.totalEntradas)"
-          apoio="suas vendas"
-        />
-        <ui-stat
-          compacto
-          rotulo="Saiu"
-          [valor]="formatCurrency(financeiro()!.totalSaidas)"
-          apoio="suas compras"
-        />
-        <ui-stat
-          compacto
-          rotulo="Saldo"
-          [valor]="formatCurrency(financeiro()!.saldo)"
-          apoio="entrou menos saiu"
-          [tom]="financeiro()!.saldo < 0 ? 'negativo' : 'positivo'"
-        />
-        <ui-stat
-          compacto
-          rotulo="Lucro estimado"
-          [valor]="formatCurrency(financeiro()!.lucroEstimado)"
-          apoio="depois dos impostos"
-          [tom]="financeiro()!.lucroEstimado < 0 ? 'negativo' : 'neutro'"
-        />
-      </div>
-    </section>
-  }
+    @if (temFinanceiro()) {
+      <section class="flex flex-col gap-3 lg:col-span-2 2xl:col-span-3">
+        <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+          <svg lucideTrendingUp [size]="20" class="text-primary" />
+          Dinheiro do período
+        </h2>
+        <div class="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+          <ui-stat
+            compacto
+            rotulo="Entrou"
+            [valor]="formatCurrency(financeiro()!.totalEntradas)"
+            apoio="suas vendas"
+          />
+          <ui-stat
+            compacto
+            rotulo="Saiu"
+            [valor]="formatCurrency(financeiro()!.totalSaidas)"
+            apoio="suas compras"
+          />
+          <ui-stat
+            compacto
+            rotulo="Saldo"
+            [valor]="formatCurrency(financeiro()!.saldo)"
+            apoio="entrou menos saiu"
+            [tom]="financeiro()!.saldo < 0 ? 'negativo' : 'positivo'"
+          />
+          <ui-stat
+            compacto
+            rotulo="Lucro estimado"
+            [valor]="formatCurrency(financeiro()!.lucroEstimado)"
+            apoio="depois dos impostos"
+            [tom]="financeiro()!.lucroEstimado < 0 ? 'negativo' : 'neutro'"
+          />
+        </div>
+      </section>
+    }
 
-  <!-- Notas por mes ocupa a linha inteira (lg:col-span-2): o grafico respira e o
+    <!-- Notas por mes ocupa a linha inteira (lg:col-span-2): o grafico respira e o
        card de vencimentos, que era estreito e quase sempre vazio, desce para perto
        dos documentos enviados, que e o contexto dele. -->
-  <!-- Card: Notas por mês (gráfico) -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5 min-w-0 lg:col-span-2 2xl:col-span-2">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideTrendingUp [size]="20" class="text-primary" />
-        Notas por mês
-      </h2>
+    <!-- Card: Notas por mês (gráfico) -->
+    <div
+      class="bg-card rounded-card border border-border shadow-suave p-5 min-w-0 lg:col-span-2 2xl:col-span-2"
+    >
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+          <svg lucideTrendingUp [size]="20" class="text-primary" />
+          Notas por mês
+        </h2>
+        @if (loading() && !dashboard()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+        } @else {
+          <span class="text-apoio text-muted-foreground">Contagem de notas</span>
+        }
+      </div>
+
       @if (loading() && !dashboard()) {
-        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-      } @else {
-        <span class="text-apoio text-muted-foreground">Contagem de notas</span>
-      }
-    </div>
-
-    @if (loading() && !dashboard()) {
-      <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
-    } @else if ((dashboard()?.notasPorMes?.length ?? 0) > 0) {
-      <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
+        <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
+      } @else if ((dashboard()?.notasPorMes?.length ?? 0) > 0) {
+        <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
            no canvas, e a 360px o card ficava 342 (300 + padding) e estourava a grade -- era por isso
            que faltava a barra de Out/26 (#109). Com a largura do pai, ele encolhe junto. -->
-      <div class="h-64 w-full min-w-0">
-        <canvas baseChart [type]="'bar'" [data]="barChartData()" [options]="barChartOptions()"></canvas>
-      </div>
-      <!-- Sem isto o grafico parece quebrado: a serie laranja fica invisivel e
+        <div class="h-64 w-full min-w-0">
+          <canvas
+            baseChart
+            [type]="'bar'"
+            [data]="barChartData()"
+            [options]="barChartOptions()"
+          ></canvas>
+        </div>
+        <!-- Sem isto o grafico parece quebrado: a serie laranja fica invisivel e
            quem olha nao sabe se e falta de dado ou falta de nota. -->
-      @if (semNotasDeEntrada()) {
-        <p class="mt-3 text-apoio text-muted-foreground">
-          Você não registrou notas de entrada (compras) no período — por isso só aparecem
-          as saídas.
-        </p>
+        @if (semNotasDeEntrada()) {
+          <p class="mt-3 text-apoio text-muted-foreground">
+            Você não registrou notas de entrada (compras) no período — por isso só aparecem as
+            saídas.
+          </p>
+        }
+      } @else {
+        <div
+          class="h-64 flex flex-col items-center justify-center text-center text-muted-foreground"
+        >
+          <svg lucideFile [size]="32" class="mb-2 opacity-60" />
+          <p class="text-apoio">Sem dados no período.</p>
+        </div>
       }
-    } @else {
-      <div class="h-64 flex flex-col items-center justify-center text-center text-muted-foreground">
-        <svg lucideFile [size]="32" class="mb-2 opacity-60" />
-        <p class="text-apoio">Sem dados no período.</p>
-      </div>
-    }
-  </div>
-
-  <!-- Card: Distribuição de impostos (pizza) -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideDollarSign [size]="20" class="text-primary" />
-        Distribuição de impostos
-      </h2>
-      <span class="text-apoio text-muted-foreground">CBS × IBS</span>
     </div>
-    @if (loading() && !dashboard()) {
-      <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
-    } @else if (((dashboard()?.distribuicaoImpostos?.ibs ?? 0) + (dashboard()?.distribuicaoImpostos?.cbs ?? 0)) > 0) {
-      <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
+
+    <!-- Card: Distribuição de impostos (pizza) -->
+    <div class="bg-card rounded-card border border-border shadow-suave p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+          <svg lucideDollarSign [size]="20" class="text-primary" />
+          Distribuição de impostos
+        </h2>
+        <span class="text-apoio text-muted-foreground">CBS × IBS</span>
+      </div>
+      @if (loading() && !dashboard()) {
+        <div class="h-64 bg-muted/50 animate-pulse rounded-xl"></div>
+      } @else if (
+        (dashboard()?.distribuicaoImpostos?.ibs ?? 0) +
+          (dashboard()?.distribuicaoImpostos?.cbs ?? 0) >
+        0
+      ) {
+        <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
            no canvas, e a 360px o card ficava 342 (300 + padding) e estourava a grade -- era por isso
            que faltava a barra de Out/26 (#109). Com a largura do pai, ele encolhe junto. -->
-      <div class="h-64 w-full min-w-0">
-        <canvas baseChart [type]="'pie'" [data]="pieChartData()" [options]="pieChartOptions()"></canvas>
-      </div>
-    } @else {
-      <div class="h-64 flex items-center justify-center text-muted-foreground text-apoio">
-        Sem dados no período.
-      </div>
-    }
-  </div>
+        <div class="h-64 w-full min-w-0">
+          <canvas
+            baseChart
+            [type]="'pie'"
+            [data]="pieChartData()"
+            [options]="pieChartOptions()"
+          ></canvas>
+        </div>
+      } @else {
+        <div class="h-64 flex items-center justify-center text-muted-foreground text-apoio">
+          Sem dados no período.
+        </div>
+      }
+    </div>
 
-  <!-- Card: Simulador Inteligente de Impostos -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5">
-    <!-- Os dois selos usavam `bg-green-100 text-green-700` (fora dos tokens, quebra
+    <!-- Card: Simulador Inteligente de Impostos -->
+    <div class="bg-card rounded-card border border-border shadow-suave p-5">
+      <!-- Os dois selos usavam `bg-green-100 text-green-700` (fora dos tokens, quebra
          no tema escuro) e `py-1`, que apertava o descendente do "p" de
          Agropecuaria. Agora sao tokens semanticos, sem quebra de linha. -->
-    <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideSprout [size]="20" class="text-primary" />
-        Simulador Inteligente
-      </h2>
-      @if (loading() && !dashboard()) {
-        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-      } @else {
-        <div class="flex flex-wrap gap-2">
-          <span class="rounded-full bg-primary/10 px-2.5 py-1.5 text-apoio leading-none font-medium whitespace-nowrap text-primary">
-            Agropecuária
-          </span>
-<!-- O selo "-60% CBS/IBS" saía aqui para qualquer produtor. A redução é **por produto**: na
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+          <svg lucideSprout [size]="20" class="text-primary" />
+          Simulador Inteligente
+        </h2>
+        @if (loading() && !dashboard()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+        } @else {
+          <div class="flex flex-wrap gap-2">
+            <span
+              class="rounded-full bg-primary/10 px-2.5 py-1.5 text-apoio leading-none font-medium whitespace-nowrap text-primary"
+            >
+              Agropecuária
+            </span>
+            <!-- O selo "-60% CBS/IBS" saía aqui para qualquer produtor. A redução é **por produto**: na
                base atual só o milho tem base reduzida (30.680 de 76.700), e café, soja, algodão
                não têm. Prometer 60% no cabeçalho do painel é prometer o que não vale (#110). -->
-        </div>
-      }
-    </div>
-
-    <!-- Período selecionável + status da apuração (#12) -->
-    <div class="flex flex-wrap items-center gap-2 mb-4">
-      <select
-        class="tap-target text-apoio rounded-controle border border-border bg-card px-2 text-foreground"
-        (change)="setMes($any($event.target).value)"
-        aria-label="Mês de apuração"
-      >
-        @for (m of meses(); track m.v) {
-          <option [value]="m.v" [selected]="m.v === periodoMes()">{{ m.nome }}</option>
-        }
-      </select>
-      <select
-        class="tap-target text-apoio rounded-controle border border-border bg-card px-2 text-foreground"
-        (change)="setAno($any($event.target).value)"
-        aria-label="Ano de apuração"
-      >
-        @for (a of anos; track a) {
-          <option [value]="a" [selected]="a === periodoAno()">{{ a }}</option>
-        }
-      </select>
-      <span
-        class="text-apoio px-2 py-1 rounded-full font-medium ml-auto"
-        [class]="statusApuracao().classe"
-      >
-        {{ statusApuracao().label }}
-      </span>
-    </div>
-
-    <!-- KPI principal -->
-    <div class="p-4 rounded-xl bg-primary/5 border border-primary/10 mb-4">
-      <p class="text-apoio text-muted-foreground mb-1">Imposto estimado total</p>
-      @if (loading() && !dashboard()) {
-        <div class="h-8 w-32 bg-muted animate-pulse rounded mt-1"></div>
-      } @else {
-        <p class="text-2xl font-heading font-bold text-primary">
-          {{ formatCurrency(totalImpostoCalculado()) }}
-        </p>
-        <p class="text-apoio text-muted-foreground mt-1">
-          <!-- A carga sai da conta imposto / faturamento do período. Antes era "~10,6%" cravado;
-               na base de setembro o valor real é 1,0% (#110). -->
-          @if (cargaEfetiva(); as carga) {
-            Sobre o que você faturou no período: {{ carga.toFixed(1).replace('.', ',') }}%
-          } @else {
-            Sem faturamento no período para calcular a carga.
-          }
-        </p>
-      }
-    </div>
-
-    <!-- Tabela breakdown -->
-    @if (!(loading() && !dashboard()) && impostoBreakdown().length > 0) {
-      <div class="space-y-1 mb-4">
-        <!-- Sem coluna de alíquota: o KPI é a soma de itens com bases diferentes, e dividir isso
-             daria um número que não é alíquota de nada. A alíquota real é por item, e vem da API
-             na própria nota (#110). -->
-        <div class="grid grid-cols-2 text-apoio font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1">
-          <span>Tributo</span>
-          <span class="text-right">Valor</span>
-        </div>
-        @for (item of impostoBreakdown(); track item.nome) {
-          <div class="grid grid-cols-2 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-apoio">
-            <span class="font-medium text-foreground">{{ item.nome }}</span>
-            <span class="text-right font-semibold text-foreground">{{ formatCurrency(item.valor) }}</span>
           </div>
         }
-        <div class="grid grid-cols-3 items-center py-2 px-2 rounded-lg bg-primary/5 border border-primary/10 text-apoio mt-1">
-          <span class="font-bold text-foreground">Total</span>
-          <span></span>
-          <span class="text-right font-bold text-primary">{{ formatCurrency(totalImpostoCalculado()) }}</span>
+      </div>
+
+      <!-- Período selecionável + status da apuração (#12) -->
+      <div class="flex flex-wrap items-center gap-2 mb-4">
+        <select
+          class="tap-target text-apoio rounded-controle border border-border bg-card px-2 text-foreground"
+          (change)="setMes($any($event.target).value)"
+          aria-label="Mês de apuração"
+        >
+          @for (m of meses(); track m.v) {
+            <option [value]="m.v" [selected]="m.v === periodoMes()">{{ m.nome }}</option>
+          }
+        </select>
+        <select
+          class="tap-target text-apoio rounded-controle border border-border bg-card px-2 text-foreground"
+          (change)="setAno($any($event.target).value)"
+          aria-label="Ano de apuração"
+        >
+          @for (a of anos; track a) {
+            <option [value]="a" [selected]="a === periodoAno()">{{ a }}</option>
+          }
+        </select>
+        <span
+          class="text-apoio px-2 py-1 rounded-full font-medium ml-auto"
+          [class]="statusApuracao().classe"
+        >
+          {{ statusApuracao().label }}
+        </span>
+      </div>
+
+      <!-- KPI principal -->
+      <div class="p-4 rounded-xl bg-primary/5 border border-primary/10 mb-4">
+        <p class="text-apoio text-muted-foreground mb-1">Imposto estimado total</p>
+        @if (loading() && !dashboard()) {
+          <div class="h-8 w-32 bg-muted animate-pulse rounded mt-1"></div>
+        } @else {
+          <p class="text-2xl font-heading font-bold text-primary">
+            {{ formatCurrency(totalImpostoCalculado()) }}
+          </p>
+          <p class="text-apoio text-muted-foreground mt-1">
+            <!-- A carga sai da conta imposto / faturamento do período. Antes era "~10,6%" cravado;
+               na base de setembro o valor real é 1,0% (#110). -->
+            @if (cargaEfetiva(); as carga) {
+              Sobre o que você faturou no período: {{ carga.toFixed(1).replace('.', ',') }}%
+            } @else {
+              Sem faturamento no período para calcular a carga.
+            }
+          </p>
+        }
+      </div>
+
+      <!-- Tabela breakdown -->
+      @if (!(loading() && !dashboard()) && impostoBreakdown().length > 0) {
+        <div class="space-y-1 mb-4">
+          <!-- Sem coluna de alíquota: o KPI é a soma de itens com bases diferentes, e dividir isso
+             daria um número que não é alíquota de nada. A alíquota real é por item, e vem da API
+             na própria nota (#110). -->
+          <div
+            class="grid grid-cols-2 text-apoio font-semibold text-muted-foreground uppercase tracking-wide px-2 pb-1"
+          >
+            <span>Tributo</span>
+            <span class="text-right">Valor</span>
+          </div>
+          @for (item of impostoBreakdown(); track item.nome) {
+            <div
+              class="grid grid-cols-2 items-center py-2 px-2 rounded-lg hover:bg-muted/50 transition-colors text-apoio"
+            >
+              <span class="font-medium text-foreground">{{ item.nome }}</span>
+              <span class="text-right font-semibold text-foreground">{{
+                formatCurrency(item.valor)
+              }}</span>
+            </div>
+          }
+          <div
+            class="grid grid-cols-3 items-center py-2 px-2 rounded-lg bg-primary/5 border border-primary/10 text-apoio mt-1"
+          >
+            <span class="font-bold text-foreground">Total</span>
+            <span></span>
+            <span class="text-right font-bold text-primary">{{
+              formatCurrency(totalImpostoCalculado())
+            }}</span>
+          </div>
         </div>
-      </div>
-    } @else if (!(loading() && !dashboard())) {
-      <div class="text-center text-apoio text-muted-foreground py-4 mb-4">
-        Sem impostos no período.
-      </div>
-    }
-
-    <!-- Toggle detalhe -->
-    <button
-      type="button"
-      class="tap-target w-full flex items-center justify-between text-apoio text-muted-foreground hover:text-foreground transition-colors"
-      [attr.aria-expanded]="showSimuladorDetalhe()"
-      (click)="showSimuladorDetalhe.update(v => !v)"
-    >
-      <span class="flex items-center gap-1.5">
-        <svg lucideLightbulb [size]="15" class="text-assistente" />
-        Como funciona a redução tributária?
-      </span>
-      @if (showSimuladorDetalhe()) {
-        <svg lucideChevronUp [size]="14" />
-      } @else {
-        <svg lucideChevronDown [size]="14" />
+      } @else if (!(loading() && !dashboard())) {
+        <div class="text-center text-apoio text-muted-foreground py-4 mb-4">
+          Sem impostos no período.
+        </div>
       }
-    </button>
 
-    @if (showSimuladorDetalhe()) {
-      <div class="mt-2 pt-2 border-t border-border">
-        <!-- Este parágrafo afirmava "60% de redução nas alíquotas de CBS (8,8% → 3,5%) e IBS
+      <!-- Toggle detalhe -->
+      <button
+        type="button"
+        class="tap-target w-full flex items-center justify-between text-apoio text-muted-foreground hover:text-foreground transition-colors"
+        [attr.aria-expanded]="showSimuladorDetalhe()"
+        (click)="showSimuladorDetalhe.update((v) => !v)"
+      >
+        <span class="flex items-center gap-1.5">
+          <svg lucideLightbulb [size]="15" class="text-assistente" />
+          Como funciona a redução tributária?
+        </span>
+        @if (showSimuladorDetalhe()) {
+          <svg lucideChevronUp [size]="14" />
+        } @else {
+          <svg lucideChevronDown [size]="14" />
+        }
+      </button>
+
+      @if (showSimuladorDetalhe()) {
+        <div class="mt-2 pt-2 border-t border-border">
+          <!-- Este parágrafo afirmava "60% de redução nas alíquotas de CBS (8,8% → 3,5%) e IBS
              (17,7% → 7,1%)" e "efetiva ~10,6% ao invés de 26,5%". Nenhum desses números vinha da
              API, e a redução não é nas alíquotas: é na **base de cálculo**, e só de alguns
              produtos. A regra de quem tem redução está sendo conferida na LC 214
              (SupersonicTeam/backend#272); até lá a tela não assume nada (#110). -->
-        <p class="text-apoio text-muted-foreground leading-relaxed">
-          A <strong class="text-foreground">Reforma Tributária</strong> prevê redução para parte da
-          produção agropecuária, e ela é aplicada na <strong class="text-foreground">base de
-          cálculo</strong> de cada produto — não na alíquota, e não para todos. Os valores acima
-          são os que a apuração calculou para as suas notas do período; a redução de cada item
-          aparece na nota, quando houver.
-        </p>
-      </div>
-    }
-  </div>
+          <p class="text-apoio text-muted-foreground leading-relaxed">
+            A <strong class="text-foreground">Reforma Tributária</strong> prevê redução para parte
+            da produção agropecuária, e ela é aplicada na
+            <strong class="text-foreground">base de cálculo</strong> de cada produto — não na
+            alíquota, e não para todos. Os valores acima são os que a apuração calculou para as suas
+            notas do período; a redução de cada item aparece na nota, quando houver.
+          </p>
+        </div>
+      }
+    </div>
 
-  <!-- Card: proximos vencimentos. O titulo era "Alertas e pendencias" e o vazio
+    <!-- Card: proximos vencimentos. O titulo era "Alertas e pendencias" e o vazio
        dizia "Tudo em dia! Nenhuma pendencia." - na mesma tela em que o topo avisa
        que ha 2 notas a corrigir. Este card so olha vencimentos fiscais; agora o
        nome diz isso e a contradicao some. -->
-  <div class="bg-card rounded-card border border-border shadow-suave p-5">
-    <div class="flex items-center justify-between mb-4">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-        <svg lucideCalendar [size]="20" class="text-primary" />
-        Próximos vencimentos
-      </h2>
-      @if (loadingAlertas()) {
-        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-      } @else if (alertas().length) {
-        <span class="text-apoio bg-accent/15 text-accent px-2 py-1 rounded-full font-medium">
-          {{ alertas().length }}
-        </span>
-      }
-    </div>
-
-    @if (loadingAlertas()) {
-      <ui-skeleton [linhas]="2" formato="bloco" altura="3.5rem" />
-    } @else if (alertas().length) {
-      <ul class="space-y-2">
-        @for (a of alertas(); track a.id) {
-          <li class="animate-entra-subindo escalonado flex items-center gap-3 rounded-card bg-surface-2 p-3" [style.--passo]="$index">
-            <div
-              class="w-2 h-2 rounded-full shrink-0"
-              [class]="a.status === 'vencido' ? 'bg-destructive' : 'bg-accent'"
-            ></div>
-            <div class="min-w-0 flex-1">
-              <p class="text-apoio font-medium text-foreground truncate">{{ a.titulo }}</p>
-              <p class="text-apoio text-muted-foreground">Vence em {{ formatDate(a.dataVencimento) }}</p>
-            </div>
-            @if (a.valor) {
-              <span class="text-apoio font-semibold text-foreground shrink-0">
-                {{ formatCurrency(a.valor) }}
-              </span>
-            }
-          </li>
+    <div class="bg-card rounded-card border border-border shadow-suave p-5">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+          <svg lucideCalendar [size]="20" class="text-primary" />
+          Próximos vencimentos
+        </h2>
+        @if (loadingAlertas()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+        } @else if (alertas().length) {
+          <span class="text-apoio bg-accent/15 text-accent px-2 py-1 rounded-full font-medium">
+            {{ alertas().length }}
+          </span>
         }
-      </ul>
-    } @else {
-      <div class="flex flex-col items-center justify-center py-6 text-center text-muted-foreground">
-        <svg lucideCalendar [size]="28" class="mb-2 opacity-60" />
-        <p class="text-apoio">Nenhum vencimento nos próximos dias.</p>
       </div>
-    }
-  </div>
 
-  <!-- Card: Últimos documentos -->
-  <div class="bg-card rounded-card border border-border shadow-suave min-w-0">
-    <div class="flex flex-wrap items-center gap-2 px-5 pt-5 pb-3">
-      <svg lucideFileText [size]="20" class="shrink-0 text-primary" />
-      <h2 class="min-w-0 font-heading text-lg font-semibold text-foreground">
-        Últimos documentos enviados
-      </h2>
-      @if (loading() && !dashboard()) {
-        <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-      } @else if (documentos().length) {
-        <span class="ml-auto text-apoio text-muted-foreground">
-          {{ documentos().length }} mais recentes
-        </span>
-      }
-    </div>
-    <div class="px-5 pb-5">
-      @if (loading() && !dashboard()) {
-        <ui-skeleton [linhas]="3" formato="bloco" altura="3rem" />
-      } @else if (documentos().length === 0) {
-        <ui-empty-state
-          titulo="Nenhuma nota ainda"
-          descricao="Quando você emitir ou importar uma nota, ela aparece aqui."
-        >
-          <svg icone lucideFile [size]="22" />
-          <a acao routerLink="/documentos" class="tap-target inline-flex items-center rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-            Criar primeira nota
-          </a>
-        </ui-empty-state>
-      } @else {
-        <ul class="divide-y divide-border">
-          @for (doc of documentos(); track doc.id) {
-            <li class="animate-entra-subindo escalonado flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-2" [style.--passo]="$index">
+      @if (loadingAlertas()) {
+        <ui-skeleton [linhas]="2" formato="bloco" altura="3.5rem" />
+      } @else if (alertas().length) {
+        <ul class="space-y-2">
+          @for (a of alertas(); track a.id) {
+            <li
+              class="animate-entra-subindo escalonado flex items-center gap-3 rounded-card bg-surface-2 p-3"
+              [style.--passo]="$index"
+            >
+              <div
+                class="w-2 h-2 rounded-full shrink-0"
+                [class]="a.status === 'vencido' ? 'bg-destructive' : 'bg-accent'"
+              ></div>
               <div class="min-w-0 flex-1">
-                <p class="text-apoio font-medium text-foreground truncate">{{ doc.nome }}</p>
-                <!-- `flex-wrap`: tipo, selo e valor numa linha so davam ao cartao uma largura
-                     minima de 365px, e a 360px ele estourava a grade -- era isso que truncava o
-                     valor do documento (#109). Quebrando, cada um cabe. -->
-                <div class="mt-1 flex min-w-0 flex-wrap items-center gap-2">
-                  <span class="text-apoio text-muted-foreground">{{ doc.tipo }}</span>
-                  <ui-badge-status [status]="doc.status" />
-                  @if (doc.valor > 0) {
-                    <span class="text-apoio font-medium text-primary">{{ formatCurrency(doc.valor) }}</span>
-                  }
-                </div>
+                <p class="text-apoio font-medium text-foreground truncate">{{ a.titulo }}</p>
+                <p class="text-apoio text-muted-foreground">
+                  Vence em {{ formatDate(a.dataVencimento) }}
+                </p>
               </div>
-              <div class="flex items-center gap-2 shrink-0">
-                <span class="text-apoio text-muted-foreground hidden sm:inline">{{ formatDate(doc.data) }}</span>
-                <!-- Sem o rotulo, o leitor de tela anuncia cinco "botao" seguidos, um por nota,
-                     sem dizer de qual nota e. O nome da nota ja esta na linha; so faltava chegar
-                     ao botao. -->
-                <button
-                  type="button"
-                  class="tap-target flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                  [attr.aria-label]="'Ver ' + doc.nome"
-                  (click)="abrirPreview(doc)"
-                >
-                  <svg lucideEye [size]="16" aria-hidden="true" />
-                </button>
-              </div>
+              @if (a.valor) {
+                <span class="text-apoio font-semibold text-foreground shrink-0">
+                  {{ formatCurrency(a.valor) }}
+                </span>
+              }
             </li>
           }
         </ul>
-
-        <!-- O backend devolve no maximo 5 (findTop5...), entao rolagem aqui nao
-             levaria a lugar nenhum. A saida e a lista completa, que tem
-             paginacao e filtros. -->
-        @if (totalDeNotas() > documentos().length) {
-          <a
-            routerLink="/documentos"
-            class="tap-target mt-3 flex items-center justify-center gap-1.5 rounded-controle border border-border text-apoio font-medium text-primary transition-colors hover:bg-muted"
-          >
-            Ver todas as {{ totalDeNotas() }} notas
-            <svg lucideArrowRight [size]="15" />
-          </a>
-        }
+      } @else {
+        <div
+          class="flex flex-col items-center justify-center py-6 text-center text-muted-foreground"
+        >
+          <svg lucideCalendar [size]="28" class="mb-2 opacity-60" />
+          <p class="text-apoio">Nenhum vencimento nos próximos dias.</p>
+        </div>
       }
     </div>
-  </div>
+
+    <!-- Card: Últimos documentos -->
+    <div class="bg-card rounded-card border border-border shadow-suave min-w-0">
+      <div class="flex flex-wrap items-center gap-2 px-5 pt-5 pb-3">
+        <svg lucideFileText [size]="20" class="shrink-0 text-primary" />
+        <h2 class="min-w-0 font-heading text-lg font-semibold text-foreground">
+          Últimos documentos enviados
+        </h2>
+        @if (loading() && !dashboard()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+        } @else if (documentos().length) {
+          <span class="ml-auto text-apoio text-muted-foreground">
+            {{ documentos().length }} mais recentes
+          </span>
+        }
+      </div>
+      <div class="px-5 pb-5">
+        @if (loading() && !dashboard()) {
+          <ui-skeleton [linhas]="3" formato="bloco" altura="3rem" />
+        } @else if (documentos().length === 0) {
+          <ui-empty-state
+            titulo="Nenhuma nota ainda"
+            descricao="Quando você emitir ou importar uma nota, ela aparece aqui."
+          >
+            <svg icone lucideFile [size]="22" />
+            <a
+              acao
+              routerLink="/documentos"
+              class="tap-target inline-flex items-center rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            >
+              Criar primeira nota
+            </a>
+          </ui-empty-state>
+        } @else {
+          <ul class="divide-y divide-border">
+            @for (doc of documentos(); track doc.id) {
+              <li
+                class="animate-entra-subindo escalonado flex items-center justify-between py-3 first:pt-0 last:pb-0 gap-2"
+                [style.--passo]="$index"
+              >
+                <div class="min-w-0 flex-1">
+                  <p class="text-apoio font-medium text-foreground truncate">{{ doc.nome }}</p>
+                  <!-- `flex-wrap`: tipo, selo e valor numa linha so davam ao cartao uma largura
+                     minima de 365px, e a 360px ele estourava a grade -- era isso que truncava o
+                     valor do documento (#109). Quebrando, cada um cabe. -->
+                  <div class="mt-1 flex min-w-0 flex-wrap items-center gap-2">
+                    <span class="text-apoio text-muted-foreground">{{ doc.tipo }}</span>
+                    <ui-badge-status [status]="doc.status" />
+                    @if (doc.valor > 0) {
+                      <span class="text-apoio font-medium text-primary">{{
+                        formatCurrency(doc.valor)
+                      }}</span>
+                    }
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span class="text-apoio text-muted-foreground hidden sm:inline">{{
+                    formatDate(doc.data)
+                  }}</span>
+                  <!-- Sem o rotulo, o leitor de tela anuncia cinco "botao" seguidos, um por nota,
+                     sem dizer de qual nota e. O nome da nota ja esta na linha; so faltava chegar
+                     ao botao. -->
+                  <button
+                    type="button"
+                    class="tap-target group relative flex items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    [attr.aria-label]="'Ver ' + doc.nome"
+                    (click)="abrirPreview(doc)"
+                  >
+                    <svg lucideEye [size]="16" aria-hidden="true" />
+                    <!-- O olho sozinho não diz o que faz (#103). O `aria-label` já atendia o leitor
+                       de tela; quem enxerga ficava adivinhando. Mesma `.dica` da topbar, que
+                       aparece também no `:focus-visible` — senão o teclado continua sem a pista. -->
+                    <span
+                      aria-hidden="true"
+                      class="dica group-hover:opacity-100 group-focus-visible:opacity-100"
+                      >Visualizar nota</span
+                    >
+                  </button>
+                </div>
+              </li>
+            }
+          </ul>
+
+          <!-- O backend devolve no maximo 5 (findTop5...), entao rolagem aqui nao
+             levaria a lugar nenhum. A saida e a lista completa, que tem
+             paginacao e filtros. -->
+          @if (totalDeNotas() > documentos().length) {
+            <a
+              routerLink="/documentos"
+              class="tap-target mt-3 flex items-center justify-center gap-1.5 rounded-controle border border-border text-apoio font-medium text-primary transition-colors hover:bg-muted"
+            >
+              Ver todas as {{ totalDeNotas() }} notas
+              <svg lucideArrowRight [size]="15" />
+            </a>
+          }
+        }
+      </div>
+    </div>
   </div>
 </div>
 
@@ -542,8 +597,18 @@
 
   <div rodape>
     <ui-button variant="ghost" (click)="fecharPreview()">Fechar</ui-button>
-    <ui-button variant="primary">
-      <svg lucideDownload [size]="16" /> Baixar
-    </ui-button>
+    <!-- **Este botão não fazia nada** (#103): nem `(click)`, nem handler. Prometia o download e
+         ficava quieto, que é a falha que a tela de Configurações já tinha removido por princípio.
+         Agora baixa a DANFE de verdade — e só **existe** quando o documento fiscal existe:
+         `temArquivosFiscais()` é pergunta de estado, e em rascunho a rota oficial responde 409. -->
+    @if (podeBaixarDanfe()) {
+      <ui-button variant="primary" [disabled]="baixandoDanfe()" (click)="baixarDanfe()">
+        @if (baixandoDanfe()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" /> Baixando…
+        } @else {
+          <svg lucideDownload [size]="16" /> Baixar DANFE
+        }
+      </ui-button>
+    }
   </div>
 </ui-modal>
