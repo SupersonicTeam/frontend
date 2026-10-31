@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mesDeFechamento } from './periodo';
+import { mesDeFechamento, hojeEmBrasilia } from './periodo';
 
 describe('mesDeFechamento', () => {
   it('devolve o mês anterior — é o que o contador fecha', () => {
@@ -13,5 +13,30 @@ describe('mesDeFechamento', () => {
 
   it('não depende do dia do mês', () => {
     expect(mesDeFechamento(new Date(2026, 4, 1))).toEqual(mesDeFechamento(new Date(2026, 4, 31)));
+  });
+});
+
+/**
+ * A data que a nota nova já vem preenchida (#115).
+ *
+ * O campo nascia vazio e cobrava uma digitação por nota. O detalhe que importa é o fuso: em UTC,
+ * das 21h às 24h de Brasília já é o dia seguinte — a nota sairia datada de amanhã no fim do
+ * expediente, que é exatamente quando se emite.
+ */
+describe('hojeEmBrasilia', () => {
+  it('devolve AAAA-MM-DD', () => {
+    expect(hojeEmBrasilia(new Date('2026-10-31T15:00:00Z'))).toBe('2026-10-31');
+  });
+
+  it('às 22h de Brasília ainda é hoje, embora em UTC já seja amanhã', () => {
+    // 01/11 01:00Z = 31/10 22:00 em Brasília.
+    const fimDeExpediente = new Date('2026-11-01T01:00:00Z');
+
+    expect(fimDeExpediente.toISOString().slice(0, 10)).toBe('2026-11-01');
+    expect(hojeEmBrasilia(fimDeExpediente)).toBe('2026-10-31');
+  });
+
+  it('logo depois da meia-noite em Brasília já é o dia novo', () => {
+    expect(hojeEmBrasilia(new Date('2026-11-01T03:30:00Z'))).toBe('2026-11-01');
   });
 });
