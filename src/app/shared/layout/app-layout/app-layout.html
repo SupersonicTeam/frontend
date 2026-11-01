@@ -87,14 +87,14 @@
               <h4 class="font-heading font-semibold text-foreground">Notificações</h4>
               <div class="flex gap-1">
                 <button
-                  class="tap-target flex items-center gap-1.5 rounded-controle px-2 text-apoio text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
+                  class="tap-target flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-controle px-2 text-apoio text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40"
                   (click)="notificacoesService.marcarTodasLidas()"
                   [disabled]="notificacoesService.naoLidas() === 0"
                 >
                   <svg lucideCheck [size]="15" /> Marcar lidas
                 </button>
                 <button
-                  class="tap-target flex items-center gap-1.5 rounded-controle px-2 text-apoio text-perigo transition-colors hover:bg-perigo-soft disabled:opacity-40"
+                  class="tap-target flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-controle px-2 text-apoio text-perigo transition-colors hover:bg-perigo-soft disabled:opacity-40"
                   (click)="notificacoesService.limparTodas()"
                   [disabled]="notificacoesService.notificacoes().length === 0"
                 >

@@ -249,7 +249,7 @@
         <!-- `w-full min-w-0`: sem largura definida no contêiner, o Chart.js usa o **padrão de 300px**
            no canvas, e a 360px o card ficava 342 (300 + padding) e estourava a grade -- era por isso
            que faltava a barra de Out/26 (#109). Com a largura do pai, ele encolhe junto. -->
-        <div class="h-64 w-full min-w-0">
+        <div class="h-52 w-full min-w-0">
           <canvas
             baseChart
             [type]="'pie'"
@@ -257,6 +257,21 @@
             [options]="pieChartOptions()"
           ></canvas>
         </div>
+        <!-- A legenda com o VALOR (#115). A do Chart.js dizia so "CBS" e "IBS", e o numero ficava
+             no tooltip, que no toque nao existe -- o card tinha um gráfico e nenhuma quantia. Esta
+             é texto de verdade, alcançável por leitor de tela, e usa os mesmos tokens por imposto
+             da tela de Impostos, para a cor significar o mesmo nos dois lugares. -->
+        <p class="mt-3 flex flex-wrap items-center justify-center gap-x-5 gap-y-1.5 text-apoio">
+          @for (fatia of fatiasDeImposto(); track fatia.rotulo) {
+            <span class="flex items-center gap-1.5">
+              <span class="size-2.5 rounded-[0.2rem] {{ fatia.classe }}" aria-hidden="true"></span>
+              <span class="text-muted-foreground">{{ fatia.rotulo }}</span>
+              <span class="font-medium tabular-nums text-foreground">
+                {{ formatCurrency(fatia.valor) }}
+              </span>
+            </span>
+          }
+        </p>
       } @else {
         <div class="h-64 flex items-center justify-center text-muted-foreground text-apoio">
           Sem dados no período.

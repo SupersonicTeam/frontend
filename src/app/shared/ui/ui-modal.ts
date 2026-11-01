@@ -106,8 +106,12 @@ const FOCAVEIS =
             <ng-content />
           </div>
 
+          <!-- O gap-2 vale para os filhos DIRETOS do rodape, e o div[rodape] e UM filho so: os
+               botoes dentro dele ficavam encostados (#115). Acontecia em quatro modais, porque
+               cada autor tinha de lembrar de repor o layout na propria div. Entao o rodape veste
+               o slot tambem; quem ja declarava a propria classe segue valendo. -->
           <footer
-            class="flex flex-col-reverse gap-2 border-t border-border px-5 py-4 sm:flex-row sm:justify-end sm:px-6"
+            class="flex flex-col-reverse gap-2 border-t border-border px-5 py-4 sm:flex-row sm:justify-end sm:px-6 [&>[rodape]]:flex [&>[rodape]]:flex-col-reverse [&>[rodape]]:gap-2 sm:[&>[rodape]]:flex-row sm:[&>[rodape]]:justify-end"
           >
             <ng-content select="[rodape]" />
           </footer>

@@ -47,9 +47,13 @@ export function limparCacheDeCores(): void {
 }
 
 /**
- * Paleta das séries dos gráficos, na ordem em que os datasets aparecem.
- * `accent` (laranja) para entradas/CBS e `primary` (verde-agro) para saídas/IBS —
- * os dois já clareiam no tema escuro pelos tokens.
+ * Paleta de **entradas e saídas**, na ordem em que os datasets aparecem: `accent` (laranja) para
+ * entradas, `primary` (verde-agro) para saídas. Os dois já clareiam no tema escuro pelos tokens.
+ *
+ * **Não serve para IBS/CBS** — para imposto, use `paletaDeImpostos()`. Esta função dizia atender
+ * "entradas/CBS" e "saídas/IBS", e foi essa frase que produziu o defeito da #115: a pizza de
+ * impostos usava esta paleta, então o IBS aparecia **verde** nela e **azul** em Impostos. Entrada e
+ * imposto são eixos diferentes; compartilhar cor entre eles faz a cor deixar de significar algo.
  */
 export function paletaDeSeries(): [string, string] {
   return [
@@ -69,4 +73,19 @@ export function coresDeEixo(): { grade: string; texto: string } {
 /** Cor de fundo do card — usada como borda entre as fatias da pizza. */
 export function corDeSuperficie(): string {
   return corDoTema('--color-card', 'hsl(0 0% 100%)');
+}
+
+/**
+ * Paleta de **imposto**, na ordem `[CBS, IBS]` — a mesma dos rótulos da pizza.
+ *
+ * Sai dos tokens `serie-cbs` (laranja) e `serie-ibs` (azul), que são os mesmos que a tela de
+ * Impostos já usava na barra de divisão e na legenda. **Cada imposto tem uma cor só no app
+ * inteiro** (#115): é o que deixa a pessoa olhar a pizza, olhar a legenda em Impostos e saber que
+ * fala do mesmo tributo sem reler o rótulo.
+ */
+export function paletaDeImpostos(): [string, string] {
+  return [
+    corDoTema('--color-serie-cbs', 'hsl(33 62% 44%)'),
+    corDoTema('--color-serie-ibs', 'hsl(210 66% 45%)'),
+  ];
 }

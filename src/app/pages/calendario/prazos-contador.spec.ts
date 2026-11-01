@@ -50,8 +50,20 @@ describe('PrazosContador', () => {
    * e prova que a guia nasce no escolhido, nao no primeiro.
    */
   const CLIENTES = [
-    { vinculoId: 'v1', id: 'p-joao', nomeCompleto: 'João da Silva Produtor', situacaoVinculo: 'ATIVO', etiquetas: [] },
-    { vinculoId: 'v2', id: 'p-maria', nomeCompleto: 'Maria Agricultora', situacaoVinculo: 'ATIVO', etiquetas: [] },
+    {
+      vinculoId: 'v1',
+      id: 'p-joao',
+      nomeCompleto: 'João da Silva Produtor',
+      situacaoVinculo: 'ATIVO',
+      etiquetas: [],
+    },
+    {
+      vinculoId: 'v2',
+      id: 'p-maria',
+      nomeCompleto: 'Maria Agricultora',
+      situacaoVinculo: 'ATIVO',
+      etiquetas: [],
+    },
   ];
 
   /** Responde a carteira que o `ngOnInit` busca antes das guias. */
@@ -87,8 +99,9 @@ describe('PrazosContador', () => {
   it('data no passado e sem pagamento é atraso, mesmo com o status ainda em pendente', () => {
     // Quem vira a guia para `vencido` é um job diário; entre a meia-noite e a rodada do job ela
     // ainda chega como `pendente`.
-    const cmp = montar([guia({ id: 'a', dataVencimento: emDias(-1), status: 'pendente' })])
-      .componentInstance;
+    const cmp = montar([
+      guia({ id: 'a', dataVencimento: emDias(-1), status: 'pendente' }),
+    ]).componentInstance;
 
     expect(cmp.atrasadas().map((g) => g.id)).toEqual(['a']);
     expect(cmp.rotuloPrazo(cmp.atrasadas()[0])).toBe('venceu ontem');
@@ -302,6 +315,42 @@ describe('PrazosContador', () => {
 
       expect(cmp.erro()).toBeNull();
       expect(cmp.guias()).toEqual([]);
+    });
+  });
+
+  /**
+   * O botão "Lançar guia" apagava sem dizer por quê (#115): valor vazio e valor negativo
+   * desabilitavam igual, e a pessoa ficava procurando o erro na tela.
+   */
+  describe('o campo de valor explica por que o botão está apagado', () => {
+    it('em branco não acusa nada: avisar antes de digitar é ranzinza', () => {
+      const cmp = montar().componentInstance;
+      expect(cmp.formValor()).toBe('');
+      expect(cmp.erroDoValor()).toBe('');
+    });
+
+    it('zero e negativo dizem que precisa ser maior que zero', () => {
+      const cmp = montar().componentInstance;
+
+      cmp.formValor.set('0');
+      expect(cmp.erroDoValor()).toContain('maior que zero');
+
+      cmp.formValor.set('-5');
+      expect(cmp.erroDoValor()).toContain('maior que zero');
+    });
+
+    it('texto que não é número pede número', () => {
+      const cmp = montar().componentInstance;
+      cmp.formValor.set('mil reais');
+
+      expect(cmp.erroDoValor()).toContain('números');
+    });
+
+    it('valor válido não acusa', () => {
+      const cmp = montar().componentInstance;
+      cmp.formValor.set('1840.55');
+
+      expect(cmp.erroDoValor()).toBe('');
     });
   });
 });

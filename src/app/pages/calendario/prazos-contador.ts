@@ -158,6 +158,22 @@ export class PrazosContador implements OnInit {
   readonly formObs = signal('');
   readonly formValido = computed(() => !!this.formVencimento() && Number(this.formValor()) > 0);
 
+  /**
+   * Por que "Lançar guia" está desabilitado, dito **no campo** (#115).
+   *
+   * O botão apagava e a pessoa ficava procurando o que estava errado — valor negativo e valor
+   * vazio desabilitavam igual, sem distinção. Campo ainda em branco não acusa nada: avisar antes
+   * de a pessoa digitar é ranzinza, não prestativo.
+   */
+  readonly erroDoValor = computed(() => {
+    const bruto = this.formValor().trim();
+    if (!bruto) return '';
+    const valor = Number(bruto);
+    if (Number.isNaN(valor)) return 'Digite o valor em números, como 1840,55.';
+    if (valor <= 0) return 'O valor precisa ser maior que zero.';
+    return '';
+  });
+
   ngOnInit(): void {
     this.carteiraApi.listar().subscribe({
       next: (pagina) => {
