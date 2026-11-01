@@ -353,4 +353,77 @@ describe('PrazosContador', () => {
       expect(cmp.erroDoValor()).toBe('');
     });
   });
+
+  /**
+   * A cobrança do cliente selecionado (#94).
+   *
+   * O id vai no **caminho** porque é de outra pessoa — o cliente da carteira —, e é essa a
+   * diferença para o lado do produtor, onde o id some e vem do token.
+   */
+  describe('cobrar o cliente no WhatsApp', () => {
+    it('usa a rota do escritório, com o id do cliente selecionado', () => {
+      const cmp = montar().componentInstance;
+      cmp.clienteId.set('p-9');
+
+      cmp.cobrarCliente();
+      expect(cmp.cobrando()).toBe(true);
+
+      const req = httpMock.expectOne('/contador/produtores/p-9/notificacao/proximas-obrigacoes');
+      expect(req.request.method).toBe('POST');
+      req.flush({ enviados: 2, urgentes: 1, notificacaoId: 'n1' });
+
+      expect(cmp.cobrando()).toBe(false);
+    });
+
+    it('sem cliente escolhido não dispara nada', () => {
+      const cmp = montar().componentInstance;
+      cmp.clienteId.set(null);
+
+      cmp.cobrarCliente();
+
+      httpMock.expectNone((r) => r.url.includes('/notificacao'));
+    });
+
+    /** Clique repetido enquanto a primeira cobrança está em voo não manda duas. */
+    it('não dispara duas vezes enquanto a primeira não volta', () => {
+      const cmp = montar().componentInstance;
+      cmp.clienteId.set('p-9');
+
+      cmp.cobrarCliente();
+      cmp.cobrarCliente();
+
+      const reqs = httpMock.match((r) => r.url.includes('/notificacao'));
+      expect(reqs).toHaveLength(1);
+      reqs[0]!.flush({ enviados: 1, urgentes: 0, notificacaoId: 'n1' });
+    });
+
+    /** `enviados: 0` é sucesso: não havia o que cobrar. O botão volta ao normal. */
+    it('zero a cobrar não é erro', () => {
+      const cmp = montar().componentInstance;
+      cmp.clienteId.set('p-9');
+
+      cmp.cobrarCliente();
+      httpMock
+        .expectOne((r) => r.url.includes('/notificacao'))
+        .flush({ enviados: 0, urgentes: 0, notificacaoId: 'n1' });
+
+      expect(cmp.cobrando()).toBe(false);
+    });
+
+    /** Cliente sem WhatsApp **não** é "nada a cobrar" — e quem cadastra o número é o cliente. */
+    it('CONTATO_AUSENTE devolve o botão e não trava a tela', () => {
+      const cmp = montar().componentInstance;
+      cmp.clienteId.set('p-9');
+
+      cmp.cobrarCliente();
+      httpMock
+        .expectOne((r) => r.url.includes('/notificacao'))
+        .flush(
+          { errors: [{ code: 'CONTATO_AUSENTE', message: 'Sem WhatsApp.' }] },
+          { status: 422, statusText: 'Unprocessable Entity' },
+        );
+
+      expect(cmp.cobrando()).toBe(false);
+    });
+  });
 });

@@ -13,8 +13,10 @@ import { CalendarioApi } from '@services/calendario/data-access/calendario.servi
 import {
   NotificacaoApi,
   type NotificacaoError,
+  type NotificacaoRegistrada,
 } from '@services/notificacao/data-access/notificacao.service';
 import { ToastService } from '@core/services/toast.service';
+import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
 import { switchMap } from 'rxjs';
 import { AuthApi } from '@services/auth/data-access/auth.service';
@@ -31,6 +33,7 @@ import { AuthApi } from '@services/auth/data-access/auth.service';
     LucideMessageCircle,
     LucideLoaderCircle,
     LucideRefreshCw,
+    UiSkeleton,
   ],
   templateUrl: './prazos-produtor.html',
 })
@@ -171,6 +174,11 @@ export class PrazosProdutor implements OnInit {
 
   /** Hoje em `AAAA-MM-DD`, fixado na carga: a data não pode mudar no meio de um computed. */
   private readonly hoje = signal(PrazosProdutor.hojeISO());
+
+  // ── Histórico de avisos (#94) ──
+
+  readonly avisos = signal<NotificacaoRegistrada[]>([]);
+  readonly carregandoAvisos = signal(false);
 
   /**
    * Tudo que vence na janela, do que vence primeiro ao que vence por último.
@@ -327,6 +335,63 @@ export class PrazosProdutor implements OnInit {
 
   ngOnInit(): void {
     this.carregar();
+    this.carregarAvisos();
+  }
+
+  /**
+   * O que já foi avisado, e quando (#94).
+   *
+   * **Falha em silêncio de propósito.** O histórico é prestação de contas, não a tarefa: um erro
+   * vermelho aqui roubaria a atenção de quem veio ver os próprios prazos, e a lista some sozinha
+   * quando não há o que mostrar. O disparo, esse sim, grita quando falha.
+   */
+  carregarAvisos(): void {
+    this.carregandoAvisos.set(true);
+    this.notificacaoService.historico().subscribe({
+      next: (h) => {
+        this.avisos.set(h.itens);
+        this.carregandoAvisos.set(false);
+      },
+      error: () => {
+        this.avisos.set([]);
+        this.carregandoAvisos.set(false);
+      },
+    });
+  }
+
+  /** O tipo em português. Tipo novo aparece com o nome cru, melhor que rótulo inventado. */
+  rotuloDoAviso(tipo: string): string {
+    const nomes: Record<string, string> = {
+      PROXIMAS_OBRIGACOES: 'Vencimentos dos próximos 7 dias',
+      TODOS_ATRASADOS: 'Tudo o que está atrasado',
+      MENSAGEM_LIVRE: 'Mensagem',
+    };
+    return nomes[tipo] ?? tipo;
+  }
+
+  /**
+   * De quem partiu o aviso.
+   *
+   * Importa: "o seu escritório cobrou" e "você pediu" são coisas diferentes, e o produtor merece
+   * saber qual foi — ainda mais porque o job diário também registra avisos sozinho.
+   */
+  origemDoAviso(disparadoPor: string): string {
+    const origens: Record<string, string> = {
+      PRODUTOR: 'Você pediu',
+      CONTADOR: 'O seu escritório enviou',
+      SISTEMA: 'Aviso automático',
+    };
+    return origens[disparadoPor] ?? disparadoPor;
+  }
+
+  /** Data e hora do aviso, que é registro — sem a hora, dois avisos do mesmo dia se confundem. */
+  formatDataHora(iso: string): string {
+    return new Date(iso).toLocaleString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   }
 
   /**
@@ -514,6 +579,8 @@ export class PrazosProdutor implements OnInit {
           // `enviados: 0` e SUCESSO -- quer dizer que nao havia nada a avisar.
           this.toastService.info('Nada a avisar: nenhum vencimento nos proximos 7 dias.');
         }
+        // O disparo acabou de criar um registro; sem isto o historico mente ate o proximo F5.
+        this.carregarAvisos();
       },
       error: (erro: NotificacaoError) => {
         this.enviandoNotificacao.set(false);

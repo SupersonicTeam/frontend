@@ -4,11 +4,17 @@ import {
   LucideFileText,
   LucideHandCoins,
   LucidePlus,
+  LucideMessageSquare,
+  LucideLoaderCircle,
   LucideTriangleAlert,
 } from '@lucide/angular';
 import { HttpErrorResponse } from '@angular/common/http';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
 import { ToastService } from '@core/services/toast.service';
+import {
+  NotificacaoApi,
+  type NotificacaoError,
+} from '@services/notificacao/data-access/notificacao.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { CarteiraApi } from '@services/contador/data-access/carteira.service';
@@ -57,6 +63,8 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
     LucideFileText,
     LucideHandCoins,
     LucidePlus,
+    LucideMessageSquare,
+    LucideLoaderCircle,
     LucideTriangleAlert,
   ],
   templateUrl: './prazos-contador.html',
@@ -66,6 +74,7 @@ export class PrazosContador implements OnInit {
   private readonly toast = inject(ToastService);
 
   private readonly carteiraApi = inject(CarteiraApi);
+  private readonly notificacaoApi = inject(NotificacaoApi);
 
   /**
    * De quem sao as guias desta tela (issue #106).
@@ -148,6 +157,59 @@ export class PrazosContador implements OnInit {
     const naFila = new Set(this.aCobrar().map((g) => g.id));
     return this.ordenadas().filter((g) => naFila.has(g.id));
   });
+
+  // ── Cobrança no WhatsApp (#94) ──
+
+  readonly cobrando = signal(false);
+
+  /**
+   * Cobra o cliente selecionado pelo que vence nos próximos 7 dias.
+   *
+   * O id no caminho é o **do cliente**, não o de quem está logado — é a rota do escritório
+   * (`/contador/produtores/{id}/notificacao/...`), e produtor fora da carteira responde 404. Quem
+   * dispara fica registrado como `CONTADOR` no histórico, então o produtor vê que a cobrança veio
+   * do escritório e não de um robô.
+   */
+  cobrarCliente(): void {
+    const cliente = this.clienteId();
+    if (!cliente || this.cobrando()) return;
+
+    this.cobrando.set(true);
+    this.notificacaoApi.cobrarProximasObrigacoes(cliente).subscribe({
+      next: (res) => {
+        this.cobrando.set(false);
+        if (res.enviados > 0) {
+          const urgentes = res.urgentes > 0 ? ` (${res.urgentes} urgente(s))` : '';
+          this.toast.success(`${res.enviados} aviso(s) enviado(s) ao cliente${urgentes}.`);
+        } else {
+          // `enviados: 0` e sucesso: nao havia o que cobrar.
+          this.toast.info('Nada a cobrar: este cliente não tem vencimento nos próximos 7 dias.');
+        }
+      },
+      error: (erro: NotificacaoError) => {
+        this.cobrando.set(false);
+        this.toast.error(PrazosContador.mensagemDaCobranca(erro));
+      },
+    });
+  }
+
+  /**
+   * O que dizer quando a cobrança não sai.
+   *
+   * **Cliente sem WhatsApp não é "nada a cobrar"** — e aqui o recado é para o escritório, que não
+   * cadastra o número do cliente: ele precisa pedir, não corrigir.
+   */
+  private static mensagemDaCobranca(erro: NotificacaoError): string {
+    if (erro?.codigo === 'CONTATO_AUSENTE') {
+      return 'Este cliente não tem WhatsApp cadastrado. Peça o número a ele.';
+    }
+    if (erro?.codigo === 'LIMITE_NOTIFICACOES') {
+      const espera = erro.retryAfterSegundos;
+      const quando = espera ? ` Tente em ${Math.ceil(espera / 60)} min.` : '';
+      return `Muitas cobranças seguidas para este cliente.${quando}`;
+    }
+    return erro?.message || 'Não foi possível cobrar este cliente.';
+  }
 
   // ── Lançar guia ──
   readonly showNovaGuia = signal(false);
