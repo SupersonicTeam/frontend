@@ -28,6 +28,20 @@
         </select>
       </label>
     }
+    <!-- Cobrança do cliente selecionado (#94). Fica aqui, e não na fila de guias, porque a
+         pergunta desta tela é "de quem eu cobro hoje" -- e a resposta é o cliente que está no
+         seletor ao lado. Sem cliente escolhido não há a quem cobrar, então o botão não existe. -->
+    @if (clienteAtual(); as cliente) {
+      <ui-button variant="ghost" [disabled]="cobrando()" (click)="cobrarCliente()">
+        @if (cobrando()) {
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" />
+          Cobrando…
+        } @else {
+          <svg lucideMessageSquare [size]="16" />
+          Cobrar no WhatsApp
+        }
+      </ui-button>
+    }
     <ui-button (click)="abrirNovaGuia()">
       <svg lucidePlus [size]="16" />
       Lançar guia

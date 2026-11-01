@@ -390,4 +390,72 @@
       </p>
     }
   </section>
+
+  <!--
+    ── AVISOS ENVIADOS (#94) ──
+    Prestação de contas do WhatsApp: o que saiu, quando e de quem partiu. O produtor dispara o
+    aviso no topo desta mesma tela, então o registro mora aqui embaixo, perto do botão.
+
+    "Você pediu" e "o seu escritório enviou" são coisas diferentes, e o job diário também registra
+    sozinho -- sem a origem, o produtor não sabe se foi cobrado ou se foi ele quem pediu.
+  -->
+  <section class="rounded-card border border-border bg-surface p-5">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h2 class="font-heading text-base font-semibold text-foreground">Avisos enviados</h2>
+      @if (avisos().length) {
+        <span class="text-apoio text-muted-foreground">{{ avisos().length }} no total</span>
+      }
+    </div>
+
+    @if (carregandoAvisos()) {
+      <div class="mt-3">
+        <ui-skeleton [linhas]="2" formato="bloco" altura="3.5rem" />
+      </div>
+    } @else if (avisos().length === 0) {
+      <p class="mt-2 text-apoio text-muted-foreground">
+        Nenhum aviso ainda. Use "Notificar WhatsApp" para receber os vencimentos dos próximos 7
+        dias.
+      </p>
+    } @else {
+      <ul class="mt-3 divide-y divide-border">
+        @for (aviso of avisos(); track aviso.id) {
+          <li class="py-3 first:pt-0 last:pb-0">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <p class="text-apoio font-medium text-foreground">
+                {{ rotuloDoAviso(aviso.tipo) }}
+              </p>
+              <span class="text-apoio text-muted-foreground">
+                {{ origemDoAviso(aviso.disparadoPor) }} · {{ formatDataHora(aviso.criadoEm) }}
+              </span>
+            </div>
+
+            <p class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-apoio">
+              <span class="text-muted-foreground"> {{ aviso.quantidadeItens }} item(ns) </span>
+              @if (aviso.urgentes > 0) {
+                <span class="rounded-full bg-aviso-soft px-2 py-0.5 text-aviso-ink">
+                  {{ aviso.urgentes }} urgente(s)
+                </span>
+              }
+            </p>
+
+            <!-- O texto que saiu, recolhido: ele e longo e repete o que as linhas acima resumem,
+                 mas e a unica prova do que a pessoa recebeu no telefone. `<details>` nativo, sem
+                 estado nem JS. -->
+            @if (aviso.texto) {
+              <details class="mt-1.5">
+                <summary class="tap-target cursor-pointer text-apoio text-primary">
+                  Ver a mensagem
+                </summary>
+                <p
+                  class="mt-1.5 rounded-controle bg-card p-3 text-apoio whitespace-pre-line text-muted-foreground"
+                >
+                  {{ aviso.texto }}
+                </p>
+              </details>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </section>
 </div>

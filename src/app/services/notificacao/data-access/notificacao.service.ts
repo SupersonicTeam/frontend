@@ -11,8 +11,14 @@ export interface DisparoNotificacao {
   enviados: number;
   /** Destes, quantos vencem hoje ou amanhã. */
   urgentes: number;
-  /** O registro criado; é ele que aparece no histórico. */
-  notificacaoId: string;
+  /**
+   * O registro criado, ou **`null`** quando não houve o que avisar.
+   *
+   * Medido em 01/11: com `enviados: 0` o servidor responde `notificacaoId: null` e **não cria
+   * registro** — o histórico não ganha linha nenhuma. Faz sentido: avisar ninguém de nada não é
+   * um aviso. Quem for usar este id para abrir o detalhe precisa contar com o nulo.
+   */
+  notificacaoId: string | null;
 }
 
 /** Uma linha do histórico (`GET /api/notificacao`). */

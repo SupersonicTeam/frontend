@@ -99,6 +99,23 @@ describe('NotificacaoApi', () => {
     expect(visto?.enviados).toBe(0);
   });
 
+  /**
+   * Medido em 01/11: sem nada a avisar o servidor devolve `notificacaoId: null` e **não cria
+   * registro**. O tipo precisa admitir o nulo, senão quem usar o id para abrir o detalhe quebra
+   * exatamente no caso mais comum — o dia em que não há vencimento.
+   */
+  it('sem nada a avisar, o id do registro vem nulo', () => {
+    let visto: DisparoNotificacao | undefined;
+    api.notificarProximasObrigacoes().subscribe((d) => (visto = d));
+
+    httpMock
+      .expectOne('/notificacao/proximas-obrigacoes')
+      .flush({ enviados: 0, urgentes: 0, notificacaoId: null });
+
+    expect(visto?.notificacaoId).toBeNull();
+    expect(visto?.enviados).toBe(0);
+  });
+
   describe('histórico', () => {
     /** Array mais `X-Total-Count`, como a carteira — **não** `Page<T>`. */
     it('lê o total do header, não do tamanho da lista', () => {

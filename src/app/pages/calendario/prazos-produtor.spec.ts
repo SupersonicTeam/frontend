@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
@@ -49,7 +50,12 @@ describe('PrazosProdutor', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => {
+    // O historico de avisos (#94) e carregado na abertura da tela e nao e assunto destes testes,
+    // que sao sobre prazos. Drenado aqui, num lugar so, em vez de em cada `createComponent`.
+    httpMock.match((r) => r.url === '/api/notificacao').forEach((r) => r.flush([]));
+    httpMock.verify();
+  });
 
   /**
    * Era o flush da segunda fonte do calendario. Virou **guarda**.
@@ -515,7 +521,20 @@ describe('PrazosProdutor', () => {
     expect(texto).toContain('ICMS');
   });
 
+  /**
+   * **A data fica presa aqui, e o motivo custou uma manhã.**
+   *
+   * O teste usava "ontem" de verdade. No dia 1º de qualquer mês, ontem cai no mês **anterior** —
+   * fora da grade que a tela desenha —, então `diaClass(31)` voltava ao padrão e a suíte amanhecia
+   * vermelha sozinha, sem ninguém ter tocado no código. Aconteceu em 01/11/2026.
+   *
+   * Com o relógio preso num dia do meio do mês, "ontem" continua no mesmo mês e o teste passa a
+   * medir o que diz medir: que o atraso manda na cor, mesmo com uma guia paga no mesmo dia.
+   */
   it('o atraso manda na cor do dia, mesmo com uma guia paga no mesmo dia', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 15, 12, 0, 0));
+
     // O alívio de ter pago uma não apaga o problema da outra.
     const fixture = TestBed.createComponent(PrazosProdutor);
     const cmp = fixture.componentInstance;
@@ -555,6 +574,8 @@ describe('PrazosProdutor', () => {
     expect(cmp.diasComPrazo()[dia].quantidade).toBe(2);
     expect(cmp.rotuloDoDia(dia)).toContain('2 prazos');
     expect(cmp.rotuloDoDia(dia)).toContain('atraso');
+
+    vi.useRealTimers();
   });
 
   it('o cabeçalho da grade diz quantos prazos o mês tem', () => {
@@ -675,6 +696,85 @@ describe('PrazosProdutor', () => {
 
       expect(cmp.rotuloPeriodicidade('MENSAL')).toBe('todo mês');
       expect(cmp.atrasados()[0]!.origem).toBe('RN004 (apuracao mensal de IBS/CBS)');
+    });
+  });
+
+  /**
+   * O histórico de avisos (#94) — prestação de contas do WhatsApp.
+   *
+   * O produtor dispara o aviso no topo desta tela; o registro do que saiu mora no fim dela.
+   */
+  describe('avisos enviados', () => {
+    const aviso = (over: Partial<Record<string, unknown>> = {}) => ({
+      id: 'n1',
+      tipo: 'PROXIMAS_OBRIGACOES',
+      canal: 'WHATSAPP',
+      status: 'REGISTRADA',
+      texto: 'AgroContabil: vencimentos dos proximos 7 dias.',
+      quantidadeItens: 2,
+      urgentes: 1,
+      disparadoPor: 'PRODUTOR',
+      criadoEm: '2026-10-31T19:01:20.196184Z',
+      ...over,
+    });
+
+    /** Monta a tela drenando o calendário, para sobrar só o histórico. */
+    function abrirCom(itens: unknown[]) {
+      const fixture = TestBed.createComponent(PrazosProdutor);
+      const cmp = fixture.componentInstance;
+      fixture.detectChanges();
+      httpMock.match((r) => r.url.includes('/calendario-fiscal')).forEach((r) => r.flush([]));
+      httpMock.match((r) => r.url === '/api/notificacao').forEach((r) => r.flush(itens));
+      fixture.detectChanges();
+      return cmp;
+    }
+
+    it('busca o histórico na abertura e o mostra', () => {
+      const cmp = abrirCom([aviso()]);
+
+      expect(cmp.avisos()).toHaveLength(1);
+      expect(cmp.carregandoAvisos()).toBe(false);
+    });
+
+    /**
+     * **Falha em silêncio de propósito**: o histórico é periférico, e um erro vermelho aqui
+     * roubaria a atenção de quem veio ver os próprios prazos.
+     */
+    it('falha do histórico não acende erro na tela', () => {
+      const fixture = TestBed.createComponent(PrazosProdutor);
+      const cmp = fixture.componentInstance;
+      fixture.detectChanges();
+      httpMock.match((r) => r.url.includes('/calendario-fiscal')).forEach((r) => r.flush([]));
+      httpMock
+        .match((r) => r.url === '/api/notificacao')
+        .forEach((r) => r.flush(null, { status: 500, statusText: 'Server Error' }));
+
+      expect(cmp.avisos()).toEqual([]);
+      expect(cmp.carregandoAvisos()).toBe(false);
+    });
+
+    /** "Você pediu" e "o seu escritório enviou" são coisas diferentes, e o job diário é uma terceira. */
+    it.each([
+      ['PRODUTOR', 'Você pediu'],
+      ['CONTADOR', 'O seu escritório enviou'],
+      ['SISTEMA', 'Aviso automático'],
+    ])('a origem %s é dita em português', (origem, esperado) => {
+      expect(abrirCom([]).origemDoAviso(origem)).toBe(esperado);
+    });
+
+    /** Tipo ou origem que o backend inventar aparece cru — melhor que rótulo adivinhado. */
+    it('o que não conhece sai com o nome do servidor', () => {
+      const cmp = abrirCom([]);
+
+      expect(cmp.rotuloDoAviso('ALGO_NOVO')).toBe('ALGO_NOVO');
+      expect(cmp.origemDoAviso('ROBO')).toBe('ROBO');
+    });
+
+    it('traduz os tipos conhecidos', () => {
+      const cmp = abrirCom([]);
+
+      expect(cmp.rotuloDoAviso('PROXIMAS_OBRIGACOES')).toContain('próximos 7 dias');
+      expect(cmp.rotuloDoAviso('TODOS_ATRASADOS')).toContain('atrasado');
     });
   });
 });
