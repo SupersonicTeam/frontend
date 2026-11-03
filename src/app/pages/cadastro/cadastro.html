@@ -1,0 +1,180 @@
+<div class="flex min-h-screen items-center justify-center bg-background p-4">
+  <div class="w-full max-w-md space-y-6">
+    <div class="flex flex-col items-center gap-2 text-center">
+      <img
+        src="/agroconia-horizontal.svg"
+        width="1617"
+        height="400"
+        alt="AgroConIA"
+        class="block h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 dark:hidden"
+      />
+      <img
+        src="/agroconia-horizontal-negativo.svg"
+        width="1617"
+        height="400"
+        alt=""
+        aria-hidden="true"
+        class="hidden h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 dark:block"
+      />
+    </div>
+
+    <form
+      class="space-y-5 rounded-card border border-border bg-card p-6 shadow-suave"
+      (ngSubmit)="criar()"
+      novalidate
+    >
+      <h1 class="font-heading text-xl font-semibold text-foreground">Criar conta</h1>
+
+      @if (erro()) {
+        <p
+          role="alert"
+          class="rounded-controle border border-perigo-borda bg-perigo-soft px-3 py-2 text-apoio text-perigo-ink"
+        >
+          {{ erro() }}
+        </p>
+      }
+
+      <!-- O papel é escolhido UMA vez, aqui. Depois ele vem no token e a interface se decide
+           sozinha — não é mais a escolha cosmética do login de sabor da #23. -->
+      <fieldset>
+        <legend class="mb-1.5 block text-apoio font-medium text-foreground">Você é</legend>
+        <div class="grid gap-2 sm:grid-cols-2">
+          @for (
+            opcao of [
+              { valor: 'PRODUTOR', rotulo: 'Produtor rural' },
+              { valor: 'CONTADOR', rotulo: 'Contador' },
+            ];
+            track opcao.valor
+          ) {
+            <label
+              class="tap-target flex cursor-pointer items-center gap-2 rounded-controle border bg-background px-3 text-apoio"
+              [class.border-border]="papel() !== opcao.valor"
+              [class.border-primary]="papel() === opcao.valor"
+              [class.text-primary]="papel() === opcao.valor"
+              [class.font-medium]="papel() === opcao.valor"
+            >
+              <input
+                type="radio"
+                name="papel"
+                class="accent-primary"
+                [value]="opcao.valor"
+                [checked]="papel() === opcao.valor"
+                (change)="papel.set($any(opcao.valor))"
+              />
+              {{ opcao.rotulo }}
+            </label>
+          }
+        </div>
+      </fieldset>
+
+      <div>
+        <label for="cad-nome" class="mb-1.5 block text-apoio font-medium text-foreground">
+          Nome completo
+        </label>
+        <input
+          id="cad-nome"
+          name="nome"
+          type="text"
+          autocomplete="name"
+          required
+          class="tap-target w-full rounded-controle border border-border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+          [value]="nome()"
+          (input)="nome.set($any($event.target).value)"
+        />
+      </div>
+
+      <div>
+        <label for="cad-doc" class="mb-1.5 block text-apoio font-medium text-foreground">
+          CPF ou CNPJ
+        </label>
+        <input
+          id="cad-doc"
+          name="cpfCnpj"
+          type="text"
+          inputmode="numeric"
+          placeholder="000.000.000-00"
+          required
+          class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+          [class.border-border]="!cpfCnpj() || documentoValido()"
+          [class.border-perigo]="cpfCnpj() && !documentoValido()"
+          [value]="cpfCnpj()"
+          (input)="aoDigitarDocumento($event)"
+        />
+        @if (cpfCnpj() && !documentoValido()) {
+          <p class="mt-1.5 text-apoio text-perigo-ink">
+            Digite um CPF (11 dígitos) ou um CNPJ (14 dígitos).
+          </p>
+        }
+      </div>
+
+      <div>
+        <label for="cad-email" class="mb-1.5 block text-apoio font-medium text-foreground">
+          E-mail
+        </label>
+        <input
+          id="cad-email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          inputmode="email"
+          required
+          placeholder="voce@exemplo.com.br"
+          class="tap-target w-full rounded-controle border border-border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+          [value]="email()"
+          (input)="email.set($any($event.target).value)"
+        />
+      </div>
+
+      <div>
+        <label for="cad-senha" class="mb-1.5 block text-apoio font-medium text-foreground">
+          Senha
+        </label>
+        <input
+          id="cad-senha"
+          name="senha"
+          type="password"
+          autocomplete="new-password"
+          required
+          class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+          [class.border-border]="!erroSenha()"
+          [class.border-perigo]="erroSenha()"
+          [attr.aria-invalid]="erroSenha() ? 'true' : null"
+          [attr.aria-describedby]="erroSenha() ? 'cad-senha-erro' : 'cad-senha-dica'"
+          [value]="senha()"
+          (input)="senha.set($any($event.target).value)"
+        />
+        <!-- A regra completa é do servidor (lista de senhas comuns, e-mail e documento dentro da
+             senha). Aqui vai só o mínimo que ajuda a acertar de primeira; o resto ele diz, e com
+             mais precisão do que o cliente conseguiria. -->
+        @if (erroSenha()) {
+          <p id="cad-senha-erro" role="alert" class="mt-1.5 text-apoio text-perigo-ink">
+            {{ erroSenha() }}
+          </p>
+        } @else {
+          <p id="cad-senha-dica" class="mt-1.5 text-apoio text-muted-foreground">
+            No mínimo 10 caracteres, e que não contenha o seu e-mail nem o seu CPF/CNPJ.
+          </p>
+        }
+      </div>
+
+      <button
+        type="submit"
+        class="tap-target inline-flex w-full items-center justify-center gap-2 rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+        [disabled]="!podeEnviar()"
+      >
+        @if (enviando()) {
+          <svg lucideLoaderCircle [size]="18" class="animate-spin" aria-hidden="true"></svg>
+          Criando…
+        } @else {
+          <svg lucideUserPlus [size]="18" aria-hidden="true"></svg>
+          Criar conta
+        }
+      </button>
+
+      <p class="text-center text-apoio text-muted-foreground">
+        Já tem conta?
+        <a routerLink="/login" class="font-medium text-primary hover:underline">Entrar</a>
+      </p>
+    </form>
+  </div>
+</div>

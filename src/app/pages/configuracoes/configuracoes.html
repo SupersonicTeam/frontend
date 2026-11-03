@@ -81,19 +81,99 @@
     </div>
   </ui-card>
 
-  <!-- Acesso. Aqui havia um formulario completo de troca de senha — senha atual,
-       nova, confirmar — num sistema que nao tem senha, e o botao "Atualizar
-       senha" nem handler tinha. -->
-  <div class="flex flex-col gap-3 rounded-card border border-border bg-card p-5 shadow-suave">
+  <!-- Acesso (#131).
+       Aqui houve, em momentos diferentes, duas coisas erradas: primeiro um formulario completo de
+       troca de senha num sistema que nao tinha senha, com um botao sem handler; depois, quando
+       aquilo saiu, um texto dizendo que "esta versao ainda nao tem login com senha" -- que virou
+       mentira no dia em que a #93 entrou. Agora as duas acoes existem de verdade e fazem o que
+       prometem. -->
+  <div class="flex flex-col gap-4 rounded-card border border-border bg-card p-5 shadow-suave">
     <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
       <svg lucideLock [size]="18" class="text-primary" />
       Acesso
     </h2>
-    <p class="text-apoio leading-relaxed text-muted-foreground">
-      Esta versão <strong class="text-foreground">ainda não tem login com senha</strong>. A tela
-      inicial apenas separa a experiência do produtor e a do contador, para a demonstração.
-      Autenticação e controle de acesso entram junto com o módulo de cadastro.
-    </p>
+
+    <form class="flex flex-col gap-3" (ngSubmit)="trocarSenha()" novalidate>
+      <p class="text-apoio leading-relaxed text-muted-foreground">
+        Ao trocar a senha, <strong class="text-foreground">todas as sessões são encerradas</strong>
+        — inclusive esta. Você entra de novo com a senha nova.
+      </p>
+
+      @if (erroAcesso()) {
+        <p
+          role="alert"
+          class="rounded-controle border border-perigo-borda bg-perigo-soft px-3 py-2 text-apoio text-perigo-ink"
+        >
+          {{ erroAcesso() }}
+        </p>
+      }
+
+      <div>
+        <label for="cfg-senha-atual" class="mb-1.5 block text-apoio font-medium text-foreground">
+          Senha atual
+        </label>
+        <input
+          id="cfg-senha-atual"
+          name="senhaAtual"
+          type="password"
+          autocomplete="current-password"
+          class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+          [class.border-border]="!erroSenhaAtual()"
+          [class.border-perigo]="erroSenhaAtual()"
+          [attr.aria-invalid]="erroSenhaAtual() ? 'true' : null"
+          [attr.aria-describedby]="erroSenhaAtual() ? 'cfg-senha-atual-erro' : null"
+          [value]="senhaAtual()"
+          (input)="senhaAtual.set($any($event.target).value)"
+        />
+        @if (erroSenhaAtual()) {
+          <p id="cfg-senha-atual-erro" role="alert" class="mt-1.5 text-apoio text-perigo-ink">
+            {{ erroSenhaAtual() }}
+          </p>
+        }
+      </div>
+
+      <div>
+        <label for="cfg-senha-nova" class="mb-1.5 block text-apoio font-medium text-foreground">
+          Senha nova
+        </label>
+        <input
+          id="cfg-senha-nova"
+          name="novaSenha"
+          type="password"
+          autocomplete="new-password"
+          class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+          [class.border-border]="!erroSenhaNova()"
+          [class.border-perigo]="erroSenhaNova()"
+          [attr.aria-invalid]="erroSenhaNova() ? 'true' : null"
+          [attr.aria-describedby]="erroSenhaNova() ? 'cfg-senha-nova-erro' : 'cfg-senha-nova-dica'"
+          [value]="novaSenha()"
+          (input)="novaSenha.set($any($event.target).value)"
+        />
+        @if (erroSenhaNova()) {
+          <p id="cfg-senha-nova-erro" role="alert" class="mt-1.5 text-apoio text-perigo-ink">
+            {{ erroSenhaNova() }}
+          </p>
+        } @else {
+          <p id="cfg-senha-nova-dica" class="mt-1.5 text-apoio text-muted-foreground">
+            No mínimo 10 caracteres, e que não contenha o seu e-mail nem o seu CPF/CNPJ.
+          </p>
+        }
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <ui-button type="submit" [disabled]="!podeTrocarSenha()" [carregando]="trocandoSenha()">
+          Trocar a senha
+        </ui-button>
+        <ui-button
+          variant="ghost"
+          type="button"
+          [disabled]="saindoDeTodos()"
+          (click)="sairDeTodos()"
+        >
+          Sair de todos os dispositivos
+        </ui-button>
+      </div>
+    </form>
   </div>
 
   <!-- ── Catálogo de obrigações do escritório (backend#181) ──

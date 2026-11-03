@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { LucideLoaderCircle, LucideLogIn } from '@lucide/angular';
 import { SessaoService } from '@core/services/sessao.service';
 import { AuthApi } from '@services/auth/data-access/auth.service';
@@ -21,7 +21,7 @@ import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule, LucideLogIn, LucideLoaderCircle],
+  imports: [FormsModule, RouterLink, LucideLogIn, LucideLoaderCircle],
   templateUrl: './login.html',
 })
 export class LoginPage {
