@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="266 256 1400 1400" role="img" aria-label="AgroConIA"><title>AgroConIA</title>
+  <defs>
+    <linearGradient id="lsL" gradientUnits="userSpaceOnUse" x1="790" y1="0" x2="950" y2="0">
+      <stop offset="0" stop-color="#03352A" stop-opacity="0"/><stop offset="1" stop-color="#03352A" stop-opacity="0.42"/>
+    </linearGradient>
+    <linearGradient id="lhL" gradientUnits="userSpaceOnUse" x1="351" y1="983" x2="900" y2="1250">
+      <stop offset="0" stop-color="#6FCF5E"/><stop offset="0.55" stop-color="#6FCF5E" stop-opacity="0.8"/><stop offset="1" stop-color="#6FCF5E" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="lbL" gradientUnits="userSpaceOnUse" x1="420" y1="1000" x2="940" y2="1560">
+      <stop offset="0" stop-color="#2CBA74"/><stop offset="0.55" stop-color="#14A063"/><stop offset="1" stop-color="#0C8558"/>
+    </linearGradient>
+    <linearGradient id="loL" gradientUnits="userSpaceOnUse" x1="700" y1="1250" x2="470" y2="1520">
+      <stop offset="0" stop-color="#0F8F5E"/><stop offset="1" stop-color="#08654B"/>
+    </linearGradient>
+    <clipPath id="lcL"><path d="M369 985 C620 1010 860 1150 930 1300 C948 1350 950 1450 946 1530 Q943 1574 930 1594 C900 1410 760 1250 569 1165 C720 1250 860 1430 912 1592 C640 1586 380 1420 352 1001 Q351 983 369 985 Z"/></clipPath>
+    <linearGradient id="lsR" gradientUnits="userSpaceOnUse" x1="790" y1="0" x2="950" y2="0">
+      <stop offset="0" stop-color="#24561F" stop-opacity="0"/><stop offset="1" stop-color="#24561F" stop-opacity="0.42"/>
+    </linearGradient>
+    <linearGradient id="lhR" gradientUnits="userSpaceOnUse" x1="351" y1="983" x2="900" y2="1250">
+      <stop offset="0" stop-color="#D8F07A"/><stop offset="0.55" stop-color="#D8F07A" stop-opacity="0.8"/><stop offset="1" stop-color="#D8F07A" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="lbR" gradientUnits="userSpaceOnUse" x1="420" y1="1000" x2="940" y2="1560">
+      <stop offset="0" stop-color="#BDE862"/><stop offset="0.55" stop-color="#94D14A"/><stop offset="1" stop-color="#6FB246"/>
+    </linearGradient>
+    <linearGradient id="loR" gradientUnits="userSpaceOnUse" x1="700" y1="1250" x2="470" y2="1520">
+      <stop offset="0" stop-color="#7FBF48"/><stop offset="1" stop-color="#478F42"/>
+    </linearGradient>
+    <clipPath id="lcR"><path d="M369 985 C620 1010 860 1150 930 1300 C948 1350 950 1450 946 1530 Q943 1574 930 1594 C900 1410 760 1250 569 1165 C720 1250 860 1430 912 1592 C640 1586 380 1420 352 1001 Q351 983 369 985 Z"/></clipPath>
+    <linearGradient id="stemG" gradientUnits="userSpaceOnUse" x1="0" y1="1150" x2="0" y2="1288"><stop offset="0" stop-color="#2E8B57"/><stop offset="1" stop-color="#8CD150"/></linearGradient>
+  </defs>
+  <path d="M372.6 949.2 C330 860 360 730 462 700 C440 560 560 450 665 475 C680 360 880 300 966 410 C1052 300 1252 360 1267 475 C1372 450 1492 560 1470 700 C1572 730 1602 860 1559.4 949.2 L1539.8 951.4 L1520.3 954.0 L1500.8 957.0 L1481.5 960.5 L1462.2 964.3 L1443.1 968.6 L1424.2 973.3 L1405.3 978.3 L1386.7 983.7 L1368.3 989.4 L1350.0 995.5 L1331.9 1001.9 L1314.1 1008.7 L1296.5 1015.7 L1279.2 1023.1 L1262.2 1030.8 L1245.4 1038.8 L1228.9 1047.0 L1212.7 1055.5 L1196.8 1064.3 L1181.3 1073.4 L1166.2 1082.7 L1151.3 1092.2 L1136.9 1101.9 L1122.9 1111.9 L1109.2 1122.1 L1096.0 1132.5 L1083.2 1143.1 L1070.9 1154.0 L1059.0 1165.0 L1047.6 1176.2 L1036.7 1187.5 L1026.4 1199.1 L1016.5 1210.8 L1007.2 1222.7 L998.4 1234.8 L990.2 1247.1 L982.6 1259.5 L975.7 1272.0 L969.4 1284.8 L968.1 1287.8 L966.5 1292.6 L966 1294.1 L965.5 1292.6 L963.9 1287.8 L962.6 1284.8 L956.3 1272.0 L949.4 1259.5 L941.8 1247.1 L933.6 1234.8 L924.8 1222.7 L915.5 1210.8 L905.6 1199.1 L895.3 1187.5 L884.4 1176.2 L873.0 1165.0 L861.1 1154.0 L848.8 1143.1 L836.0 1132.5 L822.8 1122.1 L809.1 1111.9 L795.1 1101.9 L780.7 1092.2 L765.8 1082.7 L750.7 1073.4 L735.2 1064.3 L719.3 1055.5 L703.1 1047.0 L686.6 1038.8 L669.8 1030.8 L652.8 1023.1 L635.5 1015.7 L617.9 1008.7 L600.1 1001.9 L582.0 995.5 L563.7 989.4 L545.3 983.7 L526.7 978.3 L507.8 973.3 L488.9 968.6 L469.8 964.3 L450.5 960.5 L431.2 957.0 L411.7 954.0 L392.2 951.4 Z" fill="#1B4630"/>
+  <g transform="translate(0 0)"><path d="M369 985 C620 1010 860 1150 930 1300 C948 1350 950 1450 946 1530 Q943 1574 930 1594 C900 1410 760 1250 569 1165 C720 1250 860 1430 912 1592 C640 1586 380 1420 352 1001 Q351 983 369 985 Z" fill="url(#lbL)"/><path d="M569 1165 C720 1250 860 1430 912 1592 C640 1586 380 1420 352 1001 Q450 1060 569 1165 Z" fill="url(#loL)"/><path d="M369 985 C620 1010 860 1150 930 1300 C948 1350 950 1450 946 1530 Q943 1574 930 1594 C900 1410 760 1250 569 1165 C720 1250 860 1430 912 1592 C640 1586 380 1420 352 1001 Q351 983 369 985 Z" fill="url(#lsL)"/><path d="M369 985 C620 1010 860 1150 930 1300" fill="none" stroke="url(#lhL)" stroke-width="28" clip-path="url(#lcL)"/></g>
+  <g transform="translate(0 0) matrix(-1 0 0 1 1932 0)"><path d="M369 985 C620 1010 860 1150 930 1300 C948 1350 950 1450 946 1530 Q943 1574 930 1594 C900 1410 760 1250 569 1165 C720 1250 860 1430 912 1592 C640 1586 380 1420 352 1001 Q351 983 369 985 Z" fill="url(#lbR)"/><path d="M569 1165 C720 1250 860 1430 912 1592 C640 1586 380 1420 352 1001 Q450 1060 569 1165 Z" fill="url(#loR)"/><path d="M369 985 C620 1010 860 1150 930 1300 C948 1350 950 1450 946 1530 Q943 1574 930 1594 C900 1410 760 1250 569 1165 C720 1250 860 1430 912 1592 C640 1586 380 1420 352 1001 Q351 983 369 985 Z" fill="url(#lsR)"/><path d="M369 985 C620 1010 860 1150 930 1300" fill="none" stroke="url(#lhR)" stroke-width="28" clip-path="url(#lcR)"/></g>
+  <path d="M800 890 L851 941 V1080 M1132 890 L1081 941 V1080" fill="none" stroke="#2E8B57" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M635 655 L966 986 M1297 655 L966 986 M540 780 H760 M1392 780 H1172 M725 965 L835 855 M1207 965 L1097 855" fill="none" stroke="#8CD150" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M966 1160 V520" fill="none" stroke="#2E8B57" stroke-width="38" stroke-linecap="round"/>
+  <path d="M947 1150 H985 C985 1220 975 1246 966 1288 C957 1246 947 1220 947 1150 Z" fill="url(#stemG)"/>
+  <path d="M826 568 V700 L940 814 M1106 568 V700 L992 814" fill="none" stroke="#2E8B57" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#8CD150">
+    <circle cx="966" cy="520" r="50"/><circle cx="635" cy="655" r="48"/><circle cx="1297" cy="655" r="48"/>
+    <circle cx="540" cy="780" r="48"/><circle cx="1392" cy="780" r="48"/>
+    <circle cx="725" cy="965" r="48"/><circle cx="1207" cy="965" r="48"/>
+  </g>
+  <g fill="#2E8B57"><circle cx="826" cy="520" r="48"/><circle cx="1106" cy="520" r="48"/>
+    <circle cx="851" cy="1080" r="30"/><circle cx="1081" cy="1080" r="30"/></g>
+</svg>

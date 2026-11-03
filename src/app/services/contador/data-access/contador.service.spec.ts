@@ -2,17 +2,16 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ContadorApi } from './contador.service';
-import {
-  GuiaFiscal,
-} from '@models/solicitacao-contador.model';
+import { GuiaFiscal } from '@models/solicitacao-contador.model';
 
 function flushErro(httpMock: HttpTestingController, urlPart: string): void {
-  httpMock.expectOne(r => r.url.includes(urlPart)).flush('erro', {
-    status: 500,
-    statusText: 'Server Error',
-  });
+  httpMock
+    .expectOne((r) => r.url.includes(urlPart))
+    .flush('erro', {
+      status: 500,
+      statusText: 'Server Error',
+    });
 }
-
 
 describe('ContadorApi', () => {
   let service: ContadorApi;
@@ -45,29 +44,75 @@ describe('ContadorApi', () => {
       // passava so enquanto aquela data nao tinha chegado. O teste nao deve depender do calendario
       // de quem roda a suite.
       const doBackend = [
-        { id: 'g1', produtorId: 'p1', tipoGuia: 'ICMS', dataVencimento: '2099-12-31', valor: 990, status: 'PENDENTE', createdAt: '2026-09-01T10:00:00Z' },
-        { id: 'g2', produtorId: 'p1', tipoGuia: 'FUNRURAL', dataVencimento: '2020-09-20', valor: 1840.55, status: 'PAGA', createdAt: '2026-09-01T10:00:00Z' },
-        { id: 'g3', produtorId: 'p1', tipoGuia: 'GPS', dataVencimento: '2020-09-10', valor: 890, status: 'VENCIDA', createdAt: '2026-09-01T10:00:00Z' },
+        {
+          id: 'g1',
+          produtorId: 'p1',
+          tipoGuia: 'ICMS',
+          dataVencimento: '2099-12-31',
+          valor: 990,
+          status: 'PENDENTE',
+          createdAt: '2026-09-01T10:00:00Z',
+        },
+        {
+          id: 'g2',
+          produtorId: 'p1',
+          tipoGuia: 'FUNRURAL',
+          dataVencimento: '2020-09-20',
+          valor: 1840.55,
+          status: 'PAGA',
+          createdAt: '2026-09-01T10:00:00Z',
+        },
+        {
+          id: 'g3',
+          produtorId: 'p1',
+          tipoGuia: 'GPS',
+          dataVencimento: '2020-09-10',
+          valor: 890,
+          status: 'VENCIDA',
+          createdAt: '2026-09-01T10:00:00Z',
+        },
         // O caso que o backend nao resolve: venceu e ele ainda diz PENDENTE.
-        { id: 'g4', produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2020-01-10', valor: 310, status: 'PENDENTE', createdAt: '2026-09-01T10:00:00Z' },
+        {
+          id: 'g4',
+          produtorId: 'p1',
+          tipoGuia: 'DARF',
+          dataVencimento: '2020-01-10',
+          valor: 310,
+          status: 'PENDENTE',
+          createdAt: '2026-09-01T10:00:00Z',
+        },
       ];
       let resultado: GuiaFiscal[] | undefined;
-      service.getGuias('p1').subscribe(res => (resultado = res));
+      service.getGuias('p1').subscribe((res) => (resultado = res));
 
-      httpMock.expectOne(r => r.url === '/contador/guias').flush(doBackend);
+      httpMock.expectOne((r) => r.url === '/contador/guias').flush(doBackend);
 
-      expect(resultado?.map(g => g.status)).toEqual(['pendente', 'pago', 'vencido', 'vencido']);
+      expect(resultado?.map((g) => g.status)).toEqual(['pendente', 'pago', 'vencido', 'vencido']);
       // O resto do payload passa intacto.
       expect(resultado?.[1]).toMatchObject({ id: 'g2', tipoGuia: 'FUNRURAL', valor: 1840.55 });
     });
 
     it('CTD-10b: status desconhecido vira pendente em vez de vazar cru para a tela', () => {
       let resultado: GuiaFiscal[] | undefined;
-      service.getGuias('p1').subscribe(res => (resultado = res));
+      service.getGuias('p1').subscribe((res) => (resultado = res));
 
-      httpMock.expectOne(r => r.url === '/contador/guias').flush([
-        { id: 'g9', produtorId: 'p1', tipoGuia: 'OUTRO', dataVencimento: '2026-11-01', valor: 10, status: 'EM_ANALISE', createdAt: '2026-09-01T10:00:00Z' },
-      ]);
+      // Data **bem** no futuro, pela mesma razao do fixture acima: o atraso e derivado da data, e
+      // este caso e sobre o STATUS desconhecido, nao sobre vencimento. Estava `2026-11-01` e a
+      // suite virou vermelha sozinha em 03/11, quando aquela data passou -- o teste vizinho ja
+      // tinha aprendido isso e usado 2099, mas este ficou para tras.
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias')
+        .flush([
+          {
+            id: 'g9',
+            produtorId: 'p1',
+            tipoGuia: 'OUTRO',
+            dataVencimento: '2099-12-31',
+            valor: 10,
+            status: 'EM_ANALISE',
+            createdAt: '2026-09-01T10:00:00Z',
+          },
+        ]);
 
       expect(resultado?.[0].status).toBe('pendente');
     });
@@ -75,13 +120,25 @@ describe('ContadorApi', () => {
     it('CTD-10c: a guia recem-criada volta com o status ja traduzido', () => {
       let criada: GuiaFiscal | null | undefined;
       service
-        .anexarGuia({ produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2026-11-10', valor: 500 })
-        .subscribe(res => (criada = res));
+        .anexarGuia({
+          produtorId: 'p1',
+          tipoGuia: 'DARF',
+          dataVencimento: '2026-11-10',
+          valor: 500,
+        })
+        .subscribe((res) => (criada = res));
 
-      httpMock.expectOne(r => r.url === '/contador/guias' && r.method === 'POST').flush({
-        id: 'nova', produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2026-11-10',
-        valor: 500, status: 'PENDENTE', createdAt: '2026-10-05T10:00:00Z',
-      });
+      httpMock
+        .expectOne((r) => r.url === '/contador/guias' && r.method === 'POST')
+        .flush({
+          id: 'nova',
+          produtorId: 'p1',
+          tipoGuia: 'DARF',
+          dataVencimento: '2026-11-10',
+          valor: 500,
+          status: 'PENDENTE',
+          createdAt: '2026-10-05T10:00:00Z',
+        });
 
       expect(criada?.status).toBe('pendente');
     });
@@ -110,7 +167,12 @@ describe('ContadorApi', () => {
     it('CTD-07 (#107): em erro, anexarGuia propaga em vez de devolver null', () => {
       let falhou = false;
       service
-        .anexarGuia({ produtorId: 'p1', tipoGuia: 'DARF', dataVencimento: '2026-10-30', valor: 120 })
+        .anexarGuia({
+          produtorId: 'p1',
+          tipoGuia: 'DARF',
+          dataVencimento: '2026-10-30',
+          valor: 120,
+        })
         .subscribe({ next: () => undefined, error: () => (falhou = true) });
 
       flushErro(httpMock, '/contador/guias');
@@ -127,5 +189,4 @@ describe('ContadorApi', () => {
       expect(deuErro).toBe(true);
     });
   });
-
 });

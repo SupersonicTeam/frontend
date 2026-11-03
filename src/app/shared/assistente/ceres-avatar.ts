@@ -10,10 +10,10 @@ type Tamanho = 'sm' | 'md' | 'lg';
  * gaveta, topo da página `/chat` e cada mensagem dela na conversa). Com o ícone solto em cada um,
  * bastava mexer em três para a assistente ficar com duas caras.
  *
- * A primeira versão usava o símbolo do AgroContábil: era a marca do produto no lugar do rosto da
- * assistente, e isso apagava a diferença entre quem fala (a Ceres) e onde ela fala (o
- * AgroContábil). O arquivo certo é `ceres-avatar.svg` — a folha com os nós da rede, que é a marca
- * dela.
+ * A primeira versão usava o símbolo do produto: era a marca da plataforma no lugar do rosto da
+ * assistente, e isso apagava a diferença entre **quem fala** (a Ceres) e **onde ela fala** (o
+ * AgroConIA). O arquivo certo é `ceres-avatar.svg` — a folha com os nós da rede, que é a marca
+ * dela, e que por isso **não** foi trocada na virada de marca (#133).
  *
  * **O disco teal vem dentro do arquivo; o anel violeta é nosso.** O violeta (#45) marca onde o
  * sistema interpreta, sugere ou explica — e como a marca da Ceres já traz o próprio fundo, ela
