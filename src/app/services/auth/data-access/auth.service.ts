@@ -1,9 +1,11 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { type Observable, of } from 'rxjs';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { Observable, of } from 'rxjs';
 import { catchError, finalize, map, shareReplay, switchMap, tap } from 'rxjs';
 import { ApiService } from '@core/services/api.service';
 import { SessaoService, type Papel, type Sessao } from '@core/services/sessao.service';
+import { soDigitos } from '@core/utils/mascaras';
+import type { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 
 /** `POST /api/auth/login` e `POST /api/auth/refresh` devolvem o mesmo corpo (`LoginResponse`). */
 export interface LoginResponse {
@@ -20,6 +22,48 @@ export interface SessaoAtual {
   usuarioId: string;
   papel: Papel;
   nome: string;
+}
+
+/** O corpo de `POST /api/auth/cadastro`. */
+export interface CadastroRequest {
+  papel: Papel;
+  nomeCompleto: string;
+  /** **Só dígitos**, com DV válido — 11 (CPF) ou 14 (CNPJ). A máscara é da tela. */
+  cpfCnpj: string;
+  email: string;
+  senha: string;
+}
+
+/** Os códigos de erro da conta, **medidos** contra a API local em 03/11. */
+export type CodigoConta =
+  | 'SENHA_FRACA'
+  | 'CADASTRO_CONFLITO'
+  | 'TOKEN_REDEFINICAO_INVALIDO'
+  | 'SENHA_ATUAL_INCORRETA'
+  | 'MUITAS_TENTATIVAS'
+  | 'DESCONHECIDO';
+
+/**
+ * Falha de conta já classificada, para a tela não ler `status` nem adivinhar texto.
+ *
+ * **A `mensagem` vem do servidor e é usada como está.** Medido: ele escreve para o usuário final e
+ * distingue os três motivos de senha fraca ("pelo menos 10 caracteres", "não pode conter seu e-mail
+ * nem seu CPF/CNPJ", "está entre as mais usadas"). Reescrever aqui só perderia precisão.
+ *
+ * O `campo` vem do `field` do envelope e diz **onde** marcar o erro: `senha`, `senhaAtual`, `token`.
+ */
+export class ContaError extends Error {
+  constructor(
+    readonly codigo: CodigoConta,
+    readonly status: number,
+    mensagem: string,
+    readonly campo?: string,
+    /** Segundos até poder tentar de novo — só no `MUITAS_TENTATIVAS`. */
+    readonly retryAfterSegundos?: number,
+  ) {
+    super(mensagem);
+    this.name = 'ContaError';
+  }
 }
 
 /**
@@ -125,6 +169,72 @@ export class AuthApi {
     return this.buscarMe();
   }
 
+  // ── Conta: criar, recuperar e trocar a senha (#131) ───────────────────────
+
+  /**
+   * Cria a conta. **Não devolve token** — o contrato manda ir ao login depois.
+   *
+   * O `cpfCnpj` sobe só com dígitos: a máscara existe para quem digita, não para a API.
+   */
+  cadastrar(dados: CadastroRequest): Observable<void> {
+    return this.api
+      .post<void>('/auth/cadastro', {
+        ...dados,
+        // Nome e e-mail vao aparados pela mesma razao do `entrar()`: teclado de celular costuma
+        // acrescentar um espaco no fim, e um e-mail com espaco nao casa com nenhuma conta depois.
+        nomeCompleto: dados.nomeCompleto.trim(),
+        email: dados.email.trim(),
+        // A mascara existe para quem digita; a API quer so os digitos.
+        cpfCnpj: soDigitos(dados.cpfCnpj),
+      })
+      .pipe(AuthApi.traduzirFalhaDeConta<void>());
+  }
+
+  /**
+   * Pede o link de redefinição.
+   *
+   * **Responde 202 sempre**, exista a conta ou não — medido nos dois casos. É deliberado: a
+   * resposta não pode dizer quem é cliente. A tela, portanto, mostra a mesma mensagem sempre, e
+   * tratar isso como "deu certo" é o comportamento correto, não uma simplificação.
+   */
+  esqueciSenha(email: string): Observable<void> {
+    return this.api
+      .post<void>('/auth/senha/esqueci', { email: email.trim() })
+      .pipe(AuthApi.traduzirFalhaDeConta<void>());
+  }
+
+  /**
+   * Redefine a senha com o token do link.
+   *
+   * O 204 **encerra todas as sessões** e apaga o cookie: quem redefine entra de novo com a senha
+   * nova. Como esta rota é pública e a pessoa nem está logada, não há sessão local a limpar.
+   */
+  redefinirSenha(token: string, novaSenha: string): Observable<void> {
+    return this.api
+      .post<void>('/auth/senha/redefinir', { token, novaSenha })
+      .pipe(AuthApi.traduzirFalhaDeConta<void>());
+  }
+
+  /**
+   * Troca a senha de quem está logado.
+   *
+   * O 204 encerra **todas** as sessões, **inclusive a desta requisição** — então quem chama tem de
+   * passar pelo `EncerramentoService` em seguida. Continuar na tela com um token que o servidor já
+   * invalidou daria 401 na próxima chamada, sem a pessoa entender por quê.
+   */
+  alterarSenha(senhaAtual: string, novaSenha: string): Observable<void> {
+    return this.api
+      .post<void>('/auth/senha/alterar', { senhaAtual, novaSenha })
+      .pipe(AuthApi.traduzirFalhaDeConta<void>());
+  }
+
+  /** Sai de todos os dispositivos. Mesma consequência do `alterarSenha`: a sessão atual cai junto. */
+  sairDeTodosOsDispositivos(): Observable<void> {
+    return this.api
+      .post<void>('/auth/logout-todos', null)
+      .pipe(AuthApi.traduzirFalhaDeConta<void>());
+  }
+
   /**
    * Esquece quem eu era.
    *
@@ -169,5 +279,45 @@ export class AuthApi {
   private aoRenovar(r: LoginResponse): string {
     this.sessaoService.renovarToken(r.accessToken, r.expiraEm);
     return r.accessToken;
+  }
+
+  /** Transforma o `HttpErrorResponse` em `ContaError`, com o código e o campo do envelope. */
+  private static traduzirFalhaDeConta<T>() {
+    return (fonte: Observable<T>): Observable<T> =>
+      new Observable<T>((inscrito) =>
+        fonte.subscribe({
+          next: (v) => inscrito.next(v),
+          complete: () => inscrito.complete(),
+          error: (erro: unknown) => inscrito.error(AuthApi.classificarConta(erro)),
+        }),
+      );
+  }
+
+  private static classificarConta(erro: unknown): ContaError {
+    const falha = erro as HttpErrorResponse;
+    const envelope = falha?.error as ApiErrorEnvelope | undefined;
+    const primeiro = envelope?.errors?.[0];
+    const mensagem = primeiro?.message ?? envelope?.message ?? 'Não foi possível concluir.';
+    const campo = primeiro?.field;
+
+    const conhecidos: CodigoConta[] = [
+      'SENHA_FRACA',
+      'CADASTRO_CONFLITO',
+      'TOKEN_REDEFINICAO_INVALIDO',
+      'SENHA_ATUAL_INCORRETA',
+      'MUITAS_TENTATIVAS',
+    ];
+    const codigo = conhecidos.find((c) => c === primeiro?.code) ?? 'DESCONHECIDO';
+
+    const bruto = falha?.headers?.get?.('Retry-After');
+    const segundos = bruto ? Number(bruto) : undefined;
+
+    return new ContaError(
+      codigo,
+      falha?.status ?? 0,
+      mensagem,
+      campo,
+      Number.isFinite(segundos) ? segundos : undefined,
+    );
   }
 }

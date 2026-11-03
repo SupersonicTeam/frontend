@@ -13,6 +13,23 @@ export const routes: Routes = [
     path: 'login',
     loadComponent: () => import('@pages/login/login').then((m) => m.LoginPage),
   },
+  // As outras tres portas da conta (#131), publicas pela mesma razao que o `/login`: quem chega
+  // aqui ainda **nao tem** sessao, e guarda-las mandaria ao login quem veio justamente porque nao
+  // consegue entrar. Com o basic auth do Caddy fora do ar, sao elas a entrada de quem nao tem conta.
+  {
+    path: 'cadastro',
+    loadComponent: () => import('@pages/cadastro/cadastro').then((m) => m.CadastroPage),
+  },
+  {
+    path: 'esqueci-senha',
+    loadComponent: () => import('@pages/senha/esqueci-senha').then((m) => m.EsqueciSenhaPage),
+  },
+  {
+    // O backend monta o link como `.../redefinir-senha#token=...`; o token vive no FRAGMENTO e e
+    // lido de `location.hash` pela pagina -- nunca como query param, que vazaria em log e Referer.
+    path: 'redefinir-senha',
+    loadComponent: () => import('@pages/senha/redefinir-senha').then((m) => m.RedefinirSenhaPage),
+  },
   {
     path: '',
     component: AppLayout,

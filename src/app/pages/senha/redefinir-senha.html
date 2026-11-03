@@ -1,0 +1,109 @@
+<div class="flex min-h-screen items-center justify-center bg-background p-4">
+  <div class="w-full max-w-md space-y-6">
+    <div class="flex flex-col items-center gap-2 text-center">
+      <img
+        src="/agroconia-horizontal.svg"
+        width="1617"
+        height="400"
+        alt="AgroConIA"
+        class="block h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 dark:hidden"
+      />
+      <img
+        src="/agroconia-horizontal-negativo.svg"
+        width="1617"
+        height="400"
+        alt=""
+        aria-hidden="true"
+        class="hidden h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 dark:block"
+      />
+    </div>
+
+    <div class="space-y-5 rounded-card border border-border bg-card p-6 shadow-suave">
+      @if (!temToken() || linkInvalido()) {
+        <!-- Link morto ou incompleto: o caminho é pedir outro, não tentar de novo. Mostrar o
+             formulário aqui só levaria a pessoa a digitar uma senha para receber o mesmo erro. -->
+        <div class="space-y-3">
+          <h1 class="font-heading text-xl font-semibold text-foreground">
+            Este link não vale mais
+          </h1>
+          <p role="alert" class="text-apoio text-muted-foreground">
+            @if (!temToken()) {
+              O endereço veio sem o código de redefinição. Abra o link do e-mail inteiro, ou peça um
+              novo.
+            } @else {
+              O link expirou, já foi usado, ou foi substituído por um mais recente. Peça outro para
+              continuar.
+            }
+          </p>
+          <a
+            routerLink="/esqueci-senha"
+            class="tap-target inline-flex w-full items-center justify-center rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Pedir um link novo
+          </a>
+        </div>
+      } @else {
+        <form class="space-y-5" (ngSubmit)="redefinir()" novalidate>
+          <div>
+            <h1 class="font-heading text-xl font-semibold text-foreground">Criar senha nova</h1>
+            <p class="mt-1 text-apoio text-muted-foreground">
+              Ao salvar, as sessões abertas em outros dispositivos são encerradas.
+            </p>
+          </div>
+
+          @if (erro()) {
+            <p
+              role="alert"
+              class="rounded-controle border border-perigo-borda bg-perigo-soft px-3 py-2 text-apoio text-perigo-ink"
+            >
+              {{ erro() }}
+            </p>
+          }
+
+          <div>
+            <label for="red-senha" class="mb-1.5 block text-apoio font-medium text-foreground">
+              Senha nova
+            </label>
+            <input
+              id="red-senha"
+              name="novaSenha"
+              type="password"
+              autocomplete="new-password"
+              required
+              class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+              [class.border-border]="!erroSenha()"
+              [class.border-perigo]="erroSenha()"
+              [attr.aria-invalid]="erroSenha() ? 'true' : null"
+              [attr.aria-describedby]="erroSenha() ? 'red-senha-erro' : 'red-senha-dica'"
+              [value]="senha()"
+              (input)="senha.set($any($event.target).value)"
+            />
+            @if (erroSenha()) {
+              <p id="red-senha-erro" role="alert" class="mt-1.5 text-apoio text-perigo-ink">
+                {{ erroSenha() }}
+              </p>
+            } @else {
+              <p id="red-senha-dica" class="mt-1.5 text-apoio text-muted-foreground">
+                No mínimo 10 caracteres, e que não contenha o seu e-mail nem o seu CPF/CNPJ.
+              </p>
+            }
+          </div>
+
+          <button
+            type="submit"
+            class="tap-target inline-flex w-full items-center justify-center gap-2 rounded-controle bg-primary px-4 text-apoio font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+            [disabled]="!podeEnviar()"
+          >
+            @if (enviando()) {
+              <svg lucideLoaderCircle [size]="18" class="animate-spin" aria-hidden="true"></svg>
+              Salvando…
+            } @else {
+              <svg lucideKeyRound [size]="18" aria-hidden="true"></svg>
+              Salvar a senha nova
+            }
+          </button>
+        </form>
+      }
+    </div>
+  </div>
+</div>

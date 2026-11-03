@@ -3,7 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { SessaoService } from '@core/services/sessao.service';
 import { entrarComo } from '@core/services/sessao.testing';
-import { AuthApi, type LoginResponse, type SessaoAtual } from './auth.service';
+import { AuthApi, ContaError, type LoginResponse, type SessaoAtual } from './auth.service';
 
 /**
  * O cliente de `/api/auth` (issue #93).
@@ -251,6 +251,173 @@ describe('AuthApi', () => {
       httpMock.expectOne('/auth/me').flush('nao', { status: 500, statusText: 'Server Error' });
 
       expect(erro).toBeTruthy();
+    });
+  });
+
+  /**
+   * As rotas de conta (#131). Os códigos e as mensagens abaixo foram **medidos** contra a API
+   * local em 03/11 — a issue dizia `MUITAS_TENTATIVAS` para o 429 da notificação e o real era
+   * outro, então aqui nada veio de suposição.
+   */
+  describe('conta', () => {
+    it('cadastrar manda o documento só com dígitos', () => {
+      service
+        .cadastrar({
+          papel: 'PRODUTOR',
+          nomeCompleto: '  Maria Agricultora  ',
+          cpfCnpj: '529.982.247-25',
+          email: '  maria@exemplo.com.br ',
+          senha: 'UmaSenhaBoa2026!',
+        })
+        .subscribe();
+
+      const req = httpMock.expectOne('/auth/cadastro');
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({
+        papel: 'PRODUTOR',
+        nomeCompleto: 'Maria Agricultora',
+        cpfCnpj: '52998224725',
+        email: 'maria@exemplo.com.br',
+        senha: 'UmaSenhaBoa2026!',
+      });
+      req.flush(null, { status: 201, statusText: 'Created' });
+    });
+
+    it('o cadastro NÃO abre sessão: o contrato manda ir ao login', () => {
+      service
+        .cadastrar({
+          papel: 'CONTADOR',
+          nomeCompleto: 'Escritorio',
+          cpfCnpj: '11144477735',
+          email: 'e@x.com.br',
+          senha: 'UmaSenhaBoa2026!',
+        })
+        .subscribe();
+      httpMock.expectOne('/auth/cadastro').flush(null, { status: 201, statusText: 'Created' });
+
+      expect(sessao.logado()).toBe(false);
+    });
+
+    it.each([
+      ['SENHA_FRACA', 400, 'senha', 'A senha precisa ter pelo menos 10 caracteres.'],
+      ['CADASTRO_CONFLITO', 409, undefined, 'Nao foi possivel concluir o cadastro.'],
+    ])('o erro %s chega classificado, com o campo', (code, status, field, message) => {
+      let erro: ContaError | undefined;
+      service
+        .cadastrar({
+          papel: 'PRODUTOR',
+          nomeCompleto: 'X',
+          cpfCnpj: '52998224725',
+          email: 'x@x.com.br',
+          senha: 'curta',
+        })
+        .subscribe({ error: (e) => (erro = e) });
+
+      httpMock
+        .expectOne('/auth/cadastro')
+        .flush({ errors: [{ code, field, message }] }, { status, statusText: 'erro' });
+
+      expect(erro).toBeInstanceOf(ContaError);
+      expect(erro?.codigo).toBe(code);
+      expect(erro?.campo).toBe(field);
+      // A mensagem do servidor e usada como esta: ela distingue os motivos melhor que a tela.
+      expect(erro?.message).toBe(message);
+    });
+
+    /**
+     * **Sempre 202**, exista a conta ou não — medido nos dois casos. É o que impede a resposta de
+     * revelar quem tem conta, e a tela precisa tratar os dois como sucesso.
+     */
+    it('esqueci a senha trata o 202 como sucesso', () => {
+      let completou = false;
+      service
+        .esqueciSenha(' alguem@exemplo.com.br ')
+        .subscribe({ complete: () => (completou = true) });
+
+      const req = httpMock.expectOne('/auth/senha/esqueci');
+      expect(req.request.body).toEqual({ email: 'alguem@exemplo.com.br' });
+      req.flush(null, { status: 202, statusText: 'Accepted' });
+
+      expect(completou).toBe(true);
+    });
+
+    it('redefinir manda token e senha, e o link morto vira TOKEN_REDEFINICAO_INVALIDO', () => {
+      let erro: ContaError | undefined;
+      service.redefinirSenha('tok-123', 'UmaSenhaBoa2026!').subscribe({ error: (e) => (erro = e) });
+
+      const req = httpMock.expectOne('/auth/senha/redefinir');
+      expect(req.request.body).toEqual({ token: 'tok-123', novaSenha: 'UmaSenhaBoa2026!' });
+      req.flush(
+        {
+          errors: [
+            {
+              code: 'TOKEN_REDEFINICAO_INVALIDO',
+              field: 'token',
+              message: 'Link de redefinicao invalido ou expirado.',
+            },
+          ],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+      expect(erro?.codigo).toBe('TOKEN_REDEFINICAO_INVALIDO');
+      expect(erro?.campo).toBe('token');
+    });
+
+    it('alterar senha leva as duas e separa SENHA_ATUAL_INCORRETA', () => {
+      entrarComo('PRODUTOR');
+      let erro: ContaError | undefined;
+      service.alterarSenha('errada', 'UmaSenhaBoa2026!').subscribe({ error: (e) => (erro = e) });
+
+      const req = httpMock.expectOne('/auth/senha/alterar');
+      expect(req.request.body).toEqual({ senhaAtual: 'errada', novaSenha: 'UmaSenhaBoa2026!' });
+      req.flush(
+        {
+          errors: [
+            {
+              code: 'SENHA_ATUAL_INCORRETA',
+              field: 'senhaAtual',
+              message: 'A senha atual nao confere.',
+            },
+          ],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+      expect(erro?.codigo).toBe('SENHA_ATUAL_INCORRETA');
+      expect(erro?.campo).toBe('senhaAtual');
+    });
+
+    it('sair de todos os dispositivos usa a rota autenticada', () => {
+      entrarComo('PRODUTOR');
+      service.sairDeTodosOsDispositivos().subscribe();
+
+      const req = httpMock.expectOne('/auth/logout-todos');
+      expect(req.request.method).toBe('POST');
+      req.flush(null, { status: 204, statusText: 'No Content' });
+    });
+
+    it('o 429 preserva o Retry-After', () => {
+      let erro: ContaError | undefined;
+      service
+        .cadastrar({
+          papel: 'PRODUTOR',
+          nomeCompleto: 'X',
+          cpfCnpj: '52998224725',
+          email: 'x@x.com.br',
+          senha: 'UmaSenhaBoa2026!',
+        })
+        .subscribe({ error: (e) => (erro = e) });
+
+      httpMock
+        .expectOne('/auth/cadastro')
+        .flush(
+          { errors: [{ code: 'MUITAS_TENTATIVAS', message: 'Muitas tentativas.' }] },
+          { status: 429, statusText: 'Too Many Requests', headers: { 'Retry-After': '120' } },
+        );
+
+      expect(erro?.codigo).toBe('MUITAS_TENTATIVAS');
+      expect(erro?.retryAfterSegundos).toBe(120);
     });
   });
 });

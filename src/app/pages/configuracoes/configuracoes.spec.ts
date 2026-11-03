@@ -56,16 +56,44 @@ describe('ConfiguracoesPage', () => {
     expect(texto).not.toContain('PESSOA_FISICA');
   });
 
-  it('não oferece campo de senha nem botão de salvar — nada disso existe no servidor', () => {
+  /**
+   * **Este teste virou o seu contrário, e isso é o certo.**
+   *
+   * Ele exigia que a tela **não** tivesse campo de senha, porque na época o sistema não tinha
+   * senha nenhuma e o formulário que existia era encenação: um botão "Atualizar senha" sem
+   * handler. Com a #93 e a #131, trocar a senha é uma ação de verdade — então o que ele passa a
+   * guardar é que ela **existe** e que o botão só libera com os dois campos preenchidos.
+   *
+   * O que continua valendo é o princípio de sempre: nada de promessa que o servidor não cumpre.
+   */
+  it('oferece a troca de senha, e o botão só libera com os dois campos', () => {
     const fixture = TestBed.createComponent(ConfiguracoesPage);
+    const cmp = fixture.componentInstance;
     fixture.detectChanges();
     httpMock.expectOne((r) => r.url === '/dashboard').flush(dashboard);
     fixture.detectChanges();
 
     const el = fixture.nativeElement as HTMLElement;
-    expect(el.querySelectorAll('input[type="password"]').length).toBe(0);
-    expect(el.textContent).not.toContain('Atualizar senha');
-    expect(el.textContent).not.toContain('Salvar alterações');
+    expect(el.querySelectorAll('input[type="password"]').length).toBe(2);
+    expect(el.textContent).toContain('Sair de todos os dispositivos');
+
+    expect(cmp.podeTrocarSenha()).toBe(false);
+    cmp.senhaAtual.set('a-atual');
+    expect(cmp.podeTrocarSenha()).toBe(false);
+    cmp.novaSenha.set('UmaSenhaBoa2026!');
+    expect(cmp.podeTrocarSenha()).toBe(true);
+  });
+
+  /** O texto dizia "esta versão ainda não tem login com senha" — virou mentira com a #93. */
+  it('não diz mais que o sistema não tem login', () => {
+    const fixture = TestBed.createComponent(ConfiguracoesPage);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(dashboard);
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
+      'ainda não tem login com senha',
+    );
   });
 
   it('com o dashboard fora do ar, a tela continua de pé', () => {
