@@ -110,10 +110,20 @@ exatamente o que produziu o bug acima.
 | `/chat` | produtor (`produtorGuard`) | `pages/chat/chat.{ts,html}` |
 | `/contador` | **contador** (`contadorGuard`) | `pages/contador/contador.{ts,html}` — a **triagem da carteira**: quais clientes pedem atenção, em ordem de urgência (#95) |
 | `/contador/:produtorId` | **contador** (`contadorGuard`) | `pages/contador/cliente.{ts,html}` — **um cliente**: notas travadas (com as validações reais), guias a cobrar e documentos a conferir |
-| `/tributario` | **os dois** | `tributario.ts` escolhe: `ImpostosProdutor` (quanto eu pago, de onde vem, 6 meses) ou `ImpostosContador` (**Fechamento**: matriz IBS/CBS, notas que ficaram fora da apuração, variação decomposta) |
+| `/tributario` | **os dois** | `tributario.ts` escolhe: `ImpostosProdutor` (quanto eu pago, de onde vem, 6 meses) ou `ImpostosContador` (**Fechamento** de um cliente escolhido no topo: matriz IBS/CBS, notas que ficaram fora da apuração, variação decomposta, relatório em PDF e **reabrir**) |
 | `/calendario` | **os dois** | `calendario.ts` escolhe: `PrazosProdutor` (o que vence pra mim + calendário) ou `PrazosContador` (**cobrança**: fila do que cobrar, lançar guia, dar baixa) |
-| `/documentos` | os dois | `pages/documentos/documentos.{ts,html}` — mesma lista, título e voz trocam. Para o produtor traz **"O que o escritório pediu"** (#180): ver o pedido e anexar ali mesmo |
+| `/documentos` | **os dois** | `documentos-rota.ts` escolhe: `DocumentosPage` (produtor: as minhas notas, emissão e **"O que o escritório pediu"**, #180) ou `NotasContador` (as notas **de um cliente** da carteira: triagem por status no servidor, o que o fisco apontou, aprovar/devolver). Até a #136 os dois abriam a mesma lista, e a do contador levava 403 em `/api/notas` |
 | `/configuracoes` | os dois | `pages/configuracoes/configuracoes.{ts,html}` |
+
+**Tela do contador que lê dado de um produtor escolhe o cliente no topo** (#136): `<app-seletor-cliente>`
+(`shared/contador/seletor-cliente.ts`), alimentado por `GET /contador/produtores`. O cliente vem do
+`?cliente=` do endereço, senão do `ClienteEmFocoService` (a escolha sobrevive ao menu), senão do único
+cliente da carteira; id fora da carteira vira "nenhum". Ele emite `clienteChange` só **depois** de a
+carteira responder (`undefined` = carregando, `null` = escolher). Sem cliente, a tela mostra um
+`<ui-empty-state>` e **não chama nada**. As rotas do produtor (`/notas`, `/apuracao`, `/relatorios`,
+`/creditos`, `/dashboard`, `/vinculos`, `/pendencias`, `/alertas`, `/assistente/*`, `/convites`)
+derivam o produtor do token e dão **403 `PAPEL_NAO_AUTORIZADO`** ao contador — nunca as chame com
+sessão de contador.
 
 **As guias moram em `/calendario` (contador), não no Acompanhamento.** Elas apareciam inteiras nas
 duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá baixa.
@@ -128,7 +138,7 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `DashboardApi` | `@services/dashboard/data-access/dashboard.service` | **Dashboard real** contra `GET /api/dashboard` (KPIs IBS/CBS, notas por mês, distribuição de impostos, últimas notas), com cache local em Signal (`dashboard`). Sem fallback mock — erro propaga para a página tratar (estado de erro + retry). Rascunhos (`/dashboard/rascunhos/*`) ainda com fallback silencioso. |
 | `CalendarioApi` | `@services/calendario/data-access/calendario.service` | Vencimentos/eventos fiscais (com fallback mock). |
 | `CeresApi` | `@services/assistente/data-access/ceres.service` | **A Ceres**, assistente fiscal (issue #76). `perguntarEmStream()` em `POST /api/assistente/chat/stream` (SSE via `fetch`, padrão) e `perguntar()` em `POST /api/assistente/chat` (síncrono, timeout de 6 min — fallback de navegador sem `TextDecoderStream`). Erros viram `CeresError` com `codigo` (`CodigoCeres`) e `retryAfterSegundos`; cancelamento vira `CeresCancelada`. Nunca inventa texto de assistente. |
-| `CarteiraApi` | `@services/contador/data-access/carteira.service` | **A carteira do escritório** (backend#177): `GET /contador/produtores` (array + `X-Total-Count`, nunca `Page<T>`), e o que o contador alcança de um cliente — notas, validações, guias e pendências, todas em `/contador/produtores/{id}/...`. **Sem fallback silencioso**: 403 e 404 sobem para a tela. |
+| `CarteiraApi` | `@services/contador/data-access/carteira.service` | **A carteira do escritório** (backend#177): `GET /contador/produtores` (array + `X-Total-Count`, nunca `Page<T>`), e o que o contador alcança de um cliente — notas (`notasDoCliente`, `paginaDeNotasDoCliente` com total, `notaDoCliente`), validações, prévia da DANFE, aprovar/devolver, guias, pendências e, desde a backend#255, os **números do cliente**: `apuracaoDoCliente`, `apuracaoFaixaDoCliente`, `relatorioConformidadeDoCliente` (+`Pdf`), `creditosDoCliente`, `dashboardDoCliente` e `reabrirApuracao` (só ADMINISTRADOR/CONTADOR; ASSISTENTE 403). Todas em `/contador/produtores/{id}/...`, com o **mesmo response** da rota do produtor. **Sem fallback silencioso**: 403 e 404 sobem para a tela. |
 | `ContadorApi` | `@services/contador/data-access/contador.service` | Pendências/solicitações/documentos do contador. O cliente antigo: `?produtorId=` na query e `catchError(() => of([]))`. `/contador/pendencias?produtorId=` ainda responde 404 — a rota real virou `/contador/produtores/{id}/pendencias` (#180, issue #95). |
 | `PendenciasApi` | `@services/pendencias/data-access/pendencias.service` | **Pedidos de documento do lado do produtor** (backend#180): `GET /api/pendencias`, detalhe e `POST /{id}/anexos` (multipart, parte `arquivo`, **sem** `Content-Type` — o boundary é do navegador). Erro sobe: a tela separa `ANEXO_INVALIDO`, `ANEXO_INFECTADO`, `LIMITE_ANEXOS` e `TRANSICAO_PENDENCIA_INVALIDA`. **A lista devolve `anexos: []`** — os metadados (e a `situacao` do antivírus) só vêm no detalhe. |
 | `AuthApi` | `@services/auth/data-access/auth.service` | **Autenticação** (#93): `entrar()` (`POST /auth/login` → `{accessToken, tokenType, expiraEm, papel, usuarioId}`, e o nome vem de um `GET /auth/me` em seguida — o login **não** o devolve), `renovar()` (`POST /auth/refresh`, **fila de uma renovação por vez**), `sair()` (`POST /auth/logout`, nunca falha para quem chama) e `carregar()` (`/auth/me`, que responde da sessão quando já há uma). As três primeiras usam `HttpClient` direto com **`withCredentials`**: o refresh mora num cookie HttpOnly (`agro_refresh`, `Path=/api/auth`, `SameSite=Strict`) que o `ApiService` não saberia pedir. |
@@ -143,7 +153,8 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `ToastService` | Toasts (auto-dismiss 4s), renderizados por `ToastContainer`. |
 | `ThemeService` | Tema claro/escuro. |
 | `SessaoService` | **Quem está logado** (#93): token, validade, `usuarioId`, `papel` e `nome`, persistidos em `localStorage` (`agrocontabil.sessao`). `ehProdutor()`/`ehContador()`/`logado()`/`homeDoPerfil()`/`expirado()`. Substituiu o `PerfilService` (papel escolhido num storage editável), o `TokenService` (devolvia `null`) e o `IdentidadeService` (o `X-Usuario-Id`, com o UUID do contador cravado). **O que vem do storage é validado** — sessão meia-boca vira ausência de sessão. Ouve o evento `storage` para acompanhar a outra aba, e **separa renovação de troca de usuário**: mesma pessoa com token novo é adotada; outra pessoa (ou ninguém) **recarrega a página**, porque trocar o signal deixaria os caches `root` com o dado de quem estava aqui — ver a nota abaixo. |
-| `EncerramentoService` | **Sair** — um lugar só, porque há dois caminhos (botão Sair e renovação que falhou). Avisa o servidor (`POST /auth/logout`), **limpa os caches de sessão** (`DashboardApi`, `AssistenteStore`, `NotificacoesService`, `AuthApi`) e vai ao `/login`. Os services são `root` e sobrevivem à troca de usuário: era assim que a topbar do contador exibia o nome do produtor da sessão anterior. **Service `root` novo que guarde resposta do servidor em signal entra nesta lista.** |
+| `ClienteEmFocoService` | O cliente da carteira que o contador está atendendo, **entre telas** (#136). Só o id; quem valida contra a carteira é o `SeletorCliente`. |
+| `EncerramentoService` | **Sair** — um lugar só, porque há dois caminhos (botão Sair e renovação que falhou). Avisa o servidor (`POST /auth/logout`), **limpa os caches de sessão** (`DashboardApi`, `AssistenteStore`, `NotificacoesService`, `ClienteEmFocoService`, `AuthApi`) e vai ao `/login`. Os services são `root` e sobrevivem à troca de usuário: era assim que a topbar do contador exibia o nome do produtor da sessão anterior. **Service `root` novo que guarde resposta do servidor em signal entra nesta lista.** |
 
 **A identidade de demonstração morreu na #93.** `LOGGED_PRODUCER_ID`, `LOGGED_ACCOUNTANT_ID`, o
 `@core/config/produtor-logado`, o header `X-Usuario-Id` e o remendo de identidade **por rota**
@@ -329,8 +340,9 @@ Frontend ~85-90% pronto. **Login JWT de verdade entrou na #93** (o `X-Usuario-Id
 saíram). Gaps reais (em ordem de sprint): ~~gráficos ng2-charts no dashboard (S1)~~ ✅ feito ·
 filtros grupo/status em Documentos (S2) · ~~seletor multi-produtor no Contador~~ ✅ **feito** (#95):
 a carteira (backend#177) existe e o Acompanhamento virou a triagem dela, com `/contador/:produtorId`
-por cliente. **O que continua bloqueado é só a leitura de números por cliente**: `/apuracao`,
-`/relatorios/conformidade`, `/creditos` e `/dashboard` dão **403** para contador e não têm versão por
-cliente — SupersonicTeam/backend#255 · download PDF/XML (S3) ·
+por cliente. ~~Leitura de números por cliente~~ ✅ **feita** (#136): a backend#255 entregou
+`/contador/produtores/{id}/{apuracao,relatorios/conformidade,creditos,dashboard}` e o Fechamento e as
+Notas do contador passaram a usá-las; a ficha do cliente com apuração e créditos é a #138 ·
+download PDF/XML (S3) ·
 dialog inline de anexar no Calendário · polir estados loading/erro/vazio (S5) · WCAG + README (S10).
 Plano completo: `../../../.claude/plans/` (sessão de planejamento).

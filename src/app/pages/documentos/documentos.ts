@@ -386,10 +386,8 @@ export class DocumentosPage implements OnInit {
   /**
    * A lista com tudo aplicado **menos a situacao**.
    *
-   * Existe separada da `notasFiltradas` por causa da triagem do contador: ela conta quantas
-   * notas ha em cada situacao, e essa conta nao pode depender da situacao escolhida -- senao,
-   * no instante em que ele clicasse em "Autorizadas", todas as outras caixas zerariam e a
-   * triagem deixaria de servir para triar.
+   * Existe separada da `notasFiltradas` por causa do resumo do periodo: ele descreve o recorte que
+   * a pessoa escolheu, e nao pode mudar quando ela escolhe uma situacao.
    */
   private readonly notasAntesDaSituacao = computed(() => {
     let lista = this.notas().slice();
@@ -428,20 +426,15 @@ export class DocumentosPage implements OnInit {
   readonly notasFiltradas = computed(() => {
     let lista = this.notasAntesDaSituacao().slice();
 
-    // Situacao. Nem toda opcao e um status do backend: `revisao`, `travadas` e `esperando` sao
-    // recortes de trabalho.
+    // Situacao. Nem toda opcao e um status do backend: `esperando` e um recorte de trabalho.
     //
-    // `revisao` significava "o que o fisco travou". Com a #178 no ar isso virou ambiguo -- revisao
-    // passou a ser o que o produtor **mandou o contador aprovar** --, e as duas pilhas sob o mesmo
-    // nome deixavam a que importa invisivel: o painel dizia "Precisam de revisao: 0" com nota
-    // aguardando aprovacao (#111). Agora sao duas, cada uma com o seu nome.
+    // As caixas do contador (`revisao`, `travadas`) sairam daqui junto com ele (#136): o contador
+    // tem a tela propria (`NotasContador`), que filtra por status no servidor, por cliente.
     const situacao = this.statusFilter();
-    if (situacao === 'revisao') lista = lista.filter((n) => esperaOEscritorio(n.status));
-    else if (situacao === 'travadas') lista = lista.filter((n) => this.podeVerValidacoes(n));
     // `esperando` e o recorte do produtor: o que ainda depende dele. Atravessa tres status
     // (inconsistencia, rejeitada, rascunho) porque o que une os tres e a pendencia, nao a
     // etiqueta -- nenhum deles virou documento fiscal ainda.
-    else if (situacao === 'esperando')
+    if (situacao === 'esperando')
       lista = lista.filter((n) => this.podeVerValidacoes(n) || n.status === 'RASCUNHO');
     else if (situacao !== 'todos') lista = lista.filter((n) => n.status === situacao);
 
@@ -482,51 +475,6 @@ export class DocumentosPage implements OnInit {
       rascunhos,
       esperando: comInconsistencia + rascunhos,
     };
-  });
-
-  /**
-   * A triagem do contador.
-   *
-   * Ele abria a MESMA lista do produtor, com outro titulo, e nao tinha como saber o que estava
-   * olhando -- foi a reclamacao dele em 13/10: "preciso saber o que exatamente estou enxergando
-   * ali". Cada caixa e uma pergunta do trabalho dele: o que exige revisao, o que ainda nem foi
-   * emitido, o que ja entrou na apuracao, o que saiu dela.
-   *
-   * Nao existe caixa de "enviada para a sua aprovacao": esse estado nao existe no backend
-   * (SupersonicTeam/backend#178). Inventar a caixa seria prometer um fluxo que ninguem
-   * implementou.
-   */
-  readonly triagemDoContador = computed(() => {
-    const base = this.notasAntesDaSituacao();
-    const quantas = (teste: (n: NotaFiscal) => boolean) => base.filter(teste).length;
-    return [
-      {
-        chave: 'revisao',
-        rotulo: 'Precisam de revisão',
-        quantidade: quantas((n) => esperaOEscritorio(n.status)),
-      },
-      {
-        chave: 'travadas',
-        rotulo: 'Travadas pelo fisco',
-        quantidade: quantas((n) => this.podeVerValidacoes(n)),
-      },
-      {
-        chave: 'RASCUNHO',
-        rotulo: 'Rascunhos do produtor',
-        quantidade: quantas((n) => n.status === 'RASCUNHO'),
-      },
-      {
-        chave: 'AUTORIZADA',
-        rotulo: 'Autorizadas',
-        quantidade: quantas((n) => n.status === 'AUTORIZADA'),
-      },
-      {
-        chave: 'CANCELADA',
-        rotulo: 'Canceladas',
-        quantidade: quantas((n) => n.status === 'CANCELADA'),
-      },
-      { chave: 'todos', rotulo: 'Todas', quantidade: base.length },
-    ];
   });
 
   /**

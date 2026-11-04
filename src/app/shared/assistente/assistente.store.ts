@@ -161,9 +161,15 @@ export class AssistenteStore {
     return rota ? etapaDaRota(rota) : 'Entendendo a sua pergunta…';
   });
 
-  /** Busca dashboard e notas uma vez por sessão — a gaveta abre em qualquer tela. */
+  /**
+   * Busca dashboard e notas uma vez por sessão — a gaveta abre em qualquer tela.
+   *
+   * Só para produtor: `/api/dashboard`, `/api/notas` e `/api/assistente/uso` derivam o produtor do
+   * token e respondem 403 para o contador (#136). A gaveta já não aparece para ele, mas quem chama
+   * isto não precisa saber disso.
+   */
   carregarContexto(): void {
-    if (this.carregou) return;
+    if (this.carregou || !this.sessao.ehProdutor()) return;
     this.carregou = true;
 
     // A Ceres quer contexto, nao um periodo: nao pode derrubar o mes que o produtor escolheu.
@@ -182,6 +188,7 @@ export class AssistenteStore {
 
   /** Recarrega a cota depois de cada pergunta -- e o unico momento em que ela muda. */
   private atualizarUso(): void {
+    if (!this.sessao.ehProdutor()) return;
     this.ceres.uso().subscribe((u) => this.uso.set(u));
   }
 

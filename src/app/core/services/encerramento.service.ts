@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { SessaoService } from './sessao.service';
 import { NotificacoesService } from './notificacoes.service';
+import { ClienteEmFocoService } from './cliente-em-foco.service';
 import { ToastService } from './toast.service';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
@@ -30,7 +31,9 @@ export type MotivoDaSaida = 'pedido' | 'expirada';
  * - `DashboardApi` — KPIs, notas e o **nome do produtor** (a origem do vazamento acima);
  * - `AssistenteStore` — a conversa com a Ceres, que é dado do usuário por definição;
  * - `NotificacoesService` — o sino, carregado da fonte do papel anterior;
- * - `AuthApi` — a identidade resolvida e as requisições em voo.
+ * - `AuthApi` — a identidade resolvida e as requisições em voo;
+ * - `ClienteEmFocoService` — o cliente da carteira que o contador atendia (#136). É só um id, mas
+ *   de um cliente de **outro** escritório: não pode virar o ponto de partida de quem entra.
  *
  * Os outros services de `@services/*` não guardam estado: buscam e devolvem.
  */
@@ -43,6 +46,7 @@ export class EncerramentoService {
   private readonly dashboardApi = inject(DashboardApi);
   private readonly assistenteStore = inject(AssistenteStore);
   private readonly notificacoes = inject(NotificacoesService);
+  private readonly clienteEmFoco = inject(ClienteEmFocoService);
 
   /**
    * Encerra a sessão e volta ao `/login`.
@@ -58,6 +62,7 @@ export class EncerramentoService {
     this.dashboardApi.limpar();
     this.assistenteStore.limpar();
     this.notificacoes.limpar();
+    this.clienteEmFoco.limpar();
     this.authApi.limpar();
     this.sessao.encerrar();
 

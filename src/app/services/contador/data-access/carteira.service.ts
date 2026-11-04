@@ -8,17 +8,14 @@ import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { statusDaGuia } from '@core/utils/guias';
 import type { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
-import type { Apuracao } from '@models/tributario.model';
+import type { Apuracao, CreditoSaldo, RelatorioConformidade } from '@models/tributario.model';
+import type { DashboardResponse } from '@dtos/dashboard/dashboard.response';
 
 /**
  * Status de nota que o backend aceita no filtro, incluindo os três que a aprovação
  * (backend#178) acrescentou e que o nosso enum ainda não conhece.
  */
-export type StatusNotaFiltro =
-  | StatusNotaFiscal
-  | 'AGUARDANDO_APROVACAO'
-  | 'APROVADA'
-  | 'DEVOLVIDA';
+export type StatusNotaFiltro = StatusNotaFiscal | 'AGUARDANDO_APROVACAO' | 'APROVADA' | 'DEVOLVIDA';
 
 /** Corpo de `POST .../pendencias`. */
 export interface NovoPedidoDocumento {
@@ -45,9 +42,21 @@ export interface FiltroNotasCliente {
   sort?: string;
 }
 
+/** Uma página das notas de um cliente: o total vem do header `X-Total-Count`, não do corpo. */
+export interface PaginaNotasCliente {
+  itens: NotaFiscal[];
+  total: number;
+}
+
 /**
  * Cliente da **carteira do escritório** (backend#177) e do que o contador alcança de um cliente
- * dela: notas, validações e pendências.
+ * dela: notas, validações, pendências e, desde a backend#255, os números do cliente (apuração,
+ * relatório de conformidade, créditos e painel).
+ *
+ * **As rotas do produtor não servem ao contador.** `/api/notas`, `/api/apuracao`,
+ * `/api/relatorios/conformidade`, `/api/creditos` e `/api/dashboard` derivam o produtor do token e
+ * respondem 403 `PAPEL_NAO_AUTORIZADO` para quem é do escritório (issue #136). Cada uma tem aqui a
+ * versão por cliente, com o **mesmo response**: só muda o caminho.
  *
  * Mora separado do `ContadorApi` de propósito. O `ContadorApi` nasceu antes de existir escopo de
  * contador no backend e carrega o jeito antigo — `?produtorId=` na query e `catchError(() => of([]))`
@@ -78,14 +87,15 @@ export class CarteiraApi {
         params: this.paramsDaCarteira(filtro),
         observe: 'response',
       })
-      .pipe(
-        map((resposta) => {
-          const itens = resposta.body ?? [];
-          const header = resposta.headers.get('X-Total-Count');
-          const total = header === null ? itens.length : Number(header);
-          return { itens, total: Number.isFinite(total) ? total : itens.length };
-        }),
-      );
+      .pipe(map((resposta) => CarteiraApi.comTotal(resposta)));
+  }
+
+  /** Array no corpo, total no `X-Total-Count` — o formato de lista das rotas do escritório. */
+  private static comTotal<T>(resposta: HttpResponse<T[]>): { itens: T[]; total: number } {
+    const itens = resposta.body ?? [];
+    const header = resposta.headers.get('X-Total-Count');
+    const total = header === null ? itens.length : Number(header);
+    return { itens, total: Number.isFinite(total) ? total : itens.length };
   }
 
   /**
@@ -107,19 +117,99 @@ export class CarteiraApi {
 
   /** `GET /api/contador/produtores/{produtorId}/notas` — as notas do cliente, só leitura. */
   notasDoCliente(produtorId: string, filtro: FiltroNotasCliente = {}): Observable<NotaFiscal[]> {
-    let params = new HttpParams();
-    for (const status of filtro.status ?? []) {
-      params = params.append('status', status);
-    }
-    params = this.anexar(params, {
-      de: filtro.de,
-      ate: filtro.ate,
-      busca: filtro.busca,
-      page: filtro.page,
-      size: filtro.size,
-      sort: filtro.sort,
+    return this.http.get<NotaFiscal[]>(`/contador/produtores/${produtorId}/notas`, {
+      params: this.paramsDasNotas(filtro),
     });
-    return this.http.get<NotaFiscal[]>(`/contador/produtores/${produtorId}/notas`, { params });
+  }
+
+  /**
+   * As notas do cliente **com o total**, para paginar.
+   *
+   * A lista é array + `X-Total-Count`, como a carteira — não o `Page<T>` de `/api/notas`. Sem o
+   * header, o total cai para o tamanho do que veio (ver `listar`).
+   */
+  paginaDeNotasDoCliente(
+    produtorId: string,
+    filtro: FiltroNotasCliente = {},
+  ): Observable<PaginaNotasCliente> {
+    return this.http
+      .get<NotaFiscal[]>(`/contador/produtores/${produtorId}/notas`, {
+        params: this.paramsDasNotas(filtro),
+        observe: 'response',
+      })
+      .pipe(map((resposta) => CarteiraApi.comTotal(resposta)));
+  }
+
+  /** `GET /api/contador/produtores/{produtorId}/notas/{notaId}` — uma nota do cliente. */
+  notaDoCliente(produtorId: string, notaId: string): Observable<NotaFiscal> {
+    return this.http.get<NotaFiscal>(`/contador/produtores/${produtorId}/notas/${notaId}`);
+  }
+
+  /**
+   * `GET /api/contador/produtores/{produtorId}/apuracao?periodo=` — a apuração de um mês do
+   * cliente (`AAAA-MM`). Mesmo response de `GET /api/apuracao?periodo=`.
+   */
+  apuracaoDoCliente(produtorId: string, periodo: string): Observable<Apuracao> {
+    return this.http.get<Apuracao>(`/contador/produtores/${produtorId}/apuracao`, {
+      params: new HttpParams().set('periodo', periodo),
+    });
+  }
+
+  /**
+   * `GET .../apuracao?de=&ate=` — uma faixa de meses do cliente, em ordem crescente e **sem
+   * buraco** (mês sem nota vem zerado). Até 60 meses.
+   */
+  apuracaoFaixaDoCliente(produtorId: string, de: string, ate: string): Observable<Apuracao[]> {
+    return this.http.get<Apuracao[]>(`/contador/produtores/${produtorId}/apuracao`, {
+      params: new HttpParams().set('de', de).set('ate', ate),
+    });
+  }
+
+  /** `GET .../relatorios/conformidade?periodo=` — débitos × créditos × saldo do mês do cliente. */
+  relatorioConformidadeDoCliente(
+    produtorId: string,
+    periodo: string,
+  ): Observable<RelatorioConformidade> {
+    return this.http.get<RelatorioConformidade>(
+      `/contador/produtores/${produtorId}/relatorios/conformidade`,
+      { params: new HttpParams().set('periodo', periodo) },
+    );
+  }
+
+  /**
+   * `GET .../relatorios/conformidade/pdf?periodo=` — o mesmo relatório em PDF.
+   *
+   * Resposta inteira para o chamador ler o nome em `Content-Disposition`. Sem `Accept` declarado,
+   * pela mesma razão da prévia da DANFE: o caminho de erro devolve JSON.
+   */
+  relatorioConformidadePdfDoCliente(
+    produtorId: string,
+    periodo: string,
+  ): Observable<HttpResponse<Blob>> {
+    return this.http.get(`/contador/produtores/${produtorId}/relatorios/conformidade/pdf`, {
+      params: new HttpParams().set('periodo', periodo),
+      responseType: 'blob',
+      observe: 'response',
+    });
+  }
+
+  /** `GET .../creditos?periodo=` — o saldo de crédito de IBS/CBS do cliente no mês. */
+  creditosDoCliente(produtorId: string, periodo: string): Observable<CreditoSaldo> {
+    return this.http.get<CreditoSaldo>(`/contador/produtores/${produtorId}/creditos`, {
+      params: new HttpParams().set('periodo', periodo),
+    });
+  }
+
+  /**
+   * `GET .../dashboard` — o painel do cliente. Sem `periodo`, o mês corrente.
+   *
+   * Não passa pelo `DashboardApi`: aquele guarda **o** painel da sessão num signal `root`, e o
+   * contador alterna entre clientes — o cache de um viraria o número do outro.
+   */
+  dashboardDoCliente(produtorId: string, periodo?: string): Observable<DashboardResponse> {
+    return this.http.get<DashboardResponse>(`/contador/produtores/${produtorId}/dashboard`, {
+      params: this.anexar(new HttpParams(), { periodo }),
+    });
   }
 
   /**
@@ -186,10 +276,10 @@ export class CarteiraApi {
    * serve para os dois (ver `apiInterceptor`, issue #99).
    */
   previewDanfe(produtorId: string, notaId: string): Observable<HttpResponse<Blob>> {
-    return this.http.get(
-      `/contador/produtores/${produtorId}/notas/${notaId}/danfe-preview`,
-      { responseType: 'blob', observe: 'response' },
-    );
+    return this.http.get(`/contador/produtores/${produtorId}/notas/${notaId}/danfe-preview`, {
+      responseType: 'blob',
+      observe: 'response',
+    });
   }
 
   /**
@@ -199,10 +289,7 @@ export class CarteiraApi {
    * chama e que responde **404 desde sempre** — o cliente antigo foi escrito contra um contrato
    * que nunca existiu.
    */
-  pendenciasDoCliente(
-    produtorId: string,
-    status: StatusPendencia[] = [],
-  ): Observable<Pendencia[]> {
+  pendenciasDoCliente(produtorId: string, status: StatusPendencia[] = []): Observable<Pendencia[]> {
     let params = new HttpParams();
     for (const s of status) {
       params = params.append('status', s);
@@ -244,9 +331,7 @@ export class CarteiraApi {
    * A listagem devolve `anexos: []` e só o `quantidadeAnexos`; quem precisa dos arquivos vem aqui.
    */
   detalharPendencia(produtorId: string, pendenciaId: string): Observable<Pendencia> {
-    return this.http.get<Pendencia>(
-      `/contador/produtores/${produtorId}/pendencias/${pendenciaId}`,
-    );
+    return this.http.get<Pendencia>(`/contador/produtores/${produtorId}/pendencias/${pendenciaId}`);
   }
 
   /**
@@ -328,6 +413,22 @@ export class CarteiraApi {
       `/contador/produtores/${produtorId}/pendencias/${pendenciaId}/${verbo}`,
       corpo ?? null,
     );
+  }
+
+  /** Os filtros de notas, com `status` repetido (o backend aceita mais de um por consulta). */
+  private paramsDasNotas(filtro: FiltroNotasCliente): HttpParams {
+    let params = new HttpParams();
+    for (const status of filtro.status ?? []) {
+      params = params.append('status', status);
+    }
+    return this.anexar(params, {
+      de: filtro.de,
+      ate: filtro.ate,
+      busca: filtro.busca,
+      page: filtro.page,
+      size: filtro.size,
+      sort: filtro.sort,
+    });
   }
 
   /** Monta os parâmetros da carteira, com `etiqueta` repetido em vez de juntado por vírgula. */

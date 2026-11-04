@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import {
@@ -11,17 +11,20 @@ import {
   LucideTrendingDown,
   LucideTrendingUp,
   LucideTriangleAlert,
+  LucideUsers,
 } from '@lucide/angular';
-import { TributarioApi } from '@services/tributario/data-access/tributario.service';
-import { NotasApi } from '@services/notas/data-access/notas.service';
+import { CarteiraApi } from '@services/contador/data-access/carteira.service';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
+import type { ProdutorCarteira } from '@models/carteira.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
 import { ToastService } from '@core/services/toast.service';
 import { apiErrorDeBlob, filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
-import { mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
+import { mensagemAmigavel, mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { UiButton } from '@shared/ui/ui-button';
+import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiTable } from '@shared/ui/ui-table';
+import { SeletorCliente } from '@shared/contador/seletor-cliente';
 import { mesDeFechamento } from '@core/utils/periodo';
 
 const MESES = [
@@ -52,7 +55,7 @@ const STATUS_APURACAO: Record<StatusApuracao, { label: string; classe: string }>
 };
 
 /** Status de nota que **não** entra na apuração — só `AUTORIZADA` entra. */
-const FORA_DA_APURACAO = ['RASCUNHO', 'COM_INCONSISTENCIAS', 'REJEITADA', 'CANCELADA'];
+const FORA_DA_APURACAO = ['RASCUNHO', 'COM_INCONSISTENCIAS', 'REJEITADA', 'CANCELADA'] as const;
 
 const ROTULO_STATUS: Record<string, string> = {
   RASCUNHO: 'Rascunho',
@@ -80,15 +83,25 @@ const ROTULO_STATUS: Record<string, string> = {
  * 3. **A variação decomposta** — não basta "subiu R$ 540". Subiu porque vendeu mais ou porque comprou
  *    menos? É o que o contador responde ao cliente, e são duas conversas diferentes.
  *
- * A reabertura (RN005) continua desabilitada com o motivo à vista: `ApuracaoResponse` não expõe o `id`
- * que `POST /apuracao/{id}/reabrir` exige.
+ * ## De qual cliente (issue #136)
+ *
+ * A tela lia `/api/apuracao`, `/api/relatorios/conformidade` e `/api/notas` — rotas que derivam o
+ * produtor do token e respondem **403 para o contador**. Ela abria em "Não foi possível carregar a
+ * apuração" e nunca mostrava número nenhum. Agora tudo vem das rotas do escritório, por cliente
+ * (`CarteiraApi`, backend#255), e o cliente sai do `SeletorCliente` no topo. Sem cliente escolhido
+ * não há chamada nenhuma: a tela diz o que fazer.
+ *
+ * Com o cliente conhecido, a reabertura (RN005) deixou de ser um botão desabilitado: a rota do
+ * escritório (`POST .../apuracao/{periodo}/reabrir`) não pede o `id` que a antiga exigia.
  */
 @Component({
   selector: 'app-impostos-contador',
   standalone: true,
   imports: [
     RouterLink,
+    SeletorCliente,
     UiButton,
+    UiEmptyState,
     UiTable,
     LucideCheck,
     LucideDownload,
@@ -99,13 +112,19 @@ const ROTULO_STATUS: Record<string, string> = {
     LucideTrendingDown,
     LucideTrendingUp,
     LucideTriangleAlert,
+    LucideUsers,
   ],
   templateUrl: './impostos-contador.html',
 })
-export class ImpostosContador implements OnInit {
-  private readonly api = inject(TributarioApi);
-  private readonly notasApi = inject(NotasApi);
+export class ImpostosContador {
+  private readonly carteiraApi = inject(CarteiraApi);
   private readonly toast = inject(ToastService);
+
+  /**
+   * O cliente do fechamento. `undefined` enquanto a carteira não respondeu — é o que separa
+   * "carregando" de "nenhum cliente escolhido".
+   */
+  readonly cliente = signal<ProdutorCarteira | null | undefined>(undefined);
 
   // Abre no mes que ACABOU, nao no corrente: ver `mesDeFechamento`.
   readonly mes = signal(mesDeFechamento().mes);
@@ -121,6 +140,11 @@ export class ImpostosContador implements OnInit {
   readonly anterior = signal<Apuracao | null>(null);
   readonly relatorio = signal<RelatorioConformidade | null>(null);
   readonly notas = signal<NotaFiscal[]>([]);
+  /**
+   * A lista de notas não respondeu. Sem isto a conferência dizia "todas as notas entraram na
+   * apuração" justamente quando não sabia — lista vazia é o que uma falha engolida parece.
+   */
+  readonly notasErro = signal(false);
   readonly carregando = signal(false);
   readonly erro = signal(false);
   readonly baixandoPdf = signal(false);
@@ -156,12 +180,15 @@ export class ImpostosContador implements OnInit {
     this.notas()
       .filter(
         (n) =>
-          (n.dataEmissao ?? '').startsWith(this.periodo()) && FORA_DA_APURACAO.includes(n.status),
+          (n.dataEmissao ?? '').startsWith(this.periodo()) &&
+          (FORA_DA_APURACAO as readonly string[]).includes(n.status),
       )
       .sort((a, b) => (a.dataEmissao ?? '').localeCompare(b.dataEmissao ?? '')),
   );
 
-  readonly prontoParaFechar = computed(() => this.foraDaApuracao().length === 0);
+  readonly prontoParaFechar = computed(
+    () => !this.notasErro() && this.foraDaApuracao().length === 0,
+  );
 
   /**
    * A variação **decomposta**: quanto o saldo andou, e o quanto disso veio do débito e do crédito.
@@ -188,15 +215,66 @@ export class ImpostosContador implements OnInit {
     };
   });
 
-  ngOnInit(): void {
+  /**
+   * Cada troca de cliente ou de mês abre uma "vez". Resposta de uma vez antiga é descartada: sem
+   * isto, trocar de cliente no meio do carregamento punha o débito de um na tela do outro — o
+   * `doPeriodo` só protege contra troca de mês.
+   */
+  private vez = 0;
+
+  aoTrocarCliente(cliente: ProdutorCarteira | null): void {
+    const atual = this.cliente();
+    if (atual !== undefined && (atual?.id ?? null) === (cliente?.id ?? null)) return;
+    this.cliente.set(cliente);
+    this.notas.set([]);
+    this.notasErro.set(false);
+    if (!cliente) {
+      this.vez++;
+      this.carregando.set(false);
+      this.erro.set(false);
+      this.apuracao.set(null);
+      this.relatorio.set(null);
+      this.anterior.set(null);
+      return;
+    }
     this.carregar();
-    this.notasApi.listar({ size: 100, sort: 'dataEmissao,desc' }).subscribe({
-      next: (pagina) => this.notas.set(pagina.content),
-      error: () => this.notas.set([]),
-    });
+    this.carregarNotas(cliente.id);
+  }
+
+  /**
+   * As notas que podem ter ficado fora: só os status que não entram na soma, da mais nova para a
+   * mais velha. O recorte do mês é feito aqui, sobre a data de emissão.
+   */
+  private carregarNotas(produtorId: string): void {
+    this.carteiraApi
+      .notasDoCliente(produtorId, {
+        status: [...FORA_DA_APURACAO],
+        size: 100,
+        sort: 'dataEmissao,desc',
+      })
+      .subscribe({
+        next: (notas) => {
+          if (this.cliente()?.id === produtorId) this.notas.set(notas);
+        },
+        error: () => {
+          if (this.cliente()?.id === produtorId) this.notasErro.set(true);
+        },
+      });
+  }
+
+  recarregarNotas(): void {
+    const id = this.cliente()?.id;
+    if (!id) return;
+    this.notasErro.set(false);
+    this.carregarNotas(id);
   }
 
   carregar(): void {
+    const produtorId = this.cliente()?.id;
+    if (!produtorId) return;
+    const vez = ++this.vez;
+    const daVez = () => vez === this.vez;
+
     this.carregando.set(true);
     this.erro.set(false);
     this.apuracao.set(null);
@@ -204,24 +282,34 @@ export class ImpostosContador implements OnInit {
     this.anterior.set(null);
 
     const periodo = this.periodo();
-    this.api.apuracao(periodo).subscribe({
+    this.carteiraApi.apuracaoDoCliente(produtorId, periodo).subscribe({
       next: (a) => {
+        if (!daVez()) return;
         this.apuracao.set(a);
         this.carregando.set(false);
       },
       error: () => {
+        if (!daVez()) return;
         this.erro.set(true);
         this.carregando.set(false);
       },
     });
-    this.api.relatorioConformidade(periodo).subscribe({
-      next: (r) => this.relatorio.set(r),
-      error: () => this.erro.set(true),
+    this.carteiraApi.relatorioConformidadeDoCliente(produtorId, periodo).subscribe({
+      next: (r) => {
+        if (daVez()) this.relatorio.set(r);
+      },
+      error: () => {
+        if (daVez()) this.erro.set(true);
+      },
     });
     // Falha em silêncio: sem ela a tela perde a comparação, não o número.
-    this.api.apuracao(this.periodoAnterior()).subscribe({
-      next: (a) => this.anterior.set(a),
-      error: () => this.anterior.set(null),
+    this.carteiraApi.apuracaoDoCliente(produtorId, this.periodoAnterior()).subscribe({
+      next: (a) => {
+        if (daVez()) this.anterior.set(a);
+      },
+      error: () => {
+        if (daVez()) this.anterior.set(null);
+      },
     });
   }
 
@@ -241,9 +329,11 @@ export class ImpostosContador implements OnInit {
   }
 
   baixarPdf(): void {
+    const produtorId = this.cliente()?.id;
+    if (!produtorId) return;
     this.baixandoPdf.set(true);
     const periodo = this.periodo();
-    this.api.relatorioConformidadePdf(periodo).subscribe({
+    this.carteiraApi.relatorioConformidadePdfDoCliente(produtorId, periodo).subscribe({
       next: (resp) => {
         this.baixandoPdf.set(false);
         const nome = filenameDeContentDisposition(
@@ -257,6 +347,37 @@ export class ImpostosContador implements OnInit {
         const env = err?.error instanceof Blob ? await apiErrorDeBlob(err.error) : null;
         this.toast.error(
           env ? mensagemDeEnvelope(env, err?.status ?? 0) : 'Não foi possível baixar o PDF.',
+        );
+      },
+    });
+  }
+
+  /**
+   * Reabre o mês fechado do cliente (RN005, `POST .../apuracao/{periodo}/reabrir`).
+   *
+   * A apuração que volta substitui a da tela: o status é decisão do servidor. O 403 tem dono — a
+   * função ASSISTENTE lê a carteira mas não reabre —, e dizer "não foi possível" faria a pessoa
+   * tentar de novo até desistir. O resto (409 fora de `FECHADO`, 422 além de 3 meses) traz a
+   * mensagem do backend, que já é escrita para quem lê.
+   */
+  reabrir(): void {
+    const produtorId = this.cliente()?.id;
+    if (!produtorId || this.reabrindo()) return;
+    const vez = this.vez;
+    this.reabrindo.set(true);
+    this.carteiraApi.reabrirApuracao(produtorId, this.periodo()).subscribe({
+      next: (apuracao) => {
+        this.reabrindo.set(false);
+        if (vez !== this.vez) return;
+        this.apuracao.set(apuracao);
+        this.toast.success(`Apuração de ${this.formatPeriodo(apuracao.periodo)} reaberta.`);
+      },
+      error: (err: HttpErrorResponse) => {
+        this.reabrindo.set(false);
+        this.toast.error(
+          err.status === 403
+            ? 'A sua função no escritório não reabre apuração. Peça a um contador ou ao administrador.'
+            : mensagemAmigavel(err),
         );
       },
     });

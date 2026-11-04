@@ -1,0 +1,254 @@
+<div class="page-container animate-entra-subindo flex flex-col gap-4">
+  <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+    <div>
+      <h1 class="font-heading text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+        Notas do produtor
+      </h1>
+      <p class="text-apoio text-muted-foreground">
+        @if (cliente(); as c) {
+          as notas de <span class="font-medium text-foreground">{{ c.nomeCompleto }}</span
+          >, para triar, conferir e aprovar
+        } @else {
+          as notas de um cliente da carteira, para triar, conferir e aprovar
+        }
+      </p>
+    </div>
+    <app-seletor-cliente (clienteChange)="aoTrocarCliente($event)" />
+  </header>
+
+  @if (cliente() === null) {
+    <ui-empty-state
+      titulo="Escolha um cliente para ver as notas"
+      descricao="O escritório não tem notas próprias: cada nota é de um produtor da carteira. Escolha qual no seletor acima."
+    >
+      <svg icone lucideUsers [size]="24" aria-hidden="true" />
+    </ui-empty-state>
+  } @else if (cliente(); as c) {
+    <!-- A TRIAGEM. Cada caixa e um filtro de status no servidor, e a contagem nao muda quando uma
+         e escolhida: ela conta sobre a busca, nao sobre a caixa. -->
+    <div class="flex flex-col gap-2">
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Triagem das notas">
+        @for (cx of caixas; track cx.chave) {
+          <button
+            type="button"
+            class="tap-target flex items-center gap-2 rounded-controle border px-3 text-apoio font-medium transition-colors"
+            [class]="
+              caixa() === cx.chave
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
+            "
+            [attr.aria-pressed]="caixa() === cx.chave"
+            (click)="trocarCaixa(cx.chave)"
+          >
+            {{ cx.rotulo }}
+            @let n = contagens()[cx.chave];
+            @if (n !== undefined && n !== null) {
+              <span
+                class="rounded-full px-1.5 tabular-nums"
+                [class]="caixa() === cx.chave ? 'bg-primary-foreground/20' : 'bg-surface-2'"
+              >
+                {{ n }}
+              </span>
+            }
+          </button>
+        }
+      </div>
+      <p class="text-apoio text-muted-foreground">
+        <strong class="text-foreground">Precisam de revisão</strong> espera você: o produtor mandou
+        para a sua aprovação antes de emitir.
+        <strong class="text-foreground">Travadas pelo fisco</strong> espera o produtor corrigir.
+      </p>
+    </div>
+
+    <form
+      class="flex flex-wrap items-center gap-2"
+      role="search"
+      (submit)="$event.preventDefault(); buscar()"
+    >
+      <label class="sr-only" for="busca-notas">Buscar nota</label>
+      <input
+        id="busca-notas"
+        type="search"
+        class="tap-target min-w-0 flex-1 rounded-controle border border-border bg-card px-3 text-apoio text-foreground sm:max-w-sm"
+        placeholder="Número, destinatário ou natureza"
+        [value]="busca()"
+        (input)="busca.set($any($event.target).value)"
+      />
+      <ui-button type="submit" variant="ghost" [disabled]="buscaCurta()">
+        <svg lucideSearch [size]="14" /> Buscar
+      </ui-button>
+      @if (buscaCurta()) {
+        <span class="text-apoio text-muted-foreground">Digite ao menos 3 caracteres.</span>
+      }
+    </form>
+
+    @if (carregando()) {
+      <ui-skeleton [linhas]="4" formato="bloco" altura="4.5rem" />
+    } @else if (erro()) {
+      <ui-empty-state
+        titulo="Não foi possível carregar as notas"
+        descricao="A lista deste cliente não respondeu. Tente de novo em instantes."
+      >
+        <svg icone lucideFileText [size]="24" aria-hidden="true" />
+        <ui-button acao variant="ghost" (click)="recarregar()">
+          <svg lucideRefreshCw [size]="14" /> Tentar de novo
+        </ui-button>
+      </ui-empty-state>
+    } @else if (notas().length === 0) {
+      <ui-empty-state
+        titulo="Nenhuma nota nesta caixa"
+        [descricao]="
+          buscaAplicada()
+            ? 'Nada encontrado para “' + buscaAplicada() + '” nesta situação.'
+            : 'Este cliente não tem nota nesta situação agora.'
+        "
+      >
+        <svg icone lucideFileText [size]="24" aria-hidden="true" />
+      </ui-empty-state>
+    } @else {
+      <ul class="flex flex-col gap-2" aria-live="polite">
+        @for (nota of notas(); track nota.id) {
+          <li class="rounded-card border border-border bg-card p-4 shadow-suave">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="flex flex-wrap items-center gap-2 font-medium text-foreground">
+                  Nota {{ nota.numero }}
+                  <ui-badge-status [status]="nota.status" />
+                </p>
+                <p class="text-apoio text-muted-foreground">
+                  {{ nota.destinatarioNome || 'Sem destinatário' }} · {{ data(nota.dataEmissao) }}
+                  @if (nota.naturezaOperacao) {
+                    · {{ nota.naturezaOperacao }}
+                  }
+                </p>
+              </div>
+              <p class="text-valor font-semibold tabular-nums text-foreground">
+                {{ moeda(nota.valorTotalNota) }}
+              </p>
+            </div>
+
+            @if (esperaOEscritorio(nota) || temValidacoes(nota)) {
+              <div class="mt-3 flex flex-wrap items-center gap-2">
+                @if (esperaOEscritorio(nota)) {
+                  <ui-button
+                    variant="primary"
+                    [carregando]="executando() === nota.id"
+                    [disabled]="!!executando()"
+                    (click)="aprovar(nota)"
+                  >
+                    Aprovar
+                  </ui-button>
+                  <ui-button
+                    variant="ghost"
+                    [disabled]="!!executando()"
+                    (click)="abrirDevolucao(nota)"
+                  >
+                    Devolver ao produtor
+                  </ui-button>
+                  <ui-button variant="sutil" (click)="verPreviaDanfe(nota)">
+                    Prévia da DANFE
+                  </ui-button>
+                }
+                @if (temValidacoes(nota)) {
+                  <button
+                    type="button"
+                    class="tap-target inline-flex items-center gap-1.5 text-apoio font-medium text-primary"
+                    [attr.aria-expanded]="notaAberta() === nota.id"
+                    (click)="alternarNota(nota)"
+                  >
+                    @if (notaAberta() === nota.id) {
+                      <svg lucideChevronDown [size]="16" aria-hidden="true" />
+                    } @else {
+                      <svg lucideChevronRight [size]="16" aria-hidden="true" />
+                    }
+                    O que o fisco apontou
+                  </button>
+                }
+              </div>
+            }
+
+            @if (notaAberta() === nota.id) {
+              <div class="mt-3 rounded-controle bg-surface-2 p-3">
+                @if (carregandoValidacoes()) {
+                  <p class="text-apoio text-muted-foreground">Buscando o que o fisco apontou…</p>
+                } @else if (validacoes().length) {
+                  <ul class="flex flex-col gap-1.5">
+                    @for (v of validacoes(); track v.code + (v.field ?? '')) {
+                      <li class="text-apoio leading-relaxed text-foreground">
+                        @if (v.field) {
+                          <span class="font-medium">{{ rotuloDoCampo(v.field) }}:</span>
+                        }
+                        {{ v.message }}
+                        @if (v.suggestion) {
+                          <span class="block text-muted-foreground">{{ v.suggestion }}</span>
+                        }
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="text-apoio text-muted-foreground">
+                    O validador não deixou detalhe para esta nota.
+                  </p>
+                }
+              </div>
+            }
+          </li>
+        }
+      </ul>
+
+      <div
+        class="flex flex-wrap items-center justify-between gap-2 text-apoio text-muted-foreground"
+      >
+        <span>{{ notas().length }} de {{ total() }} nota(s)</span>
+        @if (temMais()) {
+          <ui-button variant="ghost" [carregando]="carregandoMais()" (click)="mostrarMais()">
+            Mostrar mais
+          </ui-button>
+        }
+      </div>
+    }
+
+    <p class="border-t border-border pt-4 text-apoio text-muted-foreground">
+      Pedidos de documento, guias e o resto do atendimento deste cliente estão na
+      <a [routerLink]="['/contador', c.id]" class="font-medium text-primary underline">
+        ficha do cliente</a
+      >.
+    </p>
+  }
+</div>
+
+<ui-modal
+  [aberto]="devolvendo() !== null"
+  [titulo]="'Devolver a nota ' + (devolvendo()?.numero ?? '') + ' ao produtor'"
+  descricao="O motivo entra no histórico da nota e é o que o produtor lê para saber o que corrigir."
+  tamanho="sm"
+  [travado]="!!executando()"
+  (fechar)="fecharDevolucao()"
+>
+  <label for="motivo-devolucao" class="mb-1.5 block text-apoio font-medium text-foreground">
+    Motivo
+  </label>
+  <textarea
+    id="motivo-devolucao"
+    rows="4"
+    maxlength="500"
+    class="w-full rounded-controle border border-border bg-card px-3 py-2 text-apoio text-foreground"
+    [value]="motivo()"
+    (input)="motivo.set($any($event.target).value)"
+  ></textarea>
+  <p class="mt-1 text-apoio text-muted-foreground">De 5 a 500 caracteres.</p>
+
+  <div rodape class="flex flex-wrap justify-end gap-2">
+    <ui-button variant="ghost" [disabled]="!!executando()" (click)="fecharDevolucao()">
+      Cancelar
+    </ui-button>
+    <ui-button
+      variant="perigo"
+      [disabled]="!motivoValido()"
+      [carregando]="!!executando()"
+      (click)="confirmarDevolucao()"
+    >
+      Devolver
+    </ui-button>
+  </div>
+</ui-modal>

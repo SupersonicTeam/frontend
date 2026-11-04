@@ -53,13 +53,22 @@ export class NotificacoesService {
     this.itens.set([]);
   }
 
-  /** Busca na fonte do papel atual. */
+  /**
+   * Busca na fonte do papel atual.
+   *
+   * `/api/alertas` só sai com sessão **de produtor**, dito assim e não como "quem não é contador"
+   * (#136): sem papel definido não há fonte, e o sino fica vazio em vez de colher um 403.
+   */
   carregar(): void {
     if (this.sessao.ehContador()) {
       this.carteiraApi.listar().subscribe({
         next: (pagina) => this.itens.set(pagina.itens.flatMap((c) => this.doCliente(c))),
         error: () => this.itens.set([]),
       });
+      return;
+    }
+    if (!this.sessao.ehProdutor()) {
+      this.itens.set([]);
       return;
     }
     this.alertasApi.listar().subscribe({

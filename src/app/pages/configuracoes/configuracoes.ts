@@ -205,7 +205,11 @@ export class ConfiguracoesPage implements OnInit {
 
   ngOnInit(): void {
     // O service decide se precisa buscar, e nao sobrescreve painel pedido com periodo (#114).
-    this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
+    // So para produtor: `/api/dashboard` e do produtor do token e responde 403 ao contador (#136),
+    // que nao tem cadastro de produtor para mostrar aqui.
+    if (this.sessao.ehProdutor()) {
+      this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
+    }
     this.carregarCatalogo();
   }
 

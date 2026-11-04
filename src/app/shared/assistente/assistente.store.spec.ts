@@ -111,6 +111,19 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
     expect(httpMock.match((r) => r.url === '/dashboard').length).toBe(0);
   });
 
+  /**
+   * `/api/dashboard`, `/api/notas` e `/api/assistente/uso` são do produtor do token e respondem
+   * 403 ao contador (#136). A gaveta não aparece para ele, mas o store também não pede.
+   */
+  it('com sessao de contador, nao busca contexto nem a cota', () => {
+    entrarComo('CONTADOR');
+    store.carregarContexto();
+
+    httpMock.expectNone((r) => r.url === '/dashboard');
+    httpMock.expectNone((r) => r.url === '/notas');
+    httpMock.expectNone((r) => r.url === '/assistente/uso');
+  });
+
   it('manda só a pergunta — o produtor não é parâmetro, sai da identidade no servidor', async () => {
     store.carregarContexto();
     flushContexto();

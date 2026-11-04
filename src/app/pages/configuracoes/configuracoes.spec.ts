@@ -28,9 +28,27 @@ describe('ConfiguracoesPage', () => {
       providers: [provideHttpClient(), provideHttpClientTesting()],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
+    // O cadastro mostrado aqui e o do produtor: so a sessao dele pede `/api/dashboard` (#136).
+    entrarComo('PRODUTOR');
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => {
+    httpMock.verify();
+    localStorage.clear();
+  });
+
+  /**
+   * `/api/dashboard` e do produtor do token: para o contador responde 403 `PAPEL_NAO_AUTORIZADO`,
+   * e a tela pedia mesmo assim, so para mostrar um cadastro de produtor que ele nao tem (#136).
+   */
+  it('o contador nao pede /api/dashboard: a rota e do produtor', () => {
+    entrarComo('CONTADOR');
+    const fixture = TestBed.createComponent(ConfiguracoesPage);
+    fixture.detectChanges();
+
+    httpMock.expectNone((r) => r.url === '/dashboard');
+    httpMock.match((r) => r.url === '/contador/obrigacoes').forEach((r) => r.flush([]));
+  });
 
   it('mostra o produtor que veio da API, não um nome cravado no código', () => {
     const fixture = TestBed.createComponent(ConfiguracoesPage);
