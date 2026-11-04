@@ -250,7 +250,11 @@
             }
           </p>
           <p class="mt-1 text-apoio text-muted-foreground">
-            {{ ap.totalNotas }} nota(s) somada(s) nesta apuração.
+            @if (ap.totalNotas === 0) {
+              Sem notas emitidas no período.
+            } @else {
+              {{ ap.totalNotas }} nota(s) somada(s) nesta apuração.
+            }
           </p>
         }
 

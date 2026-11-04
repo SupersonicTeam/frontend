@@ -178,6 +178,16 @@ describe('PrazosContador', () => {
     expect(toasts[0]).toContain('ICMS');
   });
 
+  it('guia paga diz quando foi paga (`dataPagamento`, #116)', () => {
+    const f = montar([
+      guia({ id: 'g1', status: 'pago', dataPagamento: '2026-11-03T12:00:00-03:00' }),
+      guia({ id: 'g2', status: 'pendente', dataPagamento: null }),
+    ]);
+    const texto = ((f.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+    expect(texto).toContain('em 03/11/2026');
+    expect(texto.match(/ em \d{2}\/\d{2}\/\d{4}/g)).toHaveLength(1);
+  });
+
   it('traduz o status da guia para linguagem de quem lê, não a do banco', () => {
     const cmp = montar().componentInstance;
     expect(cmp.rotuloStatus('pendente')).toBe('Em aberto');

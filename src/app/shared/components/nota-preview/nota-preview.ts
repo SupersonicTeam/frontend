@@ -93,6 +93,19 @@ export class NotaPreview {
     return statusNotaBadge(status);
   }
 
+  /**
+   * A redução de alíquota que o cálculo aplicou ao item.
+   *
+   * Nula em nota anterior ao campo: aí a tela diz que não sabe (`—`), em vez de "sem redução".
+   * 100 é alíquota zero, e é dito assim, porque "100%" lido solto parece um tributo cheio.
+   */
+  formatReducao(v?: number | null): string {
+    if (v == null) return '—';
+    if (v >= 100) return 'alíquota zero';
+    if (v <= 0) return 'sem redução';
+    return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
+  }
+
   formatCurrency(v?: number | null): string {
     return (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }

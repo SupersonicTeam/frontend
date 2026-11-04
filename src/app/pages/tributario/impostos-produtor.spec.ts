@@ -14,8 +14,12 @@ import { ToastService } from '@core/services/toast.service';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
 
 function buildApuracao(o: Partial<Apuracao> = {}): Apuracao {
+  const periodo = o.periodo ?? '2026-07';
   return {
-    periodo: '2026-07',
+    periodo,
+    inicio: periodo,
+    fim: periodo,
+    parcial: false,
     status: 'FECHADO',
     debitoIbs: 150,
     debitoCbs: 1350,
@@ -46,7 +50,6 @@ function buildRelatorio(o: Partial<RelatorioConformidade> = {}): RelatorioConfor
     ...o,
   };
 }
-
 
 /**
  * Identidade de teste (issue #106).
@@ -259,7 +262,6 @@ describe('ImpostosProdutor', () => {
    * A rota antiga esta deprecated e responde 403 a todos. Os testes seguiam verdes porque
    * exercitavam um metodo que a tela nunca conseguiu chamar -- o botao vivia desabilitado.
    */
-
 
   it('TRIB-07: saldoAPagar negativo → saldoCredor true (valor não é alterado)', () => {
     const f = TestBed.createComponent(ImpostosProdutor);
@@ -664,6 +666,78 @@ describe('ImpostosProdutor', () => {
     // Zero teria virado barra; lacuna vira texto.
     expect((f.nativeElement as HTMLElement).textContent).toContain('sem resposta do servidor');
     expect(cmp.larguraDaBarra(null)).toBe(0);
+  });
+
+  it('mês da faixa sem nota emitida diz isso, em vez de uma barra de R$ 0,00 (#116)', () => {
+    const f = TestBed.createComponent(ImpostosProdutor);
+    const cmp = f.componentInstance;
+    f.detectChanges();
+    flushApuracao({}, { saldoIbs: 0, saldoCbs: 0, totalNotas: 0, status: 'ABERTO' });
+    flushRelatorio();
+    f.detectChanges();
+
+    const anterior = cmp.historico().find((m) => m.periodo === periodoAnteriorStr());
+    expect(anterior?.semNotas).toBe(true);
+    expect(anterior?.valor).toBe(0);
+    expect(cmp.historico().find((m) => m.atual)?.semNotas).toBe(false);
+    expect(cmp.descricaoDoMes(anterior!)).toContain('sem notas emitidas');
+    expect((f.nativeElement as HTMLElement).textContent).toContain('Sem notas emitidas');
+  });
+
+  it('mês na tela sem nota emitida diz isso, em vez de "Notas no período: 0"', () => {
+    const f = TestBed.createComponent(ImpostosProdutor);
+    f.detectChanges();
+    flushApuracao({
+      saldoIbs: 0,
+      saldoCbs: 0,
+      totalNotas: 0,
+      status: 'ABERTO',
+      dataFechamento: null,
+    });
+    flushRelatorio();
+    f.detectChanges();
+
+    const texto = (f.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('Sem notas emitidas');
+    expect(texto).not.toContain('Notas no período');
+  });
+
+  it('o aviso de conta parcial segue o campo `parcial`, não o status ABERTO', () => {
+    // Mês que já terminou e ainda não foi fechado: aberto, mas a conta não muda mais.
+    const passado = TestBed.createComponent(ImpostosProdutor);
+    passado.detectChanges();
+    flushApuracao({ status: 'ABERTO', dataFechamento: null, parcial: false });
+    flushRelatorio();
+    passado.detectChanges();
+    expect((passado.nativeElement as HTMLElement).textContent).not.toContain('a conta é parcial');
+
+    const corrente = TestBed.createComponent(ImpostosProdutor);
+    corrente.detectChanges();
+    flushApuracao({ status: 'ABERTO', dataFechamento: null, parcial: true });
+    flushRelatorio();
+    corrente.detectChanges();
+    expect((corrente.nativeElement as HTMLElement).textContent).toContain('a conta é parcial');
+  });
+
+  it('guia paga diz quando foi paga; sem a data, só "Paga" (#116)', () => {
+    const cmp = TestBed.createComponent(ImpostosProdutor).componentInstance;
+    const base = {
+      id: 'g1',
+      produtorId: 'p1',
+      tipoGuia: 'DARF' as const,
+      dataVencimento: '2026-11-20',
+      valor: 100,
+      createdAt: '2026-11-01T10:00:00-03:00',
+    };
+    expect(
+      cmp.rotuloGuiaComData({
+        ...base,
+        status: 'pago',
+        dataPagamento: '2026-11-03T12:00:00-03:00',
+      }),
+    ).toBe('Paga em 03/11/2026');
+    expect(cmp.rotuloGuiaComData({ ...base, status: 'pago', dataPagamento: null })).toBe('Paga');
+    expect(cmp.rotuloGuiaComData({ ...base, status: 'pendente' })).toBe('Em aberto');
   });
 
   it('clicar num mês da faixa leva a tela para aquele mês', () => {

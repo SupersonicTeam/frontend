@@ -6,8 +6,20 @@ import { StatusApuracao } from '@core/enums/status-apuracao.enum';
  * intermediário (o record do backend já usa nomes de domínio em PT).
  */
 export interface Apuracao {
-  /** Período consolidado (YYYY-MM). */
+  /**
+   * Período consolidado. `YYYY-MM` no mês; com `agrupamento` vira `2026-T1`, `2026-S1` ou `2026`.
+   */
   periodo: string;
+  /** Primeiro e último mês que o item cobre (`YYYY-MM`). Iguais ao `periodo` no mês (#116). */
+  inicio: string;
+  fim: string;
+  /**
+   * `true` no mês corrente ou futuro: a conta ainda muda a cada nota autorizada.
+   *
+   * Não é o mesmo que `status: 'ABERTO'`. Um mês já terminado pode seguir aberto até o fechamento
+   * automático, e a conta dele não muda mais.
+   */
+  parcial: boolean;
   status: StatusApuracao;
   debitoIbs: number;
   debitoCbs: number;

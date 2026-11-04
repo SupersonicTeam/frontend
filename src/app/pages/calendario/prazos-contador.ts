@@ -380,9 +380,16 @@ export class PrazosContador implements OnInit {
     return (valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  formatDate(iso?: string): string {
+  /**
+   * Data em `dd/mm/aaaa`. Data pura (`AAAA-MM-DD`) é lida ao meio-dia, para o fuso não andar um dia;
+   * instante com fuso (`dataPagamento`) é lido como está, porque cortar no `T` pegaria o dia em UTC
+   * — 23h de Brasília já é o dia seguinte lá.
+   */
+  formatDate(iso?: string | null): string {
     if (!iso) return '—';
-    return new Date(`${iso.split('T')[0]}T12:00:00`).toLocaleDateString('pt-BR');
+    const soData = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+    const d = new Date(soData ? `${iso}T12:00:00` : iso);
+    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR');
   }
 
   private static hojeISO(): string {

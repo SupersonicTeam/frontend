@@ -158,6 +158,10 @@ export class ImpostosProdutor implements OnInit {
    *
    * Mês sem resposta entra como `valor: null` e aparece como lacuna. Zerar seria afirmar que
    * não houve movimento, que é coisa diferente de não ter conseguido olhar.
+   *
+   * Mês que respondeu com `totalNotas: 0` é o caso oposto: o servidor olhou e não havia nota. Ele
+   * vem zerado por contrato (#116), e a tela diz "Sem notas emitidas" em vez de uma barra de R$ 0,00,
+   * que leria como "não devo nada" quando o certo é "não vendi nada".
    */
   readonly historico = computed(() => {
     const anteriores = this.mesesAnteriores();
@@ -168,6 +172,7 @@ export class ImpostosProdutor implements OnInit {
       ibs: number;
       cbs: number;
       atual: boolean;
+      semNotas: boolean;
     }[] = [];
 
     for (let atras = ImpostosProdutor.MESES_NO_HISTORICO - 1; atras >= 1; atras--) {
@@ -179,6 +184,7 @@ export class ImpostosProdutor implements OnInit {
         ibs: a?.saldoIbs ?? 0,
         cbs: a?.saldoCbs ?? 0,
         atual: false,
+        semNotas: a?.totalNotas === 0,
       });
     }
 
@@ -189,6 +195,7 @@ export class ImpostosProdutor implements OnInit {
       ibs: atual?.saldoIbs ?? 0,
       cbs: atual?.saldoCbs ?? 0,
       atual: true,
+      semNotas: atual?.totalNotas === 0,
     });
     return meses;
   });
@@ -383,22 +390,30 @@ export class ImpostosProdutor implements OnInit {
       .carregar()
       .pipe(switchMap((sessao) => this.contadorApi.getGuias(sessao.usuarioId)))
       .subscribe({
-      next: (lista) => {
-        this.guias.set(lista);
-        this.guiasCarregadas.set(true);
-      },
-      // A lista **não** é zerada: o que estava na tela é o último dado verdadeiro do servidor.
-      // Zerar em falha fazia a guia sumir como se tivesse sido paga (#107).
-      error: (err: HttpErrorResponse) => {
-        this.erroGuias.set(falhaDaApi(err));
-        this.guiasCarregadas.set(true);
-      },
-    });
+        next: (lista) => {
+          this.guias.set(lista);
+          this.guiasCarregadas.set(true);
+        },
+        // A lista **não** é zerada: o que estava na tela é o último dado verdadeiro do servidor.
+        // Zerar em falha fazia a guia sumir como se tivesse sido paga (#107).
+        error: (err: HttpErrorResponse) => {
+          this.erroGuias.set(falhaDaApi(err));
+          this.guiasCarregadas.set(true);
+        },
+      });
   }
 
   /** `pago`/`vencido`/`pendente` em palavra de produtor. */
   rotuloGuia(status: GuiaFiscal['status']): string {
     return { pago: 'Paga', vencido: 'Vencida', pendente: 'Em aberto' }[status] ?? status;
+  }
+
+  /** "Paga em 03/11/2026" quando o servidor diz quando foi paga (`dataPagamento`, #116). */
+  rotuloGuiaComData(guia: GuiaFiscal): string {
+    if (guia.status === 'pago' && guia.dataPagamento) {
+      return `Paga em ${this.formatDate(guia.dataPagamento)}`;
+    }
+    return this.rotuloGuia(guia.status);
   }
 
   classeGuia(status: GuiaFiscal['status']): string {
@@ -470,8 +485,6 @@ export class ImpostosProdutor implements OnInit {
     });
   }
 
-
-
   /**
    * Abre a Ceres já perguntando sobre a apuração na tela.
    *
@@ -541,9 +554,16 @@ export class ImpostosProdutor implements OnInit {
    * -- a nao ser que ela entre aqui. Mes sem resposta diz isso, em vez de "R$ 0,00", que seria
    * afirmar que nao houve movimento.
    */
-  descricaoDoMes(mes: { periodo: string; valor: number | null; ibs: number; cbs: number }): string {
+  descricaoDoMes(mes: {
+    periodo: string;
+    valor: number | null;
+    ibs: number;
+    cbs: number;
+    semNotas: boolean;
+  }): string {
     const quando = this.formatPeriodo(mes.periodo);
     if (mes.valor === null) return `${quando}: sem resposta do servidor`;
+    if (mes.semNotas) return `${quando}: sem notas emitidas`;
     const total = this.formatCurrency(mes.valor);
     if (mes.valor < 0) return `${quando}: ${total} de credito`;
     return (
