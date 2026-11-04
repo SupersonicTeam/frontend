@@ -53,7 +53,7 @@ export interface StatusNotaMeta {
  *
  * Agora a cor diz **gravidade** (`sucesso`, `aviso`, `info`, `perigo`, neutro) e o **rótulo** diz
  * qual estado é. Isso junta estados que antes tinham matiz próprio: "Autorizada" e "Aprovada" são
- * as duas verdes, e "Com inconsistências", "Pendente na SEFAZ" e "Devolvida" as três âmbares. É
+ * as duas verdes, e "Com inconsistências", "Aguardando confirmação da SEFAZ" e "Devolvida" as três âmbares. É
  * troca consciente — matiz é um canal ruim para distinguir doze coisas, e era justamente o que
  * fazia dois estados vizinhos parecerem o mesmo com verdes quase iguais. Quem precisa do estado
  * exato lê o rótulo, que está sempre ao lado.
@@ -84,8 +84,14 @@ export const STATUS_NOTA_META: Record<StatusNotaFiscal, StatusNotaMeta> = {
     badge: 'bg-perigo-soft text-perigo-ink border border-perigo-borda',
     desvio: true,
   },
+  /**
+   * "Aguardando confirmação da SEFAZ" (#117), não "Pendente na SEFAZ". O estado é o mesmo na
+   * emissão e na importação: a SEFAZ não respondeu e um job confirma depois. "Pendente" soava como
+   * algo que a pessoa precisa resolver; e, na importação, a nota ainda **não entra no crédito**
+   * enquanto espera, então o rótulo diz que falta a confirmação, não que há erro.
+   */
   PENDENTE_SEFAZ: {
-    label: 'Pendente na SEFAZ',
+    label: 'Aguardando confirmação da SEFAZ',
     badge: 'bg-aviso-soft text-aviso-ink border border-aviso-borda',
     desvio: true,
   },

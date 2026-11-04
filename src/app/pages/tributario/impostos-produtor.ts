@@ -6,7 +6,6 @@ import {
   LucideReceipt,
   LucideLoaderCircle,
   LucideRefreshCw,
-  LucideLockOpen,
   LucideDownload,
   LucideTrendingUp,
   LucideTrendingDown,
@@ -84,7 +83,6 @@ const MESES = [
     LucideReceipt,
     LucideLoaderCircle,
     LucideRefreshCw,
-    LucideLockOpen,
     LucideDownload,
     LucideTrendingUp,
     LucideTrendingDown,
@@ -383,17 +381,17 @@ export class ImpostosProdutor implements OnInit {
       .carregar()
       .pipe(switchMap((sessao) => this.contadorApi.getGuias(sessao.usuarioId)))
       .subscribe({
-      next: (lista) => {
-        this.guias.set(lista);
-        this.guiasCarregadas.set(true);
-      },
-      // A lista **não** é zerada: o que estava na tela é o último dado verdadeiro do servidor.
-      // Zerar em falha fazia a guia sumir como se tivesse sido paga (#107).
-      error: (err: HttpErrorResponse) => {
-        this.erroGuias.set(falhaDaApi(err));
-        this.guiasCarregadas.set(true);
-      },
-    });
+        next: (lista) => {
+          this.guias.set(lista);
+          this.guiasCarregadas.set(true);
+        },
+        // A lista **não** é zerada: o que estava na tela é o último dado verdadeiro do servidor.
+        // Zerar em falha fazia a guia sumir como se tivesse sido paga (#107).
+        error: (err: HttpErrorResponse) => {
+          this.erroGuias.set(falhaDaApi(err));
+          this.guiasCarregadas.set(true);
+        },
+      });
   }
 
   /** `pago`/`vencido`/`pendente` em palavra de produtor. */
@@ -469,8 +467,6 @@ export class ImpostosProdutor implements OnInit {
       },
     });
   }
-
-
 
   /**
    * Abre a Ceres já perguntando sobre a apuração na tela.
