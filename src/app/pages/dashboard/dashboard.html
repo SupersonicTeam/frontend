@@ -414,15 +414,16 @@
         <div class="mt-2 pt-2 border-t border-border">
           <!-- Este parágrafo afirmava "60% de redução nas alíquotas de CBS (8,8% → 3,5%) e IBS
              (17,7% → 7,1%)" e "efetiva ~10,6% ao invés de 26,5%". Nenhum desses números vinha da
-             API, e a redução não é nas alíquotas: é na **base de cálculo**, e só de alguns
-             produtos. A regra de quem tem redução está sendo conferida na LC 214
-             (SupersonicTeam/backend#272); até lá a tela não assume nada (#110). -->
+             API (#110). Depois este texto dizia que a redução era na base de cálculo: era o que o
+             backend fazia até a backend#278, que corrigiu pela LC 214 — a base é o valor cheio do
+             item e a redução é da alíquota, pela tabela oficial por NCM (backend#272, #116). -->
           <p class="text-apoio text-muted-foreground leading-relaxed">
             A <strong class="text-foreground">Reforma Tributária</strong> prevê redução para parte
             da produção agropecuária, e ela é aplicada na
-            <strong class="text-foreground">base de cálculo</strong> de cada produto — não na
-            alíquota, e não para todos. Os valores acima são os que a apuração calculou para as suas
-            notas do período; a redução de cada item aparece na nota, quando houver.
+            <strong class="text-foreground">alíquota</strong> de cada produto, conforme a
+            classificação dele — a base de cálculo é o valor cheio do item, e nem todo produto tem
+            redução. Os valores acima são os que a apuração calculou para as suas notas do período;
+            a redução de cada item aparece na nota.
           </p>
         </div>
       }

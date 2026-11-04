@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { NotaPreview } from './nota-preview';
+import type { ItemNotaFiscal, NotaFiscal } from '@models/nota-fiscal.model';
 
 /**
  * O stepper e os três status da revisão (backend#178).
@@ -61,5 +62,88 @@ describe('NotaPreview — stepper', () => {
 
   it('o XML gerado é caminho de quem não tem contador: pula a revisão', () => {
     expect(etapas('XML_GERADO')).toEqual(['done', 'todo', 'todo', 'current']);
+  });
+});
+
+/**
+ * Os itens mostram o que o cálculo **aplicou** (#116, backend#272).
+ *
+ * `percentualReducao` e `cClassTrib` são o que veio na entrada, e ficam nulos quando o item não
+ * informa: aí quem decide é a tabela oficial pelo NCM. Mostrar a entrada diria "sem redução" para
+ * a soja que o servidor calculou com 60%.
+ */
+describe('NotaPreview — itens', () => {
+  /** As células da linha do item: [descrição, NCM, CFOP, cClassTrib, redução, ...]. */
+  function renderizar(item: Partial<ItemNotaFiscal>): string[] {
+    TestBed.configureTestingModule({ imports: [NotaPreview] });
+    const f = TestBed.createComponent(NotaPreview);
+    f.componentRef.setInput('nota', {
+      id: 'n1',
+      numero: 1,
+      naturezaOperacao: 'Venda',
+      status: 'RASCUNHO',
+      dataEmissao: '2026-10-01',
+      destinatarioNome: 'Cooperativa',
+      destinatarioCpfCnpj: '12345678000195',
+      itens: [
+        {
+          numeroItem: 1,
+          descricao: 'Soja em grãos',
+          ncm: '12019000',
+          cfop: '5101',
+          unidade: 'KG',
+          quantidade: 500,
+          valorUnitario: 2.5,
+          ...item,
+        },
+      ],
+    } satisfies NotaFiscal);
+    f.detectChanges();
+    const linha = (f.nativeElement as HTMLElement).querySelector('tbody tr');
+    return [...(linha?.querySelectorAll('td') ?? [])].map((td) => td.textContent?.trim() ?? '');
+  }
+
+  it('mostra a redução e o cClassTrib aplicados, não os da entrada', () => {
+    const celulas = renderizar({
+      percentualReducao: null,
+      percentualReducaoAplicado: 60,
+      cClassTrib: null,
+      cClassTribAplicado: '200036',
+    });
+    expect(celulas[3]).toBe('200036');
+    expect(celulas[4]).toBe('60%');
+  });
+
+  it('aplicado manda sobre a entrada quando os dois vêm', () => {
+    const celulas = renderizar({
+      percentualReducao: 0,
+      percentualReducaoAplicado: 60,
+      cClassTrib: '000001',
+      cClassTribAplicado: '200036',
+    });
+    expect(celulas[3]).toBe('200036');
+    expect(celulas[4]).toBe('60%');
+  });
+
+  it('nota anterior ao campo aplicado usa a entrada, que antes era o aplicado', () => {
+    const celulas = renderizar({ percentualReducao: 60, cClassTrib: '200036' });
+    expect(celulas[3]).toBe('200036');
+    expect(celulas[4]).toBe('60%');
+  });
+
+  it('sem nenhum dos dois, diz que não sabe em vez de "sem redução"', () => {
+    const celulas = renderizar({});
+    expect(celulas[3]).toBe('—');
+    expect(celulas[4]).toBe('—');
+  });
+
+  it('100% de redução é alíquota zero, e zero é sem redução', () => {
+    const c = TestBed.configureTestingModule({ imports: [NotaPreview] }).createComponent(
+      NotaPreview,
+    ).componentInstance;
+    expect(c.formatReducao(100)).toBe('alíquota zero');
+    expect(c.formatReducao(0)).toBe('sem redução');
+    expect(c.formatReducao(null)).toBe('—');
+    expect(c.formatReducao(12.5)).toBe('12,5%');
   });
 });

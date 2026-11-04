@@ -35,3 +35,20 @@ export function hojeEmBrasilia(agora: Date = new Date()): string {
     day: '2-digit',
   }).format(agora);
 }
+
+/**
+ * Data em `dd/mm/aaaa` para as duas formas que o backend manda.
+ *
+ * - **Data pura** (`dataVencimento`, `2026-09-10`) é lida ao meio-dia local. `new Date('2026-09-10')`
+ *   é meia-noite em **UTC**, e no fuso de Brasília vira o dia 9.
+ * - **Instante com fuso** (`dataPagamento`, `dataFechamento`) é lido como está. Cortar no `T` pegaria
+ *   o dia em UTC: 23h de Brasília já é o dia seguinte lá.
+ *
+ * Vazio vira `—`; texto que não é data volta como veio, em vez de "Invalid Date".
+ */
+export function formatarData(iso?: string | null): string {
+  if (!iso) return '—';
+  const soData = /^\d{4}-\d{2}-\d{2}$/.test(iso);
+  const d = new Date(soData ? `${iso}T12:00:00` : iso);
+  return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR');
+}

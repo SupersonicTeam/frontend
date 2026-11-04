@@ -274,7 +274,7 @@ Antes de escrever markup novo, veja se um destes resolve:
 | Arquivo | Para quê |
 |---|---|
 | `validacoes.ts` | Inconsistências fiscais de `/notas/{id}/validacoes`. O endpoint devolve o **histórico inteiro** — `apenasUltimaChecagem()` fica só com o lote mais recente, sem repetir `code`+`field`. `rotuloDoCampo()` traduz os 17 campos que o `FiscalRulesValidator` emite. `ehCampoDoProdutor()` separa o que se corrige na nota do que está no cadastro (que o app **não** edita). Usado no modal da nota **e** na gaveta do assistente. |
-| `ceres.ts` | Vocabulário da Ceres em português: `rotuloRota()` (selo "das suas notas"), `etapaDaRota()` (o que mostrar enquanto ela trabalha), `rotuloFonte()`/`descreverFonte()` (as consultas de `fontesDados`) e `TAMANHO_MAXIMO_PERGUNTA` (1000). Função não documentada no contrato aparece com o nome cru — melhor que inventar rótulo. |
+| `ceres.ts` | Vocabulário da Ceres em português: `rotuloRota()` (selo "das suas notas", ou "da tabela oficial" quando a única fonte é ela), `etapaDaRota()` (o que mostrar enquanto ela trabalha), `rotuloFonte()`/`descreverFonte()` (as consultas de `fontesDados`), `ehFonteOficial()`, `paragrafosDoTexto()` (parágrafos e listas `- ` da resposta) e `TAMANHO_MAXIMO_PERGUNTA` (1000). **`FUNCOES_CERES` lista as 13 funções** dos `@Tool` do backend e tipa o `ROTULO_FONTE`: função nova sem rótulo não compila, e o `ceres.spec.ts` reprova rótulo faltando (#132). Função que o backend mandar e não estiver na lista aparece com o nome cru — melhor que inventar rótulo. |
 | `chart-tokens.ts` | Cores do Chart.js a partir das custom properties do tema. O `<canvas>` não enxerga Tailwind. |
 | `guias.ts` | `statusDaGuia()` traduz `PENDENTE`/`PAGA`/`VENCIDA` para o vocabulário do modelo **e deriva o atraso da data** — o backend não devolve `VENCIDA` por conta própria em `/contador/guias`, mas a carteira conta a guia atrasada em `atencao.guiasVencidas`. Sem isso as duas telas discordavam sobre a mesma guia. |
 | `mascaras.ts` | CPF/CNPJ e CEP nos campos (#102). `aplicarMascara()` formata **sem perder o cursor**: a âncora é quantos dígitos havia antes dele, não a posição no texto, que anda quando um ponto entra. Antes o cursor ia para o fim a cada tecla. O envio segue cru (`soDigitos` no payload). |
@@ -291,13 +291,14 @@ O que o contrato da Ceres impõe e onde isso mora:
 | Regra do contrato | Onde |
 |---|---|
 | Citação legal **visível**, com link do Planalto e trecho expansível | `<app-ceres-citacoes>` (`<details>`, sem estado nem JS) |
-| "Calculado a partir das suas notas", com as consultas feitas | `<app-ceres-fontes>` + `@core/utils/ceres` |
+| "Calculado a partir das suas notas", com as consultas feitas | `<app-ceres-fontes>` + `@core/utils/ceres`. A tabela oficial do IBS/CBS (`consultarTratamentoProduto`) **não** é dado do produtor: vai num bloco à parte, "Consultado na tabela oficial do IBS/CBS" (#132) |
+| `atalhos` (botões "Onde ver isso agora") | aparecem sempre que vierem, **não só no fallback**: desde a backend#266 vêm também com `modoFallback: false`, quando a Ceres não identificou qual dado consultar. A frase "os trechos da lei estão como foram escritos" só aparece em fallback **com citação**. E o selo de rota some quando `fontesDados` vem vazio: sem consulta, a resposta não é "das suas notas" |
 | `rota` (DADOS/LEGISLACAO/MISTO/FORA_DE_ESCOPO) | selo na mensagem; durante a espera vira "Consultando as suas notas…" (evento `rota` do SSE chega em segundos) |
 | Uma pergunta por vez; 1 a 1000 caracteres | `podeEnviar`/`perguntaLonga` no store, contador no campo |
 | `Retry-After` no 503 `ASSISTENTE_OCUPADO` | store reenvia **uma** vez (`TENTATIVAS_POR_PERGUNTA`) |
 | `AbortController` ao sair da tela | `store.cancelar(false)` no `ngOnDestroy` da `ChatPage`; botão "Cancelar" durante a espera |
 | Chat escondido para contador (403 `PAPEL_NAO_AUTORIZADO`) | `store.disponivel()` + `produtorGuard` na rota |
-| `resposta` é texto puro | interpolação com `whitespace-pre-line`; **nunca** `[innerHTML]` |
+| `resposta` é texto puro | `<app-ceres-texto>`: parágrafos (`\n\n`) e linhas `- ` como `<ul>`, tudo por interpolação; **nunca** `[innerHTML]` |
 
 Falha **não vira texto de assistente**: a mensagem carrega `falha` com o código do backend e a tela
 escolhe o que dizer (`tituloDaFalha`/`detalheDaFalha` em `assistente-conversa.ts`). "Modelo fora do ar"

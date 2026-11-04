@@ -10,6 +10,8 @@ import {
 } from '@lucide/angular';
 import { HttpErrorResponse } from '@angular/common/http';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
+import { dataDoPagamento } from '@core/utils/guias';
+import { formatarData } from '@core/utils/periodo';
 import { ToastService } from '@core/services/toast.service';
 import {
   NotificacaoApi,
@@ -380,9 +382,15 @@ export class PrazosContador implements OnInit {
     return (valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  formatDate(iso?: string): string {
-    if (!iso) return '—';
-    return new Date(`${iso.split('T')[0]}T12:00:00`).toLocaleDateString('pt-BR');
+  /** Data pura ou instante com fuso, ver `formatarData`. */
+  formatDate(iso?: string | null): string {
+    return formatarData(iso);
+  }
+
+  /** "em 03/11/2026" na guia paga, quando o servidor diz quando (#116). */
+  pagaEm(guia: GuiaFiscal): string | null {
+    const data = dataDoPagamento(guia);
+    return data ? formatarData(data) : null;
   }
 
   private static hojeISO(): string {
