@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import type { Observable } from 'rxjs';
 import {
   LucideChevronDown,
@@ -104,13 +104,19 @@ const BUSCA_MINIMA = 3;
 export class NotasContador {
   private readonly carteiraApi = inject(CarteiraApi);
   private readonly toast = inject(ToastService);
+  private readonly rota = inject(ActivatedRoute);
 
   readonly caixas = CAIXAS_TRIAGEM;
   protected readonly rotuloDoCampo = rotuloDoCampo;
 
   /** `undefined` enquanto a carteira não respondeu; `null` = nenhum cliente escolhido. */
   readonly cliente = signal<ProdutorCarteira | null | undefined>(undefined);
-  readonly caixa = signal<string>('revisao');
+  /**
+   * A caixa aberta. Abre em "Precisam de revisão" (o que espera o escritório), a menos que o
+   * endereço peça outra (`?caixa=`): o Fechamento manda para cá as notas que ficaram fora da
+   * apuração, e elas não estão na pilha de revisão.
+   */
+  readonly caixa = signal<string>(this.caixaPedida());
   readonly busca = signal('');
   /** A busca que está valendo — a do campo só vale ao enviar, para não pedir a cada tecla. */
   readonly buscaAplicada = signal('');
@@ -136,6 +142,13 @@ export class NotasContador {
    * do outro.
    */
   private vez = 0;
+  /** O mesmo, para as contagens: uma rodada nova invalida as respostas da anterior. */
+  private vezDaContagem = 0;
+
+  private caixaPedida(): string {
+    const pedida = this.rota.snapshot.queryParamMap.get('caixa');
+    return CAIXAS_TRIAGEM.some((c) => c.chave === pedida) ? pedida! : 'revisao';
+  }
 
   aoTrocarCliente(cliente: ProdutorCarteira | null): void {
     const atual = this.cliente();
@@ -149,6 +162,7 @@ export class NotasContador {
     this.contagens.set({});
     if (!cliente) {
       this.vez++;
+      this.vezDaContagem++;
       this.carregando.set(false);
       this.erro.set(false);
       return;
@@ -174,23 +188,30 @@ export class NotasContador {
     this.recarregar();
   }
 
-  /** Volta à primeira página da caixa escolhida. */
-  recarregar(): void {
+  /**
+   * Volta à primeira página da caixa escolhida.
+   *
+   * `silencioso` é para depois de aprovar ou devolver: a lista é trocada quando a resposta chega,
+   * sem o esqueleto no meio, e uma falha deixa a lista que já estava na tela.
+   */
+  recarregar(silencioso = false): void {
     const produtorId = this.cliente()?.id;
     if (!produtorId) return;
     const vez = ++this.vez;
-    this.carregando.set(true);
-    this.erro.set(false);
-    this.pagina.set(0);
+    if (!silencioso) {
+      this.carregando.set(true);
+      this.erro.set(false);
+    }
     this.pedirPagina(produtorId, 0).subscribe({
       next: ({ itens, total }) => {
         if (vez !== this.vez) return;
         this.notas.set(itens);
         this.total.set(total);
+        this.pagina.set(0);
         this.carregando.set(false);
       },
       error: () => {
-        if (vez !== this.vez) return;
+        if (vez !== this.vez || silencioso) return;
         this.notas.set([]);
         this.total.set(0);
         this.erro.set(true);
@@ -238,18 +259,22 @@ export class NotasContador {
    * caixa, as outras não podem zerar, senão a triagem deixa de servir para triar. Falha de uma
    * contagem some só com aquele número; a lista não depende dele.
    */
-  private contar(): void {
+  private contar(limpar = true): void {
     const produtorId = this.cliente()?.id;
     if (!produtorId) return;
     const busca = this.buscaAplicada() || undefined;
-    this.contagens.set({});
+    const vez = ++this.vezDaContagem;
+    // Depois de aprovar, os números de antes continuam na tela até os novos chegarem: zerar faria
+    // as sete caixas piscarem a cada nota.
+    if (limpar) this.contagens.set({});
     for (const caixa of this.caixas) {
       this.carteiraApi
         .paginaDeNotasDoCliente(produtorId, { status: caixa.status, busca, page: 0, size: 1 })
         .subscribe({
           next: ({ total }) => {
-            if (this.cliente()?.id !== produtorId || this.buscaAplicada() !== (busca ?? '')) return;
-            this.contagens.update((c) => ({ ...c, [caixa.chave]: total }));
+            if (vez === this.vezDaContagem) {
+              this.contagens.update((c) => ({ ...c, [caixa.chave]: total }));
+            }
           },
           error: () => undefined,
         });
@@ -337,8 +362,11 @@ export class NotasContador {
   }
 
   /**
-   * Troca a nota pela versão que o servidor devolveu e recontar as caixas: aprovada ou devolvida,
-   * ela sai de "Precisam de revisão".
+   * Troca a nota pela versão que o servidor devolveu, recarrega a caixa e reconta.
+   *
+   * Recarregar não é zelo: aprovada ou devolvida, a nota sai de "Precisam de revisão" **no
+   * servidor**, e a página seguinte (paginação por deslocamento) pularia a nota que subiu para o
+   * lugar dela. A troca imediata mostra o resultado enquanto a lista nova não chega.
    */
   private executarNaNota(nota: NotaFiscal, chamada: () => Observable<NotaFiscal>): void {
     this.executando.set(nota.id);
@@ -353,7 +381,8 @@ export class NotasContador {
             ? `Nota ${atualizada.numero} devolvida ao produtor.`
             : `Nota ${atualizada.numero} aprovada. O produtor já pode emitir.`,
         );
-        this.contar();
+        this.recarregar(true);
+        this.contar(false);
       },
       error: (erro: HttpErrorResponse) => {
         this.executando.set(null);

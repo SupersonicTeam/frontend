@@ -1,7 +1,14 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import {
+  ActivatedRoute,
+  Router,
+  convertToParamMap,
+  provideRouter,
+  type ParamMap,
+} from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
 import { vi, type MockInstance } from 'vitest';
 import { SeletorCliente } from './seletor-cliente';
 import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
@@ -20,7 +27,12 @@ describe('SeletorCliente', () => {
   let httpMock: HttpTestingController;
   let navegou: MockInstance<Router['navigate']>;
 
+  /** O que a rota emite depois de montada — é por aqui que o teste simula voltar no histórico. */
+  let mudancas: BehaviorSubject<ParamMap>;
+
   function montar(queryCliente?: string, lembrado?: string) {
+    const params = convertToParamMap(queryCliente ? { cliente: queryCliente } : {});
+    mudancas = new BehaviorSubject<ParamMap>(params);
     TestBed.configureTestingModule({
       imports: [SeletorCliente],
       providers: [
@@ -30,9 +42,8 @@ describe('SeletorCliente', () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: {
-              queryParamMap: convertToParamMap(queryCliente ? { cliente: queryCliente } : {}),
-            },
+            snapshot: { queryParamMap: params },
+            queryParamMap: mudancas,
           },
         },
       ],
@@ -131,5 +142,18 @@ describe('SeletorCliente', () => {
     expect((fixture.nativeElement as HTMLElement).textContent).toContain(
       'Não foi possível carregar a carteira',
     );
+  });
+
+  it('o endereco mudar na mesma tela troca o cliente: a tela nao fica num e o endereco no outro', () => {
+    const { emitidos } = montar('p1');
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores')
+      .flush([cliente('p1', 'Ana'), cliente('p2', 'Bruno')]);
+
+    mudancas.next(convertToParamMap({ cliente: 'p2' }));
+    // A propria escrita do seletor volta pela rota e nao re-emite.
+    mudancas.next(convertToParamMap({ cliente: 'p2' }));
+
+    expect(emitidos.map((c) => c?.id)).toEqual(['p1', 'p2']);
   });
 });

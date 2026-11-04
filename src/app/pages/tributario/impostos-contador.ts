@@ -13,11 +13,15 @@ import {
   LucideTriangleAlert,
   LucideUsers,
 } from '@lucide/angular';
-import { CarteiraApi } from '@services/contador/data-access/carteira.service';
+import {
+  CarteiraApi,
+  type StatusNotaFiltro,
+} from '@services/contador/data-access/carteira.service';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
+import { statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
 import { ToastService } from '@core/services/toast.service';
 import { apiErrorDeBlob, filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
 import { mensagemAmigavel, mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
@@ -54,15 +58,27 @@ const STATUS_APURACAO: Record<StatusApuracao, { label: string; classe: string }>
   },
 };
 
-/** Status de nota que **não** entra na apuração — só `AUTORIZADA` entra. */
-const FORA_DA_APURACAO = ['RASCUNHO', 'COM_INCONSISTENCIAS', 'REJEITADA', 'CANCELADA'] as const;
-
-const ROTULO_STATUS: Record<string, string> = {
-  RASCUNHO: 'Rascunho',
-  COM_INCONSISTENCIAS: 'Com inconsistências',
-  REJEITADA: 'Rejeitada',
-  CANCELADA: 'Cancelada',
-};
+/**
+ * Status de nota que **não** entra na apuração — só `AUTORIZADA` entra.
+ *
+ * A lista tinha só rascunho, inconsistência, rejeitada e cancelada, e com ela a tela dizia "pronto
+ * para fechar" com nota parada na mesa do escritório (`AGUARDANDO_APROVACAO`, backend#178) ou no
+ * meio da emissão (`XML_GERADO`, `PENDENTE_SEFAZ`). Desde a #136 a lista também é o filtro de
+ * `status` enviado ao servidor, então o que ficar de fora daqui não aparece em lugar nenhum.
+ * `CANCELANDO` não entra: a nota ainda é autorizada até o cancelamento sair.
+ */
+const FORA_DA_APURACAO: readonly StatusNotaFiltro[] = [
+  'RASCUNHO',
+  'COM_INCONSISTENCIAS',
+  'AGUARDANDO_APROVACAO',
+  'DEVOLVIDA',
+  'APROVADA',
+  'XML_GERADO',
+  'ENVIANDO',
+  'PENDENTE_SEFAZ',
+  'REJEITADA',
+  'CANCELADA',
+];
 
 /**
  * Impostos na visão do **contador** — o fechamento do mês.
@@ -145,6 +161,12 @@ export class ImpostosContador {
    * apuração" justamente quando não sabia — lista vazia é o que uma falha engolida parece.
    */
   readonly notasErro = signal(false);
+  /**
+   * As notas ainda não responderam. Lista vazia antes da resposta **não** é "nenhuma nota ficou
+   * fora": sem isto, a cada cliente escolhido a tela afirmava por um instante que o mês estava
+   * pronto para fechar.
+   */
+  readonly notasCarregando = signal(false);
   readonly carregando = signal(false);
   readonly erro = signal(false);
   readonly baixandoPdf = signal(false);
@@ -187,7 +209,7 @@ export class ImpostosContador {
   );
 
   readonly prontoParaFechar = computed(
-    () => !this.notasErro() && this.foraDaApuracao().length === 0,
+    () => !this.notasCarregando() && !this.notasErro() && this.foraDaApuracao().length === 0,
   );
 
   /**
@@ -228,6 +250,7 @@ export class ImpostosContador {
     this.cliente.set(cliente);
     this.notas.set([]);
     this.notasErro.set(false);
+    this.notasCarregando.set(false);
     if (!cliente) {
       this.vez++;
       this.carregando.set(false);
@@ -246,6 +269,7 @@ export class ImpostosContador {
    * mais velha. O recorte do mês é feito aqui, sobre a data de emissão.
    */
   private carregarNotas(produtorId: string): void {
+    this.notasCarregando.set(true);
     this.carteiraApi
       .notasDoCliente(produtorId, {
         status: [...FORA_DA_APURACAO],
@@ -254,10 +278,14 @@ export class ImpostosContador {
       })
       .subscribe({
         next: (notas) => {
-          if (this.cliente()?.id === produtorId) this.notas.set(notas);
+          if (this.cliente()?.id !== produtorId) return;
+          this.notas.set(notas);
+          this.notasCarregando.set(false);
         },
         error: () => {
-          if (this.cliente()?.id === produtorId) this.notasErro.set(true);
+          if (this.cliente()?.id !== produtorId) return;
+          this.notasErro.set(true);
+          this.notasCarregando.set(false);
         },
       });
   }
@@ -384,7 +412,7 @@ export class ImpostosContador {
   }
 
   rotuloStatusNota(status: string): string {
-    return ROTULO_STATUS[status] ?? status;
+    return statusNotaLabel(status);
   }
 
   /** `2026-10` -> "outubro de 2026". */

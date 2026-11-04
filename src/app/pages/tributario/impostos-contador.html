@@ -22,7 +22,7 @@
   @if (cliente() === null) {
     <ui-empty-state
       titulo="Escolha um cliente para ver o fechamento"
-      descricao="A apuração, a comparação com o mês anterior e o relatório de conformidade são de um produtor da carteira. Escolha qual no seletor acima."
+      descricao="A apuração, a comparação com o mês anterior e o relatório de conformidade são de um produtor da carteira. Escolha qual no seletor acima. Um cliente entra na carteira quando o produtor aceita o convite do escritório."
     >
       <svg icone lucideUsers [size]="24" aria-hidden="true" />
     </ui-empty-state>
@@ -64,10 +64,19 @@
     <section
       class="rounded-card border p-5"
       [class]="
-        prontoParaFechar() ? 'border-sucesso/30 bg-sucesso-soft' : 'border-aviso/40 bg-aviso-soft'
+        notasCarregando()
+          ? 'border-border bg-card'
+          : prontoParaFechar()
+            ? 'border-sucesso/30 bg-sucesso-soft'
+            : 'border-aviso/40 bg-aviso-soft'
       "
     >
-      @if (notasErro()) {
+      @if (notasCarregando()) {
+        <p class="flex items-center gap-2 text-apoio text-muted-foreground" aria-live="polite">
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" aria-hidden="true" />
+          Conferindo as notas do mês…
+        </p>
+      } @else if (notasErro()) {
         <div class="flex flex-wrap items-center justify-between gap-3 text-apoio text-aviso-ink">
           <span
             >Não foi possível conferir as notas do mês: não dá para dizer se alguma ficou
@@ -116,7 +125,7 @@
         </ul>
         <a
           routerLink="/documentos"
-          [queryParams]="{ cliente: cliente()?.id }"
+          [queryParams]="{ cliente: cliente()?.id, caixa: 'todas' }"
           class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
         >
           Resolver em Notas do produtor

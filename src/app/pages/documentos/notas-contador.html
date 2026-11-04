@@ -19,7 +19,7 @@
   @if (cliente() === null) {
     <ui-empty-state
       titulo="Escolha um cliente para ver as notas"
-      descricao="O escritório não tem notas próprias: cada nota é de um produtor da carteira. Escolha qual no seletor acima."
+      descricao="O escritório não tem notas próprias: cada nota é de um produtor da carteira. Escolha qual no seletor acima. Um cliente entra na carteira quando o produtor aceita o convite do escritório."
     >
       <svg icone lucideUsers [size]="24" aria-hidden="true" />
     </ui-empty-state>
@@ -210,7 +210,10 @@
 
     <p class="border-t border-border pt-4 text-apoio text-muted-foreground">
       Pedidos de documento, guias e o resto do atendimento deste cliente estão na
-      <a [routerLink]="['/contador', c.id]" class="font-medium text-primary underline">
+      <a
+        [routerLink]="['/contador', c.id]"
+        class="tap-target inline-flex items-center font-medium text-primary underline"
+      >
         ficha do cliente</a
       >.
     </p>

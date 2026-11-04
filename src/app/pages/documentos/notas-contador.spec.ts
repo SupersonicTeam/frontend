@@ -145,9 +145,12 @@ describe('NotasContador', () => {
     const req = httpMock.expectOne('/contador/produtores/p1/notas/n1/aprovar');
     expect(req.request.method).toBe('POST');
     req.flush(nota('n1', 'APROVADA'));
-    contagens().forEach((r) => r.flush([]));
-
     expect(cmp.notas()[0]!.status).toBe('APROVADA');
+
+    // A caixa recarrega: aprovada, a nota saiu de "Precisam de revisao" no servidor.
+    contagens().forEach((r) => r.flush([]));
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush([]);
+    expect(cmp.notas()).toEqual([]);
   });
 
   it('devolver exige motivo de 5 a 500 e o manda no corpo', () => {
@@ -170,6 +173,7 @@ describe('NotasContador', () => {
     expect(req.request.body).toEqual({ motivo: 'Falta o CFOP no item 2.' });
     req.flush(nota('n1', 'DEVOLVIDA'));
     contagens().forEach((r) => r.flush([]));
+    httpMock.match((r) => r.url === '/contador/produtores/p1/notas').forEach((r) => r.flush([]));
 
     expect(cmp.devolvendo()).toBeNull();
   });

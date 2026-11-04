@@ -27,7 +27,6 @@ import {
 import { NotasApi } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
-import { SessaoService } from '@core/services/sessao.service';
 import { NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
 import {
   type Pendencia,
@@ -217,7 +216,6 @@ export class DocumentosPage implements OnInit {
    * botão de perguntar sobre a nota só existe para quem ela atende.
    */
   protected readonly assistenteDisponivel = this.assistente.disponivel;
-  protected readonly sessao = inject(SessaoService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly contadorService = inject(ContadorApi);

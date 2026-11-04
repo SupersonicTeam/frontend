@@ -85,13 +85,14 @@ describe('ImpostosContador', () => {
     relatorio.flush({ periodo, saldoAPagar: 300 });
 
     const notas = todas.find((r) => r.request.url === '/contador/produtores/p1/notas')!;
-    expect(notas.request.params.getAll('status')).toEqual([
-      'RASCUNHO',
-      'COM_INCONSISTENCIAS',
-      'REJEITADA',
-      'CANCELADA',
-    ]);
+    // Tudo que nao e AUTORIZADA, inclusive o que espera o escritorio ou esta no meio da emissao.
+    expect(notas.request.params.getAll('status')).toContain('AGUARDANDO_APROVACAO');
+    expect(notas.request.params.getAll('status')).toContain('PENDENTE_SEFAZ');
+    expect(notas.request.params.getAll('status')).not.toContain('AUTORIZADA');
+    // Antes de as notas responderem, a tela nao sabe se o mes esta pronto.
+    expect(cmp.prontoParaFechar()).toBe(false);
     notas.flush([]);
+    expect(cmp.prontoParaFechar()).toBe(true);
 
     expect(cmp.apuracaoDoPeriodo()?.saldoIbs).toBe(300);
     expect(cmp.variacao()?.diferenca).toBe(200);

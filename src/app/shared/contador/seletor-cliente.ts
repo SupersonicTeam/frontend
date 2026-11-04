@@ -1,12 +1,10 @@
-import { Component, OnInit, inject, output, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, output, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { LucideRefreshCw, LucideUsers } from '@lucide/angular';
 import { CarteiraApi } from '@services/contador/data-access/carteira.service';
 import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import type { ProdutorCarteira } from '@models/carteira.model';
-
-/** Página máxima da carteira: o seletor precisa de todos os clientes, não da primeira página. */
-const TAMANHO_DA_CARTEIRA = 200;
 
 /**
  * O seletor de cliente das telas do contador que leem dado **de um produtor** (issue #136).
@@ -52,7 +50,11 @@ const TAMANHO_DA_CARTEIRA = 200;
     } @else if (clientes().length === 0) {
       <span class="text-apoio text-muted-foreground">
         Nenhum cliente ativo na carteira.
-        <a routerLink="/contador" class="font-medium text-primary underline">Ver a carteira</a>
+        <a
+          routerLink="/contador"
+          class="tap-target inline-flex items-center font-medium text-primary underline"
+          >Ver a carteira</a
+        >
       </span>
     } @else {
       <label class="flex flex-wrap items-center gap-2 text-apoio text-muted-foreground">
@@ -79,6 +81,7 @@ export class SeletorCliente implements OnInit {
   private readonly foco = inject(ClienteEmFocoService);
   private readonly router = inject(Router);
   private readonly rota = inject(ActivatedRoute);
+  private readonly destroyRef = inject(DestroyRef);
 
   /** O cliente escolhido, ou `null` quando não há. Só dispara depois de a carteira responder. */
   readonly clienteChange = output<ProdutorCarteira | null>();
@@ -90,12 +93,23 @@ export class SeletorCliente implements OnInit {
 
   ngOnInit(): void {
     this.carregar();
+
+    // O Angular reaproveita o componente quando só a query muda (voltar no histórico, link para a
+    // mesma tela com outro cliente). Sem isto o endereço diria um cliente e a tela mostraria outro
+    // -- e "aprovar" iria para o da tela. A nossa própria escrita no endereço chega aqui com o
+    // cliente já escolhido e não faz nada.
+    this.rota.queryParamMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
+      if (this.carregando() || this.erro()) return;
+      const pedido = params.get('cliente');
+      if (pedido === null || pedido === this.selecionado()) return;
+      this.escolher(pedido);
+    });
   }
 
   carregar(): void {
     this.carregando.set(true);
     this.erro.set(false);
-    this.carteiraApi.listar({ size: TAMANHO_DA_CARTEIRA }).subscribe({
+    this.carteiraApi.listar({ size: CarteiraApi.TAMANHO_MAXIMO }).subscribe({
       next: (pagina) => {
         this.clientes.set(pagina.itens);
         this.carregando.set(false);

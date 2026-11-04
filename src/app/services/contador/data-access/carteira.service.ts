@@ -72,8 +72,11 @@ export interface PaginaNotasCliente {
 export class CarteiraApi {
   private readonly http = inject(HttpClient);
 
-  /** Página máxima que o servidor aceita; é o que `obterCliente` usa para varrer a carteira. */
-  private static readonly TAMANHO_MAXIMO = 200;
+  /**
+   * Página máxima que o servidor aceita; é o que `obterCliente` e o `SeletorCliente` usam para
+   * varrer a carteira inteira.
+   */
+  static readonly TAMANHO_MAXIMO = 200;
 
   /**
    * `GET /api/contador/produtores` — a carteira.
