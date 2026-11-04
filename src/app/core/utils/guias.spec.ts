@@ -1,4 +1,4 @@
-import { statusDaGuia } from './guias';
+import { dataDoPagamento, statusDaGuia } from './guias';
 
 /**
  * O backend fala MAIÚSCULO e no feminino (`PENDENTE`, `PAGA`), e **não deriva `VENCIDA` da data**:
@@ -43,5 +43,16 @@ describe('statusDaGuia', () => {
 
   it('sem data de vencimento não inventa atraso', () => {
     expect(statusDaGuia('PENDENTE', undefined, HOJE)).toBe('pendente');
+  });
+});
+
+describe('dataDoPagamento', () => {
+  it('só a guia paga tem data de pagamento', () => {
+    const data = '2026-11-03T12:00:00-03:00';
+    expect(dataDoPagamento({ status: 'pago', dataPagamento: data })).toBe(data);
+    expect(dataDoPagamento({ status: 'pago', dataPagamento: null })).toBeNull();
+    expect(dataDoPagamento({ status: 'pago' })).toBeNull();
+    // Data sem status de paga não vira "paga em": o status manda.
+    expect(dataDoPagamento({ status: 'pendente', dataPagamento: data })).toBeNull();
   });
 });

@@ -29,8 +29,25 @@ export interface ItemNotaFiscal {
   valorUnitario: number;
   valorTotal?: number;
   cstIbsCbs?: string | null;
+  /** cClassTrib **informado na entrada**. Nulo quando o item não informa. */
   cClassTrib?: string | null;
+  /**
+   * Redução **informada na entrada** (0-100). Nula quando o item não informa, e aí vale a da tabela.
+   * Não é para a tela: o que o cálculo usou está em `percentualReducaoAplicado`.
+   */
   percentualReducao?: number | null;
+  /**
+   * Redução de alíquota IBS/CBS **que o cálculo aplicou** (0-100; 100 = alíquota zero): a informada
+   * ou a da tabela oficial pelo NCM (IT 2025.002; LC 214/2025). É este que a tela mostra (#116,
+   * backend#272). Nulo em nota anterior à mudança.
+   */
+  percentualReducaoAplicado?: number | null;
+  /** cClassTrib usado no cálculo e no XML: o informado ou o da regra pelo NCM (backend#272). */
+  cClassTribAplicado?: string | null;
+  /**
+   * Base de cálculo IBS/CBS = **valor cheio do item**. A LC 214 reduz a alíquota, não a base
+   * (backend#278): o tributo é base × alíquota × (1 − redução aplicada).
+   */
   baseCalculoIbsCbs?: number | null;
   aliquotaIbs?: number | null;
   valorIbs?: number | null;
@@ -70,4 +87,17 @@ export interface NotaFiscal {
   itens: ItemNotaFiscal[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** Resposta de `POST /api/notas/{id}/cancelar` — espelha `CancelamentoResponse` do backend. */
+export interface CancelamentoNota {
+  chaveAcesso: string | null;
+  status: StatusNotaFiscal;
+  /** Instante do cancelamento (ISO com fuso). */
+  dataCancelamento: string | null;
+  /** Protocolo do evento de cancelamento devolvido pela SEFAZ. */
+  protocoloCancelamento: string | null;
+  motivoCancelamento: string | null;
+  sefazCstat: string | null;
+  sefazMotivo: string | null;
 }
