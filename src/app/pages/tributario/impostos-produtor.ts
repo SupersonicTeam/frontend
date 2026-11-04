@@ -1,6 +1,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
+import { dataDoPagamento } from '@core/utils/guias';
+import { formatarData } from '@core/utils/periodo';
 import { FormsModule } from '@angular/forms';
 import {
   LucideReceipt,
@@ -208,9 +210,14 @@ export class ImpostosProdutor implements OnInit {
    * mes ficou acima ou abaixo do normal dele -- que e a pergunta de verdade.
    *
    * Menos de dois meses com resposta nao tem media que signifique nada.
+   *
+   * Mes sem nota emitida fica de fora (#116). Ele vem zerado, e cinco meses parados com um de
+   * R$ 1.800 dariam media de R$ 300: a marca diria que o mes atual esta seis vezes acima do normal
+   * quando nao ha normal nenhum com que comparar.
    */
   readonly mediaDoHistorico = computed(() => {
     const valores = this.historico()
+      .filter((m) => !m.semNotas)
       .map((m) => m.valor)
       .filter((v): v is number => v !== null);
     if (valores.length < 2) return null;
@@ -410,10 +417,8 @@ export class ImpostosProdutor implements OnInit {
 
   /** "Paga em 03/11/2026" quando o servidor diz quando foi paga (`dataPagamento`, #116). */
   rotuloGuiaComData(guia: GuiaFiscal): string {
-    if (guia.status === 'pago' && guia.dataPagamento) {
-      return `Paga em ${this.formatDate(guia.dataPagamento)}`;
-    }
-    return this.rotuloGuia(guia.status);
+    const pagamento = dataDoPagamento(guia);
+    return pagamento ? `Paga em ${formatarData(pagamento)}` : this.rotuloGuia(guia.status);
   }
 
   classeGuia(status: GuiaFiscal['status']): string {
@@ -619,9 +624,6 @@ export class ImpostosProdutor implements OnInit {
    * fuso entre −11 e +12.
    */
   formatDate(iso?: string | null): string {
-    if (!iso) return '—';
-    const soData = /^\d{4}-\d{2}-\d{2}$/.test(iso);
-    const d = new Date(soData ? `${iso}T12:00:00` : iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR');
+    return formatarData(iso);
   }
 }

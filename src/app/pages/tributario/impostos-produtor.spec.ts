@@ -646,6 +646,27 @@ describe('ImpostosProdutor', () => {
     expect(cmp.descricaoDoMes(cmp.historico().at(-1)!)).toContain('de CBS');
   });
 
+  it('mês sem nota emitida fica fora da média (#116)', () => {
+    const f = TestBed.createComponent(ImpostosProdutor);
+    const cmp = f.componentInstance;
+    const periodo = cmp.periodo();
+    f.detectChanges();
+
+    const { atual, faixa } = apuracoesAbertas(periodo);
+    atual!.flush(buildApuracao({ periodo, saldoIbs: 10, saldoCbs: 90 }));
+    flushFaixa(faixa, [
+      { periodo: mesAtras(periodo, 3), saldoIbs: 0, saldoCbs: 0, totalNotas: 0 },
+      { periodo: mesAtras(periodo, 2), saldoIbs: 0, saldoCbs: 0, totalNotas: 0 },
+      { periodo: mesAtras(periodo, 1), saldoIbs: 60, saldoCbs: 240 },
+    ]);
+    flushGuias();
+    flushRelatorio();
+    f.detectChanges();
+
+    // (100 + 300) / 2, e nao (100 + 300 + 0 + 0) / 4.
+    expect(cmp.mediaDoHistorico()).toBe(200);
+  });
+
   it('mês sem resposta é lacuna na faixa, não um mês de imposto zero', () => {
     const f = TestBed.createComponent(ImpostosProdutor);
     const cmp = f.componentInstance;

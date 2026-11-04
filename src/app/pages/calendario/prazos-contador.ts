@@ -10,6 +10,8 @@ import {
 } from '@lucide/angular';
 import { HttpErrorResponse } from '@angular/common/http';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
+import { dataDoPagamento } from '@core/utils/guias';
+import { formatarData } from '@core/utils/periodo';
 import { ToastService } from '@core/services/toast.service';
 import {
   NotificacaoApi,
@@ -380,16 +382,15 @@ export class PrazosContador implements OnInit {
     return (valor ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   }
 
-  /**
-   * Data em `dd/mm/aaaa`. Data pura (`AAAA-MM-DD`) é lida ao meio-dia, para o fuso não andar um dia;
-   * instante com fuso (`dataPagamento`) é lido como está, porque cortar no `T` pegaria o dia em UTC
-   * — 23h de Brasília já é o dia seguinte lá.
-   */
+  /** Data pura ou instante com fuso, ver `formatarData`. */
   formatDate(iso?: string | null): string {
-    if (!iso) return '—';
-    const soData = /^\d{4}-\d{2}-\d{2}$/.test(iso);
-    const d = new Date(soData ? `${iso}T12:00:00` : iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR');
+    return formatarData(iso);
+  }
+
+  /** "em 03/11/2026" na guia paga, quando o servidor diz quando (#116). */
+  pagaEm(guia: GuiaFiscal): string | null {
+    const data = dataDoPagamento(guia);
+    return data ? formatarData(data) : null;
   }
 
   private static hojeISO(): string {

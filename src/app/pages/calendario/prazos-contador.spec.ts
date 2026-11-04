@@ -185,7 +185,8 @@ describe('PrazosContador', () => {
     ]);
     const texto = ((f.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
     expect(texto).toContain('em 03/11/2026');
-    expect(texto.match(/ em \d{2}\/\d{2}\/\d{4}/g)).toHaveLength(1);
+    // Só a paga ganha a linha; a pendente não inventa data.
+    expect(texto.match(/em \d{2}\/\d{2}\/\d{4}/g)).toHaveLength(1);
   });
 
   it('traduz o status da guia para linguagem de quem lê, não a do banco', () => {

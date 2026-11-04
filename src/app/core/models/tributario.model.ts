@@ -14,10 +14,12 @@ export interface Apuracao {
   inicio: string;
   fim: string;
   /**
-   * `true` no mês corrente ou futuro: a conta ainda muda a cada nota autorizada.
+   * O período ainda não terminou (mês corrente ou futuro), ou, com `agrupamento`, o grupo foi
+   * coberto só em parte pela faixa.
    *
-   * Não é o mesmo que `status: 'ABERTO'`. Um mês já terminado pode seguir aberto até o fechamento
-   * automático, e a conta dele não muda mais.
+   * **Não é o mesmo que `status: 'ABERTO'`.** O fechamento automático roda às 23h do último dia do
+   * mês e fecha só o mês corrente; mês passado em que ele não rodou fica `ABERTO` com
+   * `parcial: false` (medido em 04/11: junho a outubro assim na API local).
    */
   parcial: boolean;
   status: StatusApuracao;

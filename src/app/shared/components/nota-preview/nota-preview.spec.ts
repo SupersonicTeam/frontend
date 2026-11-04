@@ -114,8 +114,25 @@ describe('NotaPreview — itens', () => {
     expect(celulas[4]).toBe('60%');
   });
 
-  it('nota anterior ao campo diz que não sabe, em vez de "sem redução"', () => {
-    const celulas = renderizar({ percentualReducao: 0, cClassTrib: '000001' });
+  it('aplicado manda sobre a entrada quando os dois vêm', () => {
+    const celulas = renderizar({
+      percentualReducao: 0,
+      percentualReducaoAplicado: 60,
+      cClassTrib: '000001',
+      cClassTribAplicado: '200036',
+    });
+    expect(celulas[3]).toBe('200036');
+    expect(celulas[4]).toBe('60%');
+  });
+
+  it('nota anterior ao campo aplicado usa a entrada, que antes era o aplicado', () => {
+    const celulas = renderizar({ percentualReducao: 60, cClassTrib: '200036' });
+    expect(celulas[3]).toBe('200036');
+    expect(celulas[4]).toBe('60%');
+  });
+
+  it('sem nenhum dos dois, diz que não sabe em vez de "sem redução"', () => {
+    const celulas = renderizar({});
     expect(celulas[3]).toBe('—');
     expect(celulas[4]).toBe('—');
   });

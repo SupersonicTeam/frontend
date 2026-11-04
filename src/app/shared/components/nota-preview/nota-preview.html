@@ -105,10 +105,11 @@
                 <td class="px-3 py-1">{{ item.descricao }}</td>
                 <td class="px-1 py-1">{{ item.ncm }}</td>
                 <td class="px-1 py-1">{{ item.cfop }}</td>
-                <!-- O que o calculo USOU, nao o que veio na entrada: a reducao vem da tabela
-                     oficial pelo NCM quando o item nao informa (#116, backend#272). -->
-                <td class="px-1 py-1 tabular-nums">{{ item.cClassTribAplicado || '—' }}</td>
-                <td class="px-1 py-1 text-right tabular-nums">{{ formatReducao(item.percentualReducaoAplicado) }}</td>
+                <!-- O que o calculo USOU, nao o que veio na entrada: ver `classTribDoItem`. -->
+                <td class="px-1 py-1 tabular-nums">{{ classTribDoItem(item) }}</td>
+                <td class="px-1 py-1 text-right tabular-nums">
+                  {{ formatReducao(reducaoDoItem(item)) }}
+                </td>
                 <td class="px-1 py-1 text-right">{{ item.quantidade }}</td>
                 <td class="px-1 py-1">{{ item.unidade }}</td>
                 <td class="px-1 py-1 text-right">{{ formatCurrency(item.valorUnitario) }}</td>
