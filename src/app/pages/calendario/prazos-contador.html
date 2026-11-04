@@ -208,6 +208,9 @@
                 <td class="text-right tabular-nums">{{ formatCurrency(guia.valor) }}</td>
                 <td>
                   <span [class]="classeStatus(guia.status)">{{ rotuloStatus(guia.status) }}</span>
+                  @if (pagaEm(guia); as quando) {
+                    <span class="block text-apoio text-muted-foreground">em {{ quando }}</span>
+                  }
                 </td>
                 <td class="text-right">
                   @if (guia.status !== 'pago') {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mesDeFechamento, hojeEmBrasilia } from './periodo';
+import { formatarData, mesDeFechamento, hojeEmBrasilia } from './periodo';
 
 describe('mesDeFechamento', () => {
   it('devolve o mês anterior — é o que o contador fecha', () => {
@@ -38,5 +38,21 @@ describe('hojeEmBrasilia', () => {
 
   it('logo depois da meia-noite em Brasília já é o dia novo', () => {
     expect(hojeEmBrasilia(new Date('2026-11-01T03:30:00Z'))).toBe('2026-11-01');
+  });
+});
+
+describe('formatarData', () => {
+  it('data pura não anda um dia por causa do fuso', () => {
+    expect(formatarData('2026-09-10')).toBe('10/09/2026');
+  });
+
+  it('instante com fuso é lido como instante', () => {
+    expect(formatarData('2026-11-03T12:00:00-03:00')).toBe('03/11/2026');
+  });
+
+  it('vazio vira traço; o que não é data volta como veio', () => {
+    expect(formatarData(null)).toBe('—');
+    expect(formatarData('')).toBe('—');
+    expect(formatarData('amanhã')).toBe('amanhã');
   });
 });

@@ -1,5 +1,5 @@
 import { Component, input } from '@angular/core';
-import { NotaFiscal } from '@models/nota-fiscal.model';
+import { ItemNotaFiscal, NotaFiscal } from '@models/nota-fiscal.model';
 import {
   StatusNotaFiscal,
   statusNotaLabel,
@@ -91,6 +91,36 @@ export class NotaPreview {
   }
   statusBadge(status?: string): string {
     return statusNotaBadge(status);
+  }
+
+  /**
+   * cClassTrib e redução **que o cálculo usou** no item (#116, backend#272).
+   *
+   * Desde a backend#272 o que veio na entrada (`cClassTrib`, `percentualReducao`) e o que foi
+   * aplicado (`...Aplicado`) são campos separados, e a entrada fica nula quando o item não informa:
+   * aí vale a tabela oficial pelo NCM. **Antes** dela só existia o campo da entrada, e ele era o
+   * aplicado. Então o `Aplicado` nulo é nota (ou backend) anterior à mudança, e a entrada é a melhor
+   * informação que há; mostrar `—` esconderia um 60% que o servidor mandou.
+   */
+  classTribDoItem(item: ItemNotaFiscal): string {
+    return item.cClassTribAplicado ?? item.cClassTrib ?? '—';
+  }
+
+  reducaoDoItem(item: ItemNotaFiscal): number | null {
+    return item.percentualReducaoAplicado ?? item.percentualReducao ?? null;
+  }
+
+  /**
+   * A redução de alíquota de um item, em palavra.
+   *
+   * Sem número a tela diz que não sabe (`—`), em vez de "sem redução". 100 é alíquota zero, e é
+   * dito assim, porque "100%" lido solto parece um tributo cheio.
+   */
+  formatReducao(v?: number | null): string {
+    if (v == null) return '—';
+    if (v >= 100) return 'alíquota zero';
+    if (v <= 0) return 'sem redução';
+    return `${v.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`;
   }
 
   formatCurrency(v?: number | null): string {

@@ -3,7 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiService } from '@core/services/api.service';
-import { NotaFiscal } from '@models/nota-fiscal.model';
+import { CancelamentoNota, NotaFiscal } from '@models/nota-fiscal.model';
 import { NotaFiscalRequest } from '@dtos/notas/nota-fiscal.request';
 import { Page } from '@dtos/shared/responses/page.response';
 import { SefazRetorno, NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
@@ -190,9 +190,14 @@ export class NotasApi {
     });
   }
 
-  /** POST /api/notas/{id}/cancelar — cancela nota AUTORIZADA (motivo 15–255 chars). */
-  cancelar(id: string, motivo: string): Observable<unknown> {
-    return this.api.post<unknown>(`/notas/${id}/cancelar`, { motivo });
+  /**
+   * `POST /api/notas/{id}/cancelar` — cancela nota AUTORIZADA (motivo 15–255 chars).
+   *
+   * Era `unknown`, e a tela descartava a resposta. Ela traz o protocolo do evento na SEFAZ, que é
+   * a prova do cancelamento (#116).
+   */
+  cancelar(id: string, motivo: string): Observable<CancelamentoNota> {
+    return this.api.post<CancelamentoNota>(`/notas/${id}/cancelar`, { motivo });
   }
 
   /** GET /api/notas/{id}/validacoes — histórico de inconsistências (mais recente primeiro). */
