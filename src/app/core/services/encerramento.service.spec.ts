@@ -7,6 +7,7 @@ import { EncerramentoService } from './encerramento.service';
 import { SessaoService } from './sessao.service';
 import { NotificacoesService } from './notificacoes.service';
 import { ToastService } from './toast.service';
+import { ClienteEmFocoService } from './cliente-em-foco.service';
 import { entrarComo } from './sessao.testing';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
@@ -122,6 +123,18 @@ describe('EncerramentoService', () => {
 
     expect(dashboard.dashboard()).toBeNull();
     expect(notificacoes.notificacoes().length).toBe(0);
+  });
+
+  /** O cliente que o contador atendia é de **outro** escritório para quem entra depois (#136). */
+  it('esquece o cliente em foco do contador', () => {
+    entrarComo('CONTADOR');
+    const foco = TestBed.inject(ClienteEmFocoService);
+    foco.escolher('p1');
+
+    encerramento.encerrar();
+    httpMock.match((r) => r.url === '/auth/logout').forEach((r) => r.flush(null));
+
+    expect(foco.produtorId()).toBeNull();
   });
 
   it('limpa a conversa com a Ceres: é dado do usuário por definição', () => {

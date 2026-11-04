@@ -47,3 +47,13 @@ export function dataLocalDeHoje(): string {
   const dia = String(agora.getDate()).padStart(2, '0');
   return `${agora.getFullYear()}-${mes}-${dia}`;
 }
+
+/**
+ * Quando a guia foi paga, se ela foi e o servidor disse quando (`dataPagamento`, #116).
+ *
+ * Um lugar só para as telas não discordarem: a regra do atraso já divergiu entre duas telas
+ * antes de morar aqui (ver `statusDaGuia`).
+ */
+export function dataDoPagamento(guia: Pick<GuiaFiscal, 'status' | 'dataPagamento'>): string | null {
+  return guia.status === 'pago' && guia.dataPagamento ? guia.dataPagamento : null;
+}

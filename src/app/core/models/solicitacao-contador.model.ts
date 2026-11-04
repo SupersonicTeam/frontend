@@ -34,6 +34,8 @@ export interface GuiaFiscal {
   valor: number;
   status: 'pendente' | 'pago' | 'vencido';
   observacoes?: string;
+  /** Quando a guia foi marcada como paga (ISO com fuso); nula enquanto não paga (#116). */
+  dataPagamento?: string | null;
   createdAt: string;
 }
 

@@ -106,17 +106,32 @@ export class AssistenteStore {
    */
   readonly disponivel = computed(() => this.sessao.ehProdutor() && !this.bloqueadoPorPapel());
 
+  /**
+   * A primeira é a vitrine: "O que eu preciso saber?" cai no `resumoDoProdutor` e traz, numa
+   * resposta só, atraso, prazos, notas paradas, pedidos do escritório e notas a conferir
+   * (backend#266). A do feijão mostra a tabela oficial do IBS/CBS, com o artigo citado
+   * (backend#283).
+   */
   readonly perguntasSugeridas = [
+    'O que eu preciso saber?',
     'Quanto eu tenho que pagar este mês?',
     'O que muda para mim com o IBS e o CBS?',
     'Quando vence a minha próxima guia?',
+    'O feijão tem redução de IBS e CBS?',
   ];
 
-  /** Sugestões trocam quando há uma nota na tela — a pergunta passa a ser sobre ela. */
+  /**
+   * Sugestões trocam quando há uma nota na tela — a pergunta passa a ser sobre ela.
+   *
+   * "Tem algo para conferir" vem primeiro porque a `consultarNota` devolve os sinais da
+   * nota (produto que parece serviço, possível duplicidade, valor unitário fora do padrão),
+   * sempre como "confira com seu contador" (backend#276).
+   */
   readonly sugestoes = computed(() => {
     const nota = this.notaEmFoco();
     if (!nota) return this.perguntasSugeridas;
     return [
+      `Tem algo para conferir na nota ${nota.numero}?`,
       `Por que a nota ${nota.numero} está ${this.rotuloSituacao(nota)}?`,
       `O que eu preciso corrigir na nota ${nota.numero} para emitir?`,
       `Quanto de IBS e CBS a nota ${nota.numero} gera?`,
@@ -161,9 +176,15 @@ export class AssistenteStore {
     return rota ? etapaDaRota(rota) : 'Entendendo a sua pergunta…';
   });
 
-  /** Busca dashboard e notas uma vez por sessão — a gaveta abre em qualquer tela. */
+  /**
+   * Busca dashboard e notas uma vez por sessão — a gaveta abre em qualquer tela.
+   *
+   * Só para produtor: `/api/dashboard`, `/api/notas` e `/api/assistente/uso` derivam o produtor do
+   * token e respondem 403 para o contador (#136). A gaveta já não aparece para ele, mas quem chama
+   * isto não precisa saber disso.
+   */
   carregarContexto(): void {
-    if (this.carregou) return;
+    if (this.carregou || !this.sessao.ehProdutor()) return;
     this.carregou = true;
 
     // A Ceres quer contexto, nao um periodo: nao pode derrubar o mes que o produtor escolheu.
@@ -182,6 +203,7 @@ export class AssistenteStore {
 
   /** Recarrega a cota depois de cada pergunta -- e o unico momento em que ela muda. */
   private atualizarUso(): void {
+    if (!this.sessao.ehProdutor()) return;
     this.ceres.uso().subscribe((u) => this.uso.set(u));
   }
 

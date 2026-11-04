@@ -26,7 +26,7 @@ describe('rotas por papel', () => {
     expect(guardsDe('contador')).toContain(contadorGuard);
   });
 
-  it('/documentos é dos dois — a lista de notas é a mesma, só a voz troca', () => {
+  it('/documentos é dos dois — e despacha para a tela de cada papel (#136)', () => {
     expect(guardsDe('documentos')).toEqual([]);
   });
 

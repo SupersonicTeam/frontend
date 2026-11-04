@@ -221,14 +221,20 @@
     </ul>
   }
 
-  <!--
-    O que esta tela não mostra, e por quê. O hábito da casa é dizer na tela o que não existe em vez
-    de preencher com dado de exemplo.
-  -->
+  <!-- Onde mora o que esta tela nao mostra. O aviso de antes dizia que a apuracao por cliente nao
+       tinha rota; tem desde a backend#255, e o Fechamento passou a le-la (#136). -->
   <p class="border-t border-border pt-4 text-apoio text-muted-foreground">
-    A apuração e o relatório de conformidade de um cliente ainda não têm rota no escopo do
-    escritório — <code>/api/apuracao</code> responde 403 para contador e não há a versão por
-    cliente. Enquanto isso o Fechamento lê a identidade atual, não o cliente escolhido. Pedido em
-    SupersonicTeam/backend#255.
+    A apuração, a comparação com o mês anterior e o relatório de conformidade de cada cliente estão
+    no
+    <a
+      routerLink="/tributario"
+      class="tap-target inline-flex items-center font-medium text-primary underline"
+      >Fechamento</a
+    >; as notas, em
+    <a
+      routerLink="/documentos"
+      class="tap-target inline-flex items-center font-medium text-primary underline"
+      >Notas</a
+    >.
   </p>
 </div>

@@ -5,10 +5,10 @@
   <div class="flex items-center justify-between">
     <div class="flex items-center gap-3">
       <svg lucideFileText [size]="28" class="text-primary" />
-      <!-- A navegacao diz "Minhas notas" (e "Notas do produtor" para o contador);
-           o titulo dizia "Documentos". Mesma tela, tres nomes. -->
+      <!-- A navegacao diz "Minhas notas"; o titulo dizia "Documentos". O contador tem a tela
+           propria desde a #136 (`NotasContador`), escolhida em `documentos-rota.ts`. -->
       <h1 class="font-heading text-2xl font-bold tracking-tight text-foreground md:text-3xl">
-        {{ sessao.ehContador() ? 'Notas do produtor' : 'Minhas notas' }}
+        Minhas notas
       </h1>
     </div>
     <button
@@ -21,7 +21,7 @@
   </div>
 
   <!-- ── O RESUMO DO PRODUTOR ── -->
-  @if (!sessao.ehContador() && notas().length) {
+  @if (notas().length) {
     <!--
       Duas perguntas que a tela nunca respondia: quanto saiu, e o que ainda falta de mim. O
       faturamento estava espalhado por 15 cartões para somar de cabeça, e a nota com
@@ -79,50 +79,6 @@
         </div>
       }
     </section>
-  }
-
-  <!-- ── A TRIAGEM DO CONTADOR ── -->
-  @if (sessao.ehContador()) {
-    <!--
-      O contador abria a MESMA lista do produtor, com outro título, e não tinha como saber o que
-      estava vendo nem por onde começar. Cada caixa aqui é uma pergunta do trabalho dele, e a
-      contagem não muda quando ele escolhe uma: ela conta sobre o período e a busca, não sobre a
-      situação escolhida.
-    -->
-    <div class="flex flex-col gap-2">
-      <div class="flex flex-wrap gap-2" role="group" aria-label="Triagem das notas">
-        @for (caixa of triagemDoContador(); track caixa.chave) {
-          <button
-            type="button"
-            class="tap-target flex items-center gap-2 rounded-controle border px-3 text-apoio font-medium transition-colors"
-            [class]="
-              statusFilter() === caixa.chave
-                ? 'border-primary bg-primary text-primary-foreground'
-                : 'border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground'
-            "
-            [attr.aria-pressed]="statusFilter() === caixa.chave"
-            (click)="trocarSituacao(caixa.chave)"
-          >
-            {{ caixa.rotulo }}
-            <span
-              class="rounded-full px-1.5 tabular-nums"
-              [class]="statusFilter() === caixa.chave ? 'bg-primary-foreground/20' : 'bg-surface-2'"
-            >
-              {{ caixa.quantidade }}
-            </span>
-          </button>
-        }
-      </div>
-
-      <!-- O texto aqui dizia que a aprovação antes da emissão "ainda não existe no servidor".
-           Existe desde a backend#178, e a caixa prometida é a de "Precisam de revisão" ao lado —
-           que durante um tempo contou a pilha errada e mostrava 0 com nota na mesa (#111). -->
-      <p class="text-apoio text-muted-foreground">
-        Tudo que o produtor emitiu, mais o que ele enviou para a sua aprovação. As duas pilhas são
-        separadas: <strong class="text-foreground">Precisam de revisão</strong> espera você, e
-        <strong class="text-foreground">Travadas pelo fisco</strong> espera o produtor corrigir.
-      </p>
-    </div>
   }
 
   <!-- ── FILTROS ── -->
@@ -189,12 +145,7 @@
         <option value="todos">Qualquer situação</option>
         <!-- O recorte de trabalho tambem mora aqui, senao o seletor fica EM BRANCO quando a faixa
            de cima o aplica: o filtro esta valendo e o controle nao mostra qual. -->
-        @if (sessao.ehContador()) {
-          <option value="revisao">Precisam de revisão</option>
-          <option value="travadas">Travadas pelo fisco</option>
-        } @else {
-          <option value="esperando">Esperando você</option>
-        }
+        <option value="esperando">Esperando você</option>
         <option value="RASCUNHO">Rascunho</option>
         <option value="COM_INCONSISTENCIAS">Com inconsistências</option>
         <!-- Os três da revisão (#178): sem eles não havia como achar uma nota devolvida ou

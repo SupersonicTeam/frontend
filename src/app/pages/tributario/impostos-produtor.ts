@@ -1,6 +1,8 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
+import { dataDoPagamento } from '@core/utils/guias';
+import { formatarData } from '@core/utils/periodo';
 import { FormsModule } from '@angular/forms';
 import {
   LucideReceipt,
@@ -156,6 +158,10 @@ export class ImpostosProdutor implements OnInit {
    *
    * Mês sem resposta entra como `valor: null` e aparece como lacuna. Zerar seria afirmar que
    * não houve movimento, que é coisa diferente de não ter conseguido olhar.
+   *
+   * Mês que respondeu com `totalNotas: 0` é o caso oposto: o servidor olhou e não havia nota. Ele
+   * vem zerado por contrato (#116), e a tela diz "Sem notas emitidas" em vez de uma barra de R$ 0,00,
+   * que leria como "não devo nada" quando o certo é "não vendi nada".
    */
   readonly historico = computed(() => {
     const anteriores = this.mesesAnteriores();
@@ -166,6 +172,7 @@ export class ImpostosProdutor implements OnInit {
       ibs: number;
       cbs: number;
       atual: boolean;
+      semNotas: boolean;
     }[] = [];
 
     for (let atras = ImpostosProdutor.MESES_NO_HISTORICO - 1; atras >= 1; atras--) {
@@ -177,6 +184,7 @@ export class ImpostosProdutor implements OnInit {
         ibs: a?.saldoIbs ?? 0,
         cbs: a?.saldoCbs ?? 0,
         atual: false,
+        semNotas: a?.totalNotas === 0,
       });
     }
 
@@ -187,6 +195,7 @@ export class ImpostosProdutor implements OnInit {
       ibs: atual?.saldoIbs ?? 0,
       cbs: atual?.saldoCbs ?? 0,
       atual: true,
+      semNotas: atual?.totalNotas === 0,
     });
     return meses;
   });
@@ -199,9 +208,14 @@ export class ImpostosProdutor implements OnInit {
    * mes ficou acima ou abaixo do normal dele -- que e a pergunta de verdade.
    *
    * Menos de dois meses com resposta nao tem media que signifique nada.
+   *
+   * Mes sem nota emitida fica de fora (#116). Ele vem zerado, e cinco meses parados com um de
+   * R$ 1.800 dariam media de R$ 300: a marca diria que o mes atual esta seis vezes acima do normal
+   * quando nao ha normal nenhum com que comparar.
    */
   readonly mediaDoHistorico = computed(() => {
     const valores = this.historico()
+      .filter((m) => !m.semNotas)
       .map((m) => m.valor)
       .filter((v): v is number => v !== null);
     if (valores.length < 2) return null;
@@ -399,6 +413,12 @@ export class ImpostosProdutor implements OnInit {
     return { pago: 'Paga', vencido: 'Vencida', pendente: 'Em aberto' }[status] ?? status;
   }
 
+  /** "Paga em 03/11/2026" quando o servidor diz quando foi paga (`dataPagamento`, #116). */
+  rotuloGuiaComData(guia: GuiaFiscal): string {
+    const pagamento = dataDoPagamento(guia);
+    return pagamento ? `Paga em ${formatarData(pagamento)}` : this.rotuloGuia(guia.status);
+  }
+
   classeGuia(status: GuiaFiscal['status']): string {
     const tons: Record<GuiaFiscal['status'], string> = {
       pendente: 'bg-aviso-soft text-aviso-ink border-aviso/30',
@@ -537,9 +557,16 @@ export class ImpostosProdutor implements OnInit {
    * -- a nao ser que ela entre aqui. Mes sem resposta diz isso, em vez de "R$ 0,00", que seria
    * afirmar que nao houve movimento.
    */
-  descricaoDoMes(mes: { periodo: string; valor: number | null; ibs: number; cbs: number }): string {
+  descricaoDoMes(mes: {
+    periodo: string;
+    valor: number | null;
+    ibs: number;
+    cbs: number;
+    semNotas: boolean;
+  }): string {
     const quando = this.formatPeriodo(mes.periodo);
     if (mes.valor === null) return `${quando}: sem resposta do servidor`;
+    if (mes.semNotas) return `${quando}: sem notas emitidas`;
     const total = this.formatCurrency(mes.valor);
     if (mes.valor < 0) return `${quando}: ${total} de credito`;
     return (
@@ -595,9 +622,6 @@ export class ImpostosProdutor implements OnInit {
    * fuso entre −11 e +12.
    */
   formatDate(iso?: string | null): string {
-    if (!iso) return '—';
-    const soData = /^\d{4}-\d{2}-\d{2}$/.test(iso);
-    const d = new Date(soData ? `${iso}T12:00:00` : iso);
-    return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR');
+    return formatarData(iso);
   }
 }

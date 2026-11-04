@@ -17,6 +17,7 @@ import { AssistenteStore } from './assistente.store';
 import { CeresAvatar } from './ceres-avatar';
 import { CeresCitacoes } from './ceres-citacoes';
 import { CeresFontes } from './ceres-fontes';
+import { CeresTexto } from './ceres-texto';
 
 /**
  * A conversa em si — mensagens, base legal, origem dos números, sugestões e campo
@@ -26,9 +27,9 @@ import { CeresFontes } from './ceres-fontes';
  * mesmo `AssistenteStore`. Duas telas mostrando a mesma conversa, não duas
  * conversas parecidas.
  *
- * O texto da resposta é renderizado por **interpolação** com `whitespace-pre-line`
- * — nunca `[innerHTML]`. Ele vem de um modelo de linguagem, e o contrato é
- * explícito: texto puro, nunca HTML.
+ * O texto da resposta é renderizado por **interpolação**, repartido em parágrafos
+ * e listas pelo `<app-ceres-texto>` — nunca `[innerHTML]`. Ele vem de um modelo de
+ * linguagem, e o contrato é explícito: texto puro, nunca HTML.
  */
 @Component({
   selector: 'app-assistente-conversa',
@@ -38,6 +39,7 @@ import { CeresFontes } from './ceres-fontes';
     CeresAvatar,
     CeresCitacoes,
     CeresFontes,
+    CeresTexto,
     LucideCircleStop,
     LucideSend,
     LucideTriangleAlert,
@@ -176,9 +178,12 @@ export class AssistenteConversa {
     }
   }
 
-  /** `DADOS` → "das suas notas". `FORA_DE_ESCOPO` não ganha selo. */
+  /**
+   * `DADOS` → "das suas notas"; só com a tabela oficial → "da tabela oficial".
+   * `FORA_DE_ESCOPO` não ganha selo.
+   */
   protected selo(msg: AssistenteMensagem): string | null {
-    return msg.rota ? rotuloRota(msg.rota) : null;
+    return msg.rota ? rotuloRota(msg.rota, msg.fontesDados ?? []) : null;
   }
 
   /**

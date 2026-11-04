@@ -112,12 +112,9 @@ const SINAIS: readonly (Omit<SinalDeAtencao, 'quantidade' | 'rotulo'> & {
  *
  * ## O que a tela não faz, e por quê
  *
- * Não mostra apuração nem relatório de conformidade de cliente nenhum. Não é escolha de desenho:
- * `GET /api/apuracao` e `/api/relatorios/conformidade` derivam o produtor da identidade e
- * respondem **403** para contador, e não existe a versão por cliente
- * (`/api/contador/produtores/{id}/apuracao` responde 404 — só o `reabrir` existe lá). Pedido em
- * SupersonicTeam/backend#255. Enquanto isso, o Fechamento continua lendo a identidade atual, o que
- * só funciona por causa do mock de desenvolvimento.
+ * Não mostra apuração nem relatório de conformidade. Eles têm rota por cliente desde a
+ * backend#255 e moram no Fechamento (`/tributario`), que escolhe o cliente no topo (#136). Esta
+ * tela é a fila: quem precisa de atenção, não os números de cada um.
  *
  * ## A lição que esta tela já aprendeu uma vez
  *

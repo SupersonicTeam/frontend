@@ -91,6 +91,8 @@
               <th scope="col" class="font-medium px-3 py-1">Descrição</th>
               <th scope="col" class="font-medium px-1 py-1">NCM</th>
               <th scope="col" class="font-medium px-1 py-1">CFOP</th>
+              <th scope="col" class="font-medium px-1 py-1">cClassTrib</th>
+              <th scope="col" class="font-medium px-1 py-1 text-right">Red. IBS/CBS</th>
               <th scope="col" class="font-medium px-1 py-1 text-right">Qtd</th>
               <th scope="col" class="font-medium px-1 py-1">Un</th>
               <th scope="col" class="font-medium px-1 py-1 text-right">Vl unit.</th>
@@ -103,6 +105,11 @@
                 <td class="px-3 py-1">{{ item.descricao }}</td>
                 <td class="px-1 py-1">{{ item.ncm }}</td>
                 <td class="px-1 py-1">{{ item.cfop }}</td>
+                <!-- O que o calculo USOU, nao o que veio na entrada: ver `classTribDoItem`. -->
+                <td class="px-1 py-1 tabular-nums">{{ classTribDoItem(item) }}</td>
+                <td class="px-1 py-1 text-right tabular-nums">
+                  {{ formatReducao(reducaoDoItem(item)) }}
+                </td>
                 <td class="px-1 py-1 text-right">{{ item.quantidade }}</td>
                 <td class="px-1 py-1">{{ item.unidade }}</td>
                 <td class="px-1 py-1 text-right">{{ formatCurrency(item.valorUnitario) }}</td>

@@ -312,7 +312,7 @@ describe('DocumentosPage', () => {
     });
   });
 
-  describe('as duas pilhas do contador (#111)', () => {
+  describe('filtros dos status da revisao (#178)', () => {
     const nota = (id: string, status: string) => ({
       id,
       numero: Number(id.replace(/\D/g, '')) || 1,
@@ -324,8 +324,7 @@ describe('DocumentosPage', () => {
       itens: [],
     });
 
-    function abrirContador(notas: Record<string, unknown>[]) {
-      localStorage.setItem('agrocontabil.perfil', 'contador');
+    function abrirComNotas(notas: Record<string, unknown>[]) {
       const fixture = TestBed.createComponent(DocumentosPage);
       fixture.detectChanges();
       httpMock.expectOne((r) => r.url === '/notas').flush(pagina(notas));
@@ -336,43 +335,8 @@ describe('DocumentosPage', () => {
 
     afterEach(() => localStorage.clear());
 
-    it('"Precisam de revisao" conta o que aguarda aprovacao, nao o que o fisco travou', () => {
-      const cmp = abrirContador([
-        nota('n1', 'AGUARDANDO_APROVACAO'),
-        nota('n2', 'AGUARDANDO_APROVACAO'),
-        nota('n3', 'COM_INCONSISTENCIAS'),
-      ]);
-
-      const aba = cmp.triagemDoContador().find((t) => t.chave === 'revisao');
-      expect(aba?.quantidade).toBe(2);
-    });
-
-    it('o que o fisco travou ganhou aba propria, em vez de sumir', () => {
-      const cmp = abrirContador([
-        nota('n1', 'AGUARDANDO_APROVACAO'),
-        nota('n3', 'COM_INCONSISTENCIAS'),
-        nota('n4', 'REJEITADA'),
-      ]);
-
-      const aba = cmp.triagemDoContador().find((t) => t.chave === 'travadas');
-      expect(aba?.quantidade).toBe(2);
-    });
-
-    it('filtrar por revisao deixa so o que aguarda aprovacao', () => {
-      const cmp = abrirContador([
-        nota('n1', 'AGUARDANDO_APROVACAO'),
-        nota('n3', 'COM_INCONSISTENCIAS'),
-      ]);
-
-      cmp.statusFilter.set('revisao');
-      expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
-    });
-
     it('filtrar por DEVOLVIDA e por AGUARDANDO_APROVACAO funciona: sao status do backend', () => {
-      const cmp = abrirContador([
-        nota('n1', 'AGUARDANDO_APROVACAO'),
-        nota('n5', 'DEVOLVIDA'),
-      ]);
+      const cmp = abrirComNotas([nota('n1', 'AGUARDANDO_APROVACAO'), nota('n5', 'DEVOLVIDA')]);
 
       cmp.statusFilter.set('DEVOLVIDA');
       expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n5']);
@@ -484,7 +448,13 @@ describe('DocumentosPage', () => {
       httpMock
         .expectOne((r) => r.url === '/notas/n1/revisoes')
         .flush([
-          { id: 'r2', acao: 'DEVOLVIDA', motivo: 'Falta o CFOP no item 2.', papel: 'CONTADOR', ocorridoEm: 'b' },
+          {
+            id: 'r2',
+            acao: 'DEVOLVIDA',
+            motivo: 'Falta o CFOP no item 2.',
+            papel: 'CONTADOR',
+            ocorridoEm: 'b',
+          },
           { id: 'r1', acao: 'ENVIADA', motivo: null, papel: 'PRODUTOR', ocorridoEm: 'a' },
         ]);
 
@@ -584,7 +554,12 @@ describe('DocumentosPage', () => {
       httpMock
         .expectOne((r) => r.url === '/pendencias/pd-1')
         .flush(
-          pendencia({ id: 'pd-1', status: 'PENDENTE', quantidadeAnexos: 1, anexos: [anexo('EM_VERIFICACAO')] }),
+          pendencia({
+            id: 'pd-1',
+            status: 'PENDENTE',
+            quantidadeAnexos: 1,
+            anexos: [anexo('EM_VERIFICACAO')],
+          }),
         );
 
       const cmp = fixture.componentInstance;
@@ -1230,68 +1205,6 @@ describe('DocumentosPage', () => {
     });
   });
 
-  describe('triagem do contador', () => {
-    const carteira = () => [
-      nota('n1', '2026-09-10T00:00:00Z', { status: 'COM_INCONSISTENCIAS' }),
-      nota('n2', '2026-09-11T00:00:00Z', { status: 'REJEITADA' }),
-      nota('n3', '2026-09-12T00:00:00Z', { status: 'RASCUNHO' }),
-      nota('n4', '2026-08-01T00:00:00Z', { status: 'AUTORIZADA' }),
-      nota('n5', '2026-08-02T00:00:00Z', { status: 'CANCELADA' }),
-    ];
-
-    /**
-     * Este teste era de `revisao`. O recorte que ele descreve -- "atravessa inconsistencia e
-     * rejeicao, e o trabalho, nao o status" -- continua existindo e continua certo; so mudou de
-     * nome para **travadas**, porque "revisao" passou a ser a aprovacao do contador (#111).
-     */
-    it('"travadas pelo fisco" atravessa inconsistência e rejeição — é o trabalho, não o status', () => {
-      const cmp = comNotas(carteira()).componentInstance;
-
-      const caixas = Object.fromEntries(
-        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
-      );
-      expect(caixas['travadas']).toBe(2);
-      expect(caixas['RASCUNHO']).toBe(1);
-      expect(caixas['AUTORIZADA']).toBe(1);
-      expect(caixas['CANCELADA']).toBe(1);
-      expect(caixas['todos']).toBe(5);
-
-      cmp.statusFilter.set('travadas');
-      expect(
-        cmp
-          .notasFiltradas()
-          .map((n) => n.id)
-          .sort(),
-      ).toEqual(['n1', 'n2']);
-    });
-
-    it('escolher uma caixa não zera as outras — senão a triagem deixa de triar', () => {
-      const fixture = comNotas(carteira());
-      const cmp = fixture.componentInstance;
-
-      cmp.statusFilter.set('AUTORIZADA');
-      fixture.detectChanges();
-
-      const caixas = Object.fromEntries(
-        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
-      );
-      expect(caixas['travadas']).toBe(2);
-      expect(caixas['todos']).toBe(5);
-      expect(cmp.notasFiltradas()).toHaveLength(1);
-    });
-
-    it('o período continua valendo sobre a contagem — ela conta o que está na tela', () => {
-      const cmp = comNotas(carteira()).componentInstance;
-
-      cmp.periodo.set('2026-08');
-      const caixas = Object.fromEntries(
-        cmp.triagemDoContador().map((c) => [c.chave, c.quantidade]),
-      );
-      expect(caixas['todos']).toBe(2);
-      expect(caixas['travadas']).toBe(0);
-    });
-  });
-
   describe('resumo do produtor', () => {
     const carteira = () => [
       nota('n1', '2026-09-10T00:00:00Z', { status: 'AUTORIZADA', valorTotalNota: 1000 }),
@@ -1414,8 +1327,22 @@ describe('DocumentosPage', () => {
 
     it('importada e sucesso, e cada arquivo ganha o seu recado', () => {
       const ditos = importar([
-        { arquivo: 'a.xml', sucesso: true, status: 'IMPORTADA', notaId: 'n1', chaveAcesso: null, motivo: 'Nota importada.' },
-        { arquivo: 'b.xml', sucesso: false, status: 'INVALIDA', notaId: null, chaveAcesso: null, motivo: 'Assinatura não confere.' },
+        {
+          arquivo: 'a.xml',
+          sucesso: true,
+          status: 'IMPORTADA',
+          notaId: 'n1',
+          chaveAcesso: null,
+          motivo: 'Nota importada.',
+        },
+        {
+          arquivo: 'b.xml',
+          sucesso: false,
+          status: 'INVALIDA',
+          notaId: null,
+          chaveAcesso: null,
+          motivo: 'Assinatura não confere.',
+        },
       ]);
 
       expect(ditos.filter((d) => d.tom === 'success')).toHaveLength(1);

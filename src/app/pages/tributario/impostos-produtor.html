@@ -133,10 +133,14 @@
         <div
           class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-apoio text-muted-foreground"
         >
-          <span
-            >Notas no período:
-            <span class="font-semibold text-foreground">{{ ap.totalNotas }}</span></span
-          >
+          @if (ap.totalNotas === 0) {
+            <span>Sem notas emitidas</span>
+          } @else {
+            <span
+              >Notas no período:
+              <span class="font-semibold text-foreground">{{ ap.totalNotas }}</span></span
+            >
+          }
           @if (ap.dataFechamento) {
             <span>
               Fechada em:
@@ -168,7 +172,7 @@
                     <span class="text-apoio font-medium tabular-nums text-foreground">
                       {{ formatCurrency(guia.valor) }}
                     </span>
-                    <span [class]="classeGuia(guia.status)">{{ rotuloGuia(guia.status) }}</span>
+                    <span [class]="classeGuia(guia.status)">{{ rotuloGuiaComData(guia) }}</span>
                   </span>
                 </li>
               }
@@ -283,9 +287,11 @@
           inconsistência ficam de fora.
         </p>
 
-        @if (apuracao()?.status === 'ABERTO') {
+        <!-- `parcial`, e nao `status === 'ABERTO'`: mes que ja terminou pode seguir aberto ate o
+             fechamento automatico, e a conta dele nao muda mais (#116). -->
+        @if (apuracao()?.parcial) {
           <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
-            O mês ainda está aberto: a conta é parcial e muda a cada nota autorizada.
+            O mês ainda não terminou: a conta é parcial e muda a cada nota autorizada.
           </p>
         }
 
@@ -382,6 +388,8 @@
                 <span class="flex-1 text-apoio text-muted-foreground">
                   sem resposta do servidor
                 </span>
+              } @else if (mes.semNotas) {
+                <span class="flex-1 text-apoio text-muted-foreground">Sem notas emitidas</span>
               } @else {
                 <!-- A barra é só desenho: o valor ao lado e o aria-label já dizem tudo a quem
                      usa leitor de tela. -->
@@ -438,7 +446,7 @@
 
       @if (mediaDoHistorico(); as media) {
         <p class="mt-2 text-apoio text-muted-foreground">
-          A marca que atravessa as barras é a média do período: {{ formatCurrency(media) }}.
+          A marca que atravessa as barras é a média dos meses com nota: {{ formatCurrency(media) }}.
         </p>
       }
     </section>

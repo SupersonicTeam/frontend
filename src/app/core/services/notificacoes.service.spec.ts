@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { NotificacoesService } from './notificacoes.service';
+import { SessaoService } from './sessao.service';
 import { entrarComo } from './sessao.testing';
 
 /**
@@ -85,6 +86,19 @@ describe('NotificacoesService', () => {
 
     httpMock.expectNone((r) => r.url === '/alertas');
     httpMock.expectOne((r) => r.url === '/contador/produtores').flush([]);
+  });
+
+  /**
+   * `/api/alertas` sai com sessão **de produtor**, não com "quem não é contador" (#136). Sem papel
+   * não há fonte nenhuma, e o sino fica vazio em vez de colher um 403.
+   */
+  it('sem sessao nao chama fonte nenhuma', () => {
+    criar('produtor');
+    TestBed.inject(SessaoService).encerrar();
+    service.carregar();
+
+    httpMock.expectNone(() => true);
+    expect(service.notificacoes()).toEqual([]);
   });
 
   it('o contador le o que a carteira ja agrega', () => {
