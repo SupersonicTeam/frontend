@@ -281,7 +281,7 @@ O que o contrato da Ceres impõe e onde isso mora:
 |---|---|
 | Citação legal **visível**, com link do Planalto e trecho expansível | `<app-ceres-citacoes>` (`<details>`, sem estado nem JS) |
 | "Calculado a partir das suas notas", com as consultas feitas | `<app-ceres-fontes>` + `@core/utils/ceres`. A tabela oficial do IBS/CBS (`consultarTratamentoProduto`) **não** é dado do produtor: vai num bloco à parte, "Consultado na tabela oficial do IBS/CBS" (#132) |
-| `atalhos` (botões "Onde ver isso agora") | aparecem sempre que vierem, **não só no fallback**: desde a backend#266 vêm também com `modoFallback: false`, quando a Ceres não identificou qual dado consultar. A frase "texto da lei como está escrito" só aparece em fallback **com citação** |
+| `atalhos` (botões "Onde ver isso agora") | aparecem sempre que vierem, **não só no fallback**: desde a backend#266 vêm também com `modoFallback: false`, quando a Ceres não identificou qual dado consultar. A frase "os trechos da lei estão como foram escritos" só aparece em fallback **com citação**. E o selo de rota some quando `fontesDados` vem vazio: sem consulta, a resposta não é "das suas notas" |
 | `rota` (DADOS/LEGISLACAO/MISTO/FORA_DE_ESCOPO) | selo na mensagem; durante a espera vira "Consultando as suas notas…" (evento `rota` do SSE chega em segundos) |
 | Uma pergunta por vez; 1 a 1000 caracteres | `podeEnviar`/`perguntaLonga` no store, contador no campo |
 | `Retry-After` no 503 `ASSISTENTE_OCUPADO` | store reenvia **uma** vez (`TENTATIVAS_POR_PERGUNTA`) |

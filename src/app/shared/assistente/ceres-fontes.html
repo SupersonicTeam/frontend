@@ -19,8 +19,8 @@
       @for (fonte of grupo.fontes; track fonte.funcao + $index) {
         <li class="text-apoio leading-relaxed text-muted-foreground">
           <span class="font-medium text-foreground">{{ rotulo(fonte.funcao) }}</span>
-          @if (detalhe(fonte)) {
-            <span> — {{ detalhe(fonte) }}</span>
+          @if (detalhe(fonte); as descricao) {
+            <span> — {{ descricao }}</span>
           }
         </li>
       }

@@ -90,20 +90,22 @@ const ROTULO_PARAMETRO_POR_FUNCAO: Record<string, Record<string, string> | undef
 /**
  * Rótulo do selo de rota. `FORA_DE_ESCOPO` não ganha selo — não respondeu nada do domínio.
  *
- * Com `fontes`, o selo diz de onde veio a parte de dados. Resposta que só consultou a
- * tabela oficial não é "das suas notas": ela não olhou dado nenhum do produtor (#132).
+ * O selo diz de onde veio a parte de dados, pelas `fontes`. Resposta que só consultou a
+ * tabela oficial não é "das suas notas": ela não olhou dado nenhum do produtor (#132). E
+ * sem fonte nenhuma (fallback de dados, dado não identificado, resposta descartada) não
+ * houve consulta: o selo de dados some, em vez de afirmar uma origem que não existe.
  */
-export function rotuloRota(rota: RotaCeres, fontes: readonly CeresFonteDado[] = []): string | null {
-  const soTabelaOficial = fontes.length > 0 && fontes.every((f) => ehFonteOficial(f.funcao));
+export function rotuloRota(rota: RotaCeres, fontes: readonly CeresFonteDado[]): string | null {
+  const consultou = fontes.length > 0;
+  const soTabelaOficial = consultou && fontes.every((f) => ehFonteOficial(f.funcao));
+  const dados = !consultou ? null : soTabelaOficial ? 'da tabela oficial' : 'das suas notas';
   switch (rota) {
     case 'DADOS':
-      return soTabelaOficial ? 'da tabela oficial' : 'das suas notas';
+      return dados;
     case 'LEGISLACAO':
       return 'da legislação';
     case 'MISTO':
-      return soTabelaOficial
-        ? 'da tabela oficial e da legislação'
-        : 'das suas notas e da legislação';
+      return dados ? `${dados} e da legislação` : 'da legislação';
     case 'FORA_DE_ESCOPO':
       return null;
   }
@@ -123,13 +125,21 @@ export function etapaDaRota(rota: RotaCeres): string {
   }
 }
 
+/**
+ * Lê só chave própria do objeto. Os nomes vêm do backend, e `constructor` ou `toString`
+ * achariam uma função do `Object.prototype` em vez de cair no nome cru.
+ */
+function proprio<T>(mapa: Record<string, T>, chave: string): T | undefined {
+  return Object.hasOwn(mapa, chave) ? mapa[chave] : undefined;
+}
+
 export function rotuloFonte(funcao: string): string {
-  return (ROTULO_FONTE as Record<string, string>)[funcao] ?? funcao;
+  return proprio<string>(ROTULO_FONTE, funcao) ?? funcao;
 }
 
 export function rotuloParametro(chave: string, funcao?: string): string {
-  const daFuncao = funcao ? ROTULO_PARAMETRO_POR_FUNCAO[funcao] : undefined;
-  return daFuncao?.[chave] ?? ROTULO_PARAMETRO[chave] ?? chave;
+  const daFuncao = funcao ? proprio(ROTULO_PARAMETRO_POR_FUNCAO, funcao) : undefined;
+  return (daFuncao && proprio(daFuncao, chave)) ?? proprio(ROTULO_PARAMETRO, chave) ?? chave;
 }
 
 /**

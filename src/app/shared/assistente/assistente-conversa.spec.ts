@@ -12,6 +12,9 @@ import { AssistenteStore } from './assistente.store';
  * no próprio spec; aqui a mensagem entra pronta e o que se confere é a tela.
  */
 describe('AssistenteConversa — resposta da Ceres', () => {
+  // entrarComo grava a sessao no localStorage: limpar para nao vazar para outro spec.
+  afterEach(() => localStorage.clear());
+
   function montar(mensagem: AssistenteMensagem): HTMLElement {
     TestBed.configureTestingModule({
       imports: [AssistenteConversa],
@@ -81,7 +84,7 @@ describe('AssistenteConversa — resposta da Ceres', () => {
     const links = [...el.querySelectorAll('a[href]')].map((a) => a.textContent?.trim());
     expect(links).toEqual(['Minhas notas', 'Prazos']);
     expect(el.textContent).toContain('Onde ver isso agora');
-    expect(el.textContent).not.toContain('Montei isto sem interpretar');
+    expect(el.textContent).not.toContain('Sem interpretar: os trechos da lei');
   });
 
   it('no fallback de legislação a frase do texto da lei continua', () => {
@@ -101,7 +104,7 @@ describe('AssistenteConversa — resposta da Ceres', () => {
       atalhos: [],
     });
 
-    expect(el.textContent).toContain('Montei isto sem interpretar');
+    expect(el.textContent).toContain('Sem interpretar: os trechos da lei');
   });
 
   /**
@@ -124,7 +127,9 @@ describe('AssistenteConversa — resposta da Ceres', () => {
       ],
     });
 
-    expect(el.textContent).not.toContain('Montei isto sem interpretar');
+    expect(el.textContent).not.toContain('Sem interpretar: os trechos da lei');
+    // Nada foi consultado: o selo não pode dizer que a resposta veio das notas.
+    expect(el.textContent).not.toContain('resposta das suas notas');
     expect(el.querySelector('a[href="/calendario"]')).not.toBeNull();
     expect(el.querySelectorAll('a[href]')).toHaveLength(3);
   });

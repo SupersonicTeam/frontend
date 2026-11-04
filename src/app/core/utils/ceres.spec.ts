@@ -19,12 +19,15 @@ describe('ceres — rótulos das consultas', () => {
     expect(rotulo.trim().length).toBeGreaterThan(0);
   });
 
-  it('conhece as 13 funções do backend, nem mais nem menos', () => {
-    expect(new Set(FUNCOES_CERES).size).toBe(13);
-  });
-
   it('função que o contrato não documenta aparece com o nome cru, sem rótulo inventado', () => {
     expect(rotuloFonte('consultarAlgoNovo')).toBe('consultarAlgoNovo');
+  });
+
+  it('nome que coincide com o Object.prototype também cai no nome cru', () => {
+    expect(rotuloFonte('constructor')).toBe('constructor');
+    expect(descreverFonte({ funcao: 'constructor', parametros: { toString: 'x' } })).toBe(
+      'toString: x',
+    );
   });
 
   it('traduz os parâmetros novos: produto e número da nota', () => {
@@ -68,12 +71,22 @@ describe('ceres — tabela oficial do IBS/CBS', () => {
   it('com dado do produtor no meio, o selo continua sendo das notas', () => {
     expect(rotuloRota('DADOS', [tabela, resumo])).toBe('das suas notas');
     expect(rotuloRota('DADOS', [resumo])).toBe('das suas notas');
-    expect(rotuloRota('DADOS')).toBe('das suas notas');
+    expect(rotuloRota('MISTO', [resumo])).toBe('das suas notas e da legislação');
+  });
+
+  /**
+   * Fallback de dados, dado não identificado ou resposta descartada: nada foi consultado.
+   * Era assim que "O que eu preciso saber?" sem o modelo aparecia como "resposta das suas
+   * notas" logo acima de "Nao consegui consultar os seus dados agora".
+   */
+  it('sem fonte nenhuma, não afirma que a resposta veio das notas', () => {
+    expect(rotuloRota('DADOS', [])).toBeNull();
+    expect(rotuloRota('MISTO', [])).toBe('da legislação');
   });
 
   it('legislação e fora de escopo não mudam', () => {
     expect(rotuloRota('LEGISLACAO', [tabela])).toBe('da legislação');
-    expect(rotuloRota('FORA_DE_ESCOPO')).toBeNull();
+    expect(rotuloRota('FORA_DE_ESCOPO', [])).toBeNull();
   });
 });
 

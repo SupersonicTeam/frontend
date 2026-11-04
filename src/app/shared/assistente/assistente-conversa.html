@@ -79,10 +79,11 @@
           <app-ceres-texto [texto]="msg.texto" />
 
           <!-- So quando ha lei na resposta: no fallback de DADOS o texto e fixo e nao cita
-               nada, e a frase diria que ele e "texto da lei". -->
+               nada. E a frase fala dos TRECHOS, nao da resposta inteira: no MISTO a parte de
+               dados pode ter sido escrita pelo modelo antes de ele cair. -->
           @if (msg.modoFallback && msg.citacoes?.length) {
             <p class="mt-2 text-apoio leading-relaxed text-muted-foreground">
-              Montei isto sem interpretar: é o texto da lei como está escrito.
+              Sem interpretar: os trechos da lei estão como foram escritos.
             </p>
           }
 
