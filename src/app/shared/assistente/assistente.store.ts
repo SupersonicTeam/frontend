@@ -106,17 +106,32 @@ export class AssistenteStore {
    */
   readonly disponivel = computed(() => this.sessao.ehProdutor() && !this.bloqueadoPorPapel());
 
+  /**
+   * A primeira é a vitrine: "O que eu preciso saber?" cai no `resumoDoProdutor` e traz, numa
+   * resposta só, atraso, prazos, notas paradas, pedidos do escritório e notas a conferir
+   * (backend#266). A do feijão mostra a tabela oficial do IBS/CBS, com o artigo citado
+   * (backend#283).
+   */
   readonly perguntasSugeridas = [
+    'O que eu preciso saber?',
     'Quanto eu tenho que pagar este mês?',
     'O que muda para mim com o IBS e o CBS?',
     'Quando vence a minha próxima guia?',
+    'O feijão tem redução de IBS e CBS?',
   ];
 
-  /** Sugestões trocam quando há uma nota na tela — a pergunta passa a ser sobre ela. */
+  /**
+   * Sugestões trocam quando há uma nota na tela — a pergunta passa a ser sobre ela.
+   *
+   * "Tem algo para conferir" vem primeiro porque a `consultarNota` devolve os sinais da
+   * nota (produto que parece serviço, possível duplicidade, valor unitário fora do padrão),
+   * sempre como "confira com seu contador" (backend#276).
+   */
   readonly sugestoes = computed(() => {
     const nota = this.notaEmFoco();
     if (!nota) return this.perguntasSugeridas;
     return [
+      `Tem algo para conferir na nota ${nota.numero}?`,
       `Por que a nota ${nota.numero} está ${this.rotuloSituacao(nota)}?`,
       `O que eu preciso corrigir na nota ${nota.numero} para emitir?`,
       `Quanto de IBS e CBS a nota ${nota.numero} gera?`,

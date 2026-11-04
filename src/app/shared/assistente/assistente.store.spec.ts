@@ -332,10 +332,65 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
     flushContexto();
     httpMock.match((r) => r.url.includes('validacoes')).forEach((r) => r.flush([]));
 
-    expect(store.sugestoes()[0]).toBe('Por que a nota 7 está com inconsistência?');
+    // Os sinais da nota (backend#276) vêm primeiro: é a pergunta que a consultarNota responde.
+    expect(store.sugestoes()[0]).toBe('Tem algo para conferir na nota 7?');
+    expect(store.sugestoes()).toContain('Por que a nota 7 está com inconsistência?');
 
     store.limparNota();
     expect(store.sugestoes()).toEqual(store.perguntasSugeridas);
+  });
+
+  it('a primeira sugestão é o resumo do produtor, e há uma da tabela oficial', () => {
+    expect(store.perguntasSugeridas[0]).toBe('O que eu preciso saber?');
+    expect(store.perguntasSugeridas).toContain('O feijão tem redução de IBS e CBS?');
+    expect(store.sugestoes()).toEqual(store.perguntasSugeridas);
+  });
+
+  it('guarda os atalhos também quando não é modo fallback (dado não identificado, #266)', async () => {
+    store.carregarContexto();
+    flushContexto();
+
+    store.enviar('me fala do negocio');
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush(
+        resposta({
+          resposta:
+            'Nao consegui identificar qual dado consultar. Voce pode perguntar, por exemplo: ...',
+          fontesDados: [],
+          modoFallback: false,
+          atalhos: ['NOTAS', 'APURACAO', 'CREDITOS', 'CALENDARIO'],
+        }),
+      );
+
+    await vi.waitFor(() => expect(store.enviando()).toBe(false));
+
+    const ultima = store.mensagens().at(-1);
+    expect(ultima?.modoFallback).toBe(false);
+    expect(ultima?.atalhos).toEqual([
+      { rota: '/documentos', rotulo: 'Minhas notas' },
+      { rota: '/tributario', rotulo: 'Impostos' },
+      { rota: '/calendario', rotulo: 'Prazos' },
+    ]);
+  });
+
+  it('guarda o texto de parágrafos e lista como veio, sem reescrever', async () => {
+    store.carregarContexto();
+    flushContexto();
+
+    const texto = 'Encontrei 2 pontos de atencao.\n\n2 notas estao paradas:\n- Nota 1.\n- Nota 2.';
+    store.enviar('O que eu preciso saber?');
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush(
+        resposta({
+          resposta: texto,
+          fontesDados: [{ funcao: 'resumoDoProdutor', parametros: {} }],
+        }),
+      );
+
+    await vi.waitFor(() => expect(store.enviando()).toBe(false));
+    expect(store.mensagens().at(-1)?.texto).toBe(texto);
   });
 });
 
