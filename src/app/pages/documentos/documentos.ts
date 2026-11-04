@@ -1,4 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, debounceTime } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -24,10 +26,15 @@ import {
   LucideX,
   LucideChevronDown,
 } from '@lucide/angular';
-import { NotasApi } from '@services/notas/data-access/notas.service';
+import {
+  NotasApi,
+  Pageable,
+  TAMANHO_MAXIMO_BUSCA,
+  buscaQueValeNoServidor,
+} from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
-import { NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
+import { CancelamentoNota, NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
 import {
   type Pendencia,
   STATUS_PENDENCIA_LABEL,
@@ -55,7 +62,7 @@ import {
   mensagemDeErroDeDownload,
 } from '@core/utils/download';
 import { aplicarMascara, mascaraCep, mascaraCpfCnpj, soDigitos } from '@core/utils/mascaras';
-import { hojeEmBrasilia } from '@core/utils/periodo';
+import { faixaDeEmissao, hojeEmBrasilia } from '@core/utils/periodo';
 import type { ImportacaoNotaResultado } from '@dtos/notas/importacao.response';
 import { NotaPreview } from '@shared/components/nota-preview/nota-preview';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
@@ -117,6 +124,12 @@ const UFS = [
   'SP',
   'TO',
 ];
+
+/** Quanto a busca espera depois da última tecla antes de ir ao servidor (#116). */
+const DEBOUNCE_BUSCA_MS = 300;
+
+/** "Esperando você": o que ainda depende do produtor, como `status` repetido (#116). */
+const ESPERANDO_O_PRODUTOR: readonly string[] = ['COM_INCONSISTENCIAS', 'REJEITADA', 'RASCUNHO'];
 
 const MESES_PT = [
   'Janeiro',
@@ -236,31 +249,27 @@ export class DocumentosPage implements OnInit {
   loading = signal(false);
   salvando = signal(false);
 
-  // Filters
+  // Filtros. Todos vão ao servidor (#116); ver `filtrosDoServidor`.
   periodo = signal('todos');
   tipo = signal('todos');
   statusFilter = signal('todos');
+  /** O que está no campo de busca. Só vale depois do debounce, ver `buscaAplicada`. */
   busca = signal('');
+  /** A busca que foi ao servidor, já limpa por `buscaQueValeNoServidor`. */
+  readonly buscaAplicada = signal('');
   ordenacao = signal<'data' | 'valor'>('data');
+  readonly TAMANHO_MAXIMO_BUSCA = TAMANHO_MAXIMO_BUSCA;
 
   // Carregamento de notas + paginação server-side (Page<T> do Spring)
   notasErro = signal(false);
   pageIndex = signal(0);
   /**
-   * **Ainda provisório, mas por menos tempo (issue #104).**
+   * Notas por página. **Os filtros já não dependem dele** (#116): período, tipo, busca, situação
+   * e ordenação vão ao servidor, e o que estiver fora da página é achado na página seguinte.
    *
-   * Filtrar é trabalho do servidor. Quando esta tela foi escrita, `GET /api/notas` aceitava só
-   * `Pageable`, então todos os filtros rodavam em memória sobre a página carregada — e com 12 por
-   * página o filtro **não enxergava** o que estivesse fora dela: buscar um destinatário da página
-   * 2 devolvia "nenhuma nota". Subir para 100 era o remendo.
-   *
-   * O backend avançou. Medido contra a API local em 29/10: **`status` e `busca` filtram**, e o
-   * `status` já vai daqui para o servidor (`recarregarNotas`). Mas `de`/`ate` **continuam sendo
-   * ignorados** — `?de=2026-09-01&ate=2026-09-30` devolve as 15 notas, as mesmas de sem filtro.
-   *
-   * É isso que segura o número aqui: enquanto o recorte por data for em memória, cair para 12
-   * ressuscita o bug antigo no filtro de período. Quando `de`/`ate` valerem, isto volta para 12 e
-   * os filtros em memória saem junto.
+   * Segue em 100 por causa do **resumo do topo** ("quanto eu faturei", "o que falta de mim") e das
+   * opções de período: os dois somam o que veio, e uma página cheia cobre o produtor inteiro na
+   * prática.
    */
   pageSize = signal(100);
   totalElements = signal(0);
@@ -285,6 +294,14 @@ export class DocumentosPage implements OnInit {
   cancelarAlvo = signal<NotaFiscal | null>(null);
   motivoCancel = signal('');
   cancelando = signal(false);
+  /**
+   * O que a SEFAZ devolveu no último cancelamento, com a nota a que se refere (#116).
+   *
+   * É a prova do cancelamento, e só existe na resposta do `POST /cancelar`: a `NotaFiscalResponse`
+   * não traz protocolo nem data do cancelamento. Por isso aparece no modal logo depois de cancelar,
+   * e não ao reabrir a nota depois.
+   */
+  readonly cancelamento = signal<(CancelamentoNota & { notaId: string }) | null>(null);
 
   // Emissão SEFAZ / DANFE (#12)
   enviandoSefaz = signal(false);
@@ -342,7 +359,7 @@ export class DocumentosPage implements OnInit {
    */
   readonly periodosPorAno = computed(() => {
     const porMes = new Map<string, number>();
-    for (const n of this.notas()) {
+    for (const n of this.notasDaBase()) {
       const mes = (n.dataEmissao ?? '').slice(0, 7);
       if (/^\d{4}-\d{2}$/.test(mes)) porMes.set(mes, (porMes.get(mes) ?? 0) + 1);
     }
@@ -368,7 +385,7 @@ export class DocumentosPage implements OnInit {
     const limite = new Date();
     limite.setDate(limite.getDate() - 30);
     const corte = limite.toISOString().slice(0, 10);
-    return this.notas().some((n) => (n.dataEmissao ?? '').slice(0, 10) >= corte);
+    return this.notasDaBase().some((n) => (n.dataEmissao ?? '').slice(0, 10) >= corte);
   });
 
   /** O que está escrito no seletor quando alguém volta a olhar para ele. */
@@ -382,68 +399,27 @@ export class DocumentosPage implements OnInit {
   });
 
   /**
-   * A lista com tudo aplicado **menos a situacao**.
+   * As notas da página, **já filtradas e ordenadas pelo servidor** (#116).
    *
-   * Existe separada da `notasFiltradas` por causa do resumo do periodo: ele descreve o recorte que
-   * a pessoa escolheu, e nao pode mudar quando ela escolhe uma situacao.
+   * Período, tipo e busca eram cortados aqui, em memória, sobre a página carregada: o filtro não
+   * enxergava o que estivesse fora dela, e a busca não achava "Jose" em "José", que o servidor acha.
    */
-  private readonly notasAntesDaSituacao = computed(() => {
-    let lista = this.notas().slice();
-    const busca = this.busca().toLowerCase();
-    const now = new Date();
+  readonly notasFiltradas = computed(() => this.notas());
 
-    // Período: `AAAA-MM` (um mês), `AAAA` (o ano) ou `ultimos30`. Comparação por prefixo de
-    // string, que não passa por fuso nenhum — `new Date('2026-09-10')` é meia-noite em UTC e, no
-    // horário de Brasília, cai no dia 9.
-    const periodo = this.periodo();
-    if (periodo === 'ultimos30') {
-      const limite = new Date(now);
-      limite.setDate(limite.getDate() - 30);
-      const corte = limite.toISOString().slice(0, 10);
-      lista = lista.filter((n) => (n.dataEmissao ?? '').slice(0, 10) >= corte);
-    } else if (/^\d{4}(-\d{2})?$/.test(periodo)) {
-      lista = lista.filter((n) => (n.dataEmissao ?? '').startsWith(periodo));
-    }
+  /**
+   * As notas sem filtro nenhum, da última carga sem filtro. É de onde saem as **opções** de período:
+   * tiradas da lista filtrada, escolher setembro faria os outros meses sumirem do seletor.
+   */
+  private readonly notasDaBase = signal<NotaFiscal[]>([]);
 
-    // Tipo do documento (NFE/NFA)
-    if (this.tipo() !== 'todos')
-      lista = lista.filter((n) => (n.tipoDocumento ?? 'NFE') === this.tipo());
-
-    // Busca (natureza, número ou destinatário)
-    if (busca)
-      lista = lista.filter(
-        (n) =>
-          (n.naturezaOperacao || '').toLowerCase().includes(busca) ||
-          String(n.numero ?? '').includes(busca) ||
-          (n.destinatarioNome || '').toLowerCase().includes(busca),
-      );
-
-    return lista;
-  });
-
-  readonly notasFiltradas = computed(() => {
-    let lista = this.notasAntesDaSituacao().slice();
-
-    // Situacao. Nem toda opcao e um status do backend: `esperando` e um recorte de trabalho.
-    //
-    // As caixas do contador (`revisao`, `travadas`) sairam daqui junto com ele (#136): o contador
-    // tem a tela propria (`NotasContador`), que filtra por status no servidor, por cliente.
-    const situacao = this.statusFilter();
-    // `esperando` e o recorte do produtor: o que ainda depende dele. Atravessa tres status
-    // (inconsistencia, rejeitada, rascunho) porque o que une os tres e a pendencia, nao a
-    // etiqueta -- nenhum deles virou documento fiscal ainda.
-    if (situacao === 'esperando')
-      lista = lista.filter((n) => this.podeVerValidacoes(n) || n.status === 'RASCUNHO');
-    else if (situacao !== 'todos') lista = lista.filter((n) => n.status === situacao);
-
-    // Ordenação
-    lista.sort((a, b) => {
-      if (this.ordenacao() === 'valor') return (b.valorTotalNota ?? 0) - (a.valorTotalNota ?? 0);
-      return new Date(b.dataEmissao ?? 0).getTime() - new Date(a.dataEmissao ?? 0).getTime();
-    });
-
-    return lista;
-  });
+  /**
+   * A base do resumo do topo: a última página carregada **sem situação**, com o período, o tipo e a
+   * busca que estão valendo. O resumo descreve o recorte e não pode mudar quando a pessoa escolhe
+   * uma situação ("ver essas notas"); ver `recarregarNotas`.
+   */
+  private readonly baseDoResumo = signal<NotaFiscal[]>([]);
+  /** Período, tipo e busca de que a `baseDoResumo` foi tirada. */
+  private chaveDoResumo = '';
 
   /**
    * O resumo do recorte que esta na tela, para o produtor.
@@ -453,7 +429,7 @@ export class DocumentosPage implements OnInit {
    * mim**. O faturamento estava espalhado por 15 cartoes para somar de cabeca, e a nota com
    * inconsistencia de junho ficava na terceira tela de rolagem, do mesmo tamanho das outras.
    *
-   * Conta sobre a `notasAntesDaSituacao`: periodo e busca entram, situacao nao -- o resumo
+   * Conta sobre a `baseDoResumo`: periodo, tipo e busca entram, situacao nao -- o resumo
    * descreve o recorte que a pessoa escolheu, e nao pode mudar quando ela clica em "ver essas
    * notas", que e um filtro de situacao.
    *
@@ -462,7 +438,7 @@ export class DocumentosPage implements OnInit {
    * lugar nenhum.
    */
   readonly resumoDoPeriodo = computed(() => {
-    const base = this.notasAntesDaSituacao();
+    const base = this.baseDoResumo();
     const autorizadas = base.filter((n) => n.status === 'AUTORIZADA');
     const comInconsistencia = base.filter((n) => this.podeVerValidacoes(n)).length;
     const rascunhos = base.filter((n) => n.status === 'RASCUNHO').length;
@@ -567,15 +543,6 @@ export class DocumentosPage implements OnInit {
     return notas.reduce((soma, n) => soma + (n.valorTotalNota ?? 0), 0);
   }
 
-  /**
-   * A pagina atual ja contem todas as notas do produtor?
-   *
-   * Enquanto for verdade, o filtro em memoria da o mesmo resultado que um filtro
-   * no servidor daria, e a contagem pode falar da base inteira. Se um dia passar
-   * de `pageSize`, a contagem volta a dizer "nesta pagina" -- que e a verdade.
-   */
-  readonly tudoCarregado = computed(() => this.notas().length >= this.totalElements());
-
   /** Algum filtro esta ativo? Decide se vale oferecer "limpar". */
   /**
    * Os filtros recolhidos no celular.
@@ -604,32 +571,77 @@ export class DocumentosPage implements OnInit {
   );
 
   /**
-   * Troca a situação **e recarrega**, porque agora ela é filtro de servidor (#104).
-   *
-   * O template chamava `statusFilter.set(...)` direto. Com o filtro subindo para a API, trocar o
-   * signal sem recarregar deixaria a lista mostrando o recorte anterior.
+   * Cada filtro troca o valor **e recarrega da primeira página**: todos são do servidor (#116), e
+   * trocar só o signal deixaria a lista no recorte anterior.
    */
   trocarSituacao(valor: string): void {
     if (this.statusFilter() === valor) return;
     this.statusFilter.set(valor);
+    this.recarregarDoInicio();
+  }
+
+  trocarPeriodo(valor: string): void {
+    if (this.periodo() === valor) return;
+    this.periodo.set(valor);
+    this.recarregarDoInicio();
+  }
+
+  trocarTipo(valor: string): void {
+    if (this.tipo() === valor) return;
+    this.tipo.set(valor);
+    this.recarregarDoInicio();
+  }
+
+  trocarOrdenacao(valor: 'data' | 'valor'): void {
+    if (this.ordenacao() === valor) return;
+    this.ordenacao.set(valor);
+    this.recarregarDoInicio();
+  }
+
+  /**
+   * A busca vai ao servidor **300 ms depois da última tecla** (#116), e só quando ele a usaria
+   * (`buscaQueValeNoServidor`): "ab" não pede nada, porque o servidor ignoraria e devolveria tudo.
+   */
+  private readonly buscaDigitada = new Subject<string>();
+  private readonly aplicaBusca = this.buscaDigitada
+    .pipe(debounceTime(DEBOUNCE_BUSCA_MS), takeUntilDestroyed())
+    .subscribe((termo) => this.aplicarBusca(termo));
+
+  digitarBusca(valor: string): void {
+    this.busca.set(valor);
+    this.buscaDigitada.next(valor);
+  }
+
+  /** Apagar a busca (o `x` e o `Esc`) vale na hora, sem esperar o debounce. */
+  limparBusca(): void {
+    this.busca.set('');
+    this.aplicarBusca('');
+  }
+
+  private aplicarBusca(termo: string): void {
+    const valendo = buscaQueValeNoServidor(termo);
+    if (valendo === this.buscaAplicada()) return;
+    this.buscaAplicada.set(valendo);
+    this.recarregarDoInicio();
+  }
+
+  private recarregarDoInicio(): void {
     this.pageIndex.set(0);
     this.recarregarNotas();
   }
 
   limparFiltros(): void {
-    // So recarrega se a situacao anterior ia ao SERVIDOR. "Esperando voce" e composicao da tela:
-    // limpa-la nao muda o recorte que a API aplicou, e recarregar seria pedir a mesma coisa.
-    const tinhaSituacao = this.statusParaOServidor() !== undefined;
+    const tinhaFiltro =
+      this.periodo() !== 'todos' ||
+      this.tipo() !== 'todos' ||
+      this.statusFilter() !== 'todos' ||
+      this.buscaAplicada() !== '';
     this.periodo.set('todos');
     this.tipo.set('todos');
     this.statusFilter.set('todos');
     this.busca.set('');
-    // A situacao e filtro de servidor (#104): limpa-la sem recarregar deixaria a lista presa no
-    // recorte anterior, agora que a API e quem o aplica. Periodo, tipo e busca seguem em memoria.
-    if (tinhaSituacao) {
-      this.pageIndex.set(0);
-      this.recarregarNotas();
-    }
+    this.buscaAplicada.set('');
+    if (tinhaFiltro) this.recarregarDoInicio();
   }
 
   readonly pendenciasFiltradas = computed(() => {
@@ -807,46 +819,96 @@ export class DocumentosPage implements OnInit {
   }
 
   /**
+   * O que vai a `GET /api/notas` (#116): situação, período, tipo, busca e ordenação.
+   *
+   * "Esperando você" não é status do backend, é o que depende do produtor: inconsistência,
+   * rejeitada e rascunho. Vai como `status` **repetido**, que o servidor lê como OU. Antes ela era
+   * cortada em memória sobre a página, e não via nota fora dela.
+   */
+  private filtrosDoServidor(): Pageable {
+    const situacao = this.statusFilter();
+    const status =
+      situacao === 'todos'
+        ? undefined
+        : situacao === 'esperando'
+          ? ESPERANDO_O_PRODUTOR
+          : [situacao];
+    return {
+      sort: this.ordenacao() === 'valor' ? 'valorTotal,desc' : 'dataEmissao,desc',
+      status,
+      tipoDocumento: this.tipo() === 'todos' ? undefined : this.tipo(),
+      ...faixaDeEmissao(this.periodo()),
+      busca: this.buscaAplicada() || undefined,
+    };
+  }
+
+  /** Período, tipo e busca: o recorte que o resumo descreve. */
+  private recorteDoResumo(): string {
+    return [this.periodo(), this.tipo(), this.buscaAplicada()].join('|');
+  }
+
+  /** Cada carga ganha uma vez; resposta de uma vez antiga chega tarde e é descartada. */
+  private vez = 0;
+
+  /**
    * Recarrega as notas do produtor a partir do backend real (`GET /api/notas`).
    * Em falha (ex.: backend offline) exibe o banner de erro com "Tentar novamente"
    * (`notasErro`), sem dados mockados.
-   */
-  /**
-   * A situação escolhida, quando ela é um status que o servidor entende (#104).
    *
-   * `todos` não é filtro, e `esperando` é uma **composição da tela** (o que depende de uma ação do
-   * produtor) que não existe como status no backend — essas duas continuam em memória.
+   * Filtro trocado depressa (duas teclas da busca, dois meses seguidos) dispara duas cargas, e a
+   * primeira pode responder por último. Sem a `vez`, a lista mostraria o recorte anterior debaixo
+   * do filtro novo.
    */
-  private statusParaOServidor(): string | undefined {
-    const s = this.statusFilter();
-    return s === 'todos' || s === 'esperando' ? undefined : s;
-  }
-
   recarregarNotas(): void {
+    const vez = ++this.vez;
+    const filtros = this.filtrosDoServidor();
+    const recorte = this.recorteDoResumo();
+    const semSituacao = filtros.status === undefined;
+    const semFiltro = semSituacao && !filtros.tipoDocumento && !filtros.emitidaDe && !filtros.busca;
+    const primeiraPagina = this.pageIndex() === 0;
+
     this.loading.set(true);
     this.notasErro.set(false);
-    this.notasApi
-      .listar({
-        page: this.pageIndex(),
-        size: this.pageSize(),
-        sort: 'dataEmissao,desc',
-        status: this.statusParaOServidor(),
-      })
-      .subscribe({
-        next: (page) => {
-          this.notas.set(page.content);
-          this.carregarMotivosDeDevolucao(page.content);
-          this.totalElements.set(page.totalElements);
-          this.notasErro.set(false);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.notas.set([]);
-          this.totalElements.set(0);
-          this.notasErro.set(true);
-          this.loading.set(false);
-        },
-      });
+    this.notasApi.listar({ ...filtros, page: this.pageIndex(), size: this.pageSize() }).subscribe({
+      next: (page) => {
+        if (vez !== this.vez) return;
+        this.notas.set(page.content);
+        this.carregarMotivosDeDevolucao(page.content);
+        this.totalElements.set(page.totalElements);
+        if (semFiltro && primeiraPagina) this.notasDaBase.set(page.content);
+        if (semSituacao && primeiraPagina) {
+          this.baseDoResumo.set(page.content);
+          this.chaveDoResumo = recorte;
+        }
+        this.notasErro.set(false);
+        this.loading.set(false);
+      },
+      error: () => {
+        if (vez !== this.vez) return;
+        this.notas.set([]);
+        this.totalElements.set(0);
+        this.notasErro.set(true);
+        this.loading.set(false);
+      },
+    });
+
+    // Com uma situação escolhida, a lista não serve de base para o resumo. Se o recorte mudou
+    // desde a última base, o resumo precisa da sua própria carga, sem a situação.
+    if (!semSituacao && recorte !== this.chaveDoResumo) this.recarregarResumo(recorte);
+  }
+
+  private recarregarResumo(recorte: string): void {
+    const semSituacao = { ...this.filtrosDoServidor(), status: undefined };
+    this.notasApi.listar({ ...semSituacao, page: 0, size: this.pageSize() }).subscribe({
+      next: (page) => {
+        if (recorte !== this.recorteDoResumo()) return;
+        this.baseDoResumo.set(page.content);
+        this.chaveDoResumo = recorte;
+      },
+      // Sem a base nova, o resumo fica com a anterior: errar o recorte por um momento é melhor
+      // que zerar o faturamento do produtor na tela.
+      error: () => undefined,
+    });
   }
 
   /** Total de páginas (server-side, a partir de totalElements/pageSize). */
@@ -1128,11 +1190,16 @@ export class DocumentosPage implements OnInit {
     if (!nota || !this.motivoCancelValido()) return;
     this.cancelando.set(true);
     this.notasApi.cancelar(nota.id, this.motivoCancel().trim()).subscribe({
-      next: () => {
+      next: (resposta) => {
         this.cancelando.set(false);
         this.cancelarAlvo.set(null);
+        this.cancelamento.set({ ...resposta, notaId: nota.id });
         this.atualizarNotaLocal({ ...nota, status: 'CANCELADA' });
-        this.toastService.success('Nota cancelada junto à SEFAZ.');
+        this.toastService.success(
+          resposta?.protocoloCancelamento
+            ? `Nota cancelada junto à SEFAZ. Protocolo ${resposta.protocoloCancelamento}.`
+            : 'Nota cancelada junto à SEFAZ.',
+        );
       },
       error: (err: HttpErrorResponse) => {
         this.cancelando.set(false);
@@ -1866,6 +1933,15 @@ export class DocumentosPage implements OnInit {
       month: 'short',
       year: 'numeric',
     });
+  }
+
+  /** Instante com fuso (`dataCancelamento`) como data e hora locais; não corta no `T` (UTC). */
+  formatInstante(iso?: string | null): string {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime())
+      ? iso
+      : d.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
   }
 
   notaStatusLabel(status?: string): string {

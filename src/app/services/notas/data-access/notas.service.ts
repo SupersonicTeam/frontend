@@ -53,6 +53,21 @@ export interface Pageable {
   busca?: string;
 }
 
+/** Tamanho máximo de `busca`: acima disso o servidor responde `400 VALIDATION_ERROR`. */
+export const TAMANHO_MAXIMO_BUSCA = 100;
+
+/**
+ * O termo que vale a pena mandar como `busca`, ou `''` quando o servidor o ignoraria.
+ *
+ * Com menos de 3 caracteres a busca é ignorada no servidor, salvo termo só de dígitos (número da
+ * nota por prefixo). Mandar "ab" faria uma requisição que devolve a lista inteira, e a tela
+ * piscaria sem filtrar nada.
+ */
+export function buscaQueValeNoServidor(termo: string): string {
+  const t = termo.trim().slice(0, TAMANHO_MAXIMO_BUSCA);
+  return t.length >= 3 || /^\d+$/.test(t) ? t : '';
+}
+
 /**
  * Cliente da API real de notas fiscais (`/api/notas`) do backend Spring
  * (`br.com.agrocontabil`). Cobre o CRUD, o ciclo de emissão (XML/SEFAZ/DANFE) e o

@@ -99,6 +99,43 @@ describe('ImpostosContador', () => {
     expect(cmp.conta()?.saldoAPagar).toBe(300);
   });
 
+  /** Abre p1 e responde tudo, com a apuracao do mes em `over`. Devolve o texto do fechamento. */
+  function textoDoFechamento(over: Record<string, unknown>): string {
+    const fixture = abrir();
+    const cmp = fixture.componentInstance;
+    cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
+    const periodo = cmp.periodo();
+    for (const r of httpMock.match(() => true)) {
+      const url = r.request.url;
+      if (url.endsWith('/apuracao')) {
+        const p = r.request.params.get('periodo')!;
+        r.flush(p === periodo ? { ...apuracao(periodo), ...over } : apuracao(p, 'FECHADO'));
+      } else if (url.endsWith('/relatorios/conformidade')) r.flush({ periodo, saldoAPagar: 0 });
+      else r.flush([]);
+    }
+    fixture.detectChanges();
+    return ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+  }
+
+  it('mes aberto e corrente: a conta muda, e o fechamento e no ultimo dia, nao "por dia" (#116)', () => {
+    const texto = textoDoFechamento({ parcial: true });
+    expect(texto).toContain('o mês não terminou');
+    expect(texto).toContain('23h do último dia do mês');
+    expect(texto).not.toContain('uma vez por dia');
+  });
+
+  it('mes passado ainda aberto diz que nao fecha mais sozinho (#116)', () => {
+    const texto = textoDoFechamento({ parcial: false });
+    expect(texto).toContain('o mês já tenha terminado');
+    expect(texto).not.toContain('cada nota autorizada muda os valores');
+  });
+
+  it('apuracao sem nota diz "Sem notas emitidas", nao "0 nota(s)" (#116)', () => {
+    const texto = textoDoFechamento({ totalNotas: 0 });
+    expect(texto).toContain('Sem notas emitidas no período.');
+    expect(texto).not.toContain('0 nota(s)');
+  });
+
   it('notas que nao responderam nao viram "todas entraram na apuracao"', () => {
     const fixture = abrir();
     const cmp = fixture.componentInstance;
