@@ -289,10 +289,11 @@
                 Ainda aberta: o mês não terminou, e cada nota autorizada muda os valores. O
                 fechamento automático acontece às 23h do último dia do mês.
               } @else {
-                <!-- Mes passado e aberto: o fechamento automatico so pega o mes corrente, entao
-                     este nao fecha sozinho (parcial=false com status ABERTO, medido em 04/11). -->
-                Ainda aberta, embora o mês já tenha terminado: o fechamento automático não passou
-                por ele, e ele não fecha mais sozinho.
+                <!-- Mes passado e aberto (parcial=false com status ABERTO, medido em 04/11): pode
+                     ter sido reaberto, e o job refecha os reabertos no fim do mes, ou nunca ter
+                     sido fechado. A tela nao sabe qual, entao nao afirma nenhum dos dois. -->
+                Ainda aberta, embora o mês já tenha terminado: os valores mudam se entrar nota
+                autorizada com data deste mês.
               }
             </p>
             <p class="mt-1 text-apoio text-muted-foreground">

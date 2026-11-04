@@ -124,10 +124,12 @@ describe('ImpostosContador', () => {
     expect(texto).not.toContain('uma vez por dia');
   });
 
-  it('mes passado ainda aberto diz que nao fecha mais sozinho (#116)', () => {
+  it('mes passado ainda aberto diz que terminou, sem prometer fechamento (#116)', () => {
     const texto = textoDoFechamento({ parcial: false });
     expect(texto).toContain('o mês já tenha terminado');
     expect(texto).not.toContain('cada nota autorizada muda os valores');
+    // Pode ter sido reaberto, e o job refecha os reabertos: a tela nao promete nem nega.
+    expect(texto).not.toContain('não fecha mais sozinho');
   });
 
   it('apuracao sem nota diz "Sem notas emitidas", nao "0 nota(s)" (#116)', () => {

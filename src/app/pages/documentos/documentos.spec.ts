@@ -1106,6 +1106,24 @@ describe('DocumentosPage', () => {
       }
     });
 
+    it('apagar antes dos 300 ms não deixa a busca apagada voltar (#116)', () => {
+      vi.useFakeTimers();
+      try {
+        const cmp = comNotas([nota('n1', '2026-09-10T00:00:00Z')]).componentInstance;
+
+        cmp.digitarBusca('Sorriso');
+        vi.advanceTimersByTime(100);
+        cmp.limparBusca();
+        vi.advanceTimersByTime(500);
+
+        // Nada foi aplicado e nada volta: o campo vazio e o que vale.
+        httpMock.expectNone((r) => r.url === '/notas');
+        expect(cmp.buscaAplicada()).toBe('');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('busca curta que o servidor ignoraria não pede nada; número curto pede (#116)', () => {
       vi.useFakeTimers();
       try {
@@ -1241,12 +1259,18 @@ describe('DocumentosPage', () => {
       cmp.alternarMes('2026-09');
       expect(cmp.mesAberto('2026-09')).toBe(false);
 
+      // O que reabre e a busca APLICADA: termo ainda no debounce, ou que o servidor ignoraria,
+      // nao filtrou nada.
       cmp.busca.set('Cerealista');
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+      cmp.buscaAplicada.set('Cerealista');
       fixture.detectChanges();
       expect(cmp.mesAberto('2026-09')).toBe(true);
 
-      // E o que ele fechou nao se perdeu: volta a valer quando o filtro sai.
+      // E o que ele fechou nao se perdeu: volta a valer quando o filtro sai. A busca aplicada e
+      // filtro de servidor, entao limpar recarrega.
       cmp.limparFiltros();
+      proximaCarga().responder(doisMeses());
       fixture.detectChanges();
       expect(cmp.mesAberto('2026-09')).toBe(false);
     });
@@ -1372,6 +1396,22 @@ describe('DocumentosPage', () => {
           .map((n) => n.id)
           .sort(),
       ).toEqual(['n3', 'n4']);
+    });
+
+    it('cancelar uma nota tira o valor dela do faturamento do resumo (#116)', () => {
+      const fixture = comNotas(carteira());
+      const cmp = fixture.componentInstance;
+      vi.spyOn(TestBed.inject(ToastService), 'success').mockImplementation(() => undefined);
+      expect(cmp.resumoDoPeriodo().faturado).toBe(1500);
+
+      cmp.pedirCancelamento(cmp.notas()[0]);
+      cmp.motivoCancel.set('Venda desfeita pelo comprador antes da entrega');
+      cmp.confirmarCancelamento();
+      httpMock
+        .expectOne((r) => r.url === '/notas/n1/cancelar')
+        .flush({ status: 'CANCELADA', protocoloCancelamento: '1' });
+
+      expect(cmp.resumoDoPeriodo().faturado).toBe(500);
     });
 
     it('o resumo não muda quando a situação é filtrada — ele descreve o período', () => {

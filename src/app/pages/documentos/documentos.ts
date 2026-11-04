@@ -420,6 +420,8 @@ export class DocumentosPage implements OnInit {
   private readonly baseDoResumo = signal<NotaFiscal[]>([]);
   /** Período, tipo e busca de que a `baseDoResumo` foi tirada. */
   private chaveDoResumo = '';
+  /** O recorte cuja carga de resumo está em voo, para não pedir a mesma duas vezes. */
+  private chaveDoResumoPedida = '';
 
   /**
    * O resumo do recorte que esta na tela, para o produtor.
@@ -513,7 +515,7 @@ export class DocumentosPage implements OnInit {
    * periodo entao nem se discute -- ele ja reduziu a lista a um mes so.
    */
   mesAberto(chave: string): boolean {
-    if (this.busca().trim().length > 0) return true;
+    if (this.buscaAplicada()) return true;
     return !this.mesesFechados().has(chave);
   }
 
@@ -567,7 +569,7 @@ export class DocumentosPage implements OnInit {
       this.periodo() !== 'todos' ||
       this.tipo() !== 'todos' ||
       this.statusFilter() !== 'todos' ||
-      this.busca().trim().length > 0,
+      this.buscaAplicada() !== '',
   );
 
   /**
@@ -602,14 +604,19 @@ export class DocumentosPage implements OnInit {
    * A busca vai ao servidor **300 ms depois da última tecla** (#116), e só quando ele a usaria
    * (`buscaQueValeNoServidor`): "ab" não pede nada, porque o servidor ignoraria e devolveria tudo.
    */
-  private readonly buscaDigitada = new Subject<string>();
-  private readonly aplicaBusca = this.buscaDigitada
-    .pipe(debounceTime(DEBOUNCE_BUSCA_MS), takeUntilDestroyed())
-    .subscribe((termo) => this.aplicarBusca(termo));
+  private readonly buscaDigitada = new Subject<void>();
+
+  constructor() {
+    // Le o CAMPO na hora de aplicar, e nao o termo que entrou no debounce: apagar (Esc, o x,
+    // "Limpar filtros") antes dos 300 ms faria a emissao pendente trazer de volta a busca apagada.
+    this.buscaDigitada
+      .pipe(debounceTime(DEBOUNCE_BUSCA_MS), takeUntilDestroyed())
+      .subscribe(() => this.aplicarBusca(this.busca()));
+  }
 
   digitarBusca(valor: string): void {
     this.busca.set(valor);
-    this.buscaDigitada.next(valor);
+    this.buscaDigitada.next();
   }
 
   /** Apagar a busca (o `x` e o `Esc`) vale na hora, sem esperar o debounce. */
@@ -894,20 +901,26 @@ export class DocumentosPage implements OnInit {
 
     // Com uma situação escolhida, a lista não serve de base para o resumo. Se o recorte mudou
     // desde a última base, o resumo precisa da sua própria carga, sem a situação.
-    if (!semSituacao && recorte !== this.chaveDoResumo) this.recarregarResumo(recorte);
+    if (!semSituacao && recorte !== this.chaveDoResumo && recorte !== this.chaveDoResumoPedida) {
+      this.recarregarResumo(recorte);
+    }
   }
 
   private recarregarResumo(recorte: string): void {
+    this.chaveDoResumoPedida = recorte;
     const semSituacao = { ...this.filtrosDoServidor(), status: undefined };
     this.notasApi.listar({ ...semSituacao, page: 0, size: this.pageSize() }).subscribe({
       next: (page) => {
+        if (this.chaveDoResumoPedida === recorte) this.chaveDoResumoPedida = '';
         if (recorte !== this.recorteDoResumo()) return;
         this.baseDoResumo.set(page.content);
         this.chaveDoResumo = recorte;
       },
       // Sem a base nova, o resumo fica com a anterior: errar o recorte por um momento é melhor
-      // que zerar o faturamento do produtor na tela.
-      error: () => undefined,
+      // que zerar o faturamento do produtor na tela. A próxima carga tenta de novo.
+      error: () => {
+        if (this.chaveDoResumoPedida === recorte) this.chaveDoResumoPedida = '';
+      },
     });
   }
 
@@ -924,9 +937,29 @@ export class DocumentosPage implements OnInit {
     this.recarregarNotas();
   }
 
+  /**
+   * Mudança local numa nota (cancelada, enviada, excluída) vale para a lista **e** para as bases do
+   * resumo e das opções de período. Antes da #116 o resumo saía da própria lista; sem isto, cancelar
+   * uma nota deixaria o faturamento contando com ela.
+   */
+  private mudarNasListas(mudar: (lista: NotaFiscal[]) => NotaFiscal[]): void {
+    this.notas.update(mudar);
+    this.baseDoResumo.update(mudar);
+    this.notasDaBase.update(mudar);
+  }
+
+  /**
+   * Recarrega depois de algo que muda notas (salvar, importar, a recusa do validador): o resumo
+   * também precisa de base nova, mesmo com o recorte igual.
+   */
+  private recarregarAposMudanca(): void {
+    this.chaveDoResumo = '';
+    this.recarregarNotas();
+  }
+
   /** Substitui a nota na listagem e no preview após uma atualização do backend. */
   private atualizarNotaLocal(nota: NotaFiscal): void {
-    this.notas.update((list) => list.map((n) => (n.id === nota.id ? nota : n)));
+    this.mudarNasListas((list) => list.map((n) => (n.id === nota.id ? nota : n)));
     if (this.previewNota()?.id === nota.id) this.previewNota.set(nota);
   }
 
@@ -984,7 +1017,7 @@ export class DocumentosPage implements OnInit {
             ? 'O validador fiscal recusou a nota. Abra as inconsistências e corrija antes de enviar.'
             : 'Não foi possível enviar a nota para o contador.',
         );
-        if (erro.status === 422) this.recarregarNotas();
+        if (erro.status === 422) this.recarregarAposMudanca();
       },
     });
   }
@@ -1006,7 +1039,7 @@ export class DocumentosPage implements OnInit {
 
   /** Substitui a nota na lista e no painel aberto, se for a mesma. */
   private trocarNota(atualizada: NotaFiscal): void {
-    this.notas.update((lista) => lista.map((n) => (n.id === atualizada.id ? atualizada : n)));
+    this.mudarNasListas((lista) => lista.map((n) => (n.id === atualizada.id ? atualizada : n)));
     if (this.previewNota()?.id === atualizada.id) this.previewNota.set(atualizada);
   }
 
@@ -1515,7 +1548,7 @@ export class DocumentosPage implements OnInit {
         this.salvando.set(false);
         this.toastService.success(id ? 'Nota atualizada!' : 'Nota criada em rascunho!');
         this.fecharForm();
-        this.recarregarNotas();
+        this.recarregarAposMudanca();
         // A nota corrigida sai da fila (ou continua, se o fisco ainda reclamar).
         this.carregarFilaDeAjustes();
       },
@@ -1581,7 +1614,7 @@ export class DocumentosPage implements OnInit {
         this.excluindo.set(false);
         this.notaParaExcluir.set(null);
         if (this.previewNota()?.id === nota.id) this.previewNota.set(null);
-        this.notas.update((list) => list.filter((n) => n.id !== nota.id));
+        this.mudarNasListas((list) => list.filter((n) => n.id !== nota.id));
         this.toastService.success('Nota excluída.');
       },
       error: (err: HttpErrorResponse) => {
@@ -1857,7 +1890,7 @@ export class DocumentosPage implements OnInit {
     this.notasApi.importar([file]).subscribe({
       next: (resultados) => {
         this.importando.set(false);
-        this.recarregarNotas();
+        this.recarregarAposMudanca();
         this.relatarImportacao(resultados);
       },
       error: () => {
