@@ -69,7 +69,8 @@ export const routes: Routes = [
 
       // ── Dos dois, com **telas diferentes** por papel. Não é o mesmo componente com textos
       // trocados: `/tributario` escolhe entre dois componentes próprios, porque produtor e contador
-      // perguntam coisas diferentes ao mesmo dado. `/documentos` ainda compartilha a lista.
+      // perguntam coisas diferentes ao mesmo dado. `/documentos` tambem: o contador abria a lista do
+      // produtor e levava 403 em `/api/notas` (#136); agora ve as notas de um cliente da carteira.
       {
         path: 'tributario',
         loadComponent: () => import('@pages/tributario/tributario').then((m) => m.TributarioPage),
@@ -80,7 +81,8 @@ export const routes: Routes = [
       },
       {
         path: 'documentos',
-        loadComponent: () => import('@pages/documentos/documentos').then((m) => m.DocumentosPage),
+        loadComponent: () =>
+          import('@pages/documentos/documentos-rota').then((m) => m.DocumentosRotaPage),
       },
       {
         path: 'configuracoes',

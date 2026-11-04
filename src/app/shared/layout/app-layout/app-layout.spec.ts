@@ -145,4 +145,30 @@ describe('AppLayout', () => {
     cmp.aoPressionarEsc();
     expect(cmp.notificacoesOpen()).toBe(false);
   });
+
+  /**
+   * Com sessão de contador, o shell não chama rota nenhuma do produtor (issue #136).
+   *
+   * `/api/alertas`, `/api/assistente/*` e `/api/convites` derivam o produtor do token e respondem
+   * 403 `PAPEL_NAO_AUTORIZADO` ao escritório — e o 403 vira toast em toda tela que ele abre. O sino
+   * dele vem da carteira, e a Ceres não existe para ele.
+   */
+  it('o contador nao chama /alertas, /assistente nem /convites, e nao ve a Ceres', () => {
+    entrarComo('CONTADOR');
+    const fixture = TestBed.createComponent(AppLayout);
+    fixture.detectChanges();
+
+    const pedidas = httpMock.match(() => true);
+    const urls = pedidas.map((r) => r.request.url);
+    expect(urls.some((u) => u.startsWith('/alertas'))).toBe(false);
+    expect(urls.some((u) => u.startsWith('/assistente'))).toBe(false);
+    expect(urls.some((u) => u.startsWith('/convites'))).toBe(false);
+    expect(urls).toContain('/contador/produtores');
+    pedidas.forEach((r) => r.flush(r.request.url === '/auth/me' ? { nome: '' } : []));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-assistente-launcher')).toBeNull();
+    expect(el.querySelector('app-assistente-drawer')).toBeNull();
+  });
 });

@@ -100,7 +100,9 @@ describe('CarteiraApi', () => {
   });
 
   it('notasDoCliente repete o filtro status, que o backend aceita mais de uma vez', () => {
-    service.notasDoCliente('p9', { status: ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO'] }).subscribe();
+    service
+      .notasDoCliente('p9', { status: ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO'] })
+      .subscribe();
 
     const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p9/notas');
     expect(req.request.params.getAll('status')).toEqual([
@@ -114,9 +116,7 @@ describe('CarteiraApi', () => {
     it('aprovar nao manda corpo', () => {
       service.aprovarNota('p9', 'n1').subscribe();
 
-      const req = httpMock.expectOne(
-        (r) => r.url === '/contador/produtores/p9/notas/n1/aprovar',
-      );
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p9/notas/n1/aprovar');
       expect(req.request.body).toBeNull();
       req.flush({});
     });
@@ -124,9 +124,7 @@ describe('CarteiraApi', () => {
     it('devolver leva o motivo, que e o que o produtor le para corrigir', () => {
       service.devolverNota('p9', 'n1', 'Falta o CFOP no item 2.').subscribe();
 
-      const req = httpMock.expectOne(
-        (r) => r.url === '/contador/produtores/p9/notas/n1/devolver',
-      );
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p9/notas/n1/devolver');
       expect(req.request.body).toEqual({ motivo: 'Falta o CFOP no item 2.' });
       req.flush({});
     });
@@ -166,12 +164,14 @@ describe('CarteiraApi', () => {
     let recebido: { status: string }[] | undefined;
     service.guiasDoCliente('p9').subscribe((r) => (recebido = r));
 
-    httpMock.expectOne((r) => r.url === '/contador/guias').flush([
-      // O backend devolve MAIÚSCULO e não deriva o atraso: esta venceu e vem como PENDENTE.
-      { id: 'g1', status: 'PENDENTE', dataVencimento: '2020-01-10' },
-      { id: 'g2', status: 'PAGA', dataVencimento: '2020-01-10' },
-      { id: 'g3', status: 'PENDENTE', dataVencimento: '2099-12-31' },
-    ]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/guias')
+      .flush([
+        // O backend devolve MAIÚSCULO e não deriva o atraso: esta venceu e vem como PENDENTE.
+        { id: 'g1', status: 'PENDENTE', dataVencimento: '2020-01-10' },
+        { id: 'g2', status: 'PAGA', dataVencimento: '2020-01-10' },
+        { id: 'g3', status: 'PENDENTE', dataVencimento: '2099-12-31' },
+      ]);
 
     expect(recebido?.map((g) => g.status)).toEqual(['vencido', 'pago', 'pendente']);
   });
@@ -327,6 +327,88 @@ describe('CarteiraApi', () => {
         );
 
       expect(erro?.status).toBe(422);
+    });
+  });
+
+  /**
+   * Os números de um cliente pelas rotas do escritório (issue #136, backend#255).
+   *
+   * As do produtor (`/apuracao`, `/relatorios/conformidade`, `/creditos`, `/dashboard`, `/notas`)
+   * derivam o produtor do token e respondem 403 ao contador. Cada uma tem aqui a versão com o
+   * cliente no caminho; o response é o mesmo.
+   */
+  describe('rotas por cliente (#136)', () => {
+    it('apuracao de um mes vai em /contador/produtores/{id}/apuracao?periodo=', () => {
+      service.apuracaoDoCliente('p1', '2026-10').subscribe();
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/apuracao');
+      expect(req.request.params.get('periodo')).toBe('2026-10');
+      req.flush({});
+    });
+
+    it('a faixa de meses vai com de e ate, sem periodo', () => {
+      service.apuracaoFaixaDoCliente('p1', '2026-05', '2026-10').subscribe();
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/apuracao');
+      expect(req.request.params.get('de')).toBe('2026-05');
+      expect(req.request.params.get('ate')).toBe('2026-10');
+      expect(req.request.params.has('periodo')).toBe(false);
+      req.flush([]);
+    });
+
+    it('relatorio de conformidade em JSON e em PDF, com o periodo', () => {
+      service.relatorioConformidadeDoCliente('p1', '2026-10').subscribe();
+      const json = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p1/relatorios/conformidade',
+      );
+      expect(json.request.params.get('periodo')).toBe('2026-10');
+      json.flush({});
+
+      service.relatorioConformidadePdfDoCliente('p1', '2026-10').subscribe();
+      const pdf = httpMock.expectOne(
+        (r) => r.url === '/contador/produtores/p1/relatorios/conformidade/pdf',
+      );
+      expect(pdf.request.responseType).toBe('blob');
+      expect(pdf.request.params.get('periodo')).toBe('2026-10');
+      pdf.flush(new Blob(['%PDF']));
+    });
+
+    it('creditos levam o periodo; dashboard so leva quando ha um', () => {
+      service.creditosDoCliente('p1', '2026-10').subscribe();
+      const creditos = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/creditos');
+      expect(creditos.request.params.get('periodo')).toBe('2026-10');
+      creditos.flush({});
+
+      service.dashboardDoCliente('p1').subscribe();
+      const semPeriodo = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/dashboard');
+      expect(semPeriodo.request.params.has('periodo')).toBe(false);
+      semPeriodo.flush({});
+
+      service.dashboardDoCliente('p1', '2026-09').subscribe();
+      const comPeriodo = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/dashboard');
+      expect(comPeriodo.request.params.get('periodo')).toBe('2026-09');
+      comPeriodo.flush({});
+    });
+
+    it('a pagina de notas repete o status e le o total do X-Total-Count', () => {
+      let total = -1;
+      service
+        .paginaDeNotasDoCliente('p1', {
+          status: ['COM_INCONSISTENCIAS', 'REJEITADA'],
+          page: 0,
+          size: 1,
+        })
+        .subscribe((p) => (total = p.total));
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas');
+      expect(req.request.params.getAll('status')).toEqual(['COM_INCONSISTENCIAS', 'REJEITADA']);
+      expect(req.request.params.get('size')).toBe('1');
+      req.flush([{ id: 'n1' }], { headers: { 'X-Total-Count': '12' } });
+
+      expect(total).toBe(12);
+    });
+
+    it('uma nota do cliente pelo id', () => {
+      service.notaDoCliente('p1', 'n9').subscribe();
+      httpMock.expectOne('/contador/produtores/p1/notas/n9').flush({ id: 'n9' });
     });
   });
 });

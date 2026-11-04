@@ -4,9 +4,29 @@
       <h1 class="font-heading text-xl font-bold tracking-tight text-foreground sm:text-2xl">
         Fechamento de {{ formatPeriodo(periodo()) }}
       </h1>
-      <p class="text-apoio text-muted-foreground">a apuração do cliente, para conferir e fechar</p>
+      <p class="text-apoio text-muted-foreground">
+        @if (cliente(); as c) {
+          a apuração de <span class="font-medium text-foreground">{{ c.nomeCompleto }}</span
+          >, para conferir e fechar
+        } @else {
+          a apuração do cliente, para conferir e fechar
+        }
+      </p>
     </div>
 
+    <!-- O cliente vem antes do mês: sem ele, nenhuma rota do escritório sabe de quem é o número
+         (#136). As rotas do produtor respondiam 403 para o contador. -->
+    <app-seletor-cliente (clienteChange)="aoTrocarCliente($event)" />
+  </header>
+
+  @if (cliente() === null) {
+    <ui-empty-state
+      titulo="Escolha um cliente para ver o fechamento"
+      descricao="A apuração, a comparação com o mês anterior e o relatório de conformidade são de um produtor da carteira. Escolha qual no seletor acima. Um cliente entra na carteira quando o produtor aceita o convite do escritório."
+    >
+      <svg icone lucideUsers [size]="24" aria-hidden="true" />
+    </ui-empty-state>
+  } @else if (cliente()) {
     <div class="flex flex-wrap items-center gap-2">
       <select
         class="tap-target rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
@@ -35,247 +55,263 @@
         Relatório em PDF
       </ui-button>
     </div>
-  </header>
 
-  <!--
+    <!--
     ── 1. A CONFERENCIA ──
     Primeiro bloco porque muda a leitura de tudo abaixo. So nota AUTORIZADA entra na soma do backend:
     um rascunho esquecido deixa a apuracao incompleta e nao aparecia em lugar nenhum da interface.
   -->
-  <section
-    class="rounded-card border p-5"
-    [class]="
-      prontoParaFechar() ? 'border-sucesso/30 bg-sucesso-soft' : 'border-aviso/40 bg-aviso-soft'
-    "
-  >
-    @if (prontoParaFechar()) {
-      <h2 class="flex items-center gap-2 font-heading text-base font-semibold text-sucesso-ink">
-        <svg lucideCheck [size]="18" aria-hidden="true" />
-        Todas as notas do mês entraram na apuração
-      </h2>
-      <p class="mt-1 text-apoio text-sucesso-ink">
-        Nenhum rascunho, nota com inconsistência ou rejeitada em
-        {{ formatPeriodo(periodo()) }}.
-      </p>
-    } @else {
-      <h2 class="flex items-center gap-2 font-heading text-base font-semibold text-aviso-ink">
-        <svg lucideTriangleAlert [size]="18" aria-hidden="true" />
-        {{
-          foraDaApuracao().length === 1
-            ? '1 nota do mês ficou fora desta apuração'
-            : foraDaApuracao().length + ' notas do mês ficaram fora desta apuração'
-        }}
-      </h2>
-      <p class="mt-1 text-apoio leading-relaxed text-aviso-ink">
-        A soma conta apenas a nota <span class="font-semibold">autorizada</span>. Enquanto estas não
-        forem resolvidas, os valores abaixo estão incompletos.
-      </p>
-      <ul class="mt-3 flex flex-col gap-1">
-        @for (nota of foraDaApuracao(); track nota.id) {
-          <li
-            class="animate-entra-subindo escalonado flex flex-wrap items-center justify-between gap-2 text-apoio"
-            [style.--passo]="$index"
-          >
-            <span class="text-foreground">
-              <span class="font-medium">Nota {{ nota.numero }}</span>
-              · {{ nota.destinatarioNome }}
-              <span class="text-muted-foreground">· {{ formatDate(nota.dataEmissao) }}</span>
-            </span>
-            <span class="font-medium text-aviso-ink">{{ rotuloStatusNota(nota.status) }}</span>
-          </li>
-        }
-      </ul>
-      <a
-        routerLink="/documentos"
-        class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
-      >
-        Resolver em Notas do produtor
-      </a>
-    }
-  </section>
-
-  <div class="grid gap-4 lg:grid-cols-2">
-    <!--
-      ── 2. A APURACAO EM MATRIZ ──
-      O produtor le uma conta de tres linhas; o contador le a tabela que ele vai transcrever.
-    -->
-    <section class="rounded-card border border-border bg-card p-5 shadow-suave">
-      <div class="mb-3 flex items-start justify-between gap-3">
-        <h2 class="font-heading text-base font-semibold text-foreground">A apuração</h2>
-        <div class="flex shrink-0 items-center gap-2">
-          @if (carregando()) {
-            <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
-          } @else if (status(); as st) {
-            <span class="rounded-full px-2 py-1 text-apoio font-medium" [class]="st.classe">
-              {{ st.label }}
-            </span>
-          }
-        </div>
-      </div>
-
-      @if (conta(); as c) {
-        <ui-table compacto>
-          <table class="w-full">
-            <thead>
-              <tr>
-                <th scope="col">Tributo</th>
-                <th scope="col" class="text-right">Débito</th>
-                <th scope="col" class="text-right">Crédito</th>
-                <th scope="col" class="text-right">Saldo</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td class="font-medium text-foreground">IBS</td>
-                <td class="text-right tabular-nums">{{ formatCurrency(c.debitoIbs) }}</td>
-                <td class="text-right tabular-nums">{{ formatCurrency(c.creditoIbs) }}</td>
-                <td class="text-right font-semibold tabular-nums">
-                  {{ formatCurrency(c.saldoIbs) }}
-                </td>
-              </tr>
-              <tr>
-                <td class="font-medium text-foreground">CBS</td>
-                <td class="text-right tabular-nums">{{ formatCurrency(c.debitoCbs) }}</td>
-                <td class="text-right tabular-nums">{{ formatCurrency(c.creditoCbs) }}</td>
-                <td class="text-right font-semibold tabular-nums">
-                  {{ formatCurrency(c.saldoCbs) }}
-                </td>
-              </tr>
-              <tr>
-                <td class="font-semibold text-foreground">Total</td>
-                <td class="text-right font-semibold tabular-nums">
-                  {{ formatCurrency(c.debitoTotal) }}
-                </td>
-                <td class="text-right font-semibold tabular-nums">
-                  {{ formatCurrency(c.creditoTotal) }}
-                </td>
-                <td
-                  class="text-right font-heading font-bold tabular-nums"
-                  [class.text-sucesso-ink]="saldoCredor()"
-                  [class.text-perigo-ink]="!saldoCredor()"
-                >
-                  {{ formatCurrency(c.saldoAPagar) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </ui-table>
-
-        <p class="mt-3 text-apoio text-muted-foreground">
-          {{ c.quantidadeSaidas }} saída(s) autorizada(s) · {{ c.quantidadeEntradas }} entrada(s)
-          com crédito ·
-          {{ saldoCredor() ? 'saldo credor' : 'saldo a pagar' }}
+    <section
+      class="rounded-card border p-5"
+      [class]="
+        notasCarregando()
+          ? 'border-border bg-card'
+          : prontoParaFechar()
+            ? 'border-sucesso/30 bg-sucesso-soft'
+            : 'border-aviso/40 bg-aviso-soft'
+      "
+    >
+      @if (notasCarregando()) {
+        <p class="flex items-center gap-2 text-apoio text-muted-foreground" aria-live="polite">
+          <svg lucideLoaderCircle [size]="16" class="animate-spin" aria-hidden="true" />
+          Conferindo as notas do mês…
         </p>
-      } @else if (erro()) {
-        <div class="flex items-center justify-between gap-3 text-apoio text-muted-foreground">
-          <span>Não foi possível carregar a apuração.</span>
-          <ui-button variant="ghost" (click)="carregar()">
+      } @else if (notasErro()) {
+        <div class="flex flex-wrap items-center justify-between gap-3 text-apoio text-aviso-ink">
+          <span
+            >Não foi possível conferir as notas do mês: não dá para dizer se alguma ficou
+            fora.</span
+          >
+          <ui-button variant="ghost" (click)="recarregarNotas()">
             <svg lucideRefreshCw [size]="14" /> Tentar novamente
           </ui-button>
         </div>
-      } @else if (!carregando()) {
-        <p class="text-apoio text-muted-foreground">Sem movimento no período.</p>
+      } @else if (prontoParaFechar()) {
+        <h2 class="flex items-center gap-2 font-heading text-base font-semibold text-sucesso-ink">
+          <svg lucideCheck [size]="18" aria-hidden="true" />
+          Todas as notas do mês entraram na apuração
+        </h2>
+        <p class="mt-1 text-apoio text-sucesso-ink">
+          Nenhum rascunho, nota com inconsistência ou rejeitada em
+          {{ formatPeriodo(periodo()) }}.
+        </p>
+      } @else {
+        <h2 class="flex items-center gap-2 font-heading text-base font-semibold text-aviso-ink">
+          <svg lucideTriangleAlert [size]="18" aria-hidden="true" />
+          {{
+            foraDaApuracao().length === 1
+              ? '1 nota do mês ficou fora desta apuração'
+              : foraDaApuracao().length + ' notas do mês ficaram fora desta apuração'
+          }}
+        </h2>
+        <p class="mt-1 text-apoio leading-relaxed text-aviso-ink">
+          A soma conta apenas a nota <span class="font-semibold">autorizada</span>. Enquanto estas
+          não forem resolvidas, os valores abaixo estão incompletos.
+        </p>
+        <ul class="mt-3 flex flex-col gap-1">
+          @for (nota of foraDaApuracao(); track nota.id) {
+            <li
+              class="animate-entra-subindo escalonado flex flex-wrap items-center justify-between gap-2 text-apoio"
+              [style.--passo]="$index"
+            >
+              <span class="text-foreground">
+                <span class="font-medium">Nota {{ nota.numero }}</span>
+                · {{ nota.destinatarioNome }}
+                <span class="text-muted-foreground">· {{ formatDate(nota.dataEmissao) }}</span>
+              </span>
+              <span class="font-medium text-aviso-ink">{{ rotuloStatusNota(nota.status) }}</span>
+            </li>
+          }
+        </ul>
+        <a
+          routerLink="/documentos"
+          [queryParams]="{ cliente: cliente()?.id, caixa: 'todas' }"
+          class="tap-target mt-2 inline-flex items-center gap-1.5 text-apoio font-medium text-primary underline"
+        >
+          Resolver em Notas do produtor
+        </a>
       }
     </section>
 
-    <!--
+    <div class="grid gap-4 lg:grid-cols-2">
+      <!--
+      ── 2. A APURACAO EM MATRIZ ──
+      O produtor le uma conta de tres linhas; o contador le a tabela que ele vai transcrever.
+    -->
+      <section class="rounded-card border border-border bg-card p-5 shadow-suave">
+        <div class="mb-3 flex items-start justify-between gap-3">
+          <h2 class="font-heading text-base font-semibold text-foreground">A apuração</h2>
+          <div class="flex shrink-0 items-center gap-2">
+            @if (carregando()) {
+              <svg lucideLoaderCircle [size]="16" class="animate-spin text-muted-foreground" />
+            } @else if (status(); as st) {
+              <span class="rounded-full px-2 py-1 text-apoio font-medium" [class]="st.classe">
+                {{ st.label }}
+              </span>
+            }
+          </div>
+        </div>
+
+        @if (conta(); as c) {
+          <ui-table compacto>
+            <table class="w-full">
+              <thead>
+                <tr>
+                  <th scope="col">Tributo</th>
+                  <th scope="col" class="text-right">Débito</th>
+                  <th scope="col" class="text-right">Crédito</th>
+                  <th scope="col" class="text-right">Saldo</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="font-medium text-foreground">IBS</td>
+                  <td class="text-right tabular-nums">{{ formatCurrency(c.debitoIbs) }}</td>
+                  <td class="text-right tabular-nums">{{ formatCurrency(c.creditoIbs) }}</td>
+                  <td class="text-right font-semibold tabular-nums">
+                    {{ formatCurrency(c.saldoIbs) }}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-medium text-foreground">CBS</td>
+                  <td class="text-right tabular-nums">{{ formatCurrency(c.debitoCbs) }}</td>
+                  <td class="text-right tabular-nums">{{ formatCurrency(c.creditoCbs) }}</td>
+                  <td class="text-right font-semibold tabular-nums">
+                    {{ formatCurrency(c.saldoCbs) }}
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-semibold text-foreground">Total</td>
+                  <td class="text-right font-semibold tabular-nums">
+                    {{ formatCurrency(c.debitoTotal) }}
+                  </td>
+                  <td class="text-right font-semibold tabular-nums">
+                    {{ formatCurrency(c.creditoTotal) }}
+                  </td>
+                  <td
+                    class="text-right font-heading font-bold tabular-nums"
+                    [class.text-sucesso-ink]="saldoCredor()"
+                    [class.text-perigo-ink]="!saldoCredor()"
+                  >
+                    {{ formatCurrency(c.saldoAPagar) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </ui-table>
+
+          <p class="mt-3 text-apoio text-muted-foreground">
+            {{ c.quantidadeSaidas }} saída(s) autorizada(s) · {{ c.quantidadeEntradas }} entrada(s)
+            com crédito ·
+            {{ saldoCredor() ? 'saldo credor' : 'saldo a pagar' }}
+          </p>
+        } @else if (erro()) {
+          <div class="flex items-center justify-between gap-3 text-apoio text-muted-foreground">
+            <span>Não foi possível carregar a apuração.</span>
+            <ui-button variant="ghost" (click)="carregar()">
+              <svg lucideRefreshCw [size]="14" /> Tentar novamente
+            </ui-button>
+          </div>
+        } @else if (!carregando()) {
+          <p class="text-apoio text-muted-foreground">Sem movimento no período.</p>
+        }
+      </section>
+
+      <!--
       ── 3. A VARIACAO DECOMPOSTA ──
       "Subiu R$ 540" nao e resposta para o cliente. Subiu porque vendeu mais ou porque comprou menos?
     -->
-    <section class="flex flex-col gap-4">
-      <div class="rounded-card border border-border bg-card p-5 shadow-suave">
-        <h2 class="font-heading text-base font-semibold text-foreground">
+      <section class="flex flex-col gap-4">
+        <div class="rounded-card border border-border bg-card p-5 shadow-suave">
+          <h2 class="font-heading text-base font-semibold text-foreground">
+            @if (variacao(); as v) {
+              Contra {{ formatPeriodo(v.periodoAnterior) }}
+            } @else {
+              Contra o mês anterior
+            }
+          </h2>
+
           @if (variacao(); as v) {
-            Contra {{ formatPeriodo(v.periodoAnterior) }}
-          } @else {
-            Contra o mês anterior
-          }
-        </h2>
-
-        @if (variacao(); as v) {
-          <p class="mt-2 flex items-center gap-2">
-            @if (v.diferenca > 0) {
-              <svg lucideTrendingUp [size]="18" class="text-perigo" aria-hidden="true" />
-            } @else if (v.diferenca < 0) {
-              <svg lucideTrendingDown [size]="18" class="text-sucesso" aria-hidden="true" />
-            } @else {
-              <svg lucideMinus [size]="18" class="text-muted-foreground" aria-hidden="true" />
-            }
-            <span class="font-heading text-lg font-bold tabular-nums text-foreground">
-              {{ formatComSinal(v.diferenca) }}
-            </span>
-            @if (v.percentual !== null) {
-              <span class="text-apoio text-muted-foreground">
-                ({{ formatPercentual(v.percentual) }})
+            <p class="mt-2 flex items-center gap-2">
+              @if (v.diferenca > 0) {
+                <svg lucideTrendingUp [size]="18" class="text-perigo" aria-hidden="true" />
+              } @else if (v.diferenca < 0) {
+                <svg lucideTrendingDown [size]="18" class="text-sucesso" aria-hidden="true" />
+              } @else {
+                <svg lucideMinus [size]="18" class="text-muted-foreground" aria-hidden="true" />
+              }
+              <span class="font-heading text-lg font-bold tabular-nums text-foreground">
+                {{ formatComSinal(v.diferenca) }}
               </span>
-            }
-            <span class="text-apoio text-muted-foreground">no saldo</span>
-          </p>
+              @if (v.percentual !== null) {
+                <span class="text-apoio text-muted-foreground">
+                  ({{ formatPercentual(v.percentual) }})
+                </span>
+              }
+              <span class="text-apoio text-muted-foreground">no saldo</span>
+            </p>
 
-          <!-- A decomposicao: e aqui que esta a conversa com o cliente. -->
-          <dl class="mt-3 grid grid-cols-2 gap-3">
-            <div class="rounded-controle bg-muted/60 p-3">
-              <dt class="text-apoio text-muted-foreground">Débito (o que ele vendeu)</dt>
-              <dd class="text-valor font-semibold tabular-nums text-foreground">
-                {{ formatComSinal(v.debito) }}
-              </dd>
+            <!-- A decomposicao: e aqui que esta a conversa com o cliente. -->
+            <dl class="mt-3 grid grid-cols-2 gap-3">
+              <div class="rounded-controle bg-muted/60 p-3">
+                <dt class="text-apoio text-muted-foreground">Débito (o que ele vendeu)</dt>
+                <dd class="text-valor font-semibold tabular-nums text-foreground">
+                  {{ formatComSinal(v.debito) }}
+                </dd>
+              </div>
+              <div class="rounded-controle bg-muted/60 p-3">
+                <dt class="text-apoio text-muted-foreground">Crédito (o que ele comprou)</dt>
+                <dd class="text-valor font-semibold tabular-nums text-foreground">
+                  {{ formatComSinal(v.credito) }}
+                </dd>
+              </div>
+            </dl>
+          } @else {
+            <p class="mt-1 text-apoio text-muted-foreground">
+              Sem apuração no mês anterior para comparar.
+            </p>
+          }
+        </div>
+
+        <!-- ── 4. O FECHAMENTO ── -->
+        <div class="rounded-card border border-border bg-card p-5 shadow-suave">
+          <h2 class="font-heading text-base font-semibold text-foreground">O fechamento</h2>
+
+          @if (apuracaoDoPeriodo(); as ap) {
+            <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
+              @if (ap.dataFechamento) {
+                Fechada em
+                <span class="font-medium text-foreground">{{ formatDate(ap.dataFechamento) }}</span
+                >. Os valores estão congelados: nenhuma nota nova recalcula o período.
+              } @else {
+                Ainda aberta. O período é fechado automaticamente uma vez por dia, e até lá cada
+                nota autorizada muda os valores.
+              }
+            </p>
+            <p class="mt-1 text-apoio text-muted-foreground">
+              {{ ap.totalNotas }} nota(s) somada(s) nesta apuração.
+            </p>
+          }
+
+          @if (fechada()) {
+            <!-- Reabrir destravou com o cliente escolhido (#136): a rota do escritorio leva o
+               produtor no caminho e o mes, sem o id que a antiga pedia. Quem recusa e o servidor
+               (assistente 403, alem de 3 meses 422), e a mensagem dele vai para o toast. -->
+            <div class="mt-3 flex w-fit flex-col gap-1">
+              <ui-button variant="ghost" [carregando]="reabrindo()" (click)="reabrir()">
+                @if (!reabrindo()) {
+                  <svg lucideLockOpen [size]="14" />
+                }
+                Reabrir apuração
+              </ui-button>
+              <span class="text-apoio text-muted-foreground">
+                Volta o mês para aberto: notas autorizadas depois disso mudam os valores. Até 3
+                meses para trás.
+              </span>
             </div>
-            <div class="rounded-controle bg-muted/60 p-3">
-              <dt class="text-apoio text-muted-foreground">Crédito (o que ele comprou)</dt>
-              <dd class="text-valor font-semibold tabular-nums text-foreground">
-                {{ formatComSinal(v.credito) }}
-              </dd>
-            </div>
-          </dl>
-        } @else {
-          <p class="mt-1 text-apoio text-muted-foreground">
-            Sem apuração no mês anterior para comparar.
-          </p>
-        }
-      </div>
-
-      <!-- ── 4. O FECHAMENTO ── -->
-      <div class="rounded-card border border-border bg-card p-5 shadow-suave">
-        <h2 class="font-heading text-base font-semibold text-foreground">O fechamento</h2>
-
-        @if (apuracaoDoPeriodo(); as ap) {
-          <p class="mt-1 text-apoio leading-relaxed text-muted-foreground">
-            @if (ap.dataFechamento) {
-              Fechada em
-              <span class="font-medium text-foreground">{{ formatDate(ap.dataFechamento) }}</span
-              >. Os valores estão congelados: nenhuma nota nova recalcula o período.
-            } @else {
-              Ainda aberta. O período é fechado automaticamente uma vez por dia, e até lá cada nota
-              autorizada muda os valores.
-            }
-          </p>
-          <p class="mt-1 text-apoio text-muted-foreground">
-            {{ ap.totalNotas }} nota(s) somada(s) nesta apuração.
-          </p>
-        }
-
-        @if (fechada()) {
-          <!--
-            Reabrir ainda desabilitado, mas a razao MUDOU (#117). Nao e mais o id: a rota nova
-            e POST /contador/produtores/{produtorId}/apuracao/{periodo}/reabrir, sem id nenhum, e o
-            cliente dela ja existe (`CarteiraApi.reabrirApuracao`). O que falta e saber DE QUEM e o
-            mes mostrado aqui: esta tela le /apuracao sem identidade de contador, entao os numeros
-            sao do produtor que o backend resolve, nao de um cliente escolhido. Oferecer "reabrir"
-            sobre numeros de dono incerto seria pior que nao oferecer. Destrava com a apuracao por
-            cliente (backend#255) ou com um seletor de carteira, como o de Prazos (#106).
-            O porque fica escrito e visivel -- `title` so aparece no mouse parado, e quem usa
-            teclado ou celular nunca ve.
-          -->
-          <div class="mt-3 flex w-fit flex-col gap-1">
-            <ui-button variant="ghost" [disabled]="true" [carregando]="reabrindo()">
-              <svg lucideLockOpen [size]="14" /> Reabrir apuração
-            </ui-button>
-            <span class="text-apoio text-muted-foreground">
-              Indisponível aqui — esta tela ainda não sabe de qual cliente é o mês.
-            </span>
-          </div>
-        }
-      </div>
-    </section>
-  </div>
+          }
+        </div>
+      </section>
+    </div>
+  }
 </div>
