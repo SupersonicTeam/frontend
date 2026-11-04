@@ -57,7 +57,10 @@
         <aside
           class="hidden w-[19rem] shrink-0 flex-col gap-3 overflow-y-auto border-l border-border bg-surface p-4 lg:flex"
         >
-          <div class="flex items-center justify-between gap-2">
+          <!-- `flex-wrap`: a coluna tem 19rem, e "Aguardando confirmação da SEFAZ" (#117) não cabe ao
+               lado do título. Sem quebrar a linha, o selo virava uma pílula de duas linhas;
+               quebrando, ele desce inteiro. -->
+          <div class="flex flex-wrap items-center justify-between gap-2">
             <h3 class="flex items-center gap-1.5 font-heading font-semibold text-foreground">
               <svg lucideFileText [size]="16" class="text-primary" />
               Nota {{ nota.numero }}

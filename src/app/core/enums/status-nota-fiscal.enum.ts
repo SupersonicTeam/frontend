@@ -53,8 +53,8 @@ export interface StatusNotaMeta {
  *
  * Agora a cor diz **gravidade** (`sucesso`, `aviso`, `info`, `perigo`, neutro) e o **rótulo** diz
  * qual estado é. Isso junta estados que antes tinham matiz próprio: "Autorizada" e "Aprovada" são
- * as duas verdes, e "Com inconsistências", "Aguardando confirmação da SEFAZ" e "Devolvida" as três âmbares. É
- * troca consciente — matiz é um canal ruim para distinguir doze coisas, e era justamente o que
+ * as duas verdes, e "Com inconsistências", "Aguardando confirmação da SEFAZ" e "Devolvida" as
+ * três âmbares. É troca consciente — matiz é um canal ruim para distinguir doze coisas, e era justamente o que
  * fazia dois estados vizinhos parecerem o mesmo com verdes quase iguais. Quem precisa do estado
  * exato lê o rótulo, que está sempre ao lado.
  */
@@ -85,10 +85,13 @@ export const STATUS_NOTA_META: Record<StatusNotaFiscal, StatusNotaMeta> = {
     desvio: true,
   },
   /**
-   * "Aguardando confirmação da SEFAZ" (#117), não "Pendente na SEFAZ". O estado é o mesmo na
-   * emissão e na importação: a SEFAZ não respondeu e um job confirma depois. "Pendente" soava como
-   * algo que a pessoa precisa resolver; e, na importação, a nota ainda **não entra no crédito**
-   * enquanto espera, então o rótulo diz que falta a confirmação, não que há erro.
+   * "Aguardando confirmação da SEFAZ" (#117), não "Pendente na SEFAZ": a SEFAZ ainda não deu a
+   * palavra final. Na importação, um job do backend confirma depois e, até lá, a nota **não entra
+   * no crédito**. Na emissão o estado é o mesmo, e a tela oferece "Consultar status" para quem não
+   * quiser esperar.
+   *
+   * A cor continua âmbar, e `desvio` continua `true`: a nota saiu do caminho principal e pode
+   * acabar `REJEITADA`. O rótulo diz o que falta; a cor diz que vale olhar.
    */
   PENDENTE_SEFAZ: {
     label: 'Aguardando confirmação da SEFAZ',
