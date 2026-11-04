@@ -34,7 +34,7 @@ describe('status da nota fiscal', () => {
     expect(statusNotaLabel('XML_GERADO')).toBe('XML gerado');
     expect(statusNotaLabel('AUTORIZADA')).toBe('Autorizada');
     expect(statusNotaLabel('REJEITADA')).toBe('Rejeitada');
-    expect(statusNotaLabel('PENDENTE_SEFAZ')).toBe('Pendente na SEFAZ');
+    expect(statusNotaLabel('PENDENTE_SEFAZ')).toBe('Aguardando confirmação da SEFAZ');
     expect(statusNotaLabel('CANCELADA')).toBe('Cancelada');
   });
 
