@@ -37,6 +37,10 @@ describe('ConfiguracoesPage', () => {
     httpMock
       .match((r) => r.url === '/convites' || r.url === '/vinculos')
       .forEach((r) => r.flush([]));
+    // A secao de equipe do contador (#148) tambem tem spec proprio.
+    httpMock
+      .match((r) => r.url.startsWith('/escritorio'))
+      .forEach((r) => r.flush(r.request.url === '/escritorio' ? { minhaFuncao: 'CONTADOR' } : []));
     httpMock.verify();
     localStorage.clear();
   });

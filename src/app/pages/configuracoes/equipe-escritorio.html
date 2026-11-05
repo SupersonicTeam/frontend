@@ -1,0 +1,156 @@
+<div class="flex flex-col gap-4 rounded-card border border-border bg-card p-5 shadow-suave">
+  <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+    <svg lucideUsers [size]="18" class="text-primary" />
+    Escritório e equipe
+  </h2>
+
+  @if (erro()) {
+    <div class="flex flex-wrap items-center justify-between gap-3 text-apoio text-muted-foreground">
+      <span>Não foi possível carregar o escritório e a equipe.</span>
+      <ui-button variant="ghost" (click)="carregar()">Tentar de novo</ui-button>
+    </div>
+  }
+
+  @if (escritorio(); as e) {
+    @if (editando()) {
+      <form class="flex flex-col gap-3" (submit)="$event.preventDefault(); salvar()">
+        <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+          Nome do escritório
+          <input
+            class="tap-target rounded-controle border border-border bg-background px-3 text-apoio"
+            maxlength="255"
+            [value]="nome()"
+            (input)="nome.set($any($event.target).value)"
+          />
+        </label>
+        <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+          CNPJ (só os 14 dígitos; vazio apaga)
+          <input
+            class="tap-target rounded-controle border border-border bg-background px-3 text-apoio"
+            inputmode="numeric"
+            [value]="cnpj()"
+            (input)="cnpj.set($any($event.target).value)"
+          />
+        </label>
+        <div class="flex flex-wrap gap-2">
+          <ui-button type="submit" [disabled]="!dadosValidos()" [carregando]="salvando()">
+            Salvar
+          </ui-button>
+          <ui-button variant="ghost" [disabled]="salvando()" (click)="editando.set(false)">
+            Cancelar
+          </ui-button>
+        </div>
+      </form>
+    } @else {
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="text-apoio">
+          <p class="font-heading text-valor font-semibold text-foreground">{{ e.nome }}</p>
+          <p class="text-muted-foreground">
+            {{ e.cnpj ? 'CNPJ ' + e.cnpj + ' · ' : '' }}você é
+            <span class="font-medium text-foreground">{{ rotuloDaFuncao(e.minhaFuncao) }}</span>
+          </p>
+        </div>
+        @if (administrador()) {
+          <ui-button variant="ghost" (click)="abrirEdicao()">Editar dados</ui-button>
+        }
+      </div>
+    }
+
+    <!-- A equipe. Todo membro ve; so o administrador troca funcao e remove. -->
+    <ul class="divide-y divide-border">
+      @for (m of membros(); track m.id) {
+        <li class="flex flex-wrap items-center justify-between gap-2 py-2">
+          <div class="min-w-0 text-apoio">
+            <p class="font-medium text-foreground">{{ m.nomeCompleto }}</p>
+            @if (m.crc) {
+              <p class="text-muted-foreground">CRC {{ m.crc }}</p>
+            }
+          </div>
+          @if (administrador()) {
+            <div class="flex flex-wrap items-center gap-2">
+              <select
+                class="tap-target rounded-controle border border-border bg-background px-2 text-apoio text-foreground"
+                [attr.aria-label]="'Função de ' + m.nomeCompleto"
+                [disabled]="alterando() === m.id"
+                (change)="alterarFuncao(m, $any($event.target).value, $any($event.target))"
+              >
+                @for (f of funcoes; track f.valor) {
+                  <option [value]="f.valor" [selected]="f.valor === m.funcao">
+                    {{ f.rotulo }}
+                  </option>
+                }
+              </select>
+              <ui-button variant="sutil" (click)="removendo.set(m)">Remover</ui-button>
+            </div>
+          } @else {
+            <span class="text-apoio text-muted-foreground">{{ rotuloDaFuncao(m.funcao) }}</span>
+          }
+        </li>
+      }
+    </ul>
+
+    @if (administrador()) {
+      <div class="flex flex-col gap-2 border-t border-border pt-4">
+        <h3 class="text-apoio font-semibold text-foreground">Convidar para a equipe</h3>
+        <form
+          class="flex flex-wrap items-center gap-2"
+          (submit)="$event.preventDefault(); convidar()"
+        >
+          <label class="sr-only" for="email-equipe">E-mail</label>
+          <input
+            id="email-equipe"
+            type="email"
+            autocomplete="off"
+            class="tap-target min-w-0 flex-1 rounded-controle border border-border bg-background px-3 text-apoio sm:max-w-xs"
+            placeholder="email@do-contador.com"
+            [value]="emailConvite()"
+            (input)="emailConvite.set($any($event.target).value)"
+          />
+          <select
+            class="tap-target rounded-controle border border-border bg-background px-2 text-apoio text-foreground"
+            aria-label="Função de quem vai entrar"
+            (change)="funcaoConvite.set($any($event.target).value)"
+          >
+            @for (f of funcoes; track f.valor) {
+              <option [value]="f.valor" [selected]="f.valor === funcaoConvite()">
+                {{ f.rotulo }}
+              </option>
+            }
+          </select>
+          <ui-button type="submit" [disabled]="!emailValido()" [carregando]="convidando()">
+            Convidar
+          </ui-button>
+        </form>
+        <p class="text-apoio text-muted-foreground">
+          A pessoa recebe um link por e-mail. Quem já tem conta de contador entra com ela; quem não
+          tem cria uma pelo próprio link. O assistente atende como o contador, mas não aprova nota.
+        </p>
+        @if (convites().length) {
+          <ul class="text-apoio text-muted-foreground">
+            @for (c of convites(); track c.id) {
+              <li>{{ c.email }} · {{ rotuloDaFuncao(c.funcao) }} · esperando aceite</li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  }
+</div>
+
+<ui-modal
+  [aberto]="removendo() !== null"
+  [titulo]="'Remover ' + (removendo()?.nomeCompleto ?? '') + ' da equipe?'"
+  descricao="A pessoa perde o acesso à carteira do escritório na hora — se for você, também. Para voltar, precisa de um convite novo."
+  tamanho="sm"
+  [travado]="removendoAgora()"
+  (fechar)="removendo.set(null)"
+>
+  <div rodape class="flex flex-wrap justify-end gap-2">
+    <ui-button variant="ghost" [disabled]="removendoAgora()" (click)="removendo.set(null)">
+      Cancelar
+    </ui-button>
+    <ui-button variant="perigo" [carregando]="removendoAgora()" (click)="remover()">
+      Remover
+    </ui-button>
+  </div>
+</ui-modal>

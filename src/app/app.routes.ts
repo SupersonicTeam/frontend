@@ -31,6 +31,13 @@ export const routes: Routes = [
     loadComponent: () => import('@pages/senha/redefinir-senha').then((m) => m.RedefinirSenhaPage),
   },
   {
+    // Convite de equipe (#148): publica pela mesma razao do `/cadastro` -- quem chega pode ainda
+    // nao ter conta. O token vem no FRAGMENTO (`#token=...`), lido pela pagina, nunca em query.
+    path: 'equipe/convite',
+    loadComponent: () =>
+      import('@pages/equipe-convite/equipe-convite').then((m) => m.EquipeConvitePage),
+  },
+  {
     path: '',
     component: AppLayout,
     canActivate: [sessaoGuard],

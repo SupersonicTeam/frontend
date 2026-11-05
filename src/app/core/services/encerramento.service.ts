@@ -6,6 +6,10 @@ import { ClienteEmFocoService } from './cliente-em-foco.service';
 import { ToastService } from './toast.service';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
+import {
+  CHAVE_TOKEN_CONVITE_EQUIPE,
+  EscritorioApi,
+} from '@services/escritorio/data-access/escritorio.service';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
 
 /** Por que a sessão acabou — muda o que se diz ao usuário, não o que se limpa. */
@@ -33,7 +37,9 @@ export type MotivoDaSaida = 'pedido' | 'expirada';
  * - `NotificacoesService` — o sino, carregado da fonte do papel anterior;
  * - `AuthApi` — a identidade resolvida e as requisições em voo;
  * - `ClienteEmFocoService` — o cliente da carteira que o contador atendia (#136). É só um id, mas
- *   de um cliente de **outro** escritório: não pode virar o ponto de partida de quem entra.
+ *   de um cliente de **outro** escritório: não pode virar o ponto de partida de quem entra;
+ * - `EscritorioApi` — o escritório e a função de quem estava logado (#148), guardados em cache:
+ *   sem limpar, quem entra herdaria os botões de administrador de quem saiu.
  *
  * Os outros services de `@services/*` não guardam estado: buscam e devolvem.
  */
@@ -47,6 +53,7 @@ export class EncerramentoService {
   private readonly assistenteStore = inject(AssistenteStore);
   private readonly notificacoes = inject(NotificacoesService);
   private readonly clienteEmFoco = inject(ClienteEmFocoService);
+  private readonly escritorioApi = inject(EscritorioApi);
 
   /**
    * Encerra a sessão e volta ao `/login`.
@@ -63,6 +70,13 @@ export class EncerramentoService {
     this.assistenteStore.limpar();
     this.notificacoes.limpar();
     this.clienteEmFoco.limpar();
+    this.escritorioApi.limpar();
+    // O token de um convite de equipe aberto nesta aba e de quem estava aqui, nao de quem entra.
+    try {
+      sessionStorage.removeItem(CHAVE_TOKEN_CONVITE_EQUIPE);
+    } catch {
+      // Navegacao privada pode recusar o storage; nao ha o que limpar.
+    }
     this.authApi.limpar();
     this.sessao.encerrar();
 

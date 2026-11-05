@@ -1,0 +1,124 @@
+<div class="flex min-h-screen items-center justify-center bg-background p-4">
+  <div class="w-full max-w-md space-y-6">
+    <div class="flex flex-col items-center gap-2 text-center">
+      <img
+        src="/agroconia-horizontal.svg"
+        width="1617"
+        height="400"
+        alt="AgroConIA"
+        class="block h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 dark:hidden"
+      />
+      <img
+        src="/agroconia-horizontal-negativo.svg"
+        width="1617"
+        height="400"
+        alt=""
+        aria-hidden="true"
+        class="hidden h-14 w-auto max-w-[min(76vw,26rem)] object-contain sm:h-16 dark:block"
+      />
+    </div>
+
+    <div class="space-y-5 rounded-card border border-border bg-card p-6 shadow-suave">
+      @if (!temToken() || linkInvalido()) {
+        <div class="space-y-3">
+          <h1 class="font-heading text-xl font-semibold text-foreground">
+            Este convite não vale mais
+          </h1>
+          <p role="alert" class="text-apoio text-muted-foreground">
+            @if (!temToken()) {
+              O link chegou incompleto. Abra de novo o link do e-mail de convite.
+            } @else {
+              O link é inválido, já foi usado ou venceu. Peça um convite novo ao administrador do
+              escritório.
+            }
+          </p>
+          <a
+            routerLink="/login"
+            class="tap-target inline-flex items-center text-apoio font-medium text-primary underline"
+          >
+            Ir para o login
+          </a>
+        </div>
+      } @else {
+        <h1 class="font-heading text-xl font-semibold text-foreground">Convite para a equipe</h1>
+
+        @if (sessao.ehContador()) {
+          <p class="text-apoio text-muted-foreground">
+            Você entrou como
+            <span class="font-medium text-foreground">{{ sessao.nome() || 'contador' }}</span
+            >. Aceitando, esta conta passa a fazer parte da equipe do escritório que convidou. O
+            e-mail da conta precisa ser o mesmo do convite.
+          </p>
+          <ui-button [carregando]="enviando()" [blocoCompleto]="true" (click)="aceitar()">
+            Entrar na equipe
+          </ui-button>
+        } @else if (sessao.ehProdutor()) {
+          <p class="text-apoio text-muted-foreground">
+            Este convite é para a equipe de um escritório de contabilidade, e você entrou com uma
+            conta de produtor. Saia e abra o link de novo para criar a conta de contador ou entrar
+            com ela.
+          </p>
+          <ui-button variant="ghost" [blocoCompleto]="true" (click)="sair()">Sair</ui-button>
+        } @else {
+          <p class="text-apoio text-muted-foreground">
+            Crie a sua conta de contador para entrar na equipe. O e-mail é o do convite.
+          </p>
+          <form class="space-y-3" (submit)="$event.preventDefault(); cadastrar()">
+            <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+              Nome completo
+              <input
+                class="tap-target rounded-controle border border-border bg-background px-3 text-apoio"
+                autocomplete="name"
+                maxlength="255"
+                [value]="nome()"
+                (input)="nome.set($any($event.target).value)"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+              CPF ou CNPJ
+              <input
+                class="tap-target rounded-controle border border-border bg-background px-3 text-apoio"
+                inputmode="numeric"
+                [value]="cpfCnpj()"
+                (input)="cpfCnpj.set($any($event.target).value)"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+              Senha
+              <input
+                type="password"
+                autocomplete="new-password"
+                class="tap-target rounded-controle border border-border bg-background px-3 text-apoio"
+                [value]="senha()"
+                (input)="senha.set($any($event.target).value)"
+              />
+              <span class="font-normal text-muted-foreground">Pelo menos 10 caracteres.</span>
+            </label>
+            <ui-button
+              type="submit"
+              [disabled]="!podeCadastrar()"
+              [carregando]="enviando()"
+              [blocoCompleto]="true"
+            >
+              Criar conta e entrar na equipe
+            </ui-button>
+          </form>
+          <p class="text-center text-apoio text-muted-foreground">
+            Já tem conta de contador?
+            <button
+              type="button"
+              class="tap-target font-medium text-primary underline"
+              (click)="irAoLogin()"
+            >
+              Entrar
+            </button>
+          </p>
+        }
+
+        @if (erro(); as e) {
+          <p role="alert" class="text-apoio text-perigo-ink">{{ e }}</p>
+        }
+      }
+    </div>
+  </div>
+</div>

@@ -17,6 +17,8 @@ const PREFIXOS_SEM_TOAST = [
   '/api/dashboard',
   '/api/calendario-fiscal',
   '/api/contador',
+  // Escritorio e equipe (#148): a secao de equipe mostra cada falha no lugar certo.
+  '/api/escritorio',
   '/api/notificacao',
   // A Ceres mostra a falha dentro da conversa, com mensagem por código
   // (ocupada, indisponível, tempo esgotado). Toast global seria eco.
@@ -28,6 +30,21 @@ const PREFIXOS_SEM_TOAST = [
   '/api/creditos',
   '/api/relatorios',
 ];
+
+/** O que dizer a quem foi removido do escritório (#148). */
+export const MENSAGEM_SEM_ESCRITORIO =
+  'Você não faz mais parte de um escritório. Peça um novo convite ao administrador da equipe.';
+
+/** Janela em que o aviso de "saiu do escritorio" nao se repete. */
+const INTERVALO_AVISO_SEM_ESCRITORIO_MS = 10_000;
+let ultimoAvisoSemEscritorio = 0;
+
+/** 403 com `rejectedValue: "SEM_ESCRITORIO"`: o membro foi removido da equipe. */
+export function ehSemEscritorio(err: HttpErrorResponse): boolean {
+  if (err.status !== 403) return false;
+  const envelope = err.error as ApiErrorEnvelope | null | undefined;
+  return (envelope?.errors ?? []).some((e) => e.rejectedValue === 'SEM_ESCRITORIO');
+}
 
 /**
  * Deriva uma mensagem amigável de um envelope `ApiError` (ou fallback por status). Independente de
@@ -119,6 +136,20 @@ export const apiInterceptor: HttpInterceptorFn = (req, next) => {
         err.status === 404 ||
         err.status === 401 ||
         PREFIXOS_SEM_TOAST.some((p) => apiReq.url.includes(p));
+
+      // Membro removido do escritorio (#148): o servidor responde 403 com
+      // `rejectedValue: "SEM_ESCRITORIO"` em qualquer rota do escritorio. Nao e erro generico nem
+      // falta de permissao de uma acao: a pessoa saiu da equipe. A frase vale mesmo nos prefixos
+      // tratados localmente, porque nenhuma tela saberia explicar isso por conta propria.
+      if (ehSemEscritorio(err)) {
+        // Uma tela dispara varias chamadas ao abrir; o aviso sai uma vez, nao uma por chamada.
+        const agora = Date.now();
+        if (agora - ultimoAvisoSemEscritorio > INTERVALO_AVISO_SEM_ESCRITORIO_MS) {
+          ultimoAvisoSemEscritorio = agora;
+          toast.error(MENSAGEM_SEM_ESCRITORIO);
+        }
+        return throwError(() => err);
+      }
 
       if (!suprimido) {
         toast.error(mensagemAmigavel(err));
