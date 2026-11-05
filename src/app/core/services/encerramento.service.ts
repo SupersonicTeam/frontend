@@ -6,7 +6,10 @@ import { ClienteEmFocoService } from './cliente-em-foco.service';
 import { ToastService } from './toast.service';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
-import { EscritorioApi } from '@services/escritorio/data-access/escritorio.service';
+import {
+  CHAVE_TOKEN_CONVITE_EQUIPE,
+  EscritorioApi,
+} from '@services/escritorio/data-access/escritorio.service';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
 
 /** Por que a sessão acabou — muda o que se diz ao usuário, não o que se limpa. */
@@ -68,6 +71,12 @@ export class EncerramentoService {
     this.notificacoes.limpar();
     this.clienteEmFoco.limpar();
     this.escritorioApi.limpar();
+    // O token de um convite de equipe aberto nesta aba e de quem estava aqui, nao de quem entra.
+    try {
+      sessionStorage.removeItem(CHAVE_TOKEN_CONVITE_EQUIPE);
+    } catch {
+      // Navegacao privada pode recusar o storage; nao ha o que limpar.
+    }
     this.authApi.limpar();
     this.sessao.encerrar();
 

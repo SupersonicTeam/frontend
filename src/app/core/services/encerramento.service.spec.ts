@@ -11,6 +11,10 @@ import { ClienteEmFocoService } from './cliente-em-foco.service';
 import { entrarComo } from './sessao.testing';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
+import {
+  CHAVE_TOKEN_CONVITE_EQUIPE,
+  EscritorioApi,
+} from '@services/escritorio/data-access/escritorio.service';
 
 /**
  * Sair — e sair **inteiro** (issue #93).
@@ -136,6 +140,22 @@ describe('EncerramentoService', () => {
     httpMock.match((r) => r.url === '/auth/logout').forEach((r) => r.flush(null));
 
     expect(foco.produtorId()).toBeNull();
+  });
+
+  /** A funcao no escritorio fica em cache (#148): quem entra nao herda os botoes de quem saiu. */
+  it('esquece o escritorio e o convite de equipe guardados', () => {
+    entrarComo('CONTADOR');
+    const escritorio = TestBed.inject(EscritorioApi);
+    escritorio.ehAdministrador().subscribe();
+    httpMock.expectOne('/escritorio').flush({ minhaFuncao: 'ADMINISTRADOR' });
+    sessionStorage.setItem(CHAVE_TOKEN_CONVITE_EQUIPE, 'tok');
+
+    encerramento.encerrar();
+    httpMock.match((r) => r.url === '/auth/logout').forEach((r) => r.flush(null));
+
+    escritorio.ehAdministrador().subscribe();
+    httpMock.expectOne('/escritorio').flush({ minhaFuncao: 'CONTADOR' });
+    expect(sessionStorage.getItem(CHAVE_TOKEN_CONVITE_EQUIPE)).toBeNull();
   });
 
   it('limpa a conversa com a Ceres: é dado do usuário por definição', () => {

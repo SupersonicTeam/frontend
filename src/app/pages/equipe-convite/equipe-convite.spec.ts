@@ -140,4 +140,9 @@ describe('EquipeConvitePage', () => {
     history.replaceState(null, '', '/equipe/convite');
     expect(texto(abrir())).toContain('O link chegou incompleto');
   });
+
+  it('lido o token, ele sai do endereco', () => {
+    abrir();
+    expect(location.hash).toBe('');
+  });
 });

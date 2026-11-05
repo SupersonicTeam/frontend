@@ -8,11 +8,14 @@ import { ToastService } from '@core/services/toast.service';
 import { falhaDaApi } from '@core/utils/erro-api';
 import { soDigitos } from '@core/utils/mascaras';
 import { AuthApi, ContaError } from '@services/auth/data-access/auth.service';
-import { EscritorioApi } from '@services/escritorio/data-access/escritorio.service';
+import {
+  CHAVE_TOKEN_CONVITE_EQUIPE,
+  EscritorioApi,
+} from '@services/escritorio/data-access/escritorio.service';
 import { UiButton } from '@shared/ui/ui-button';
 
 /** Guarda o token durante a ida ao login: o `returnUrl` não pode levar o fragmento. */
-export const CHAVE_TOKEN_CONVITE = 'agrocontabil.convite-equipe';
+export const CHAVE_TOKEN_CONVITE = CHAVE_TOKEN_CONVITE_EQUIPE;
 
 /**
  * `/equipe/convite#token=…` — a porta de entrada de quem foi convidado para a equipe (#148).
@@ -148,6 +151,8 @@ export class EquipeConvitePage {
     try {
       if (doLink) {
         sessionStorage.setItem(CHAVE_TOKEN_CONVITE, doLink);
+        // Lido, o token sai do endereco: nao fica na barra, num print ou no historico da aba.
+        history.replaceState(history.state, '', location.pathname + location.search);
         return doLink;
       }
       return sessionStorage.getItem(CHAVE_TOKEN_CONVITE) ?? '';

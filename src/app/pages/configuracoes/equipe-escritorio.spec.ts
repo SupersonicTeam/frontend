@@ -83,6 +83,10 @@ describe('EquipeEscritorio', () => {
     cmp.remover();
     httpMock.expectOne('/escritorio/membros/m2').flush(null);
     expect(cmp.membros().map((m) => m.id)).toEqual(['m1']);
+    // A funcao de quem esta aqui pode ter mudado: o escritorio e perguntado de novo.
+    httpMock
+      .expectOne('/escritorio')
+      .flush({ id: 'e1', nome: 'Campo Bom', cnpj: null, minhaFuncao: 'ADMINISTRADOR', membros: 1 });
   });
 
   it('salvar os dados manda o CNPJ so com digitos', () => {

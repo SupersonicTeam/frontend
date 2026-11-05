@@ -3,6 +3,12 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, map, of, shareReplay, tap } from 'rxjs';
 import { skipErrorNotify } from '@core/interceptors/error-notify.context';
 
+/**
+ * Onde a página `/equipe/convite` guarda o token durante a ida ao login (#148). Mora aqui, e não na
+ * página, para o `EncerramentoService` apagá-lo no Sair sem puxar a página para o bundle inicial.
+ */
+export const CHAVE_TOKEN_CONVITE_EQUIPE = 'agrocontabil.convite-equipe';
+
 /** Função de um membro no escritório (backend#228). */
 export type FuncaoEscritorio = 'ADMINISTRADOR' | 'CONTADOR' | 'ASSISTENTE';
 

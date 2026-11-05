@@ -161,6 +161,7 @@ export class EquipeEscritorio implements OnInit {
       next: (atualizado) => {
         this.alterando.set(null);
         this.membros.update((l) => l.map((m) => (m.id === atualizado.id ? atualizado : m)));
+        this.recarregarEscritorio();
         this.toast.success(`${membro.nomeCompleto} agora é ${this.rotuloDaFuncao(funcao)}.`);
       },
       error: (erro: HttpErrorResponse) => {
@@ -180,12 +181,25 @@ export class EquipeEscritorio implements OnInit {
         this.removendoAgora.set(false);
         this.removendo.set(null);
         this.membros.update((l) => l.filter((m) => m.id !== membro.id));
+        this.recarregarEscritorio();
         this.toast.success(`${membro.nomeCompleto} saiu da equipe.`);
       },
       error: (erro: HttpErrorResponse) => {
         this.removendoAgora.set(false);
         this.toast.error(this.mensagem(erro));
       },
+    });
+  }
+
+  /**
+   * A função de quem está aqui pode ter mudado (o administrador rebaixou ou removeu a si mesmo), e
+   * ela está em cache para a sessão inteira. Pergunta de novo, para os botões acompanharem.
+   */
+  private recarregarEscritorio(): void {
+    this.api.limpar();
+    this.api.meuEscritorio().subscribe({
+      next: (e) => this.escritorio.set(e),
+      error: () => this.escritorio.set(null),
     });
   }
 
