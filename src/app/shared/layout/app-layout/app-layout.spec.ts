@@ -4,6 +4,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { SessaoService } from '@core/services/sessao.service';
 import { entrarComo } from '@core/services/sessao.testing';
+import type { NotaFiscal } from '@models/nota-fiscal.model';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { AppLayout } from './app-layout';
 
 /**
@@ -170,5 +172,33 @@ describe('AppLayout', () => {
     const el = fixture.nativeElement as HTMLElement;
     expect(el.querySelector('app-assistente-launcher')).toBeNull();
     expect(el.querySelector('app-assistente-drawer')).toBeNull();
+  });
+
+  /**
+   * A gaveta saiu do bundle inicial (#143): ela só nasce no primeiro `abrir()`. O pedido feito
+   * antes de o bloco carregar não pode se perder -- o primeiro clique tem que abrir a gaveta já
+   * com a nota, não exigir um segundo clique.
+   */
+  it('a gaveta da Ceres carrega no primeiro abrir e já nasce aberta, com a nota pedida', async () => {
+    entrarComo('PRODUTOR');
+    const fixture = montar();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-assistente-launcher')).not.toBeNull();
+    expect(el.querySelector('app-assistente-drawer')).toBeNull();
+
+    const store = TestBed.inject(AssistenteStore);
+    store.abrirSobreNota({ id: 'n7', numero: 7, status: 'AUTORIZADA' } as NotaFiscal);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    // A gaveta busca o contexto da Ceres ao abrir; aqui só importa que ela apareceu.
+    httpMock
+      .match(() => true)
+      .forEach((r) => r.flush(r.request.url === '/notas' ? { content: [] } : {}));
+
+    const gaveta = el.querySelector('app-assistente-drawer');
+    expect(gaveta).not.toBeNull();
+    expect(gaveta?.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(gaveta?.textContent).toContain('Falando sobre a nota 7');
   });
 });
