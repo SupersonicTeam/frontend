@@ -25,6 +25,7 @@ import { UiButton } from '@shared/ui/ui-button';
 import { ConvitesCarteira } from './convites-carteira';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
+import { formatarCpfCnpj } from '@core/utils/mascaras';
 
 /** Espera antes de consultar o servidor enquanto o contador digita. */
 const DEBOUNCE_BUSCA_MS = 300;
@@ -295,7 +296,10 @@ export class ContadorPage {
 
   /** Documento e praça, quando o backend os manda (ele omite em vínculo encerrado). */
   identificacao(cliente: ProdutorCarteira): string {
-    return [cliente.cpfCnpj, cliente.regime, cliente.uf].filter(Boolean).join(' · ');
+    // O documento vem só com dígitos; sem a máscara saía "34524970894" (#156).
+    return [formatarCpfCnpj(cliente.cpfCnpj), cliente.regime, cliente.uf]
+      .filter(Boolean)
+      .join(' · ');
   }
 
   limparBusca(): void {

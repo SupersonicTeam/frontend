@@ -5,6 +5,7 @@ import {
   statusNotaLabel,
   statusNotaBadge,
 } from '@core/enums/status-nota-fiscal.enum';
+import { formatarCpfCnpj } from '@core/utils/mascaras';
 
 /**
  * Preview visual reutilizável de uma NF-e (issue #22): stepper de ciclo de vida,
@@ -138,10 +139,7 @@ export class NotaPreview {
 
   /** Máscara de CPF (11) / CNPJ (14) para exibição no documento. */
   formatCpfCnpj(doc?: string | null): string {
-    const n = (doc ?? '').replace(/\D/g, '');
-    if (n.length === 11) return n.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
-    if (n.length === 14) return n.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
-    return doc || '—';
+    return formatarCpfCnpj(doc) || '—';
   }
 
   /** Endereço do destinatário em uma linha (vazio se não informado). */
