@@ -39,6 +39,7 @@ import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { ApuracaoCliente } from './apuracao-cliente';
 import { VinculoCliente } from './vinculo-cliente';
+import { FichaEditavel, type MudancaNaFicha } from './ficha-editavel';
 
 /** Os quatro verbos do ciclo de um pedido de documento. */
 export type VerboPendencia = 'concluir' | 'rejeitar' | 'cancelar' | 'reabrir';
@@ -90,6 +91,7 @@ const STATUS_DE_TRABALHO = ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO', 'DEVO
   standalone: true,
   imports: [
     ApuracaoCliente,
+    FichaEditavel,
     VinculoCliente,
     LucideArrowLeft,
     LucideChevronDown,
@@ -220,6 +222,11 @@ export class ClientePage {
    * Encerrado não volta, então a ficha deixa de ter o que mostrar e devolve para a carteira.
    * Reativado, recarrega: o trabalho do cliente volta a ser alcançável.
    */
+  /** Etiquetas e responsável mudaram na ficha editável (#149): o cabeçalho acompanha. */
+  aoMudarFicha(mudanca: MudancaNaFicha): void {
+    this.cliente.update((c) => (c ? { ...c, ...mudanca } : c));
+  }
+
   aoMudarVinculo(nova: SituacaoDoVinculo): void {
     if (nova.situacao === 'ENCERRADO') {
       void this.router.navigate(['/contador']);

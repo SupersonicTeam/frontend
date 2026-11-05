@@ -85,11 +85,20 @@ describe('ClientePage', () => {
       .match(
         (r) =>
           r.url === '/escritorio' ||
+          r.url === '/escritorio/membros' ||
+          r.url === '/contador/etiquetas' ||
+          /^\/contador\/produtores\/[^/]+\/ficha$/.test(r.url) ||
           /^\/contador\/produtores\/[^/]+\/(apuracao|creditos|relatorios\/conformidade)$/.test(
             r.url,
           ),
       )
-      .forEach((r) => r.flush({}));
+      .forEach((r) =>
+        r.flush(
+          r.request.url === '/escritorio/membros' || r.request.url === '/contador/etiquetas'
+            ? []
+            : {},
+        ),
+      );
     httpMock.verify();
   });
 

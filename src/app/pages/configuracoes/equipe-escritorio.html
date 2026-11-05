@@ -125,6 +125,24 @@
           A pessoa recebe um link por e-mail. Quem já tem conta de contador entra com ela; quem não
           tem cria uma pelo próprio link. O assistente atende como o contador, mas não aprova nota.
         </p>
+        @if (etiquetas().length) {
+          <h3 class="mt-2 text-apoio font-semibold text-foreground">Etiquetas do escritório</h3>
+          <ul class="flex flex-wrap gap-2">
+            @for (et of etiquetas(); track et.id) {
+              <li class="flex items-center gap-1 rounded-full bg-surface-2 py-0.5 pl-2 text-apoio">
+                {{ et.nome }}
+                <ui-button
+                  variant="sutil"
+                  [carregando]="excluindoEtiqueta() === et.id"
+                  [disabled]="!!excluindoEtiqueta()"
+                  (click)="excluirEtiqueta(et)"
+                >
+                  Excluir
+                </ui-button>
+              </li>
+            }
+          </ul>
+        }
         @if (convites().length) {
           <ul class="text-apoio text-muted-foreground">
             @for (c of convites(); track c.id) {

@@ -10,6 +10,10 @@ import {
   type MembroEscritorio,
 } from '@services/escritorio/data-access/escritorio.service';
 import { ToastService } from '@core/services/toast.service';
+import {
+  CarteiraApi,
+  type EtiquetaEscritorio,
+} from '@services/contador/data-access/carteira.service';
 import { falhaDaApi } from '@core/utils/erro-api';
 import { soDigitos } from '@core/utils/mascaras';
 import { UiButton } from '@shared/ui/ui-button';
@@ -39,6 +43,11 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export class EquipeEscritorio implements OnInit {
   private readonly api = inject(EscritorioApi);
   private readonly toast = inject(ToastService);
+  private readonly carteiraApi = inject(CarteiraApi);
+
+  /** O catálogo de etiquetas do escritório (#149). Só o administrador exclui (403 para os outros). */
+  readonly etiquetas = signal<EtiquetaEscritorio[]>([]);
+  readonly excluindoEtiqueta = signal<string | null>(null);
 
   readonly funcoes = FUNCOES_ESCRITORIO;
 
@@ -79,7 +88,13 @@ export class EquipeEscritorio implements OnInit {
     this.api.meuEscritorio().subscribe({
       next: (e) => {
         this.escritorio.set(e);
-        if (e.minhaFuncao === 'ADMINISTRADOR') this.carregarConvites();
+        if (e.minhaFuncao === 'ADMINISTRADOR') {
+          this.carregarConvites();
+          this.carteiraApi.etiquetasDoEscritorio().subscribe({
+            next: (lista) => this.etiquetas.set(lista),
+            error: () => this.etiquetas.set([]),
+          });
+        }
       },
       error: () => this.erro.set(true),
     });
@@ -186,6 +201,23 @@ export class EquipeEscritorio implements OnInit {
       },
       error: (erro: HttpErrorResponse) => {
         this.removendoAgora.set(false);
+        this.toast.error(this.mensagem(erro));
+      },
+    });
+  }
+
+  /** Tira a etiqueta do catálogo do escritório. */
+  excluirEtiqueta(etiqueta: EtiquetaEscritorio): void {
+    if (this.excluindoEtiqueta()) return;
+    this.excluindoEtiqueta.set(etiqueta.id);
+    this.carteiraApi.excluirEtiqueta(etiqueta.id).subscribe({
+      next: () => {
+        this.excluindoEtiqueta.set(null);
+        this.etiquetas.update((l) => l.filter((e) => e.id !== etiqueta.id));
+        this.toast.success(`Etiqueta "${etiqueta.nome}" excluída do catálogo.`);
+      },
+      error: (erro: HttpErrorResponse) => {
+        this.excluindoEtiqueta.set(null);
         this.toast.error(this.mensagem(erro));
       },
     });

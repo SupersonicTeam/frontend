@@ -1,0 +1,135 @@
+<section class="rounded-card border border-border bg-card p-4" aria-labelledby="ficha-escritorio">
+  <h2
+    id="ficha-escritorio"
+    class="flex items-center gap-2 font-heading font-semibold text-foreground"
+  >
+    <svg lucideNotebookPen [size]="18" aria-hidden="true" />
+    Ficha do escritório
+  </h2>
+
+  @if (erro()) {
+    <div
+      class="mt-2 flex flex-wrap items-center justify-between gap-3 text-apoio text-muted-foreground"
+    >
+      <span>Não foi possível carregar a ficha deste cliente.</span>
+      <ui-button variant="ghost" (click)="carregar()">Tentar de novo</ui-button>
+    </div>
+  } @else if (carregou()) {
+    <div class="mt-3 grid gap-4 lg:grid-cols-2">
+      <!-- Responsavel e etiquetas -->
+      <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1">
+          <span class="text-apoio font-medium text-foreground">Responsável</span>
+          @if (podeTrocarResponsavel()) {
+            <select
+              class="tap-target rounded-controle border border-border bg-background px-2 text-apoio text-foreground"
+              aria-label="Responsável pelo cliente"
+              [disabled]="salvandoResponsavel()"
+              (change)="trocarResponsavel($any($event.target).value, $any($event.target))"
+            >
+              <option value="" [selected]="!cliente().responsavelId">Sem responsável</option>
+              @for (m of membros(); track m.id) {
+                <option [value]="m.id" [selected]="m.id === cliente().responsavelId">
+                  {{ m.nomeCompleto }}
+                </option>
+              }
+            </select>
+          } @else {
+            <span class="text-apoio text-muted-foreground">
+              {{ cliente().responsavelNome || 'Sem responsável' }} — quem troca é o administrador ou
+              o próprio responsável.
+            </span>
+          }
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <span class="text-apoio font-medium text-foreground">
+            Etiquetas ({{ etiquetas().length }}/{{ maxEtiquetas }})
+          </span>
+          @if (etiquetas().length) {
+            <ul class="flex flex-wrap gap-2">
+              @for (e of etiquetas(); track e) {
+                <li
+                  class="flex items-center gap-1 rounded-full bg-surface-2 py-0.5 pl-2 text-apoio text-foreground"
+                >
+                  {{ e }}
+                  <button
+                    type="button"
+                    class="tap-target flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                    [attr.aria-label]="'Tirar a etiqueta ' + e"
+                    [disabled]="salvandoEtiquetas()"
+                    (click)="removerEtiqueta(e)"
+                  >
+                    <svg lucideX [size]="14" aria-hidden="true" />
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+          <form
+            class="flex flex-wrap items-center gap-2"
+            (submit)="$event.preventDefault(); adicionarEtiqueta()"
+          >
+            <label class="sr-only" for="nova-etiqueta">Nova etiqueta</label>
+            <input
+              id="nova-etiqueta"
+              list="catalogo-etiquetas"
+              class="tap-target min-w-0 flex-1 rounded-controle border border-border bg-background px-3 text-apoio"
+              placeholder="Ex.: Soja, Prioridade"
+              [attr.maxlength]="maxNomeEtiqueta"
+              [value]="novaEtiqueta()"
+              (input)="novaEtiqueta.set($any($event.target).value)"
+            />
+            <datalist id="catalogo-etiquetas">
+              @for (s of sugestoes(); track s.id) {
+                <option [value]="s.nome"></option>
+              }
+            </datalist>
+            <ui-button
+              type="submit"
+              variant="ghost"
+              [disabled]="!podeAdicionar()"
+              [carregando]="salvandoEtiquetas()"
+            >
+              Adicionar
+            </ui-button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Observacoes internas -->
+      <div class="flex flex-col gap-1">
+        <label for="observacoes-internas" class="text-apoio font-medium text-foreground">
+          Observações internas
+        </label>
+        <textarea
+          id="observacoes-internas"
+          rows="5"
+          class="w-full rounded-controle border bg-background px-3 py-2 text-apoio text-foreground"
+          [class.border-border]="!observacoesLongas()"
+          [class.border-perigo]="observacoesLongas()"
+          [value]="observacoes()"
+          (input)="observacoes.set($any($event.target).value)"
+        ></textarea>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <span
+            class="text-apoio text-muted-foreground"
+            [class.text-perigo-ink]="observacoesLongas()"
+          >
+            Só o escritório vê; nunca chega ao produtor. {{ observacoes().length }}/{{
+              maxObservacoes
+            }}
+          </span>
+          <ui-button
+            variant="ghost"
+            [disabled]="!observacoesMudaram() || observacoesLongas()"
+            [carregando]="salvandoObservacoes()"
+            (click)="salvarObservacoes()"
+          >
+            Salvar observações
+          </ui-button>
+        </div>
+      </div>
+    </div>
+  }
+</section>

@@ -72,6 +72,9 @@
          escritorio; tem desde a backend#255, sempre com o produtorId desta ficha. -->
       <app-apuracao-cliente [produtorId]="produtorId" />
 
+      <!-- O que o escritorio guarda sobre o cliente (#149): responsavel, etiquetas e observacoes. -->
+      <app-ficha-editavel [cliente]="c" (mudou)="aoMudarFicha($event)" />
+
       @if (nadaAFazer()) {
         <ui-empty-state
           titulo="Nada pendente com este cliente"
