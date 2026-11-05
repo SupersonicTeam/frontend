@@ -23,6 +23,7 @@ import type { ProdutorCarteira } from '@models/carteira.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
 import { statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
 import { ToastService } from '@core/services/toast.service';
+import { EscritorioApi } from '@services/escritorio/data-access/escritorio.service';
 import { apiErrorDeBlob, filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
 import { mensagemAmigavel, mensagemDeEnvelope } from '@core/interceptors/api.interceptor';
 import { UiButton } from '@shared/ui/ui-button';
@@ -136,6 +137,9 @@ export class ImpostosContador {
   private readonly carteiraApi = inject(CarteiraApi);
   private readonly toast = inject(ToastService);
 
+  /** Só administrador e contador reabrem; o assistente não vê o botão (o servidor dá 403, #138). */
+  readonly podeReabrir = signal(false);
+
   /**
    * O cliente do fechamento. `undefined` enquanto a carteira não respondeu — é o que separa
    * "carregando" de "nenhum cliente escolhido".
@@ -243,6 +247,12 @@ export class ImpostosContador {
    * `doPeriodo` só protege contra troca de mês.
    */
   private vez = 0;
+
+  constructor() {
+    inject(EscritorioApi)
+      .podeReabrirApuracao()
+      .subscribe((pode) => this.podeReabrir.set(pode));
+  }
 
   aoTrocarCliente(cliente: ProdutorCarteira | null): void {
     const atual = this.cliente();

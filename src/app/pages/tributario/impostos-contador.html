@@ -305,7 +305,7 @@
             </p>
           }
 
-          @if (fechada()) {
+          @if (fechada() && podeReabrir()) {
             <!-- Reabrir destravou com o cliente escolhido (#136): a rota do escritorio leva o
                produtor no caminho e o mes, sem o id que a antiga pedia. Quem recusa e o servidor
                (assistente 403, alem de 3 meses 422), e a mensagem dele vai para o toast. -->

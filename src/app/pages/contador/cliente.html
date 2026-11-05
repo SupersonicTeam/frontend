@@ -89,9 +89,19 @@
                 (click)="alternarNota(nota.id)"
               >
                 @if (notaExpandida() === nota.id) {
-                  <svg lucideChevronDown [size]="16" class="shrink-0 text-perigo-ink" aria-hidden="true" />
+                  <svg
+                    lucideChevronDown
+                    [size]="16"
+                    class="shrink-0 text-perigo-ink"
+                    aria-hidden="true"
+                  />
                 } @else {
-                  <svg lucideChevronRight [size]="16" class="shrink-0 text-perigo-ink" aria-hidden="true" />
+                  <svg
+                    lucideChevronRight
+                    [size]="16"
+                    class="shrink-0 text-perigo-ink"
+                    aria-hidden="true"
+                  />
                 }
                 <span class="min-w-0 flex-1 text-apoio text-foreground">
                   <span class="font-medium">Nota {{ nota.numero }}</span>
@@ -149,8 +159,8 @@
           {{ notasAguardandoAprovacao().length }} na sua mesa
         </h2>
         <p class="mt-1 text-apoio text-muted-foreground">
-          O produtor montou e enviou para a sua revisão. Enquanto você não aprova, ele não
-          consegue emitir.
+          O produtor montou e enviou para a sua revisão. Enquanto você não aprova, ele não consegue
+          emitir.
         </p>
 
         <ul class="mt-3 divide-y divide-border">
@@ -300,7 +310,9 @@
           <svg lucideInbox [size]="18" class="text-info-ink" aria-hidden="true" />
           Documentos
           @if (pedidosEsperandoConferencia() > 0) {
-            <span class="rounded-full bg-info-soft px-2 py-0.5 text-apoio font-medium text-info-ink">
+            <span
+              class="rounded-full bg-info-soft px-2 py-0.5 text-apoio font-medium text-info-ink"
+            >
               {{ pedidosEsperandoConferencia() }} esperando conferência
             </span>
           }
@@ -414,7 +426,9 @@
                    servidor responde 409, e o botão diz isso em vez de falhar calado. -->
               @for (anexo of p.anexos; track anexo.id) {
                 <div class="flex flex-wrap items-center gap-2 text-apoio">
-                  <span class="min-w-0 flex-1 truncate text-foreground">{{ anexo.nomeArquivo }}</span>
+                  <span class="min-w-0 flex-1 truncate text-foreground">{{
+                    anexo.nomeArquivo
+                  }}</span>
                   @if (anexo.situacao === 'EM_VERIFICACAO') {
                     <span class="flex items-center gap-1.5 text-muted-foreground">
                       <svg lucideLoaderCircle [size]="14" class="animate-spin" aria-hidden="true" />
@@ -485,11 +499,10 @@
       }
     </section>
 
-    <p class="border-t border-border pt-4 text-apoio text-muted-foreground">
-      A apuração e o relatório de conformidade deste cliente não aparecem aqui porque não existe
-      rota para eles no escopo do escritório — <code>/api/apuracao</code> devolve 403 para contador
-      e a versão por cliente responde 404. Mostrar os números da identidade atual seria mostrar o
-      dinheiro de outra pessoa nesta ficha. Pedido em SupersonicTeam/backend#255.
-    </p>
+    <!-- Os numeros do cliente (#138). Havia aqui um aviso de que a apuracao nao tinha rota no
+         escopo do escritorio; tem desde a backend#255, sempre com o produtorId desta ficha. -->
+    <app-apuracao-cliente [produtorId]="produtorId" />
+
+    <!-- Lugar reservado para o "Historico de operacoes" do cliente (#137, auditoria). -->
   }
 </div>
