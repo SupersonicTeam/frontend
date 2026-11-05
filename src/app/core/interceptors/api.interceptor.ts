@@ -19,6 +19,8 @@ const PREFIXOS_SEM_TOAST = [
   '/api/contador',
   // Escritorio e equipe (#148): a secao de equipe mostra cada falha no lugar certo.
   '/api/escritorio',
+  // Auditoria (#137): a secao da ficha mostra a falha no lugar dela.
+  '/api/auditoria',
   '/api/notificacao',
   // A Ceres mostra a falha dentro da conversa, com mensagem por código
   // (ocupada, indisponível, tempo esgotado). Toast global seria eco.

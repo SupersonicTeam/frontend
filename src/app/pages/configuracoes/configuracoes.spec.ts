@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { ConfiguracoesPage } from './configuracoes';
 import type { ObrigacaoCatalogo } from '@services/contador/data-access/obrigacoes.service';
 import { entrarComo } from '@core/services/sessao.testing';
@@ -25,7 +26,8 @@ describe('ConfiguracoesPage', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ConfiguracoesPage],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      // A secao de privacidade (#137) tem link para a politica de dados.
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
     // O cadastro mostrado aqui e o do produtor: so a sessao dele pede `/api/dashboard` (#136).

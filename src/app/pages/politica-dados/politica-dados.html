@@ -1,0 +1,89 @@
+<div class="flex min-h-screen justify-center bg-background p-4">
+  <div class="w-full max-w-2xl space-y-6 py-6">
+    <div class="flex flex-col items-center gap-2 text-center">
+      <img
+        src="/agroconia-horizontal.svg"
+        width="1617"
+        height="400"
+        alt="AgroConIA"
+        class="block h-12 w-auto max-w-[min(76vw,22rem)] object-contain dark:hidden"
+      />
+      <img
+        src="/agroconia-horizontal-negativo.svg"
+        width="1617"
+        height="400"
+        alt=""
+        aria-hidden="true"
+        class="hidden h-12 w-auto max-w-[min(76vw,22rem)] object-contain dark:block"
+      />
+    </div>
+
+    <article class="space-y-5 rounded-card border border-border bg-card p-6 shadow-suave">
+      <h1 class="font-heading text-2xl font-semibold text-foreground">Política de dados</h1>
+
+      @if (erro()) {
+        <div
+          class="flex flex-wrap items-center justify-between gap-3 text-apoio text-muted-foreground"
+        >
+          <span>Não foi possível carregar a política agora.</span>
+          <ui-button variant="ghost" (click)="carregar()">Tentar de novo</ui-button>
+        </div>
+      } @else if (politica(); as p) {
+        <p class="text-apoio text-muted-foreground">
+          Versão {{ p.versao }}. Controlador: {{ p.controlador }}. Encarregado:
+          <a [href]="'mailto:' + p.contatoEncarregado" class="font-medium text-primary underline">{{
+            p.contatoEncarregado
+          }}</a
+          >.
+        </p>
+
+        @for (s of secoes(p); track s.titulo) {
+          <section class="space-y-2">
+            <h2 class="font-heading text-base font-semibold text-foreground">{{ s.titulo }}</h2>
+            <ul class="list-disc space-y-1 pl-5 text-apoio leading-relaxed text-foreground">
+              @for (item of s.itens; track $index) {
+                <li>{{ item }}</li>
+              }
+            </ul>
+          </section>
+        }
+
+        @if (p.comoExercer) {
+          <section class="space-y-2">
+            <h2 class="font-heading text-base font-semibold text-foreground">Como exercer</h2>
+            <p class="whitespace-pre-line text-apoio leading-relaxed text-foreground">
+              {{ p.comoExercer }}
+            </p>
+          </section>
+        }
+      } @else {
+        <ui-skeleton [linhas]="6" />
+      }
+
+      <p class="border-t border-border pt-4 text-apoio">
+        @if (sessao.logado()) {
+          <a
+            routerLink="/configuracoes"
+            class="tap-target inline-flex items-center font-medium text-primary underline"
+          >
+            Voltar para Configurações
+          </a>
+        } @else {
+          <a
+            routerLink="/login"
+            class="tap-target inline-flex items-center font-medium text-primary underline"
+          >
+            Ir para o login
+          </a>
+          ·
+          <a
+            routerLink="/cadastro"
+            class="tap-target inline-flex items-center font-medium text-primary underline"
+          >
+            Criar conta
+          </a>
+        }
+      </p>
+    </article>
+  </div>
+</div>

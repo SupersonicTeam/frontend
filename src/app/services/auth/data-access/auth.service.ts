@@ -252,6 +252,21 @@ export class AuthApi {
       .pipe(AuthApi.traduzirFalhaDeConta<void>());
   }
 
+  /**
+   * `DELETE /api/usuarios/{id}/dados` — o titular exclui a própria conta (LGPD, #137).
+   *
+   * **Anonimiza, não apaga tudo:** nome, contato e endereço somem; CPF/CNPJ, IE e UF ficam pela
+   * guarda fiscal de 5 anos. Responde 204 e encerra todas as sessões — quem chama faz o mesmo
+   * encerramento local do `logout-todos`. O `id` é o da sessão (id de outro → 404). Senha errada →
+   * 400 `SENHA_ATUAL_INCORRETA`; tentativas demais seguem a regra do login.
+   */
+  excluirMinhaConta(senha: string): Observable<void> {
+    const id = this.sessaoService.usuarioId() ?? '';
+    return this.http
+      .request<void>('DELETE', `/usuarios/${id}/dados`, { body: { senha } })
+      .pipe(AuthApi.traduzirFalhaDeConta<void>());
+  }
+
   /** Sai de todos os dispositivos. Mesma consequência do `alterarSenha`: a sessão atual cai junto. */
   sairDeTodosOsDispositivos(): Observable<void> {
     return this.api

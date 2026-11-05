@@ -542,7 +542,8 @@
         }
       </section>
 
-      <!-- Lugar reservado para o "Historico de operacoes" do cliente (#137, auditoria). -->
+      <!-- A trilha de auditoria do cliente (#137): o que foi feito, por qual papel, e se deu certo. -->
+      <app-historico-operacoes [produtorId]="produtorId" />
     }
   }
 </div>
