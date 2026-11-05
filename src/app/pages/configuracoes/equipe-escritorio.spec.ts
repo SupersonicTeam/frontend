@@ -115,6 +115,9 @@ describe('EquipeEscritorio', () => {
   it('o administrador exclui etiqueta do catalogo', () => {
     const cmp = abrir('ADMINISTRADOR').componentInstance;
     cmp.excluirEtiqueta(cmp.etiquetas()[0]!);
+    // O primeiro clique so pede confirmacao.
+    httpMock.expectNone('/contador/etiquetas/e1');
+    cmp.excluirEtiqueta(cmp.etiquetas()[0]!);
     expect(httpMock.expectOne('/contador/etiquetas/e1').request.method).toBe('DELETE');
   });
 });

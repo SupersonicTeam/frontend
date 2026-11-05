@@ -90,6 +90,16 @@ export class FichaEditavel implements OnInit {
   readonly membros = signal<MembroEscritorio[]>([]);
   readonly administrador = signal(false);
   readonly salvandoResponsavel = signal(false);
+  /**
+   * O responsável atual está entre os membros carregados? Não estando (a lista falhou, ou ele saiu
+   * da equipe), o seletor ganha uma opção para ele, em vez de mostrar "Sem responsável" — que
+   * afirmaria o contrário do que está gravado.
+   */
+  readonly responsavelForaDaLista = computed(() => {
+    const id = this.cliente().responsavelId;
+    return !!id && !this.membros().some((m) => m.id === id);
+  });
+
   /** Administrador ou o próprio responsável: os únicos que o servidor deixa trocar. */
   readonly podeTrocarResponsavel = computed(
     () =>
@@ -128,12 +138,15 @@ export class FichaEditavel implements OnInit {
     if (!this.observacoesMudaram() || this.observacoesLongas() || this.salvandoObservacoes())
       return;
     this.salvandoObservacoes.set(true);
-    this.carteiraApi.salvarObservacoes(this.cliente().id, this.observacoes()).subscribe({
+    const enviado = this.observacoes();
+    this.carteiraApi.salvarObservacoes(this.cliente().id, enviado).subscribe({
       next: (ficha) => {
         this.salvandoObservacoes.set(false);
         const obs = ficha.observacoes ?? '';
-        this.observacoes.set(obs);
         this.observacoesSalvas.set(obs);
+        // Quem continuou digitando durante o salvamento nao perde o que escreveu: o campo so
+        // assume a versao do servidor se ainda estiver como foi enviado.
+        if (this.observacoes() === enviado) this.observacoes.set(obs);
         this.toast.success('Observações salvas.');
       },
       error: (erro: HttpErrorResponse) => {

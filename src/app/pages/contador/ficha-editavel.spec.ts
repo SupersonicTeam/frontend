@@ -133,4 +133,24 @@ describe('FichaEditavel', () => {
       .flush({}, { status: 403, statusText: 'Forbidden' });
     expect(erro).toHaveBeenCalledWith(expect.stringContaining('administrador ou o responsável'));
   });
+
+  it('quem continua digitando durante o salvamento nao perde o texto', () => {
+    const { cmp } = abrir();
+    cmp.observacoes.set('Primeira frase.');
+    cmp.salvarObservacoes();
+    cmp.observacoes.set('Primeira frase. Segunda frase.');
+    httpMock
+      .expectOne('/contador/produtores/p1/ficha')
+      .flush({ produtorId: 'p1', observacoes: 'Primeira frase.', etiquetas: [] });
+
+    expect(cmp.observacoes()).toBe('Primeira frase. Segunda frase.');
+    expect(cmp.observacoesMudaram()).toBe(true);
+  });
+
+  it('responsavel que nao esta na lista de membros continua aparecendo no seletor', () => {
+    const { fixture, cmp } = abrir('ADMINISTRADOR', 'saiu-da-equipe');
+    expect(cmp.responsavelForaDaLista()).toBe(true);
+    const selecionada = (fixture.nativeElement as HTMLElement).querySelector('select')!;
+    expect(selecionada.selectedOptions[0]!.textContent?.trim()).toBe('Bia');
+  });
 });

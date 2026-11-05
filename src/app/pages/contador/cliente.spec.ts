@@ -203,6 +203,19 @@ describe('ClientePage', () => {
     expect(navegou).toHaveBeenCalledWith(['/contador']);
   });
 
+  /** A ficha editavel (#149) avisa o que mudou; o cabecalho acompanha sem recarregar. */
+  it('etiquetas e responsavel mudados na ficha editavel chegam ao cabecalho', () => {
+    const fixture = abrir();
+    responder({});
+    const cmp = fixture.componentInstance;
+
+    cmp.aoMudarFicha({ etiquetas: ['Soja', 'Milho'] });
+    cmp.aoMudarFicha({ responsavelId: null, responsavelNome: null });
+
+    expect(cmp.cliente()?.etiquetas).toEqual(['Soja', 'Milho']);
+    expect(cmp.cliente()?.responsavelNome).toBeNull();
+  });
+
   it('não vai buscar trabalho de um produtor que não é cliente', () => {
     abrir();
     httpMock

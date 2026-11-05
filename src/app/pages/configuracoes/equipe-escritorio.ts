@@ -48,6 +48,8 @@ export class EquipeEscritorio implements OnInit {
   /** O catálogo de etiquetas do escritório (#149). Só o administrador exclui (403 para os outros). */
   readonly etiquetas = signal<EtiquetaEscritorio[]>([]);
   readonly excluindoEtiqueta = signal<string | null>(null);
+  /** A etiqueta cujo "Excluir" já foi clicado uma vez: o segundo clique confirma. */
+  readonly confirmandoEtiqueta = signal<string | null>(null);
 
   readonly funcoes = FUNCOES_ESCRITORIO;
 
@@ -209,6 +211,12 @@ export class EquipeEscritorio implements OnInit {
   /** Tira a etiqueta do catálogo do escritório. */
   excluirEtiqueta(etiqueta: EtiquetaEscritorio): void {
     if (this.excluindoEtiqueta()) return;
+    // Sai do catálogo do escritório inteiro: um clique só pede confirmação.
+    if (this.confirmandoEtiqueta() !== etiqueta.id) {
+      this.confirmandoEtiqueta.set(etiqueta.id);
+      return;
+    }
+    this.confirmandoEtiqueta.set(null);
     this.excluindoEtiqueta.set(etiqueta.id);
     this.carteiraApi.excluirEtiqueta(etiqueta.id).subscribe({
       next: () => {

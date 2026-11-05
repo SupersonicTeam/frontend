@@ -28,6 +28,11 @@
               (change)="trocarResponsavel($any($event.target).value, $any($event.target))"
             >
               <option value="" [selected]="!cliente().responsavelId">Sem responsável</option>
+              @if (responsavelForaDaLista()) {
+                <option [value]="cliente().responsavelId" selected>
+                  {{ cliente().responsavelNome || 'Responsável atual' }}
+                </option>
+              }
               @for (m of membros(); track m.id) {
                 <option [value]="m.id" [selected]="m.id === cliente().responsavelId">
                   {{ m.nomeCompleto }}
@@ -94,6 +99,11 @@
               Adicionar
             </ui-button>
           </form>
+          @if (etiquetas().length >= maxEtiquetas) {
+            <span class="text-apoio text-muted-foreground">
+              Limite de {{ maxEtiquetas }} etiquetas por cliente. Tire uma para pôr outra.
+            </span>
+          }
         </div>
       </div>
 
