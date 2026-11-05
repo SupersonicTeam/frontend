@@ -166,7 +166,11 @@ export class AppLayout implements OnInit {
   handleNotificacaoClick(notif: { id: string; rota: string }): void {
     this.notificacoesService.marcarLida(notif.id);
     this.notificacoesOpen.set(false);
-    this.router.navigate([notif.rota]);
+    // `navigateByUrl`, e não `navigate([rota])`: a rota pode trazer fragmento
+    // (`/configuracoes#escritorio`), e o `navigate` o trataria como parte do caminho.
+    // `reload`: clicar no sino já estando nessa URL (o produtor subiu a página e chegou outro
+    // convite) seria ignorado pelo roteador, e a tela não iria até a seção.
+    void this.router.navigateByUrl(notif.rota, { onSameUrlNavigation: 'reload' });
   }
 
   /**

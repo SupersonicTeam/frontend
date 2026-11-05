@@ -88,6 +88,7 @@
           CPF ou CNPJ
         </label>
         <input
+          #campoDocumento
           id="cad-doc"
           name="cpfCnpj"
           type="text"
@@ -95,15 +96,16 @@
           placeholder="000.000.000-00"
           required
           class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
-          [class.border-border]="!cpfCnpj() || documentoValido()"
-          [class.border-perigo]="cpfCnpj() && !documentoValido()"
+          [class.border-border]="!erroDocumento()"
+          [class.border-perigo]="erroDocumento()"
+          [attr.aria-invalid]="erroDocumento() ? 'true' : null"
+          [attr.aria-describedby]="erroDocumento() ? 'cad-doc-erro' : null"
           [value]="cpfCnpj()"
-          (input)="aoDigitarDocumento($event)"
+          (input)="documento.digitar($event)"
+          (blur)="documento.sair()"
         />
-        @if (cpfCnpj() && !documentoValido()) {
-          <p class="mt-1.5 text-apoio text-perigo-ink">
-            Digite um CPF (11 dígitos) ou um CNPJ (14 dígitos).
-          </p>
+        @if (erroDocumento(); as e) {
+          <p id="cad-doc-erro" class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
         }
       </div>
 

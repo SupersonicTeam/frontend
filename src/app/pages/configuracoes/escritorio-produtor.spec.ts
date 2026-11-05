@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { Router, provideRouter } from '@angular/router';
+import { vi } from 'vitest';
 import { EscritorioProdutor } from './escritorio-produtor';
 
 const convite = {
@@ -90,5 +92,67 @@ describe('EscritorioProdutor', () => {
     f.detectChanges();
 
     expect(texto(f)).toContain('Nenhum escritório atende você agora');
+  });
+
+  /**
+   * O sino leva a `/configuracoes#escritorio` (#156). Sem isso a página abria no topo e o convite
+   * ficava abaixo da dobra. A rolagem espera o vínculo carregar, porque antes a seção não tem altura.
+   */
+  describe('chegando pelo sino', () => {
+    const scrollOriginal = Element.prototype.scrollIntoView;
+    afterEach(() => {
+      Element.prototype.scrollIntoView = scrollOriginal;
+    });
+
+    async function abrirEm(url: string) {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [EscritorioProdutor],
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      });
+      httpMock = TestBed.inject(HttpTestingController);
+      const router = TestBed.inject(Router);
+      await router.navigateByUrl(url);
+      const rolou = vi.fn();
+      Element.prototype.scrollIntoView = rolou;
+      const f = abrir([convite], []);
+      await new Promise((r) => setTimeout(r));
+      return { f, rolou, router };
+    }
+
+    /** O mesmo que o sino faz (`AppLayout.handleNotificacaoClick`). */
+    async function clicarNoSino(router: Router) {
+      await router.navigateByUrl('/#escritorio', { onSameUrlNavigation: 'reload' });
+      await new Promise((r) => setTimeout(r));
+    }
+
+    it('com #escritorio, rola até a seção e põe o foco no título', async () => {
+      const { f, rolou } = await abrirEm('/#escritorio');
+
+      expect(rolou).toHaveBeenCalledTimes(1);
+      const titulo = (f.nativeElement as HTMLElement).querySelector('#escritorio h2');
+      expect(document.activeElement).toBe(titulo);
+    });
+
+    it('sem fragmento, a página fica onde está', async () => {
+      const { rolou } = await abrirEm('/');
+
+      expect(rolou).not.toHaveBeenCalled();
+    });
+
+    it('o sino clicado já em Configurações também leva à seção', async () => {
+      const { rolou, router } = await abrirEm('/');
+      await clicarNoSino(router);
+
+      expect(rolou).toHaveBeenCalledTimes(1);
+    });
+
+    /** Achado do review: na mesma URL o roteador ignorava a navegação, e o fragmento não mudava. */
+    it('o sino clicado de novo na mesma URL rola outra vez', async () => {
+      const { rolou, router } = await abrirEm('/#escritorio');
+      await clicarNoSino(router);
+
+      expect(rolou).toHaveBeenCalledTimes(2);
+    });
   });
 });

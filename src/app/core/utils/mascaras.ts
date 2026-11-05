@@ -41,6 +41,77 @@ export function mascaraCpfCnpj(valor: string): string {
     .replace(/(\d{4})(\d{1,2})$/, '$1-$2');
 }
 
+/**
+ * CPF/CNPJ para **exibir** (#156). A carteira devolve o documento só com dígitos, e a tela
+ * mostrava "34524970894". O que não for um CPF ou CNPJ numérico completo (vazio, o CNPJ
+ * alfanumérico da RFB) sai como veio, em vez de virar uma máscara errada.
+ */
+export function formatarCpfCnpj(valor: string | null | undefined): string {
+  if (!valor) return '';
+  const d = soDigitos(valor);
+  const numerico = /^[\d.\-/\s]+$/.test(valor);
+  return numerico && (d.length === 11 || d.length === 14) ? mascaraCpfCnpj(d) : valor;
+}
+
+/** Os dígitos verificadores de um CPF (11 dígitos). */
+export function cpfValido(cpf: string): boolean {
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  const dv = (base: string, pesoInicial: number): number => {
+    let soma = 0;
+    for (let i = 0; i < base.length; i++) soma += Number(base[i]) * (pesoInicial - i);
+    const resto = (soma * 10) % 11;
+    return resto === 10 ? 0 : resto;
+  };
+  const d1 = dv(cpf.slice(0, 9), 10);
+  const d2 = dv(cpf.slice(0, 10), 11);
+  return d1 === Number(cpf[9]) && d2 === Number(cpf[10]);
+}
+
+/** Os dígitos verificadores de um CNPJ (14 dígitos). */
+export function cnpjValido(cnpj: string): boolean {
+  if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+  const dv = (base: string): number => {
+    const pesos =
+      base.length === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    let soma = 0;
+    for (let i = 0; i < base.length; i++) soma += Number(base[i]) * (pesos[i] as number);
+    const resto = soma % 11;
+    return resto < 2 ? 0 : 11 - resto;
+  };
+  const d1 = dv(cnpj.slice(0, 12));
+  const d2 = dv(cnpj.slice(0, 13));
+  return d1 === Number(cnpj[12]) && d2 === Number(cnpj[13]);
+}
+
+/** CPF/CNPJ válido por tamanho **e** dígitos verificadores (espelha o `@ValidCpfCnpj` do backend). */
+export function cpfCnpjValido(valor: string): boolean {
+  const d = soDigitos(valor);
+  if (d.length === 11) return cpfValido(d);
+  if (d.length === 14) return cnpjValido(d);
+  return false;
+}
+
+/** A frase do documento com dígito verificador errado, a mesma em todas as telas (#156). */
+export const ERRO_CPF_CNPJ_INVALIDO = 'CPF/CNPJ inválido. Confira os dígitos.';
+
+/**
+ * O que dizer de um CPF/CNPJ digitado, ou `null` se ele está bom (#156).
+ *
+ * Vazio também é `null`: campo obrigatório vazio é assunto do botão, não uma frase vermelha.
+ *
+ * Quem chama decide **quando** mostrar — ver `criarCampoCpfCnpj` em `campo-cpf-cnpj.ts`.
+ */
+export function erroDoCpfCnpj(valor: string): string | null {
+  const d = soDigitos(valor);
+  if (d.length === 0) return null;
+  if (d.length !== 11 && d.length !== 14) {
+    return 'Digite um CPF (11 dígitos) ou um CNPJ (14 dígitos).';
+  }
+  return cpfCnpjValido(d) ? null : ERRO_CPF_CNPJ_INVALIDO;
+}
+
 /** CEP: `78890-000`. */
 export function mascaraCep(valor: string): string {
   const d = soDigitos(valor).slice(0, 8);

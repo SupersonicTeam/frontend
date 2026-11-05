@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Router, RouterLink } from '@angular/router';
 import { SessaoService } from '@core/services/sessao.service';
@@ -6,7 +6,7 @@ import { EncerramentoService } from '@core/services/encerramento.service';
 import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import { ToastService } from '@core/services/toast.service';
 import { falhaDaApi } from '@core/utils/erro-api';
-import { soDigitos } from '@core/utils/mascaras';
+import { criarCampoCpfCnpj } from '@core/utils/campo-cpf-cnpj';
 import { AuthApi, ContaError } from '@services/auth/data-access/auth.service';
 import {
   CHAVE_TOKEN_CONVITE_EQUIPE,
@@ -57,15 +57,20 @@ export class EquipeConvitePage {
 
   // Cadastro
   readonly nome = signal('');
-  readonly cpfCnpj = signal('');
+  /** Mesma regra do `/cadastro` (#156); este campo nem máscara tinha. */
+  readonly documento = criarCampoCpfCnpj();
+  readonly cpfCnpj = this.documento.valor;
   readonly senha = signal('');
   readonly podeCadastrar = computed(
     () =>
       !this.enviando() &&
       this.nome().trim().length > 0 &&
-      [11, 14].includes(soDigitos(this.cpfCnpj()).length) &&
+      this.cpfCnpj().trim().length > 0 &&
       this.senha().length > 0,
   );
+
+  private readonly campoDocumento = viewChild<ElementRef<HTMLInputElement>>('campoDocumento');
+  readonly erroDocumento = this.documento.erro;
 
   /** Contador logado: entra na equipe com a conta dele. */
   aceitar(): void {
@@ -101,6 +106,10 @@ export class EquipeConvitePage {
   /** Sem conta: cria a de contador pelo link. O e-mail é o do convite. */
   cadastrar(): void {
     if (!this.podeCadastrar()) return;
+    if (!this.documento.conferir()) {
+      this.campoDocumento()?.nativeElement.focus();
+      return;
+    }
     this.enviando.set(true);
     this.erro.set(null);
     this.auth
@@ -122,6 +131,11 @@ export class EquipeConvitePage {
           if (erro.codigo === 'CONVITE_EQUIPE_INVALIDO') {
             this.linkInvalido.set(true);
             EquipeConvitePage.esquecerToken();
+            return;
+          }
+          if (erro.campo === 'cpfCnpj') {
+            this.documento.recusadoPeloServidor();
+            this.campoDocumento()?.nativeElement.focus();
             return;
           }
           this.erro.set(erro.message);
