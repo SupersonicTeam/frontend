@@ -31,6 +31,13 @@ export const routes: Routes = [
     loadComponent: () => import('@pages/senha/redefinir-senha').then((m) => m.RedefinirSenhaPage),
   },
   {
+    // Politica de dados (#137, LGPD art. 9): publica, porque quem ainda nao tem conta precisa le-la
+    // antes de se cadastrar.
+    path: 'politica-dados',
+    loadComponent: () =>
+      import('@pages/politica-dados/politica-dados').then((m) => m.PoliticaDadosPage),
+  },
+  {
     // Convite de equipe (#148): publica pela mesma razao do `/cadastro` -- quem chega pode ainda
     // nao ter conta. O token vem no FRAGMENTO (`#token=...`), lido pela pagina, nunca em query.
     path: 'equipe/convite',

@@ -58,12 +58,14 @@ const MESES_POR_EXTENSO = [
  */
 import { EscritorioProdutor } from './escritorio-produtor';
 import { EquipeEscritorio } from './equipe-escritorio';
+import { PrivacidadeConta } from './privacidade-conta';
 
 @Component({
   selector: 'app-configuracoes',
   standalone: true,
   imports: [
     EquipeEscritorio,
+    PrivacidadeConta,
     EscritorioProdutor,
     UiCard,
     UiButton,

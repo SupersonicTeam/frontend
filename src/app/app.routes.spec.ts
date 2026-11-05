@@ -91,4 +91,11 @@ describe('links do app (#112)', () => {
     const doShell = routes.find((r) => r.path === '')?.children ?? [];
     expect(doShell.some((r) => r.path === 'equipe/convite')).toBe(false);
   });
+
+  /** A politica de dados (#137) e publica: quem ainda nao tem conta precisa le-la antes. */
+  it('/politica-dados fica fora do shell e sem guard', () => {
+    const rota = routes.find((r) => r.path === 'politica-dados');
+    expect(rota).toBeTruthy();
+    expect(rota?.canActivate ?? []).toEqual([]);
+  });
 });

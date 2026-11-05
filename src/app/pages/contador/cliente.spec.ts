@@ -87,6 +87,7 @@ describe('ClientePage', () => {
           r.url === '/escritorio' ||
           r.url === '/escritorio/membros' ||
           r.url === '/contador/etiquetas' ||
+          r.url === '/auditoria' ||
           /^\/contador\/produtores\/[^/]+\/ficha$/.test(r.url) ||
           /^\/contador\/produtores\/[^/]+\/(apuracao|creditos|relatorios\/conformidade)$/.test(
             r.url,
@@ -94,7 +95,7 @@ describe('ClientePage', () => {
       )
       .forEach((r) =>
         r.flush(
-          r.request.url === '/escritorio/membros' || r.request.url === '/contador/etiquetas'
+          ['/escritorio/membros', '/contador/etiquetas', '/auditoria'].includes(r.request.url)
             ? []
             : {},
         ),

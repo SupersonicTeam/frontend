@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, finalize, map, shareReplay, switchMap, tap } from 'rxjs';
+import { skipErrorNotify } from '@core/interceptors/error-notify.context';
 import { ApiService } from '@core/services/api.service';
 import { SessaoService, type Papel, type Sessao } from '@core/services/sessao.service';
 import { soDigitos } from '@core/utils/mascaras';
@@ -250,6 +251,33 @@ export class AuthApi {
     return this.api
       .post<void>('/auth/senha/alterar', { senhaAtual, novaSenha })
       .pipe(AuthApi.traduzirFalhaDeConta<void>());
+  }
+
+  /**
+   * `DELETE /api/usuarios/{id}/dados` — o titular exclui a própria conta (LGPD, #137).
+   *
+   * **Anonimiza, não apaga tudo:** nome, contato e endereço somem; CPF/CNPJ, IE e UF ficam pela
+   * guarda fiscal de 5 anos. Responde 204 e encerra todas as sessões — quem chama faz o mesmo
+   * encerramento local do `logout-todos`. O `id` é o da sessão (id de outro → 404). Senha errada →
+   * 400 `SENHA_ATUAL_INCORRETA`; tentativas demais seguem a regra do login.
+   */
+  excluirMinhaConta(senha: string): Observable<void> {
+    const id = this.sessaoService.usuarioId();
+    // Sem id na sessao nao ha a quem excluir: falha aqui, como o 404 do servidor falharia.
+    if (!id) {
+      return throwError(
+        () => new ContaError('DESCONHECIDO', 404, 'Não foi possível identificar a sua conta.'),
+      );
+    }
+    return (
+      this.http
+        // Sem toast global: a secao de privacidade mostra cada falha junto do campo de senha.
+        .request<void>('DELETE', `/usuarios/${id}/dados`, {
+          body: { senha },
+          context: skipErrorNotify(),
+        })
+        .pipe(AuthApi.traduzirFalhaDeConta<void>())
+    );
   }
 
   /** Sai de todos os dispositivos. Mesma consequência do `alterarSenha`: a sessão atual cai junto. */

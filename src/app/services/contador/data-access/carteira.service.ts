@@ -77,6 +77,25 @@ export interface ResponsavelDoCliente {
   responsavelNome: string | null;
 }
 
+/** Um registro da trilha de auditoria de um cliente (`GET /api/auditoria`, #137). */
+export interface RegistroAuditoria {
+  id: string;
+  ocorridoEm: string;
+  /** `NOTA_CRIADA`, `GUIA_PAGA`, `APURACAO_REABERTA`… */
+  acao: string;
+  /** `NOTA_FISCAL`, `GUIA_FISCAL`, `APURACAO`, `CONTA`… */
+  recurso: string;
+  recursoId: string | null;
+  usuarioId: string | null;
+  /** `PRODUTOR` ou `CONTADOR`. */
+  papel: string;
+  sucesso: boolean;
+  /** Só na falha: o código do erro, nunca dado pessoal. */
+  codigoErro: string | null;
+  estadoAntes: string | null;
+  estadoDepois: string | null;
+}
+
 /** O que o administrador pode fazer com o vínculo de um cliente. */
 export type AcaoVinculo = 'suspender' | 'reativar' | 'encerrar';
 
@@ -165,6 +184,28 @@ export class CarteiraApi {
         map((pagina) => pagina.itens.find((c) => c.id === produtorId) ?? null),
       );
     return procurar('ATIVO').pipe(switchMap((ativo) => (ativo ? of(ativo) : procurar('SUSPENSO'))));
+  }
+
+  /**
+   * `GET /api/auditoria?produtorId=` — a trilha das operações críticas do cliente (#137, RNF012).
+   *
+   * Só contador (produtor 403) e só cliente da carteira (fora → 404). Array + `X-Total-Count`;
+   * padrão 50, máximo 200 por página. Sem dado pessoal: ids, papel, ação e estados.
+   */
+  auditoriaDoCliente(
+    produtorId: string,
+    page: number,
+    size: number,
+  ): Observable<{ itens: RegistroAuditoria[]; total: number }> {
+    return this.http
+      .get<RegistroAuditoria[]>('/auditoria', {
+        params: new HttpParams()
+          .set('produtorId', produtorId)
+          .set('page', String(page))
+          .set('size', String(size)),
+        observe: 'response',
+      })
+      .pipe(map((resposta) => CarteiraApi.comTotal(resposta)));
   }
 
   /** `GET .../ficha` — observações internas e etiquetas do cliente (#149). */

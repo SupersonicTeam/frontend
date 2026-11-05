@@ -42,6 +42,7 @@ import { VinculoCliente } from './vinculo-cliente';
 import { FichaEditavel, type MudancaNaFicha } from './ficha-editavel';
 import { HistoricoRevisao } from './historico-revisao';
 import { EditarPedido } from './editar-pedido';
+import { HistoricoOperacoes } from './historico-operacoes';
 
 /** Os quatro verbos do ciclo de um pedido de documento. */
 export type VerboPendencia = 'concluir' | 'rejeitar' | 'cancelar' | 'reabrir';
@@ -94,6 +95,7 @@ const STATUS_DE_TRABALHO = ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO', 'DEVO
   imports: [
     ApuracaoCliente,
     EditarPedido,
+    HistoricoOperacoes,
     HistoricoRevisao,
     FichaEditavel,
     VinculoCliente,
