@@ -134,6 +134,32 @@
         }
       </div>
     }
+
+    @if (administrador()) {
+      @if (etiquetas().length) {
+        <div class="flex flex-col gap-2 border-t border-border pt-4">
+          <h3 class="text-apoio font-semibold text-foreground">Etiquetas do escritório</h3>
+          <p class="text-apoio text-muted-foreground">
+            Excluir tira a etiqueta do catálogo do escritório inteiro.
+          </p>
+          <ul class="flex flex-wrap gap-2">
+            @for (et of etiquetas(); track et.id) {
+              <li class="flex items-center gap-1 rounded-full bg-surface-2 py-0.5 pl-2 text-apoio">
+                {{ et.nome }}
+                <ui-button
+                  variant="sutil"
+                  [carregando]="excluindoEtiqueta() === et.id"
+                  [disabled]="!!excluindoEtiqueta()"
+                  (click)="excluirEtiqueta(et)"
+                >
+                  {{ confirmandoEtiqueta() === et.id ? 'Confirmar exclusão' : 'Excluir' }}
+                </ui-button>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+    }
   }
 </div>
 

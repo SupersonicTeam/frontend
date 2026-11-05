@@ -85,11 +85,20 @@ describe('ClientePage', () => {
       .match(
         (r) =>
           r.url === '/escritorio' ||
+          r.url === '/escritorio/membros' ||
+          r.url === '/contador/etiquetas' ||
+          /^\/contador\/produtores\/[^/]+\/ficha$/.test(r.url) ||
           /^\/contador\/produtores\/[^/]+\/(apuracao|creditos|relatorios\/conformidade)$/.test(
             r.url,
           ),
       )
-      .forEach((r) => r.flush({}));
+      .forEach((r) =>
+        r.flush(
+          r.request.url === '/escritorio/membros' || r.request.url === '/contador/etiquetas'
+            ? []
+            : {},
+        ),
+      );
     httpMock.verify();
   });
 
@@ -192,6 +201,19 @@ describe('ClientePage', () => {
 
     cmp.aoMudarVinculo({ produtorId: 'p1', situacao: 'ENCERRADO', inicio: 'x', fim: 'y' });
     expect(navegou).toHaveBeenCalledWith(['/contador']);
+  });
+
+  /** A ficha editavel (#149) avisa o que mudou; o cabecalho acompanha sem recarregar. */
+  it('etiquetas e responsavel mudados na ficha editavel chegam ao cabecalho', () => {
+    const fixture = abrir();
+    responder({});
+    const cmp = fixture.componentInstance;
+
+    cmp.aoMudarFicha({ etiquetas: ['Soja', 'Milho'] });
+    cmp.aoMudarFicha({ responsavelId: null, responsavelNome: null });
+
+    expect(cmp.cliente()?.etiquetas).toEqual(['Soja', 'Milho']);
+    expect(cmp.cliente()?.responsavelNome).toBeNull();
   });
 
   it('não vai buscar trabalho de um produtor que não é cliente', () => {

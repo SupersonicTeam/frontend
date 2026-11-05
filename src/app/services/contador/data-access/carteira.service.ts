@@ -52,6 +52,30 @@ export interface ConviteEnviado {
   expiraEm: string;
 }
 
+/** `GET/PATCH /api/contador/produtores/{id}/ficha` — o que o escritório guarda sobre o cliente. */
+export interface FichaCliente {
+  produtorId: string;
+  nomeCompleto: string;
+  cpfCnpj: string | null;
+  inscricaoEstadual: string | null;
+  /** Até 1000 caracteres. **Nunca chega ao produtor.** */
+  observacoes: string | null;
+  etiquetas: string[];
+}
+
+/** Uma etiqueta do catálogo do escritório (`GET /api/contador/etiquetas`). */
+export interface EtiquetaEscritorio {
+  id: string;
+  nome: string;
+}
+
+/** Resposta de `PATCH .../responsavel`. */
+export interface ResponsavelDoCliente {
+  produtorId: string;
+  responsavelId: string | null;
+  responsavelNome: string | null;
+}
+
 /** O que o administrador pode fazer com o vínculo de um cliente. */
 export type AcaoVinculo = 'suspender' | 'reativar' | 'encerrar';
 
@@ -140,6 +164,51 @@ export class CarteiraApi {
         map((pagina) => pagina.itens.find((c) => c.id === produtorId) ?? null),
       );
     return procurar('ATIVO').pipe(switchMap((ativo) => (ativo ? of(ativo) : procurar('SUSPENSO'))));
+  }
+
+  /** `GET .../ficha` — observações internas e etiquetas do cliente (#149). */
+  ficha(produtorId: string): Observable<FichaCliente> {
+    return this.http.get<FichaCliente>(`/contador/produtores/${produtorId}/ficha`);
+  }
+
+  /** `PATCH .../ficha` — as observações internas (até 1000; vazio apaga). Nunca chegam ao produtor. */
+  salvarObservacoes(produtorId: string, observacoes: string): Observable<FichaCliente> {
+    return this.http.patch<FichaCliente>(`/contador/produtores/${produtorId}/ficha`, {
+      observacoes,
+    });
+  }
+
+  /**
+   * `PUT .../etiquetas` — **substitui** as etiquetas do cliente (até 10, de 1 a 30 caracteres; lista
+   * vazia tira todas). Nome novo entra no catálogo do escritório.
+   */
+  definirEtiquetas(produtorId: string, etiquetas: string[]): Observable<FichaCliente> {
+    return this.http.put<FichaCliente>(`/contador/produtores/${produtorId}/etiquetas`, {
+      etiquetas,
+    });
+  }
+
+  /**
+   * `PATCH .../responsavel` — o membro que cuida do cliente (`null` = sem responsável). Só o
+   * administrador ou o responsável atual trocam; os outros recebem 403.
+   */
+  alterarResponsavel(
+    produtorId: string,
+    responsavelId: string | null,
+  ): Observable<ResponsavelDoCliente> {
+    return this.http.patch<ResponsavelDoCliente>(`/contador/produtores/${produtorId}/responsavel`, {
+      responsavelId,
+    });
+  }
+
+  /** `GET /api/contador/etiquetas` — o catálogo de etiquetas do escritório. */
+  etiquetasDoEscritorio(): Observable<EtiquetaEscritorio[]> {
+    return this.http.get<EtiquetaEscritorio[]>('/contador/etiquetas');
+  }
+
+  /** `DELETE /api/contador/etiquetas/{id}` — tira a etiqueta do catálogo do escritório. */
+  excluirEtiqueta(etiquetaId: string): Observable<void> {
+    return this.http.delete<void>(`/contador/etiquetas/${etiquetaId}`);
   }
 
   /**
