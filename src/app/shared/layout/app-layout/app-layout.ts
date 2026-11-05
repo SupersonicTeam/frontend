@@ -17,6 +17,7 @@ import {
   LucideSparkles,
   LucideClipboardList,
   LucideUsers,
+  LucideBuilding2,
   LucideDynamicIcon,
   type LucideIcon,
 } from '@lucide/angular';
@@ -35,6 +36,19 @@ interface ItemDoMenu {
   rotulo: string;
   icone: LucideIcon;
 }
+
+/**
+ * O menu do produtor ("Minha operação"), um só para a barra lateral e o celular, na mesma ordem.
+ * Escritos à mão, os dois tinham ordens diferentes. O Assistente fica fora: na barra lateral ele
+ * tem grupo e acento próprios (#45), e no celular vem por último.
+ */
+const MENU_PRODUTOR: readonly ItemDoMenu[] = [
+  { rota: '/dashboard', rotulo: 'Visão geral', icone: LucideLayoutDashboard },
+  { rota: '/documentos', rotulo: 'Minhas notas', icone: LucideFileText },
+  { rota: '/tributario', rotulo: 'Impostos', icone: LucideReceipt },
+  { rota: '/calendario', rotulo: 'Prazos', icone: LucideCalendar },
+  { rota: '/escritorio', rotulo: 'Meu escritório', icone: LucideBuilding2 },
+];
 
 /**
  * O menu do contador, **um só** para a barra lateral e o celular (#157).
@@ -116,6 +130,7 @@ export class AppLayout implements OnInit {
   }
 
   readonly menuContador = MENU_CONTADOR;
+  readonly menuProdutor = MENU_PRODUTOR;
 
   toggleMobileMenu(): void {
     this.mobileMenuOpen.update((v) => !v);
@@ -166,11 +181,9 @@ export class AppLayout implements OnInit {
   handleNotificacaoClick(notif: { id: string; rota: string }): void {
     this.notificacoesService.marcarLida(notif.id);
     this.notificacoesOpen.set(false);
-    // `navigateByUrl`, e não `navigate([rota])`: a rota pode trazer fragmento
-    // (`/configuracoes#escritorio`), e o `navigate` o trataria como parte do caminho.
-    // `reload`: clicar no sino já estando nessa URL (o produtor subiu a página e chegou outro
-    // convite) seria ignorado pelo roteador, e a tela não iria até a seção.
-    void this.router.navigateByUrl(notif.rota, { onSameUrlNavigation: 'reload' });
+    // `navigateByUrl`, e não `navigate([rota])`: uma rota com query ou fragmento seria tratada
+    // pelo `navigate` como parte do caminho.
+    void this.router.navigateByUrl(notif.rota);
   }
 
   /**

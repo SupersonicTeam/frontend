@@ -35,10 +35,6 @@ describe('ConfiguracoesPage', () => {
   });
 
   afterEach(() => {
-    // A secao do escritorio do produtor (#147) tem o proprio spec; aqui so drenamos o que ela pede.
-    httpMock
-      .match((r) => r.url === '/convites' || r.url === '/vinculos')
-      .forEach((r) => r.flush([]));
     httpMock.verify();
     localStorage.clear();
   });
@@ -47,6 +43,19 @@ describe('ConfiguracoesPage', () => {
    * `/api/dashboard` e do produtor do token: para o contador responde 403 `PAPEL_NAO_AUTORIZADO`,
    * e a tela pedia mesmo assim, so para mostrar um cadastro de produtor que ele nao tem (#136).
    */
+  /** O escritorio do produtor saiu daqui para a aba /escritorio; fica uma linha apontando para la. */
+  it('o produtor nao tem mais a secao do escritorio, so o link para a aba', () => {
+    const fixture = TestBed.createComponent(ConfiguracoesPage);
+    fixture.detectChanges();
+    httpMock.match((r) => r.url.startsWith('/dashboard')).forEach((r) => r.flush(dashboard));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-escritorio-produtor')).toBeNull();
+    expect(el.querySelector('a[href="/escritorio"]')).not.toBeNull();
+    httpMock.expectNone((r) => r.url === '/vinculos' || r.url === '/convites');
+  });
+
   /** A equipe saiu daqui para a aba /equipe (#157); fica uma linha apontando para la. */
   it('o contador nao tem mais a secao de equipe, so o link para a aba', () => {
     entrarComo('CONTADOR');

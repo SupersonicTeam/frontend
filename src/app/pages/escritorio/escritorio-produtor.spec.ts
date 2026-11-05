@@ -1,0 +1,230 @@
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+import { EscritorioProdutor } from './escritorio-produtor';
+
+const convite = {
+  id: 'c1',
+  escritorio: 'Contabilidade Campo Bom',
+  convidadoPor: 'Ana',
+  crc: 'PR-123',
+  situacao: 'PENDENTE',
+  criadoEm: '2026-11-01T10:00:00-03:00',
+  expiraEm: '2026-11-08T10:00:00-03:00',
+};
+
+const vinculo = (situacao: string) => ({
+  id: 'v1',
+  escritorioId: 'e1',
+  escritorio: 'Contabilidade Campo Bom',
+  responsavel: 'Ana Souza',
+  crc: 'PR-123',
+  situacao,
+  inicio: '2026-10-01T10:00:00-03:00',
+  fim: null,
+});
+
+const pedido = (id: string, titulo: string, dataLimite: string | null = null) => ({
+  id,
+  produtorId: 'p1',
+  escritorioId: 'e1',
+  titulo,
+  descricao: null,
+  observacoes: null,
+  dataLimite,
+  tiposDocumento: [],
+  status: 'PENDENTE',
+  motivo: null,
+  quantidadeAnexos: 0,
+  anexos: [],
+  createdAt: '2026-11-01T10:00:00-03:00',
+  updatedAt: '2026-11-01T10:00:00-03:00',
+});
+
+/** A aba Meu escritório do produtor: convites, quem atende, o que vê e o que pediu. */
+describe('EscritorioProdutor', () => {
+  let httpMock: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [EscritorioProdutor],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    });
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => httpMock.verify());
+
+  /** Abre a aba; com escritório ativo, também responde os pedidos de documento. */
+  function abrir(convites: unknown[], vinculos: unknown[], pedidos: unknown[] = []) {
+    const fixture = TestBed.createComponent(EscritorioProdutor);
+    fixture.detectChanges();
+    httpMock.expectOne('/convites').flush(convites);
+    httpMock.expectOne('/vinculos').flush(vinculos);
+    httpMock.match((r) => r.url === '/pendencias').forEach((r) => r.flush(pedidos));
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const texto = (f: { nativeElement: unknown }) => (f.nativeElement as HTMLElement).textContent;
+
+  it('mostra o convite pendente com quem mandou', () => {
+    const f = abrir([convite], []);
+    expect(texto(f)).toContain('Convite de Contabilidade Campo Bom');
+    expect(texto(f)).toContain('convite de Ana, CRC PR-123');
+  });
+
+  it('com escritório ativo, mostra quem atende, o responsável, o CRC e o que ele vê', () => {
+    const f = abrir([], [vinculo('ATIVO')]);
+    expect(texto(f)).toContain('Contabilidade Campo Bom');
+    expect(texto(f)).toContain('Ana Souza');
+    expect(texto(f)).toContain('PR-123');
+    expect(texto(f)).toContain('O que o escritório vê');
+  });
+
+  it('suspenso: avisa que o escritório não acessa nada, e não busca pedidos', () => {
+    const f = abrir([], [vinculo('SUSPENSO')]);
+    expect(texto(f)).toContain('suspendeu o atendimento');
+    expect(texto(f)).not.toContain('O que o escritório pediu');
+    httpMock.expectNone('/pendencias');
+  });
+
+  it('o que o escritório pediu: os primeiros pedidos e quantos faltam, com link para Minhas notas', () => {
+    const f = abrir(
+      [],
+      [vinculo('ATIVO')],
+      [
+        pedido('a', 'Extrato bancário', '2026-11-07'),
+        pedido('b', 'Nota de compra de adubo'),
+        pedido('c', 'Contrato de arrendamento'),
+        pedido('d', 'Comprovante de pagamento'),
+      ],
+    );
+    const req = (f.nativeElement as HTMLElement).querySelector('a[href="/documentos"]');
+    expect(texto(f)).toContain('Extrato bancário');
+    expect(texto(f)).toContain('até 07/11/2026');
+    expect(texto(f)).not.toContain('Comprovante de pagamento');
+    expect(texto(f)).toContain('E mais 1.');
+    expect(req).not.toBeNull();
+  });
+
+  it('pede só os pedidos ainda sem envio', () => {
+    const fixture = TestBed.createComponent(EscritorioProdutor);
+    fixture.detectChanges();
+    httpMock.expectOne('/convites').flush([]);
+    httpMock.expectOne('/vinculos').flush([vinculo('ATIVO')]);
+    const req = httpMock.expectOne((r) => r.url === '/pendencias');
+    expect(req.request.params.getAll('status')).toEqual(['PENDENTE']);
+    req.flush([]);
+    fixture.detectChanges();
+    expect(texto(fixture)).toContain('Nenhum pedido de documento esperando você');
+  });
+
+  it('sem escritório e sem convite, explica como funciona', () => {
+    const f = abrir([], []);
+    expect(texto(f)).toContain('Nenhum escritório atende você agora');
+    expect(texto(f)).toContain('convite para o e-mail desta conta');
+  });
+
+  /** Regra da #107: falha não pode virar "nenhum escritório atende você". */
+  it('se /vinculos falha, diz que não carregou, em vez de afirmar que não há escritório', () => {
+    const fixture = TestBed.createComponent(EscritorioProdutor);
+    fixture.detectChanges();
+    httpMock.expectOne('/convites').flush([]);
+    httpMock.expectOne('/vinculos').flush(null, { status: 500, statusText: 'erro' });
+    fixture.detectChanges();
+
+    expect(texto(fixture)).toContain('Não foi possível carregar');
+    expect(texto(fixture)).not.toContain('Nenhum escritório atende você agora');
+  });
+
+  /** Achados do review: falha não vira "nenhum pedido" nem "nenhum escritório" (#107). */
+  describe('erro não vira estado vazio', () => {
+    it('se /pendencias falha, a seção diz que não carregou', () => {
+      const fixture = TestBed.createComponent(EscritorioProdutor);
+      fixture.detectChanges();
+      httpMock.expectOne('/convites').flush([]);
+      httpMock.expectOne('/vinculos').flush([vinculo('ATIVO')]);
+      httpMock
+        .expectOne((r) => r.url === '/pendencias')
+        .flush(null, { status: 500, statusText: 'erro' });
+      fixture.detectChanges();
+
+      expect(texto(fixture)).toContain('Não foi possível carregar os pedidos');
+      expect(texto(fixture)).not.toContain('Nenhum pedido de documento');
+    });
+
+    it('se /convites falha, não afirma que não há escritório nem convite', () => {
+      const fixture = TestBed.createComponent(EscritorioProdutor);
+      fixture.detectChanges();
+      httpMock.expectOne('/convites').flush(null, { status: 500, statusText: 'erro' });
+      httpMock.expectOne('/vinculos').flush([]);
+      fixture.detectChanges();
+
+      expect(texto(fixture)).toContain('Não foi possível carregar os convites');
+      expect(texto(fixture)).not.toContain('Nenhum escritório atende você agora');
+    });
+
+    it('tentar de novo depois de erro volta ao carregamento, não ao vazio', () => {
+      const fixture = TestBed.createComponent(EscritorioProdutor);
+      fixture.detectChanges();
+      httpMock.expectOne('/convites').flush([]);
+      httpMock.expectOne('/vinculos').flush(null, { status: 500, statusText: 'erro' });
+      fixture.detectChanges();
+
+      fixture.componentInstance.carregar();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.carregou()).toBe(false);
+      expect(texto(fixture)).not.toContain('Nenhum escritório atende você agora');
+
+      httpMock.expectOne('/convites').flush([]);
+      httpMock.expectOne('/vinculos').flush([]);
+    });
+  });
+
+  it('aceitar chama a rota e recarrega convites e vinculos', () => {
+    const f = abrir([convite], []);
+    f.componentInstance.responder(f.componentInstance.convites()[0]!, 'aceitar');
+    const req = httpMock.expectOne('/convites/c1/aceitar');
+    expect(req.request.method).toBe('POST');
+    req.flush({ ...convite, situacao: 'ACEITO' });
+    httpMock.match('/convites').forEach((r) => r.flush([]));
+    httpMock.expectOne('/vinculos').flush([vinculo('ATIVO')]);
+    httpMock.match((r) => r.url === '/pendencias').forEach((r) => r.flush([]));
+    httpMock.match((r) => r.url === '/alertas').forEach((r) => r.flush([]));
+    f.detectChanges();
+
+    expect(texto(f)).toContain('Encerrar vínculo');
+  });
+
+  it('recusar chama a rota de recusa', () => {
+    const f = abrir([convite], []);
+    f.componentInstance.responder(f.componentInstance.convites()[0]!, 'recusar');
+    httpMock.expectOne('/convites/c1/recusar').flush({ ...convite, situacao: 'RECUSADO' });
+    httpMock.match('/convites').forEach((r) => r.flush([]));
+    httpMock.expectOne('/vinculos').flush([]);
+    httpMock.match((r) => r.url === '/alertas').forEach((r) => r.flush([]));
+  });
+
+  /**
+   * O backend não devolve ao produtor o vínculo encerrado (medido em 05/11: `/vinculos` volta `[]`).
+   * Sem o aviso, a tela seguinte só dizia "nenhum escritório atende você", sem contar o que houve.
+   */
+  it('encerrar pede confirmação, chama a rota e conta na tela o que aconteceu', () => {
+    const f = abrir([], [vinculo('ATIVO')]);
+    const cmp = f.componentInstance;
+
+    cmp.encerrando.set(cmp.vinculos()[0]!);
+    cmp.encerrar();
+    const req = httpMock.expectOne('/vinculos/v1/encerrar');
+    expect(req.request.method).toBe('POST');
+    req.flush(null);
+    httpMock.expectOne('/convites').flush([]);
+    httpMock.expectOne('/vinculos').flush([]);
+    f.detectChanges();
+
+    expect(texto(f)).toContain('Você encerrou o vínculo com Contabilidade Campo Bom');
+    expect(texto(f)).toContain('peça um convite novo');
+  });
+});

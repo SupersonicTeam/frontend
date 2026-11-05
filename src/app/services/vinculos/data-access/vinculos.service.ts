@@ -45,7 +45,11 @@ export class VinculosApi {
   private readonly api = inject(ApiService);
   private readonly http = inject(HttpClient);
 
-  /** `GET /api/vinculos` — todos os vínculos, inclusive os encerrados. */
+  /**
+   * `GET /api/vinculos` — os vínculos do produtor. **Os encerrados não vêm**: medido em 05/11 na API
+   * local, depois de encerrar a lista volta `[]`, embora o contador ainda veja o cliente como
+   * `ENCERRADO`. Por isso a aba Meu escritório não tem histórico.
+   */
   listar(): Observable<VinculoDoProdutor[]> {
     return this.api.get<VinculoDoProdutor[]>('/vinculos');
   }

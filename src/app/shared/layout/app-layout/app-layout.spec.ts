@@ -258,9 +258,29 @@ describe('AppLayout', () => {
       expect(links(montar(), 'aside')).toContain('/equipe');
     });
 
-    it('o produtor não vê a aba Equipe', () => {
+    it('o produtor não vê a aba Equipe, e tem a Meu escritório', () => {
       entrarComo('PRODUTOR');
-      expect(links(montar(), 'aside')).not.toContain('/equipe');
+      const hrefs = links(montar(), 'aside');
+      expect(hrefs).not.toContain('/equipe');
+      expect(hrefs).toContain('/escritorio');
+    });
+
+    it('o contador não vê a aba Meu escritório', () => {
+      entrarComo('CONTADOR');
+      expect(links(montar(), 'aside')).not.toContain('/escritorio');
+    });
+
+    it('no celular, o produtor também tem a aba Meu escritório', () => {
+      entrarComo('PRODUTOR');
+      const f = montar();
+      f.componentInstance.toggleMobileMenu();
+      f.detectChanges();
+
+      const nav = (f.nativeElement as HTMLElement).querySelector('nav.rounded-b-xl');
+      const hrefs = [...(nav?.querySelectorAll('a[href]') ?? [])].map((a) =>
+        a.getAttribute('href'),
+      );
+      expect(hrefs).toContain('/escritorio');
     });
 
     /**

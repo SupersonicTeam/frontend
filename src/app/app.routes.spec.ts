@@ -18,7 +18,7 @@ describe('rotas por papel', () => {
   const filhas = routes.find((r) => r.path === '')?.children ?? [];
   const guardsDe = (path: string) => filhas.find((r) => r.path === path)?.canActivate ?? [];
 
-  it.each(['dashboard', 'chat'])('/%s é do produtor', (path) => {
+  it.each(['dashboard', 'chat', 'escritorio'])('/%s é do produtor', (path) => {
     expect(guardsDe(path)).toContain(produtorGuard);
   });
 
@@ -67,6 +67,7 @@ describe('links do app (#112)', () => {
     '/dashboard',
     '/documentos',
     '/equipe',
+    '/escritorio',
     '/tributario',
   ];
 

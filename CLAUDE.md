@@ -107,6 +107,7 @@ exatamente o que produziu o bug acima.
 | Rota | Papel | Componente |
 |---|---|---|
 | `/dashboard` | produtor (`produtorGuard`) | `pages/dashboard/dashboard.{ts,html}` |
+| `/escritorio` | produtor (`produtorGuard`) | `pages/escritorio/escritorio.ts` — **Meu escritório** (`escritorio-produtor.ts`): convites para aceitar/recusar, quem atende (escritório, responsável, CRC, desde quando, suspenso), o que o escritório vê, **o que ele pediu** (`GET /pendencias?status=PENDENTE`, os 3 primeiros + link para Minhas notas) e encerrar o vínculo. Foi seção de Configurações (#147). Erro de `/vinculos` mostra "não carregou", nunca "nenhum escritório" (#107). **Sem histórico**: o backend não devolve ao produtor o vínculo encerrado, então o encerramento é contado na própria tela logo depois. O sino do convite leva para cá |
 | `/chat` | produtor (`produtorGuard`) | `pages/chat/chat.{ts,html}` |
 | `/contador` | **contador** (`contadorGuard`) | `pages/contador/contador.{ts,html}` — a **triagem da carteira**: quais clientes pedem atenção, em ordem de urgência (#95), com filtro de vínculo (ativos/suspensos/encerrados) e o cartão **Convidar cliente** (`convites-carteira.ts`, #147: só o administrador convida; `POST` responde 202 sempre) |
 | `/contador/:produtorId` | **contador** (`contadorGuard`) | `pages/contador/cliente.{ts,html}` — **um cliente**: notas travadas (com as validações reais), guias a cobrar, documentos a conferir o **histórico de operações** (`historico-operacoes.ts`, #137: a auditoria de `GET /auditoria?produtorId=`, paginada pelo `X-Total-Count`; 404 = saiu da carteira), a **ficha editável** (`ficha-editavel.ts`, #149: responsável — só administrador ou o responsável atual trocam —, etiquetas com o catálogo como sugestão e observações internas, que nunca chegam ao produtor) e o **ciclo do vínculo** (`vinculo-cliente.ts`, #147: suspender/reativar/encerrar, só administrador; vínculo suspenso abre a ficha sem trabalho, porque as rotas do cliente dão 404) e, desde a #138, a **apuração do mês** (`apuracao-cliente.ts`: seletor de mês, créditos, relatório em PDF e reabrir só para administrador/contador) |
@@ -114,7 +115,7 @@ exatamente o que produziu o bug acima.
 | `/tributario` | **os dois** | `tributario.ts` escolhe: `ImpostosProdutor` (quanto eu pago, de onde vem, 6 meses) ou `ImpostosContador` (**Fechamento** de um cliente escolhido no topo: matriz IBS/CBS, notas que ficaram fora da apuração, variação decomposta, relatório em PDF e **reabrir**) |
 | `/calendario` | **os dois** | `calendario.ts` escolhe: `PrazosProdutor` (o que vence pra mim + calendário) ou `PrazosContador` (**cobrança**: fila do que cobrar, lançar guia, dar baixa) |
 | `/documentos` | **os dois** | `documentos-rota.ts` escolhe: `DocumentosPage` (produtor: as minhas notas, emissão e **"O que o escritório pediu"**, #180) ou `NotasContador` (as notas **de um cliente** da carteira: triagem por status no servidor, o que o fisco apontou, aprovar/devolver). Até a #136 os dois abriam a mesma lista, e a do contador levava 403 em `/api/notas` |
-| `/configuracoes` | os dois | `pages/configuracoes/configuracoes.{ts,html}`. Para os dois papéis traz **Privacidade e dados** (`privacidade-conta.ts`, #137): link para a política e **excluir minha conta** em duas etapas — a primeira explica que CPF/CNPJ, IE e UF ficam 5 anos (guarda fiscal), a segunda pede a senha; depois do 204, o mesmo `EncerramentoService` do sair de todos. Para o contador, só uma linha apontando para a aba **Equipe** (a seção morou aqui até a #157). Para o produtor traz **Escritório de contabilidade** (`escritorio-produtor.ts`, #147): aceitar/recusar convite e encerrar o vínculo — decidir quem vê os meus dados é configuração da conta. O sino do produtor avisa do convite pendente e leva para cá |
+| `/configuracoes` | os dois | `pages/configuracoes/configuracoes.{ts,html}`. Para os dois papéis traz **Privacidade e dados** (`privacidade-conta.ts`, #137): link para a política e **excluir minha conta** em duas etapas — a primeira explica que CPF/CNPJ, IE e UF ficam 5 anos (guarda fiscal), a segunda pede a senha; depois do 204, o mesmo `EncerramentoService` do sair de todos. Para o contador, só uma linha apontando para a aba **Equipe** (a seção morou aqui até a #157). Para o produtor, só uma linha apontando para a aba **Meu escritório** (a seção morou aqui, #147) |
 
 **Tela do contador que lê dado de um produtor escolhe o cliente no topo** (#136): `<app-seletor-cliente>`
 (`shared/contador/seletor-cliente.ts`), alimentado por `GET /contador/produtores`. O cliente vem do
@@ -125,6 +126,12 @@ carteira responder (`undefined` = carregando, `null` = escolher). Sem cliente, a
 `/creditos`, `/dashboard`, `/vinculos`, `/pendencias`, `/alertas`, `/assistente/*`, `/convites`)
 derivam o produtor do token e dão **403 `PAPEL_NAO_AUTORIZADO`** ao contador — nunca as chame com
 sessão de contador.
+
+**Os menus saem de listas, não de markup copiado.** `MENU_PRODUTOR` e `MENU_CONTADOR` (em
+`app-layout.ts`) desenham a barra lateral **e** o menu do celular, com `<svg [lucideIcon]>`. Escritos à mão,
+os dois menus divergiram duas vezes (o do contador no celular dizia "Minhas notas"; o do produtor tinha
+outra ordem). Rota nova de menu entra na lista, não no template. A barra **inferior** do celular é um
+atalho curto e continua à parte.
 
 **As guias moram em `/calendario` (contador), não no Acompanhamento.** Elas apareciam inteiras nas
 duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá baixa.
