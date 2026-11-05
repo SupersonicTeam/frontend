@@ -123,14 +123,14 @@ const ROTULO_ACAO: Record<string, string> = {
                   [disabled]="pagina() === 0"
                   (click)="carregar(pagina() - 1)"
                 >
-                  Mais recentes
+                  Anterior
                 </ui-button>
                 <ui-button
                   variant="ghost"
                   [disabled]="pagina() + 1 >= totalPaginas()"
                   (click)="carregar(pagina() + 1)"
                 >
-                  Mais antigas
+                  Próxima
                 </ui-button>
               </div>
             </div>
@@ -165,6 +165,7 @@ export class HistoricoOperacoes implements OnInit {
     const vez = ++this.vez;
     this.carregando.set(true);
     this.erro.set(false);
+    this.foraDaCarteira.set(false);
     this.carteiraApi.auditoriaDoCliente(this.produtorId(), pagina, POR_PAGINA).subscribe({
       next: ({ itens, total }) => {
         if (vez !== this.vez) return;

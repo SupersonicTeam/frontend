@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
   PrivacidadeApi,
@@ -41,7 +41,9 @@ export class PoliticaDadosPage implements OnInit {
   }
 
   /** As seções da política, na ordem em que o titular as procura. */
-  secoes(p: PoliticaDados): { titulo: string; itens: string[] }[] {
+  readonly secoes = computed<{ titulo: string; itens: string[] }[]>(() => {
+    const p = this.politica();
+    if (!p) return [];
     return [
       { titulo: 'Que dados tratamos', itens: p.dadosColetados },
       { titulo: 'Para quê', itens: p.finalidades },
@@ -50,5 +52,5 @@ export class PoliticaDadosPage implements OnInit {
       { titulo: 'Por quanto tempo guardamos', itens: p.retencao },
       { titulo: 'Os seus direitos', itens: p.direitos },
     ].filter((s) => s.itens?.length);
-  }
+  });
 }

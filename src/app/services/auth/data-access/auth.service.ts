@@ -1,7 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { catchError, finalize, map, shareReplay, switchMap, tap } from 'rxjs';
+import { skipErrorNotify } from '@core/interceptors/error-notify.context';
 import { ApiService } from '@core/services/api.service';
 import { SessaoService, type Papel, type Sessao } from '@core/services/sessao.service';
 import { soDigitos } from '@core/utils/mascaras';
@@ -261,10 +262,22 @@ export class AuthApi {
    * 400 `SENHA_ATUAL_INCORRETA`; tentativas demais seguem a regra do login.
    */
   excluirMinhaConta(senha: string): Observable<void> {
-    const id = this.sessaoService.usuarioId() ?? '';
-    return this.http
-      .request<void>('DELETE', `/usuarios/${id}/dados`, { body: { senha } })
-      .pipe(AuthApi.traduzirFalhaDeConta<void>());
+    const id = this.sessaoService.usuarioId();
+    // Sem id na sessao nao ha a quem excluir: falha aqui, como o 404 do servidor falharia.
+    if (!id) {
+      return throwError(
+        () => new ContaError('DESCONHECIDO', 404, 'Não foi possível identificar a sua conta.'),
+      );
+    }
+    return (
+      this.http
+        // Sem toast global: a secao de privacidade mostra cada falha junto do campo de senha.
+        .request<void>('DELETE', `/usuarios/${id}/dados`, {
+          body: { senha },
+          context: skipErrorNotify(),
+        })
+        .pipe(AuthApi.traduzirFalhaDeConta<void>())
+    );
   }
 
   /** Sai de todos os dispositivos. Mesma consequência do `alterarSenha`: a sessão atual cai junto. */

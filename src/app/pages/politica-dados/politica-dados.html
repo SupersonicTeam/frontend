@@ -37,7 +37,7 @@
           >.
         </p>
 
-        @for (s of secoes(p); track s.titulo) {
+        @for (s of secoes(); track s.titulo) {
           <section class="space-y-2">
             <h2 class="font-heading text-base font-semibold text-foreground">{{ s.titulo }}</h2>
             <ul class="list-disc space-y-1 pl-5 text-apoio leading-relaxed text-foreground">
