@@ -1,4 +1,7 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, ElementRef, OnInit, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router } from '@angular/router';
+import { filter } from 'rxjs';
 import { LucideBuilding2 } from '@lucide/angular';
 import {
   VinculosApi,
@@ -29,8 +32,14 @@ import { UiModal } from '@shared/ui/ui-modal';
   standalone: true,
   imports: [LucideBuilding2, UiButton, UiModal],
   template: `
-    <div class="flex flex-col gap-3 rounded-card border border-border bg-card p-5 shadow-suave">
-      <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+    <div
+      id="escritorio"
+      class="flex scroll-mt-4 flex-col gap-3 rounded-card border border-border bg-card p-5 shadow-suave"
+    >
+      <h2
+        tabindex="-1"
+        class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground focus:outline-none"
+      >
         <svg lucideBuilding2 [size]="18" class="text-primary" />
         Escritório de contabilidade
       </h2>
@@ -114,6 +123,12 @@ export class EscritorioProdutor implements OnInit {
   private readonly api = inject(VinculosApi);
   private readonly toast = inject(ToastService);
   private readonly notificacoes = inject(NotificacoesService);
+  private readonly router = inject(Router, { optional: true });
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /** Chegou pelo sino (`#escritorio`) e a seção ainda não foi mostrada. */
+  private irParaSecao = false;
 
   readonly convites = signal<ConviteRecebido[]>([]);
   readonly vinculos = signal<VinculoDoProdutor[]>([]);
@@ -128,7 +143,39 @@ export class EscritorioProdutor implements OnInit {
   );
 
   ngOnInit(): void {
+    // Lê o fragmento agora e a cada navegação terminada. Não basta observar o fragmento da rota:
+    // clicar no sino já estando em `/configuracoes#escritorio` não o muda, e a tela não iria até
+    // a seção. O sino navega com `onSameUrlNavigation: 'reload'`, que gera o `NavigationEnd`.
+    const router = this.router;
+    if (router) {
+      const pedeSecao = () => router.parseUrl(router.url).fragment === 'escritorio';
+      if (pedeSecao()) this.irParaSecao = true;
+      router.events
+        .pipe(
+          filter((e) => e instanceof NavigationEnd),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe(() => {
+          if (!pedeSecao()) return;
+          this.irParaSecao = true;
+          if (this.carregou()) this.mostrarSecao();
+        });
+    }
     this.carregar();
+  }
+
+  /**
+   * Rola até a seção e põe o foco no título (#156). Espera o vínculo carregar: antes disso a seção
+   * ainda não tem altura, e a rolagem pararia num lugar que muda logo depois.
+   */
+  private mostrarSecao(): void {
+    if (!this.irParaSecao) return;
+    this.irParaSecao = false;
+    setTimeout(() => {
+      const secao = this.host.nativeElement.querySelector<HTMLElement>('#escritorio');
+      secao?.scrollIntoView({ block: 'start' });
+      secao?.querySelector<HTMLElement>('h2')?.focus({ preventScroll: true });
+    });
   }
 
   private carregar(): void {
@@ -140,8 +187,12 @@ export class EscritorioProdutor implements OnInit {
       next: (lista) => {
         this.vinculos.set(lista);
         this.carregou.set(true);
+        this.mostrarSecao();
       },
-      error: () => this.carregou.set(true),
+      error: () => {
+        this.carregou.set(true);
+        this.mostrarSecao();
+      },
     });
   }
 

@@ -1288,13 +1288,18 @@
           type="text"
           placeholder="Só números (11 ou 14 dígitos)"
           maxlength="18"
-          class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+          class="w-full px-3 py-2.5 rounded-controle border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
           id="nf-cpfcnpj"
+          [class.border-border]="!destDocumento.erro()"
+          [class.border-perigo]="destDocumento.erro()"
+          [attr.aria-invalid]="destDocumento.erro() ? 'true' : null"
+          [attr.aria-describedby]="destDocumento.erro() ? 'nf-cpfcnpj-erro' : null"
           [value]="formDestCpfCnpj()"
           (input)="formatCpfCnpj($event)"
+          (blur)="destDocumento.sair()"
         />
-        @if (!cpfCnpjValido()) {
-          <p class="text-apoio text-destructive mt-1">CPF/CNPJ inválido (verifique os dígitos).</p>
+        @if (destDocumento.erro(); as e) {
+          <p id="nf-cpfcnpj-erro" class="text-apoio text-destructive mt-1">{{ e }}</p>
         }
         @if (erroDe('destinatarioCpfCnpj'); as e) {
           <p class="text-apoio text-destructive mt-1">{{ e.message }}</p>

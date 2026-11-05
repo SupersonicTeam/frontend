@@ -1,5 +1,8 @@
 import {
   aplicarMascara,
+  cpfCnpjValido,
+  erroDoCpfCnpj,
+  formatarCpfCnpj,
   mascaraCep,
   mascaraCpfCnpj,
   posicaoAposDigitos,
@@ -111,5 +114,38 @@ describe('máscaras dos campos (#102)', () => {
       expect(campo.value).toBe('123.456');
       expect(campo.selectionStart).toBe(7);
     });
+  });
+});
+
+/** Exibir e conferir o documento (#156). */
+describe('documento: exibir e conferir', () => {
+  it.each([
+    ['34524970894', '345.249.708-94'],
+    ['11222333000181', '11.222.333/0001-81'],
+    ['345.249.708-94', '345.249.708-94'],
+    ['12ABC34501DE35', '12ABC34501DE35'],
+    ['123', '123'],
+    [null, ''],
+  ])('formatarCpfCnpj(%s) = %s', (entrada, saida) => {
+    expect(formatarCpfCnpj(entrada)).toBe(saida);
+  });
+
+  it.each([
+    ['529.982.247-25', true],
+    ['52998224725', true],
+    ['123.456.789-00', false],
+    ['111.111.111-11', false],
+    ['11.222.333/0001-81', true],
+    ['11.222.333/0001-80', false],
+    ['5299822472', false],
+  ])('cpfCnpjValido(%s) = %s', (valor, esperado) => {
+    expect(cpfCnpjValido(valor)).toBe(esperado);
+  });
+
+  it('erroDoCpfCnpj: vazio não é erro; tamanho e dígito têm frases diferentes', () => {
+    expect(erroDoCpfCnpj('')).toBeNull();
+    expect(erroDoCpfCnpj('529.982.247-25')).toBeNull();
+    expect(erroDoCpfCnpj('123.456')).toBe('Digite um CPF (11 dígitos) ou um CNPJ (14 dígitos).');
+    expect(erroDoCpfCnpj('123.456.789-00')).toBe('CPF/CNPJ inválido. Confira os dígitos.');
   });
 });
