@@ -1,7 +1,8 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import { vi } from 'vitest';
 import { ClientePage } from './cliente';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
@@ -175,6 +176,22 @@ describe('ClientePage', () => {
     httpMock.expectNone((r) => r.url === '/contador/produtores/p1/notas');
     httpMock.expectNone((r) => r.url === '/contador/produtores/p1/apuracao');
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('Vínculo suspenso');
+  });
+
+  it('vinculo encerrado na ficha volta para a carteira; reativado, recarrega o trabalho', () => {
+    const navegou = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const fixture = abrir();
+    responder({});
+    const cmp = fixture.componentInstance;
+
+    cmp.aoMudarVinculo({ produtorId: 'p1', situacao: 'SUSPENSO', inicio: 'x', fim: null });
+    expect(cmp.cliente()?.situacaoVinculo).toBe('SUSPENSO');
+
+    cmp.aoMudarVinculo({ produtorId: 'p1', situacao: 'ATIVO', inicio: 'x', fim: null });
+    responder({});
+
+    cmp.aoMudarVinculo({ produtorId: 'p1', situacao: 'ENCERRADO', inicio: 'x', fim: 'y' });
+    expect(navegou).toHaveBeenCalledWith(['/contador']);
   });
 
   it('não vai buscar trabalho de um produtor que não é cliente', () => {

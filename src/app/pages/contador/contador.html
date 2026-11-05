@@ -152,7 +152,9 @@
       @for (cliente of clientes(); track cliente.vinculoId) {
         <li>
           <a
-            [routerLink]="['/contador', cliente.id]"
+            [routerLink]="
+              cliente.situacaoVinculo === 'ENCERRADO' ? null : ['/contador', cliente.id]
+            "
             class="group flex items-center gap-4 rounded-card border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-surface"
           >
             <div class="min-w-0 flex-1 space-y-2">

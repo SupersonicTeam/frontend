@@ -6,6 +6,7 @@ import {
   type VinculoDoProdutor,
 } from '@services/vinculos/data-access/vinculos.service';
 import { ToastService } from '@core/services/toast.service';
+import { NotificacoesService } from '@core/services/notificacoes.service';
 import { formatarData } from '@core/utils/periodo';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiModal } from '@shared/ui/ui-modal';
@@ -112,6 +113,7 @@ import { UiModal } from '@shared/ui/ui-modal';
 export class EscritorioProdutor implements OnInit {
   private readonly api = inject(VinculosApi);
   private readonly toast = inject(ToastService);
+  private readonly notificacoes = inject(NotificacoesService);
 
   readonly convites = signal<ConviteRecebido[]>([]);
   readonly vinculos = signal<VinculoDoProdutor[]>([]);
@@ -159,6 +161,8 @@ export class EscritorioProdutor implements OnInit {
             : `Convite de ${convite.escritorio} recusado.`,
         );
         this.carregar();
+        // O sino mostrava este convite; respondido, ele sai de la tambem.
+        this.notificacoes.carregar();
       },
       error: () => this.respondendo.set(null),
     });

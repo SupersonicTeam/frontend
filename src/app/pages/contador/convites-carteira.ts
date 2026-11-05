@@ -57,7 +57,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
           O produtor entra na carteira quando aceitar. Se ainda não tiver conta, ele cria uma com
           este e-mail e o convite estará esperando.
         </p>
-      } @else {
+      } @else if (administrador() === false) {
         <p class="mt-1 text-apoio text-muted-foreground">
           Quem convida cliente é o administrador do escritório.
         </p>
@@ -77,7 +77,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             </li>
           }
         </ul>
-      } @else if (erroLista()) {
+      } @else if (erroLista() && administrador()) {
         <p class="mt-3 text-apoio text-muted-foreground">
           Não foi possível carregar os convites pendentes.
         </p>
@@ -90,7 +90,8 @@ export class ConvitesCarteira implements OnInit {
   private readonly escritorioApi = inject(EscritorioApi);
   private readonly toast = inject(ToastService);
 
-  readonly administrador = signal(false);
+  /** `null` enquanto `/escritorio` não respondeu: até lá a tela não afirma nada sobre a função. */
+  readonly administrador = signal<boolean | null>(null);
   readonly email = signal('');
   readonly enviando = signal(false);
   readonly pendentes = signal<ConviteEnviado[]>([]);

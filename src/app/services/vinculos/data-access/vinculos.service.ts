@@ -1,6 +1,8 @@
 import { Injectable, inject } from '@angular/core';
 import type { Observable } from 'rxjs';
+import { HttpClient } from '@angular/common/http';
 import { ApiService } from '@core/services/api.service';
+import { skipErrorNotify } from '@core/interceptors/error-notify.context';
 
 /** O escritório que atende este produtor, visto do lado dele (backend#177). */
 export interface VinculoDoProdutor {
@@ -41,6 +43,7 @@ export interface ConviteRecebido {
 @Injectable({ providedIn: 'root' })
 export class VinculosApi {
   private readonly api = inject(ApiService);
+  private readonly http = inject(HttpClient);
 
   /** `GET /api/vinculos` — todos os vínculos, inclusive os encerrados. */
   listar(): Observable<VinculoDoProdutor[]> {
@@ -53,7 +56,8 @@ export class VinculosApi {
    * **Rota do produtor**: com sessão de contador responde 403. Quem chama confere o papel.
    */
   convites(): Observable<ConviteRecebido[]> {
-    return this.api.get<ConviteRecebido[]>('/convites');
+    // Sem toast global: o sino chama isto em toda tela, e o sino falha em silencio.
+    return this.http.get<ConviteRecebido[]>('/convites', { context: skipErrorNotify() });
   }
 
   /** `POST /api/convites/{id}/aceitar` — nasce o vínculo: o escritório passa a ver os dados. */
