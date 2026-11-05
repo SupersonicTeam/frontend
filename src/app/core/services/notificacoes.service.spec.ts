@@ -228,7 +228,7 @@ describe('NotificacoesService', () => {
 
     const [convite] = service.notificacoes();
     expect(convite!.titulo).toContain('Contabilidade Campo Bom');
-    expect(convite!.rota).toBe('/configuracoes#escritorio');
+    expect(convite!.rota).toBe('/escritorio');
   });
 
   it('o contador nao chama /api/convites: a rota e do produtor', () => {

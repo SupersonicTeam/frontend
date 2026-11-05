@@ -60,6 +60,13 @@ export const routes: Routes = [
         loadComponent: () => import('@pages/dashboard/dashboard').then((m) => m.DashboardPage),
       },
       {
+        // O escritorio de contabilidade do produtor: convites, quem o atende e o que pediu. Era
+        // uma secao de Configuracoes (#147) e ficava escondida.
+        path: 'escritorio',
+        canActivate: [produtorGuard],
+        loadComponent: () => import('@pages/escritorio/escritorio').then((m) => m.EscritorioPage),
+      },
+      {
         // A Ceres atende produtor (403 PAPEL_NAO_AUTORIZADO para contador).
         path: 'chat',
         canActivate: [produtorGuard],

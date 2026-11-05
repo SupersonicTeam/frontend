@@ -90,16 +90,15 @@ export class NotificacoesService {
   }
 
   /**
-   * Um convite pendente leva a Configurações, onde se aceita ou recusa — **direto à seção**
-   * (`#escritorio`). Sem o fragmento a página abria no topo, e o convite ficava abaixo da dobra
-   * (#156).
+   * Um convite pendente leva à aba Meu escritório, onde se aceita ou recusa. Antes ia para
+   * Configurações, e o convite ficava abaixo da dobra (#156).
    */
   private doConvite(convite: ConviteRecebido): Notificacao {
     return {
       id: `convite:${convite.id}`,
       titulo: `${convite.escritorio} convidou você para ser cliente do escritório`,
       tipo: 'Solicitação',
-      rota: '/configuracoes#escritorio',
+      rota: '/escritorio',
       dataHora: `vale até ${formatarData(convite.expiraEm)}`,
       lida: false,
     };

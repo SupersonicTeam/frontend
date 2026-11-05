@@ -218,38 +218,17 @@
           >
             Minha operação
           </p>
-          <a
-            routerLink="/dashboard"
-            routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <svg lucideLayoutDashboard [size]="20" /><span>Visão geral</span>
-          </a>
-          <a
-            routerLink="/documentos"
-            routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <svg lucideFileText [size]="20" /><span>Minhas notas</span>
-          </a>
-          <a
-            routerLink="/tributario"
-            routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <svg lucideReceipt [size]="20" /><span>Impostos</span>
-          </a>
-          <a
-            routerLink="/calendario"
-            routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <svg lucideCalendar [size]="20" /><span>Prazos</span>
-          </a>
+          <!-- Os itens vem de \`MENU_PRODUTOR\` (app-layout.ts), o mesmo do menu do celular. -->
+          @for (item of menuProdutor; track item.rota) {
+            <a
+              [routerLink]="item.rota"
+              routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
+              [routerLinkActiveOptions]="{ exact: false }"
+              class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+            >
+              <svg [lucideIcon]="item.icone" [size]="20" /><span>{{ item.rotulo }}</span>
+            </a>
+          }
 
           <!-- O assistente e a contribuicao central do TCC; deixa de ser mais um
                item da lista e ganha o acento violeta da camada de IA (#45). -->
@@ -302,42 +281,18 @@
         ></div>
         <nav class="relative bg-card rounded-b-xl shadow-lg mx-2 mt-1 p-3 space-y-1">
           @if (sessao.ehProdutor()) {
-            <a
-              routerLink="/dashboard"
-              routerLinkActive="bg-primary/10 text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
-              (click)="closeMobileMenu()"
-            >
-              <svg lucideLayoutDashboard [size]="22" /><span>Visão geral</span>
-            </a>
-            <a
-              routerLink="/calendario"
-              routerLinkActive="bg-primary/10 text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
-              (click)="closeMobileMenu()"
-            >
-              <svg lucideCalendar [size]="22" /><span>Prazos</span>
-            </a>
-            <a
-              routerLink="/documentos"
-              routerLinkActive="bg-primary/10 text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
-              (click)="closeMobileMenu()"
-            >
-              <svg lucideFileText [size]="22" /><span>Minhas notas</span>
-            </a>
-            <a
-              routerLink="/tributario"
-              routerLinkActive="bg-primary/10 text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
-              (click)="closeMobileMenu()"
-            >
-              <svg lucideReceipt [size]="22" /><span>Impostos</span>
-            </a>
+            <!-- \`MENU_PRODUTOR\`, na mesma ordem da barra lateral; o Assistente vem a parte. -->
+            @for (item of menuProdutor; track item.rota) {
+              <a
+                [routerLink]="item.rota"
+                routerLinkActive="bg-primary/10 text-primary"
+                [routerLinkActiveOptions]="{ exact: false }"
+                class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
+                (click)="closeMobileMenu()"
+              >
+                <svg [lucideIcon]="item.icone" [size]="22" /><span>{{ item.rotulo }}</span>
+              </a>
+            }
             <a
               routerLink="/chat"
               routerLinkActive="bg-primary/10 text-primary"

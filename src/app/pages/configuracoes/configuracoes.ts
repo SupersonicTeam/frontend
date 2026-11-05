@@ -8,6 +8,7 @@ import {
   LucideSettings,
   LucideUser,
   LucideUsers,
+  LucideBuilding2,
 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { ThemeService } from '@core/services/theme.service';
@@ -58,7 +59,6 @@ const MESES_POR_EXTENSO = [
  * como leitura, com a razão de não serem editáveis dita na tela. O tema, que
  * é a única coisa que sempre funcionou aqui, continua igual.
  */
-import { EscritorioProdutor } from './escritorio-produtor';
 import { PrivacidadeConta } from './privacidade-conta';
 
 @Component({
@@ -68,7 +68,7 @@ import { PrivacidadeConta } from './privacidade-conta';
     RouterLink,
     LucideUsers,
     PrivacidadeConta,
-    EscritorioProdutor,
+    LucideBuilding2,
     UiCard,
     UiButton,
     FormsModule,
