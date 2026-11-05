@@ -153,4 +153,18 @@ describe('ApuracaoCliente', () => {
     expect(req.request.params.get('periodo')).toBe(cmp.periodo());
     req.flush(new Blob(['%PDF']));
   });
+
+  it('mes fechado alem de 3 meses nao oferece "Reabrir": o servidor recusaria com 422', () => {
+    const fixture = abrir('CONTADOR');
+    const cmp = fixture.componentInstance;
+    responder(apuracao(cmp.periodo()));
+    const antigo = cmp.meses[5]!.valor;
+
+    cmp.mudarPeriodo(antigo);
+    responder(apuracao(antigo, { status: 'FECHADO' }));
+    fixture.detectChanges();
+
+    expect(cmp.fechada()).toBe(true);
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Reabrir apuração');
+  });
 });

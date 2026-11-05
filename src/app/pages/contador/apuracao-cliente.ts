@@ -21,6 +21,9 @@ const ROTULO_STATUS: Record<StatusApuracao, { label: string; classe: string }> =
 /** Quantos meses o seletor oferece, contando do mês que acabou para trás. */
 const MESES_NO_SELETOR = 12;
 
+/** Até quantos meses para trás o servidor reabre (RN005). */
+const MESES_REABRIVEIS = 3;
+
 /** Os meses do seletor: do que acabou para trás, como `AAAA-MM` e "outubro de 2026". */
 export function mesesDoSeletor(hoje: Date = new Date()): { valor: string; rotulo: string }[] {
   const { mes, ano } = mesDeFechamento(hoje);
@@ -75,6 +78,14 @@ export class ApuracaoCliente implements OnInit {
   });
   readonly semNotas = computed(() => this.apuracao()?.totalNotas === 0);
   readonly fechada = computed(() => this.apuracao()?.status === 'FECHADO');
+  /**
+   * O servidor só reabre até 3 meses para trás (422 `REABERTURA_FORA_PRAZO`). O seletor oferece
+   * 12, a partir do mês que acabou; o botão aparece só nos três primeiros, em vez de prometer o que
+   * o servidor sempre recusa.
+   */
+  readonly dentroDoPrazoDeReabrir = computed(
+    () => this.meses.findIndex((m) => m.valor === this.periodo()) < MESES_REABRIVEIS,
+  );
 
   /** Troca de mês com resposta em voo: a do mês velho não entra. */
   private vez = 0;

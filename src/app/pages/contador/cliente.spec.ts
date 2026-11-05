@@ -122,6 +122,16 @@ describe('ClientePage', () => {
     expect(fixture.componentInstance.cliente()?.nomeCompleto).toBe('João da Silva Produtor');
   });
 
+  /** Os numeros (#138) saem com o produtorId da rota, e o aviso de "rota inexistente" sumiu. */
+  it('a secao de apuracao usa o cliente da rota, e o aviso antigo nao existe mais', () => {
+    const fixture = abrir();
+    responder({});
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/apuracao').flush({});
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('não existe rota');
+  });
+
   it('pede as notas que são trabalho do escritório, num pedido só com os três status', () => {
     abrir();
 

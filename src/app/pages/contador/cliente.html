@@ -54,6 +54,11 @@
       </p>
     </header>
 
+    <!-- Os numeros do cliente (#138), logo abaixo do cabecalho: e a primeira coisa que o contador
+         confere. Havia no fim da ficha um aviso de que a apuracao nao tinha rota no escopo do
+         escritorio; tem desde a backend#255, sempre com o produtorId desta ficha. -->
+    <app-apuracao-cliente [produtorId]="produtorId" />
+
     @if (nadaAFazer()) {
       <ui-empty-state
         titulo="Nada pendente com este cliente"
@@ -498,10 +503,6 @@
         </ul>
       }
     </section>
-
-    <!-- Os numeros do cliente (#138). Havia aqui um aviso de que a apuracao nao tinha rota no
-         escopo do escritorio; tem desde a backend#255, sempre com o produtorId desta ficha. -->
-    <app-apuracao-cliente [produtorId]="produtorId" />
 
     <!-- Lugar reservado para o "Historico de operacoes" do cliente (#137, auditoria). -->
   }

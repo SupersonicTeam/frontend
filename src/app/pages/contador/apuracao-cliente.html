@@ -107,7 +107,7 @@
         }
       }
 
-      @if (fechada() && podeReabrir()) {
+      @if (fechada() && podeReabrir() && dentroDoPrazoDeReabrir()) {
         <div class="mt-3 flex w-fit flex-col gap-1">
           <ui-button variant="ghost" [carregando]="reabrindo()" (click)="reabrir()">
             @if (!reabrindo()) {
