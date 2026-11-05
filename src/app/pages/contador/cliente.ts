@@ -234,10 +234,22 @@ export class ClientePage {
   /** O pedido que está sendo editado (#150). Só `PENDENTE` oferece "Editar". */
   readonly editandoPedido = signal<Pendencia | null>(null);
 
-  /** O servidor devolveu o pedido editado: ele substitui o da lista. */
+  /**
+   * O servidor devolveu o pedido editado: ele substitui o da lista.
+   *
+   * Os anexos já carregados ficam: um pedido que voltou a `PENDENTE` depois de recusado ainda tem
+   * os arquivos de antes, e a resposta pode vir com `anexos: []` como a listagem — os metadados só
+   * vêm no detalhe (ver `completarAnexos`). Sem isto os botões de baixar sumiriam ao editar.
+   */
   aoEditarPedido(atualizada: Pendencia): void {
     this.editandoPedido.set(null);
-    this.pendencias.update((lista) => lista.map((p) => (p.id === atualizada.id ? atualizada : p)));
+    this.pendencias.update((lista) =>
+      lista.map((p) =>
+        p.id === atualizada.id
+          ? { ...atualizada, anexos: atualizada.anexos?.length ? atualizada.anexos : p.anexos }
+          : p,
+      ),
+    );
   }
 
   aoMudarVinculo(nova: SituacaoDoVinculo): void {

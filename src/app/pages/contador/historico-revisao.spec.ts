@@ -37,7 +37,7 @@ describe('HistoricoRevisao', () => {
         motivo: 'Falta o CFOP.',
         usuarioId: 'c',
         papel: 'CONTADOR',
-        ocorridoEm: '2026-11-02T10:00:00Z',
+        ocorridoEm: '2026-11-01T23:30:00-03:00',
       },
       {
         id: 'a',
@@ -45,7 +45,7 @@ describe('HistoricoRevisao', () => {
         motivo: null,
         usuarioId: 'p',
         papel: 'PRODUTOR',
-        ocorridoEm: '2026-11-01T10:00:00Z',
+        ocorridoEm: '2026-11-02T01:00:00Z',
       },
     ]);
     f.detectChanges();

@@ -88,7 +88,10 @@ export class HistoricoRevisao {
     this.carteiraApi.revisoesDaNota(this.produtorId(), this.notaId()).subscribe({
       next: (lista) => {
         // Do mais antigo para o mais novo: é a ordem em que a conversa aconteceu.
-        this.revisoes.set([...lista].sort((a, b) => a.ocorridoEm.localeCompare(b.ocorridoEm)));
+        // Pelo instante, nao pelo texto: offsets diferentes (`-03:00`, `Z`) enganam a ordem da string.
+        this.revisoes.set(
+          [...lista].sort((a, b) => Date.parse(a.ocorridoEm) - Date.parse(b.ocorridoEm)),
+        );
         this.carregando.set(false);
       },
       error: () => {
