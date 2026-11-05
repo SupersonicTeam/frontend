@@ -503,6 +503,43 @@
     <app-assistente-launcher />
     @defer (when assistente.aberto(); prefetch on idle) {
       <app-assistente-drawer />
+    } @loading (after 150ms) {
+      <!-- O launcher some ao abrir: sem isto, numa rede lenta o clique nao dava retorno. -->
+      <p
+        class="fixed right-4 bottom-20 z-40 rounded-full bg-assistente px-4 py-2.5 text-apoio font-semibold text-assistente-foreground shadow-assistente lg:bottom-6"
+        role="status"
+      >
+        Abrindo a Ceres…
+      </p>
+    } @error {
+      <!-- O chunk pode sumir num deploy (o CD troca os hashes). Sem isto o launcher sumia e
+           nada abria. O @defer nao tenta de novo: o caminho e recarregar a pagina. -->
+      @if (assistente.aberto()) {
+        <div
+          class="fixed right-4 bottom-20 z-40 flex max-w-xs flex-col gap-2 rounded-card border border-aviso/30 bg-aviso-soft p-4 shadow-alta lg:bottom-6"
+          role="alert"
+        >
+          <p class="text-apoio text-aviso-ink">
+            Não foi possível abrir a Ceres. Recarregue a página para tentar de novo.
+          </p>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              class="tap-target rounded-controle bg-assistente px-3 text-apoio font-semibold text-assistente-foreground"
+              (click)="recarregar()"
+            >
+              Recarregar
+            </button>
+            <button
+              type="button"
+              class="tap-target rounded-controle px-3 text-apoio font-medium text-muted-foreground hover:bg-muted"
+              (click)="assistente.fechar()"
+            >
+              Agora não
+            </button>
+          </div>
+        </div>
+      }
     }
   }
 

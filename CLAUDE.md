@@ -316,10 +316,12 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
 - Budgets (`angular.json`): bundle inicial warn 500 kB / erro 1 MB; estilos warn 4 kB / erro 8 kB.
   (Baseline medido em 27/10 na `main`: **469,81 kB**; com a carteira (#95): **486,10 kB**; com o login JWT
   (#93): **490,96 kB** / 119,99 kB gzip. Em 04/11 chegou a **502,75 kB** / 121,85 kB gzip, acima do teto de aviso.
-  **Com o `@defer` da gaveta da Ceres (#143): 477,55 kB / 114,87 kB gzip** — folga de ~22 kB. A gaveta e a
+  **Com o `@defer` da gaveta da Ceres (#143): 481,31 kB / 115,82 kB gzip** — folga de ~19 kB. A gaveta e a
   conversa saíram do bundle inicial (chunk `assistente-drawer`, 7,43 kB); o `AppLayout` só carrega o launcher.
   O bloco é `@defer (when assistente.aberto(); prefetch on idle)`: o estado mora no `AssistenteStore` (`root`),
-  então o primeiro `abrir()`/`abrirSobreNota()` não se perde. Se apertar de novo, não corte a camada de IA.)
+  então o primeiro `abrir()`/`abrirSobreNota()` não se perde. Tem `@loading` (rede lenta) e `@error` (chunk
+  que sumiu num deploy: oferece recarregar, porque o `@defer` não tenta de novo). Se apertar de novo, não
+  corte a camada de IA.)
 - **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
   conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
   de fechar painel do `app-layout`, e só depois de `Esc` passar a fechar os painéis de verdade.

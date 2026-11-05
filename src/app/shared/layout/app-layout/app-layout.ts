@@ -70,6 +70,11 @@ export class AppLayout implements OnInit {
   /** Só para o `@defer` da gaveta: ela carrega no primeiro `aberto()` (#143). */
   protected readonly assistente = inject(AssistenteStore);
 
+  /** Saída do `@error` da gaveta: um chunk que falhou não é baixado de novo pelo `@defer`. */
+  protected recarregar(): void {
+    window.location.reload();
+  }
+
   mobileMenuOpen = signal(false);
   notificacoesOpen = signal(false);
 
