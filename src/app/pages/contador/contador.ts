@@ -18,9 +18,11 @@ import {
   type AtencaoCarteira,
   type OrdemCarteira,
   type ProdutorCarteira,
+  type SituacaoVinculo,
   totalDeAtencao,
 } from '@models/carteira.model';
 import { UiButton } from '@shared/ui/ui-button';
+import { ConvitesCarteira } from './convites-carteira';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 
@@ -127,6 +129,7 @@ const SINAIS: readonly (Omit<SinalDeAtencao, 'quantidade' | 'rotulo'> & {
   selector: 'app-contador',
   standalone: true,
   imports: [
+    ConvitesCarteira,
     LucideChevronRight,
     LucideCircleCheck,
     LucideFileWarning,
@@ -155,6 +158,11 @@ export class ContadorPage {
    */
   readonly somenteAtencao = signal(false);
   readonly ordem = signal<OrdemCarteira>('urgencia');
+  /**
+   * Ativos por padrão (o padrão do servidor). Os suspensos precisam ser alcançáveis: é na ficha
+   * deles que o administrador reativa ou encerra o vínculo (#147).
+   */
+  readonly situacao = signal<SituacaoVinculo>('ATIVO');
 
   // ── Resposta ──
   private readonly pagina = signal<{ itens: ProdutorCarteira[]; total: number } | null>(null);
@@ -199,6 +207,7 @@ export class ContadorPage {
           busca: this.buscaEfetiva(),
           precisaAtencao: this.somenteAtencao() ? true : undefined,
           sort: this.ordem(),
+          situacao: this.situacao(),
         })),
         // Dois filtros diferentes que produzem a mesma consulta não gastam requisição: digitar
         // "jo" e apagar volta ao mesmo pedido de antes.
@@ -242,6 +251,7 @@ export class ContadorPage {
       this.buscaEfetiva();
       this.somenteAtencao();
       this.ordem();
+      this.situacao();
       if (primeira) {
         primeira = false;
         return;

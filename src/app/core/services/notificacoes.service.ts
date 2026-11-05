@@ -3,6 +3,9 @@ import type { Notificacao } from '@models/notificacao.model';
 import { SessaoService } from './sessao.service';
 import { AlertasApi, type AlertaTributario } from '@services/alertas/data-access/alertas.service';
 import { CarteiraApi } from '@services/contador/data-access/carteira.service';
+import { VinculosApi, type ConviteRecebido } from '@services/vinculos/data-access/vinculos.service';
+import { catchError, forkJoin, of } from 'rxjs';
+import { formatarData } from '@core/utils/periodo';
 import type { ProdutorCarteira } from '@models/carteira.model';
 
 /** Chave do que já foi lido. O backend não guarda isso; ver `marcarLida`. */
@@ -30,6 +33,7 @@ export class NotificacoesService {
   private readonly sessao = inject(SessaoService);
   private readonly alertasApi = inject(AlertasApi);
   private readonly carteiraApi = inject(CarteiraApi);
+  private readonly vinculosApi = inject(VinculosApi);
 
   private readonly itens = signal<Notificacao[]>([]);
   private readonly lidas = signal<Set<string>>(this.carregarLidas());
@@ -71,10 +75,30 @@ export class NotificacoesService {
       this.itens.set([]);
       return;
     }
-    this.alertasApi.listar().subscribe({
-      next: (alertas) => this.itens.set(alertas.map((a) => this.doAlerta(a))),
-      error: () => this.itens.set([]),
-    });
+    // Convite de escritório pendente também é coisa para saber agora (#147): sem ele no sino, o
+    // produtor só descobriria o convite se fosse por acaso a Configurações. Cada fonte falha
+    // sozinha: alerta que não veio não esconde o convite que veio.
+    forkJoin({
+      alertas: this.alertasApi.listar().pipe(catchError(() => of([] as AlertaTributario[]))),
+      convites: this.vinculosApi.convites().pipe(catchError(() => of([] as ConviteRecebido[]))),
+    }).subscribe(({ alertas, convites }) =>
+      this.itens.set([
+        ...convites.filter((c) => c.situacao === 'PENDENTE').map((c) => this.doConvite(c)),
+        ...alertas.map((a) => this.doAlerta(a)),
+      ]),
+    );
+  }
+
+  /** Um convite pendente leva a Configurações, onde se aceita ou recusa. */
+  private doConvite(convite: ConviteRecebido): Notificacao {
+    return {
+      id: `convite:${convite.id}`,
+      titulo: `${convite.escritorio} convidou você para ser cliente do escritório`,
+      tipo: 'Solicitação',
+      rota: '/configuracoes',
+      dataHora: `vale até ${formatarData(convite.expiraEm)}`,
+      lida: false,
+    };
   }
 
   /**

@@ -60,6 +60,7 @@ describe('NotificacoesService', () => {
     service.carregar();
 
     httpMock.expectOne((r) => r.url === '/alertas').flush([alerta()]);
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
 
     expect(service.notificacoes().length).toBe(1);
     expect(service.notificacoes()[0]!.titulo).toContain('FUNRURAL');
@@ -74,6 +75,7 @@ describe('NotificacoesService', () => {
         alerta({ tipo: 'VENCIMENTO_GUIA' }),
         alerta({ id: 'a2', tipo: 'FECHAMENTO_APURACAO', descricao: 'Apuração de outubro fecha' }),
       ]);
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
 
     const [guia, apuracao] = service.notificacoes();
     expect(guia!.rota).toBe('/calendario');
@@ -164,6 +166,7 @@ describe('NotificacoesService', () => {
     criar('produtor');
     service.carregar();
     httpMock.expectOne((r) => r.url === '/alertas').flush([alerta()]);
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
     expect(service.naoLidas()).toBe(1);
 
     service.marcarLida('a1');
@@ -173,6 +176,7 @@ describe('NotificacoesService', () => {
     montar('produtor');
     service.carregar();
     httpMock.expectOne((r) => r.url === '/alertas').flush([alerta()]);
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
 
     expect(service.notificacoes().length).toBe(1);
     expect(service.naoLidas()).toBe(0);
@@ -184,6 +188,7 @@ describe('NotificacoesService', () => {
     httpMock
       .expectOne((r) => r.url === '/alertas')
       .flush([alerta(), alerta({ id: 'a2' }), alerta({ id: 'a3' })]);
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
 
     expect(service.naoLidas()).toBe(3);
     service.marcarTodasLidas();
@@ -197,7 +202,40 @@ describe('NotificacoesService', () => {
     httpMock
       .expectOne((r) => r.url === '/alertas')
       .flush('erro', { status: 500, statusText: 'Server Error' });
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
 
     expect(service.notificacoes()).toEqual([]);
+  });
+
+  /** Convite de escritorio pendente entra no sino do produtor e leva a Configuracoes (#147). */
+  it('o produtor ve no sino o convite pendente de um escritorio', () => {
+    criar('produtor');
+    service.carregar();
+    httpMock.expectOne((r) => r.url === '/alertas').flush([]);
+    httpMock
+      .expectOne((r) => r.url === '/convites')
+      .flush([
+        {
+          id: 'c1',
+          escritorio: 'Contabilidade Campo Bom',
+          convidadoPor: 'Ana',
+          crc: null,
+          situacao: 'PENDENTE',
+          criadoEm: '2026-11-01T10:00:00-03:00',
+          expiraEm: '2026-11-08T10:00:00-03:00',
+        },
+      ]);
+
+    const [convite] = service.notificacoes();
+    expect(convite!.titulo).toContain('Contabilidade Campo Bom');
+    expect(convite!.rota).toBe('/configuracoes');
+  });
+
+  it('o contador nao chama /api/convites: a rota e do produtor', () => {
+    criar('contador');
+    service.carregar();
+
+    httpMock.expectNone((r) => r.url === '/convites');
+    httpMock.expectOne((r) => r.url === '/contador/produtores').flush([]);
   });
 });

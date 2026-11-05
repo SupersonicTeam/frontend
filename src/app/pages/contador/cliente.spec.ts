@@ -150,15 +150,42 @@ describe('ClientePage', () => {
 
   it('produtor fora da carteira não é erro genérico: a tela diz que ele não é cliente', () => {
     const fixture = abrir();
-    httpMock.expectOne((r) => r.url === '/contador/produtores').flush([cliente({ id: 'outro' })]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'ATIVO')
+      .flush([cliente({ id: 'outro' })]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'SUSPENSO')
+      .flush([]);
 
     expect(fixture.componentInstance.naoECliente()).toBe(true);
     expect(fixture.componentInstance.erro()).toBe(false);
   });
 
+  /** Vinculo suspenso: a ficha abre, mas sem trabalho, que daria 404 nas rotas do cliente (#147). */
+  it('cliente suspenso abre a ficha sem buscar trabalho e diz que o vinculo esta suspenso', () => {
+    const fixture = abrir();
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'ATIVO')
+      .flush([]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'SUSPENSO')
+      .flush([cliente({ situacaoVinculo: 'SUSPENSO', atencao: null })]);
+    fixture.detectChanges();
+
+    httpMock.expectNone((r) => r.url === '/contador/produtores/p1/notas');
+    httpMock.expectNone((r) => r.url === '/contador/produtores/p1/apuracao');
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('Vínculo suspenso');
+  });
+
   it('não vai buscar trabalho de um produtor que não é cliente', () => {
     abrir();
-    httpMock.expectOne((r) => r.url === '/contador/produtores').flush([cliente({ id: 'outro' })]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'ATIVO')
+      .flush([cliente({ id: 'outro' })]);
+    // Nao esta entre os ativos: a ficha procura entre os suspensos (#147) antes de desistir.
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'SUSPENSO')
+      .flush([]);
 
     // Nenhuma das três listas é pedida: sem vínculo o backend responderia 404 nas três, e pedir
     // seria gastar requisição para receber erro.

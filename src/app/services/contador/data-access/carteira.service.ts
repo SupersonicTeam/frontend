@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, type HttpResponse } from '@angular/common/http';
-import { Observable, map } from 'rxjs';
+import { Observable, map, of, switchMap } from 'rxjs';
 import type { FiltroCarteira, PaginaCarteira, ProdutorCarteira } from '@models/carteira.model';
 import type { Pendencia, StatusPendencia, TipoDocumentoPendencia } from '@models/pendencia.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
@@ -40,6 +40,27 @@ export interface FiltroNotasCliente {
   size?: number;
   /** Ex.: `dataEmissao,desc`. */
   sort?: string;
+}
+
+/** Um convite que o escritório mandou e que ainda espera resposta (`GET /api/contador/convites`). */
+export interface ConviteEnviado {
+  id: string;
+  email: string;
+  /** `PENDENTE`, `ACEITO`… — a lista traz os pendentes. */
+  situacao: string;
+  criadoEm: string;
+  expiraEm: string;
+}
+
+/** O que o administrador pode fazer com o vínculo de um cliente. */
+export type AcaoVinculo = 'suspender' | 'reativar' | 'encerrar';
+
+/** Resposta das ações do vínculo. */
+export interface SituacaoDoVinculo {
+  produtorId: string;
+  situacao: 'ATIVO' | 'SUSPENSO' | 'ENCERRADO';
+  inicio: string;
+  fim: string | null;
 }
 
 /** Uma página das notas de um cliente: o total vem do header `X-Total-Count`, não do corpo. */
@@ -108,14 +129,44 @@ export class CarteiraApi {
    * indicadores de atenção. Então a tela de um cliente lê a carteira e acha o seu — pedindo a
    * página máxima, porque um cliente na segunda página voltaria como "não é seu cliente".
    *
-   * Vale notar o que **não** é feito aqui: filtrar por `situacao`. Sem o parâmetro o servidor usa
-   * `ATIVO`, e é o que queremos — num vínculo suspenso ou encerrado o escritório não alcança os
-   * dados do produtor, então não há tela de trabalho para abrir.
+   * Procura primeiro entre os **ativos** (o padrão do servidor) e, se não achar, entre os
+   * **suspensos** (#147): a ficha é onde o vínculo suspenso é reativado ou encerrado, então ela
+   * precisa abrir para ele também — só sem a tela de trabalho, porque num vínculo suspenso o
+   * escritório não alcança os dados do produtor. Encerrado não volta: vira "não é cliente".
    */
   obterCliente(produtorId: string): Observable<ProdutorCarteira | null> {
-    return this.listar({ size: CarteiraApi.TAMANHO_MAXIMO }).pipe(
-      map((pagina) => pagina.itens.find((c) => c.id === produtorId) ?? null),
-    );
+    const procurar = (situacao: 'ATIVO' | 'SUSPENSO') =>
+      this.listar({ size: CarteiraApi.TAMANHO_MAXIMO, situacao }).pipe(
+        map((pagina) => pagina.itens.find((c) => c.id === produtorId) ?? null),
+      );
+    return procurar('ATIVO').pipe(switchMap((ativo) => (ativo ? of(ativo) : procurar('SUSPENSO'))));
+  }
+
+  /**
+   * `POST /api/contador/convites` — convida um produtor por e-mail (backend#177).
+   *
+   * Responde **sempre 202**, exista ou não conta com aquele e-mail: a resposta não pode revelar
+   * quem tem conta. A tela diz "se houver conta, o convite chega", nunca "convite entregue".
+   * Mais de 30 por dia → 429 `LIMITE_CONVITES` com `Retry-After`. Só o administrador convida.
+   */
+  convidar(email: string): Observable<void> {
+    return this.http.post<void>('/contador/convites', { email: email.trim() });
+  }
+
+  /** `GET /api/contador/convites` — os convites do escritório que ainda esperam resposta. */
+  convitesEnviados(): Observable<ConviteEnviado[]> {
+    return this.http.get<ConviteEnviado[]>('/contador/convites');
+  }
+
+  /**
+   * O ciclo do vínculo (`POST .../{produtorId}/suspender|reativar|encerrar`), só do administrador.
+   *
+   * Suspender corta o acesso do escritório aos dados do produtor até reativar; **encerrar não
+   * volta** — atender de novo exige convite novo. Transição fora da ordem → 409
+   * `VINCULO_SITUACAO_INVALIDA`.
+   */
+  mudarVinculo(produtorId: string, acao: AcaoVinculo): Observable<SituacaoDoVinculo> {
+    return this.http.post<SituacaoDoVinculo>(`/contador/produtores/${produtorId}/${acao}`, null);
   }
 
   /** `GET /api/contador/produtores/{produtorId}/notas` — as notas do cliente, só leitura. */

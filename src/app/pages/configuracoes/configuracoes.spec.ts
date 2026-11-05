@@ -33,6 +33,10 @@ describe('ConfiguracoesPage', () => {
   });
 
   afterEach(() => {
+    // A secao do escritorio do produtor (#147) tem o proprio spec; aqui so drenamos o que ela pede.
+    httpMock
+      .match((r) => r.url === '/convites' || r.url === '/vinculos')
+      .forEach((r) => r.flush([]));
     httpMock.verify();
     localStorage.clear();
   });

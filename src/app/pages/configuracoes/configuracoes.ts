@@ -56,10 +56,13 @@ const MESES_POR_EXTENSO = [
  * como leitura, com a razão de não serem editáveis dita na tela. O tema, que
  * é a única coisa que sempre funcionou aqui, continua igual.
  */
+import { EscritorioProdutor } from './escritorio-produtor';
+
 @Component({
   selector: 'app-configuracoes',
   standalone: true,
   imports: [
+    EscritorioProdutor,
     UiCard,
     UiButton,
     FormsModule,

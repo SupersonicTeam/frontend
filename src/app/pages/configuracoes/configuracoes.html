@@ -87,6 +87,12 @@
        aquilo saiu, um texto dizendo que "esta versao ainda nao tem login com senha" -- que virou
        mentira no dia em que a #93 entrou. Agora as duas acoes existem de verdade e fazem o que
        prometem. -->
+  <!-- O escritorio que atende o produtor (#147): convites e vinculo. Decidir quem ve os meus dados
+       e configuracao da conta; o sino avisa quando chega convite e traz para ca. -->
+  @if (sessao.ehProdutor()) {
+    <app-escritorio-produtor />
+  }
+
   <div class="flex flex-col gap-4 rounded-card border border-border bg-card p-5 shadow-suave">
     <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
       <svg lucideLock [size]="18" class="text-primary" />

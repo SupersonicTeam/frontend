@@ -84,6 +84,7 @@ describe('EncerramentoService', () => {
           },
         ]),
       );
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
 
     return { dashboard, assistente, notificacoes };
   }

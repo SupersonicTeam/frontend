@@ -25,6 +25,19 @@ export interface VinculoDoProdutor {
  * dois fluxos existem e só um vale para cada produtor — perguntar antes evita oferecer o botão
  * que vai falhar.
  */
+/** Um convite de escritório para o produtor (`GET /api/convites`, só os pendentes). */
+export interface ConviteRecebido {
+  id: string;
+  /** Nome do escritório que convidou. */
+  escritorio: string;
+  /** Quem do escritório mandou. */
+  convidadoPor: string | null;
+  crc: string | null;
+  situacao: string;
+  criadoEm: string;
+  expiraEm: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class VinculosApi {
   private readonly api = inject(ApiService);
@@ -32,6 +45,25 @@ export class VinculosApi {
   /** `GET /api/vinculos` — todos os vínculos, inclusive os encerrados. */
   listar(): Observable<VinculoDoProdutor[]> {
     return this.api.get<VinculoDoProdutor[]>('/vinculos');
+  }
+
+  /**
+   * `GET /api/convites` — os convites pendentes para o e-mail da conta (#147).
+   *
+   * **Rota do produtor**: com sessão de contador responde 403. Quem chama confere o papel.
+   */
+  convites(): Observable<ConviteRecebido[]> {
+    return this.api.get<ConviteRecebido[]>('/convites');
+  }
+
+  /** `POST /api/convites/{id}/aceitar` — nasce o vínculo: o escritório passa a ver os dados. */
+  aceitarConvite(id: string): Observable<ConviteRecebido> {
+    return this.api.post<ConviteRecebido>(`/convites/${id}/aceitar`);
+  }
+
+  /** `POST /api/convites/{id}/recusar`. */
+  recusarConvite(id: string): Observable<ConviteRecebido> {
+    return this.api.post<ConviteRecebido>(`/convites/${id}/recusar`);
   }
 
   /** `POST /api/vinculos/{id}/encerrar` — o produtor corta o acesso do escritório na hora. */

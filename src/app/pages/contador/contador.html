@@ -28,6 +28,9 @@
     }
   </header>
 
+  <!-- A porta de entrada da carteira (#147): o vinculo so nasce quando o produtor aceita. -->
+  <app-convites-carteira />
+
   <!-- ── Filtros ── -->
   <div class="flex flex-wrap items-center gap-3 rounded-card border border-border bg-card p-3">
     <label class="relative min-w-60 flex-1">
@@ -66,6 +69,19 @@
       >
         <option value="urgencia">Urgência</option>
         <option value="nome">Nome</option>
+      </select>
+    </label>
+
+    <label class="flex items-center gap-2 text-apoio text-muted-foreground">
+      Vínculo
+      <select
+        [value]="situacao()"
+        (change)="situacao.set($any($event.target).value)"
+        class="tap-target rounded-controle border border-border bg-background px-2 py-2 text-apoio text-foreground"
+      >
+        <option value="ATIVO">Ativos</option>
+        <option value="SUSPENSO">Suspensos</option>
+        <option value="ENCERRADO">Encerrados</option>
       </select>
     </label>
   </div>

@@ -278,17 +278,58 @@ describe('CarteiraApi', () => {
     let recebido: ProdutorCarteira | null | undefined = undefined;
     service.obterCliente('fora').subscribe((r) => (recebido = r));
 
-    httpMock.expectOne((r) => r.url === '/contador/produtores').flush([cliente({ id: 'p1' })]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'ATIVO')
+      .flush([cliente({ id: 'p1' })]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'SUSPENSO')
+      .flush([]);
 
     expect(recebido).toBeNull();
+  });
+
+  /** A ficha abre para o vinculo suspenso: e nela que o administrador reativa ou encerra (#147). */
+  it('obterCliente acha o cliente suspenso quando ele nao esta entre os ativos', () => {
+    let recebido: ProdutorCarteira | null | undefined;
+    service.obterCliente('p3').subscribe((r) => (recebido = r));
+
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'ATIVO')
+      .flush([cliente({ id: 'p1' })]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'SUSPENSO')
+      .flush([cliente({ id: 'p3', situacaoVinculo: 'SUSPENSO', atencao: null })]);
+
+    expect(recebido?.situacaoVinculo).toBe('SUSPENSO');
+  });
+
+  it('convidar manda o e-mail aparado e nao espera corpo', () => {
+    service.convidar('  ana@fazenda.com ').subscribe();
+    const req = httpMock.expectOne('/contador/convites');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ email: 'ana@fazenda.com' });
+    req.flush(null, { status: 202, statusText: 'Accepted' });
+  });
+
+  it('o ciclo do vinculo vai na rota do cliente, sem corpo', () => {
+    for (const acao of ['suspender', 'reativar', 'encerrar'] as const) {
+      service.mudarVinculo('p1', acao).subscribe();
+      const req = httpMock.expectOne(`/contador/produtores/p1/${acao}`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toBeNull();
+      req.flush({ produtorId: 'p1', situacao: 'ATIVO', inicio: 'x', fim: null });
+    }
   });
 
   it('obterCliente pede a carteira inteira: um cliente na segunda página não pode virar null', () => {
     service.obterCliente('p2').subscribe();
 
-    const req = httpMock.expectOne((r) => r.url === '/contador/produtores');
-    expect(req.request.params.get('size')).toBe('200');
-    req.flush([]);
+    const ativos = httpMock.expectOne((r) => r.params.get('situacao') === 'ATIVO');
+    expect(ativos.request.params.get('size')).toBe('200');
+    ativos.flush([]);
+    const suspensos = httpMock.expectOne((r) => r.params.get('situacao') === 'SUSPENSO');
+    expect(suspensos.request.params.get('size')).toBe('200');
+    suspensos.flush([]);
   });
 
   /**
