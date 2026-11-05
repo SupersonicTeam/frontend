@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatarData, mesDeFechamento, hojeEmBrasilia } from './periodo';
+import { faixaDeEmissao, formatarData, mesDeFechamento, hojeEmBrasilia } from './periodo';
 
 describe('mesDeFechamento', () => {
   it('devolve o mês anterior — é o que o contador fecha', () => {
@@ -54,5 +54,34 @@ describe('formatarData', () => {
     expect(formatarData(null)).toBe('—');
     expect(formatarData('')).toBe('—');
     expect(formatarData('amanhã')).toBe('amanhã');
+  });
+});
+
+describe('faixaDeEmissao', () => {
+  it('mês vira do dia 1 ao último dia, inclusive fevereiro de ano bissexto', () => {
+    expect(faixaDeEmissao('2026-09')).toEqual({
+      emitidaDe: '2026-09-01',
+      emitidaAte: '2026-09-30',
+    });
+    expect(faixaDeEmissao('2028-02')).toEqual({
+      emitidaDe: '2028-02-01',
+      emitidaAte: '2028-02-29',
+    });
+  });
+
+  it('ano vira de 1º de janeiro a 31 de dezembro', () => {
+    expect(faixaDeEmissao('2026')).toEqual({ emitidaDe: '2026-01-01', emitidaAte: '2026-12-31' });
+  });
+
+  it('últimos 30 dias terminam hoje, atravessando a virada do mês', () => {
+    expect(faixaDeEmissao('ultimos30', '2026-03-10')).toEqual({
+      emitidaDe: '2026-02-08',
+      emitidaAte: '2026-03-10',
+    });
+  });
+
+  it('todos, ou valor desconhecido, não restringe', () => {
+    expect(faixaDeEmissao('todos')).toEqual({});
+    expect(faixaDeEmissao('ontem')).toEqual({});
   });
 });

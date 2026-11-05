@@ -283,13 +283,25 @@
                 Fechada em
                 <span class="font-medium text-foreground">{{ formatDate(ap.dataFechamento) }}</span
                 >. Os valores estão congelados: nenhuma nota nova recalcula o período.
+              } @else if (ap.parcial) {
+                <!-- O job fecha uma vez por MES, as 23h do ultimo dia, e so o mes corrente. Dizia
+                     "uma vez por dia" (#116). -->
+                Ainda aberta: o mês não terminou, e cada nota autorizada muda os valores. O
+                fechamento automático acontece às 23h do último dia do mês.
               } @else {
-                Ainda aberta. O período é fechado automaticamente uma vez por dia, e até lá cada
-                nota autorizada muda os valores.
+                <!-- Mes passado e aberto (parcial=false com status ABERTO, medido em 04/11): pode
+                     ter sido reaberto, e o job refecha os reabertos no fim do mes, ou nunca ter
+                     sido fechado. A tela nao sabe qual, entao nao afirma nenhum dos dois. -->
+                Ainda aberta, embora o mês já tenha terminado: os valores mudam se entrar nota
+                autorizada com data deste mês.
               }
             </p>
             <p class="mt-1 text-apoio text-muted-foreground">
-              {{ ap.totalNotas }} nota(s) somada(s) nesta apuração.
+              @if (ap.totalNotas === 0) {
+                Sem notas emitidas no período.
+              } @else {
+                {{ ap.totalNotas }} nota(s) somada(s) nesta apuração.
+              }
             </p>
           }
 

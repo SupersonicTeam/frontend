@@ -113,7 +113,7 @@
         [class.font-medium]="periodo() !== 'todos'"
         aria-label="Período"
         [value]="periodo()"
-        (change)="periodo.set($any($event.target).value)"
+        (change)="trocarPeriodo($any($event.target).value)"
       >
         <option value="todos">Todo o período</option>
         @if (temNotasRecentes()) {
@@ -167,7 +167,7 @@
         [class.font-medium]="tipo() !== 'todos'"
         aria-label="Tipo de documento"
         [value]="tipo()"
-        (change)="tipo.set($any($event.target).value)"
+        (change)="trocarTipo($any($event.target).value)"
       >
         <option value="todos">Todos os tipos</option>
         <option value="NFE">NF-e (modelo 55)</option>
@@ -189,8 +189,9 @@
         [class.border-border]="!busca().trim()"
         [class.border-primary]="busca().trim()"
         [value]="busca()"
-        (input)="busca.set($any($event.target).value)"
-        (keydown.escape)="busca.set('')"
+        [attr.maxlength]="TAMANHO_MAXIMO_BUSCA"
+        (input)="digitarBusca($any($event.target).value)"
+        (keydown.escape)="limparBusca()"
       />
       <!-- Apagar a busca exigia selecionar o texto e apagar (#104). O `x` nativo do
            `type="search"` não serve: o Firefox não o desenha e o do Chrome ignora o tema, por isso
@@ -200,7 +201,7 @@
           type="button"
           class="tap-target absolute right-1 top-1/2 flex -translate-y-1/2 items-center justify-center rounded-controle text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           aria-label="Limpar busca"
-          (click)="busca.set('')"
+          (click)="limparBusca()"
         >
           <svg lucideX [size]="15" aria-hidden="true" />
         </button>
@@ -210,7 +211,7 @@
     <select
       class="tap-target px-3 py-2.5 rounded-controle border border-border bg-card text-apoio text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
       [value]="ordenacao()"
-      (change)="ordenacao.set($any($event.target).value)"
+      (change)="trocarOrdenacao($any($event.target).value)"
       aria-label="Ordenar"
       title="Ordenar"
     >
@@ -248,14 +249,10 @@
       <div class="flex items-center gap-2">
         <svg lucideFileCheck [size]="18" class="text-muted-foreground" />
         <h2 class="font-heading text-base font-semibold text-foreground">Notas fiscais</h2>
-        <!-- Mostrava so o tamanho da pagina: "12" com 15 notas na base. -->
+        <!-- Mostrava so o tamanho da pagina: "12" com 15 notas na base. O total vem do servidor
+             e ja reflete os filtros (#116). -->
         <span class="rounded-full bg-muted px-2 py-0.5 text-apoio text-muted-foreground">
-          @if (temFiltroAtivo()) {
-            {{ notasFiltradas().length }} de {{ notas().length }}
-            @if (!tudoCarregado()) {
-              nesta página
-            }
-          } @else if (totalElements() > notasFiltradas().length) {
+          @if (totalElements() > notasFiltradas().length) {
             {{ notasFiltradas().length }} de {{ totalElements() }}
           } @else {
             {{ notasFiltradas().length }}
@@ -729,6 +726,39 @@
           </div>
         }
       </div>
+    }
+
+    <!-- Retorno do cancelamento (#116): so existe na resposta do POST, a nota nao o traz. -->
+    @if (cancelamento(); as c) {
+      @if (c.notaId === previewNota()?.id) {
+        <div
+          class="mt-3 space-y-1 rounded-controle border border-border bg-surface-2 p-3 text-apoio"
+        >
+          <p class="font-semibold text-foreground">Cancelamento na SEFAZ</p>
+          @if (c.sefazCstat || c.sefazMotivo) {
+            <div class="flex justify-between gap-3">
+              <span class="text-muted-foreground">Situação</span
+              ><span class="text-right font-medium text-foreground"
+                >{{ c.sefazCstat }} — {{ c.sefazMotivo }}</span
+              >
+            </div>
+          }
+          @if (c.protocoloCancelamento) {
+            <div class="flex justify-between gap-3">
+              <span class="text-muted-foreground">Protocolo</span
+              ><span class="font-medium text-foreground">{{ c.protocoloCancelamento }}</span>
+            </div>
+          }
+          @if (c.dataCancelamento) {
+            <div class="flex justify-between gap-3">
+              <span class="text-muted-foreground">Cancelada em</span
+              ><span class="font-medium text-foreground">{{
+                formatInstante(c.dataCancelamento)
+              }}</span>
+            </div>
+          }
+        </div>
+      }
     }
 
     <!-- Ações contextuais por status (#14): só aparecem as válidas para o status atual -->

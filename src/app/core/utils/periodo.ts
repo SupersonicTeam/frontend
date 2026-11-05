@@ -52,3 +52,32 @@ export function formatarData(iso?: string | null): string {
   const d = new Date(soData ? `${iso}T12:00:00` : iso);
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleDateString('pt-BR');
 }
+
+/**
+ * O período escolhido em Documentos como faixa de emissão de `GET /api/notas` (#116).
+ *
+ * `AAAA-MM` vira o mês inteiro, `AAAA` o ano, e `ultimos30` os 30 dias até hoje em Brasília.
+ * `emitidaAte` entra inteiro no servidor, então o último dia é o próprio dia, sem "+1".
+ * `todos`, ou qualquer valor que não se reconheça, não restringe nada.
+ */
+export function faixaDeEmissao(
+  periodo: string,
+  hoje: string = hojeEmBrasilia(),
+): { emitidaDe?: string; emitidaAte?: string } {
+  if (periodo === 'ultimos30') {
+    const inicio = new Date(`${hoje}T12:00:00Z`);
+    inicio.setUTCDate(inicio.getUTCDate() - 30);
+    return { emitidaDe: inicio.toISOString().slice(0, 10), emitidaAte: hoje };
+  }
+  if (/^\d{4}$/.test(periodo))
+    return { emitidaDe: `${periodo}-01-01`, emitidaAte: `${periodo}-12-31` };
+  const mes = /^(\d{4})-(\d{2})$/.exec(periodo);
+  if (mes) {
+    const ultimoDia = new Date(Date.UTC(Number(mes[1]), Number(mes[2]), 0)).getUTCDate();
+    return {
+      emitidaDe: `${periodo}-01`,
+      emitidaAte: `${periodo}-${String(ultimoDia).padStart(2, '0')}`,
+    };
+  }
+  return {};
+}

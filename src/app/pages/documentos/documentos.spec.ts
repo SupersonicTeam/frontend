@@ -108,38 +108,80 @@ describe('DocumentosPage', () => {
     expect(anos[1].meses.map((m) => m.label)).toEqual(['Dezembro (1)']);
   });
 
-  it('escolher um mês deixa só as notas daquele mês; o ano inteiro, as do ano', () => {
+  /** A próxima carga de `/notas`: os parâmetros que ela levou, e como respondê-la. */
+  function proximaCarga() {
+    const req = httpMock.expectOne((r) => r.url === '/notas');
+    return {
+      params: req.request.params,
+      responder: (notas: Record<string, unknown>[]) => req.flush(pagina(notas)),
+    };
+  }
+
+  it('o período vai ao servidor como emitidaDe/emitidaAte, e as opções não encolhem (#116)', () => {
     const cmp = comNotas([
       nota('n1', '2026-09-10'),
       nota('n2', '2026-06-20'),
       nota('n3', '2025-12-01'),
     ]).componentInstance;
 
-    cmp.periodo.set('2026-09');
+    cmp.trocarPeriodo('2026-09');
+    const mes = proximaCarga();
+    expect(mes.params.get('emitidaDe')).toBe('2026-09-01');
+    expect(mes.params.get('emitidaAte')).toBe('2026-09-30');
+    expect(mes.params.get('page')).toBe('0');
+    mes.responder([nota('n1', '2026-09-10')]);
     expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
+    // As opções saem da carga sem filtro: escolher setembro não apaga os outros meses do seletor.
+    expect(cmp.periodosPorAno().map((a) => a.ano)).toEqual(['2026', '2025']);
 
-    cmp.periodo.set('2026');
-    expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1', 'n2']);
+    cmp.trocarPeriodo('2026');
+    const ano = proximaCarga();
+    expect(ano.params.get('emitidaDe')).toBe('2026-01-01');
+    expect(ano.params.get('emitidaAte')).toBe('2026-12-31');
+    ano.responder([]);
 
-    cmp.periodo.set('todos');
-    expect(cmp.notasFiltradas()).toHaveLength(3);
+    cmp.trocarPeriodo('todos');
+    const todos = proximaCarga();
+    expect(todos.params.has('emitidaDe')).toBe(false);
+    todos.responder([]);
   });
 
-  it('a data é comparada como texto: o mês não escorrega por causa do fuso', () => {
-    // `new Date('2026-09-01')` é meia-noite em UTC e, no horário de Brasília, cai em 31/08 —
-    // a nota do dia 1º sairia do filtro de setembro.
-    const cmp = comNotas([
-      nota('primeiro', '2026-09-01'),
-      nota('ultimo', '2026-09-30'),
-    ]).componentInstance;
+  it('tipo e ordenação também vão ao servidor (#116)', () => {
+    const cmp = comNotas([nota('n1', '2026-09-10')]).componentInstance;
 
-    cmp.periodo.set('2026-09');
-    expect(
-      cmp
-        .notasFiltradas()
-        .map((n) => n.id)
-        .sort(),
-    ).toEqual(['primeiro', 'ultimo']);
+    cmp.trocarTipo('NFA');
+    const tipo = proximaCarga();
+    expect(tipo.params.get('tipoDocumento')).toBe('NFA');
+    expect(tipo.params.get('sort')).toBe('dataEmissao,desc');
+    tipo.responder([]);
+
+    cmp.trocarOrdenacao('valor');
+    const valor = proximaCarga();
+    expect(valor.params.get('sort')).toBe('valorTotal,desc');
+    expect(valor.params.get('tipoDocumento')).toBe('NFA');
+    valor.responder([]);
+  });
+
+  it('"Esperando você" vai como status repetido: inconsistência, rejeitada e rascunho (#116)', () => {
+    const cmp = comNotas([nota('n1', '2026-09-10')]).componentInstance;
+
+    cmp.trocarSituacao('esperando');
+    const carga = proximaCarga();
+    expect(carga.params.getAll('status')).toEqual(['COM_INCONSISTENCIAS', 'REJEITADA', 'RASCUNHO']);
+    carga.responder([]);
+  });
+
+  it('resposta atrasada de um filtro antigo não sobrescreve a do filtro novo (#116)', () => {
+    const cmp = comNotas([nota('n1', '2026-09-10')]).componentInstance;
+
+    cmp.trocarPeriodo('2026-09');
+    const lenta = httpMock.expectOne((r) => r.url === '/notas');
+    cmp.trocarPeriodo('2026-06');
+    const rapida = httpMock.expectOne((r) => r.url === '/notas');
+
+    rapida.flush(pagina([nota('jun', '2026-06-10')]));
+    lenta.flush(pagina([nota('set', '2026-09-10')]));
+    expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['jun']);
   });
 
   it('"Últimos 30 dias" só aparece quando há nota nesse intervalo', () => {
@@ -162,7 +204,10 @@ describe('DocumentosPage', () => {
     );
     expect(select).not.toBeNull();
 
-    cmp.statusFilter.set('RASCUNHO');
+    cmp.trocarSituacao('RASCUNHO');
+    const carga = proximaCarga();
+    expect(carga.params.getAll('status')).toEqual(['RASCUNHO']);
+    carga.responder([nota('rasc', '2026-09-11', { status: 'RASCUNHO' })]);
     expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['rasc']);
   });
 
@@ -338,10 +383,17 @@ describe('DocumentosPage', () => {
     it('filtrar por DEVOLVIDA e por AGUARDANDO_APROVACAO funciona: sao status do backend', () => {
       const cmp = abrirComNotas([nota('n1', 'AGUARDANDO_APROVACAO'), nota('n5', 'DEVOLVIDA')]);
 
-      cmp.statusFilter.set('DEVOLVIDA');
+      cmp.trocarSituacao('DEVOLVIDA');
+      const devolvidas = proximaCarga();
+      expect(devolvidas.params.getAll('status')).toEqual(['DEVOLVIDA']);
+      devolvidas.responder([nota('n5', 'DEVOLVIDA')]);
+      httpMock.match((r) => r.url.endsWith('/revisoes')).forEach((r) => r.flush([]));
       expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n5']);
 
-      cmp.statusFilter.set('AGUARDANDO_APROVACAO');
+      cmp.trocarSituacao('AGUARDANDO_APROVACAO');
+      const aguardando = proximaCarga();
+      expect(aguardando.params.getAll('status')).toEqual(['AGUARDANDO_APROVACAO']);
+      aguardando.responder([nota('n1', 'AGUARDANDO_APROVACAO')]);
       expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
     });
   });
@@ -991,7 +1043,14 @@ describe('DocumentosPage', () => {
       ]);
       const cmp = fixture.componentInstance;
 
-      cmp.ordenacao.set('valor');
+      cmp.trocarOrdenacao('valor');
+      // Quem ordena e o servidor (#116).
+      const carga = proximaCarga();
+      expect(carga.params.get('sort')).toBe('valorTotal,desc');
+      carga.responder([
+        nota('n2', '2026-08-01T00:00:00Z', { valorTotalNota: 900 }),
+        nota('n1', '2026-09-10T00:00:00Z', { valorTotalNota: 100 }),
+      ]);
       fixture.detectChanges();
 
       expect(cmp.notasPorMes()).toEqual([]);
@@ -1008,22 +1067,80 @@ describe('DocumentosPage', () => {
       expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Limpar filtros');
     });
 
-    it('com busca ativa, diz quantas sobraram e oferece limpar', () => {
-      const fixture = comNotas([
-        nota('n1', '2026-09-10T00:00:00Z', { destinatarioNome: 'Cerealista Sorriso Ltda' }),
-        nota('n2', '2026-09-11T00:00:00Z', { destinatarioNome: 'Frigorifico Norte' }),
-      ]);
-      const cmp = fixture.componentInstance;
+    it('a busca vai ao servidor 300 ms depois da última tecla, e oferece limpar (#116)', () => {
+      vi.useFakeTimers();
+      try {
+        const fixture = comNotas([
+          nota('n1', '2026-09-10T00:00:00Z', { destinatarioNome: 'Cerealista Sorriso Ltda' }),
+          nota('n2', '2026-09-11T00:00:00Z', { destinatarioNome: 'Frigorifico Norte' }),
+        ]);
+        const cmp = fixture.componentInstance;
 
-      cmp.busca.set('Sorriso');
-      fixture.detectChanges();
+        cmp.digitarBusca('Sor');
+        cmp.digitarBusca('Sorriso');
+        vi.advanceTimersByTime(299);
+        httpMock.expectNone((r) => r.url === '/notas');
+        vi.advanceTimersByTime(1);
 
-      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
-      expect(cmp.temFiltroAtivo()).toBe(true);
-      expect(texto).toContain('1 de 2');
-      // Tudo carregado: dizer "nesta página" sugeriria que há nota fora do filtro.
-      expect(texto).not.toContain('nesta página');
-      expect(texto).toContain('Limpar filtros');
+        // Uma requisicao so, com o termo final.
+        const carga = proximaCarga();
+        expect(carga.params.get('busca')).toBe('Sorriso');
+        expect(carga.params.get('page')).toBe('0');
+        carga.responder([
+          nota('n1', '2026-09-10T00:00:00Z', { destinatarioNome: 'Cerealista Sorriso Ltda' }),
+        ]);
+        fixture.detectChanges();
+
+        const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+        expect(cmp.temFiltroAtivo()).toBe(true);
+        expect(cmp.notasFiltradas().map((n) => n.id)).toEqual(['n1']);
+        expect(texto).toContain('Limpar filtros');
+
+        // Apagar vale na hora, sem debounce.
+        cmp.limparBusca();
+        const semBusca = proximaCarga();
+        expect(semBusca.params.has('busca')).toBe(false);
+        semBusca.responder([]);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('apagar antes dos 300 ms não deixa a busca apagada voltar (#116)', () => {
+      vi.useFakeTimers();
+      try {
+        const cmp = comNotas([nota('n1', '2026-09-10T00:00:00Z')]).componentInstance;
+
+        cmp.digitarBusca('Sorriso');
+        vi.advanceTimersByTime(100);
+        cmp.limparBusca();
+        vi.advanceTimersByTime(500);
+
+        // Nada foi aplicado e nada volta: o campo vazio e o que vale.
+        httpMock.expectNone((r) => r.url === '/notas');
+        expect(cmp.buscaAplicada()).toBe('');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('busca curta que o servidor ignoraria não pede nada; número curto pede (#116)', () => {
+      vi.useFakeTimers();
+      try {
+        const cmp = comNotas([nota('n1', '2026-09-10T00:00:00Z')]).componentInstance;
+
+        cmp.digitarBusca('ab');
+        vi.advanceTimersByTime(300);
+        httpMock.expectNone((r) => r.url === '/notas');
+
+        cmp.digitarBusca('10');
+        vi.advanceTimersByTime(300);
+        const carga = proximaCarga();
+        expect(carga.params.get('busca')).toBe('10');
+        carga.responder([]);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('limparFiltros devolve os quatro filtros ao estado neutro', () => {
@@ -1142,12 +1259,18 @@ describe('DocumentosPage', () => {
       cmp.alternarMes('2026-09');
       expect(cmp.mesAberto('2026-09')).toBe(false);
 
+      // O que reabre e a busca APLICADA: termo ainda no debounce, ou que o servidor ignoraria,
+      // nao filtrou nada.
       cmp.busca.set('Cerealista');
+      expect(cmp.mesAberto('2026-09')).toBe(false);
+      cmp.buscaAplicada.set('Cerealista');
       fixture.detectChanges();
       expect(cmp.mesAberto('2026-09')).toBe(true);
 
-      // E o que ele fechou nao se perdeu: volta a valer quando o filtro sai.
+      // E o que ele fechou nao se perdeu: volta a valer quando o filtro sai. A busca aplicada e
+      // filtro de servidor, entao limpar recarrega.
       cmp.limparFiltros();
+      proximaCarga().responder(doisMeses());
       fixture.detectChanges();
       expect(cmp.mesAberto('2026-09')).toBe(false);
     });
@@ -1205,6 +1328,35 @@ describe('DocumentosPage', () => {
     });
   });
 
+  it('cancelar mostra o protocolo que a SEFAZ devolveu, no modal e no aviso (#116)', () => {
+    const fixture = comNotas([nota('n1', '2026-09-10')]);
+    const cmp = fixture.componentInstance;
+    const toast = TestBed.inject(ToastService);
+    const sucesso = vi.spyOn(toast, 'success').mockImplementation(() => undefined);
+    const alvo = cmp.notas()[0];
+
+    cmp.previewNota.set(alvo);
+    cmp.pedirCancelamento(alvo);
+    cmp.motivoCancel.set('Venda desfeita pelo comprador antes da entrega');
+    cmp.confirmarCancelamento();
+    httpMock
+      .expectOne((r) => r.url === '/notas/n1/cancelar')
+      .flush({
+        chaveAcesso: '4'.repeat(44),
+        status: 'CANCELADA',
+        dataCancelamento: '2026-11-04T12:00:00-03:00',
+        protocoloCancelamento: '135260000012345',
+        motivoCancelamento: 'Venda desfeita pelo comprador antes da entrega',
+        sefazCstat: '135',
+        sefazMotivo: 'Evento registrado e vinculado a NF-e',
+      });
+    fixture.detectChanges();
+
+    expect(cmp.cancelamento()?.notaId).toBe('n1');
+    expect(sucesso).toHaveBeenCalledWith(expect.stringContaining('135260000012345'));
+    expect(document.body.textContent).toContain('135260000012345');
+  });
+
   describe('resumo do produtor', () => {
     const carteira = () => [
       nota('n1', '2026-09-10T00:00:00Z', { status: 'AUTORIZADA', valorTotalNota: 1000 }),
@@ -1224,11 +1376,18 @@ describe('DocumentosPage', () => {
       expect(cmp.resumoDoPeriodo().rascunhos).toBe(1);
     });
 
-    it('"ver essas notas" mostra as três situações que ainda dependem do produtor', () => {
+    it('"ver essas notas" pede ao servidor as três situações que dependem do produtor', () => {
       const fixture = comNotas(carteira());
       const cmp = fixture.componentInstance;
 
-      cmp.statusFilter.set('esperando');
+      cmp.trocarSituacao('esperando');
+      const carga = proximaCarga();
+      expect(carga.params.getAll('status')).toEqual([
+        'COM_INCONSISTENCIAS',
+        'REJEITADA',
+        'RASCUNHO',
+      ]);
+      carga.responder(carteira().filter((n) => n.status !== 'AUTORIZADA'));
       fixture.detectChanges();
 
       expect(
@@ -1239,19 +1398,43 @@ describe('DocumentosPage', () => {
       ).toEqual(['n3', 'n4']);
     });
 
+    it('cancelar uma nota tira o valor dela do faturamento do resumo (#116)', () => {
+      const fixture = comNotas(carteira());
+      const cmp = fixture.componentInstance;
+      vi.spyOn(TestBed.inject(ToastService), 'success').mockImplementation(() => undefined);
+      expect(cmp.resumoDoPeriodo().faturado).toBe(1500);
+
+      cmp.pedirCancelamento(cmp.notas()[0]);
+      cmp.motivoCancel.set('Venda desfeita pelo comprador antes da entrega');
+      cmp.confirmarCancelamento();
+      httpMock
+        .expectOne((r) => r.url === '/notas/n1/cancelar')
+        .flush({ status: 'CANCELADA', protocoloCancelamento: '1' });
+
+      expect(cmp.resumoDoPeriodo().faturado).toBe(500);
+    });
+
     it('o resumo não muda quando a situação é filtrada — ele descreve o período', () => {
       const fixture = comNotas(carteira());
       const cmp = fixture.componentInstance;
 
-      cmp.statusFilter.set('esperando');
+      cmp.trocarSituacao('esperando');
+      proximaCarga().responder(carteira().filter((n) => n.status !== 'AUTORIZADA'));
       fixture.detectChanges();
 
       // Se mudasse, clicar em "ver essas notas" zeraria o faturamento que a faixa acabou de
       // mostrar, e a pessoa pensaria que perdeu o dado.
       expect(cmp.resumoDoPeriodo().faturado).toBe(1500);
 
-      // Mas o periodo entra na conta, porque e o recorte que ela escolheu.
-      cmp.periodo.set('2026-08');
+      // Mas o periodo entra na conta, porque e o recorte que ela escolheu. Com a situacao
+      // ligada, a lista nao serve de base: o resumo pede a sua propria carga, sem `status`.
+      cmp.trocarPeriodo('2026-08');
+      const [lista, resumo] = httpMock.match((r) => r.url === '/notas');
+      expect(lista.request.params.getAll('status')).toHaveLength(3);
+      expect(resumo.request.params.has('status')).toBe(false);
+      expect(resumo.request.params.get('emitidaDe')).toBe('2026-08-01');
+      lista.flush(pagina([carteira()[3]]));
+      resumo.flush(pagina([carteira()[3]]));
       fixture.detectChanges();
       expect(cmp.resumoDoPeriodo().faturado).toBe(0);
       expect(cmp.resumoDoPeriodo().rascunhos).toBe(1);
