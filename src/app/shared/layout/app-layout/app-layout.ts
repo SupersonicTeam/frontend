@@ -22,6 +22,7 @@ import { SessaoService } from '@core/services/sessao.service';
 import { EncerramentoService } from '@core/services/encerramento.service';
 import { AssistenteDrawer } from '@shared/assistente/assistente-drawer';
 import { AssistenteLauncher } from '@shared/assistente/assistente-launcher';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { ToastContainer } from '@shared/components/toast-container/toast-container';
 
@@ -66,6 +67,13 @@ export class AppLayout implements OnInit {
   readonly sessao = inject(SessaoService);
   private readonly encerramento = inject(EncerramentoService);
   private readonly authApi = inject(AuthApi);
+  /** Só para o `@defer` da gaveta: ela carrega no primeiro `aberto()` (#143). */
+  protected readonly assistente = inject(AssistenteStore);
+
+  /** Saída do `@error` da gaveta: um chunk que falhou não é baixado de novo pelo `@defer`. */
+  protected recarregar(): void {
+    window.location.reload();
+  }
 
   mobileMenuOpen = signal(false);
   notificacoesOpen = signal(false);

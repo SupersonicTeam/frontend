@@ -1,9 +1,11 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { SessaoService } from '@core/services/sessao.service';
 import { entrarComo } from '@core/services/sessao.testing';
+import type { NotaFiscal } from '@models/nota-fiscal.model';
+import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { AppLayout } from './app-layout';
 
 /**
@@ -171,4 +173,72 @@ describe('AppLayout', () => {
     expect(el.querySelector('app-assistente-launcher')).toBeNull();
     expect(el.querySelector('app-assistente-drawer')).toBeNull();
   });
+
+  /**
+   * A gaveta saiu do bundle inicial (#143): ela só nasce no primeiro `abrir()`. O pedido feito
+   * antes de o bloco carregar não pode se perder -- o primeiro clique tem que abrir a gaveta já
+   * com a nota, não exigir um segundo clique.
+   */
+  it('a gaveta da Ceres carrega no primeiro abrir e já nasce aberta, com a nota pedida', async () => {
+    entrarComo('PRODUTOR');
+    const fixture = montar();
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-assistente-launcher')).not.toBeNull();
+    expect(el.querySelector('app-assistente-drawer')).toBeNull();
+
+    const store = TestBed.inject(AssistenteStore);
+    store.abrirSobreNota({ id: 'n7', numero: 7, status: 'AUTORIZADA' } as NotaFiscal);
+    await abrirGaveta(fixture);
+
+    const gaveta = el.querySelector('app-assistente-drawer');
+    expect(gaveta).not.toBeNull();
+    expect(gaveta?.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(gaveta?.textContent).toContain('Falando sobre a nota 7');
+  });
+
+  it('o clique no launcher carrega a gaveta, e ao fechar o launcher volta', async () => {
+    entrarComo('PRODUTOR');
+    const fixture = montar();
+    const el = fixture.nativeElement as HTMLElement;
+
+    el.querySelector<HTMLButtonElement>('app-assistente-launcher button')!.click();
+    await abrirGaveta(fixture);
+    expect(el.querySelector('app-assistente-drawer [role="dialog"]')).not.toBeNull();
+    expect(el.querySelector('app-assistente-launcher button')).toBeNull();
+
+    TestBed.inject(AssistenteStore).fechar();
+    fixture.detectChanges();
+    expect(el.querySelector('app-assistente-drawer [role="dialog"]')).toBeNull();
+    expect(el.querySelector('app-assistente-launcher button')).not.toBeNull();
+  });
+
+  it('se o chunk da gaveta falhar, explica e oferece recarregar, em vez de sumir com a Ceres', async () => {
+    entrarComo('PRODUTOR');
+    const fixture = montar();
+    const el = fixture.nativeElement as HTMLElement;
+    TestBed.inject(AssistenteStore).aberto.set(true);
+    fixture.detectChanges();
+
+    const [bloco] = await fixture.getDeferBlocks();
+    await bloco.render(DeferBlockState.Error);
+
+    expect(el.querySelector('[role="alert"]')?.textContent).toContain(
+      'Não foi possível abrir a Ceres',
+    );
+    expect(el.querySelector('app-assistente-drawer')).toBeNull();
+  });
+
+  /**
+   * Espera o `@defer` carregar e responde só o que o `abrir()` do store pede: painel, notas e a
+   * cota. Qualquer outra chamada fica pendente e o `verify()` do afterEach reprova.
+   */
+  async function abrirGaveta(fixture: ComponentFixture<AppLayout>) {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    httpMock.match((r) => r.url === '/dashboard').forEach((r) => r.flush({}));
+    httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush({ content: [] }));
+    httpMock.match((r) => r.url === '/assistente/uso').forEach((r) => r.flush({}));
+    fixture.detectChanges();
+  }
 });
