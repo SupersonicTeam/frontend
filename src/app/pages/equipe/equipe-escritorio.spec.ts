@@ -10,7 +10,7 @@ const membros = [
   { id: 'm2', nomeCompleto: 'Bia Assistente', crc: null, funcao: 'ASSISTENTE' },
 ];
 
-/** Escritório e equipe em Configurações (#148): só o administrador gerencia. */
+/** Escritório e equipe, na aba /equipe (#148, #157): só o administrador gerencia. */
 describe('EquipeEscritorio', () => {
   let httpMock: HttpTestingController;
 

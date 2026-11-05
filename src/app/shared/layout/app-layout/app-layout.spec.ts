@@ -243,4 +243,43 @@ describe('AppLayout', () => {
     httpMock.match((r) => r.url === '/assistente/uso').forEach((r) => r.flush({}));
     fixture.detectChanges();
   }
+
+  /** A equipe do escritório virou aba do contador (#157), nos dois menus. */
+  describe('menu', () => {
+    const links = (f: ComponentFixture<AppLayout>, seletor: string) =>
+      [
+        ...(f.nativeElement as HTMLElement).querySelectorAll<HTMLAnchorElement>(
+          `${seletor} a[href]`,
+        ),
+      ].map((a) => a.getAttribute('href'));
+
+    it('o contador tem a aba Equipe na barra lateral', () => {
+      entrarComo('CONTADOR');
+      expect(links(montar(), 'aside')).toContain('/equipe');
+    });
+
+    it('o produtor não vê a aba Equipe', () => {
+      entrarComo('PRODUTOR');
+      expect(links(montar(), 'aside')).not.toContain('/equipe');
+    });
+
+    /**
+     * O menu do celular do contador estava desatualizado: mostrava "Minhas notas", na voz do
+     * produtor, e "Contador", sem Fechamento nem Prazos. Agora espelha a barra lateral.
+     */
+    it('no celular, o contador vê o mesmo menu da barra lateral', () => {
+      entrarComo('CONTADOR');
+      const f = montar();
+      f.componentInstance.toggleMobileMenu();
+      f.detectChanges();
+
+      const nav = (f.nativeElement as HTMLElement).querySelector('nav.rounded-b-xl');
+      const hrefs = [...(nav?.querySelectorAll('a[href]') ?? [])].map((a) =>
+        a.getAttribute('href'),
+      );
+      expect(hrefs).toEqual(['/contador', '/documentos', '/tributario', '/calendario', '/equipe']);
+      expect(nav?.textContent).toContain('Notas do produtor');
+      expect(nav?.textContent).not.toContain('Minhas notas');
+    });
+  });
 });

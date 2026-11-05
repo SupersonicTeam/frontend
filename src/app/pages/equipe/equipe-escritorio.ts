@@ -1,6 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
-import { LucideUsers } from '@lucide/angular';
 import {
   EscritorioApi,
   FUNCOES_ESCRITORIO,
@@ -22,13 +21,10 @@ import { UiModal } from '@shared/ui/ui-modal';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
- * Escritório e equipe, em Configurações do contador (#148, backend#228).
+ * Escritório e equipe do contador (#148, backend#228), hospedado pela página `/equipe` (#157).
  *
- * ## Por que seção e não página
- *
- * É configuração do escritório, consultada de vez em quando — como o catálogo de obrigações, que
- * já mora logo abaixo. Uma rota nova poria mais um item no menu do contador para uma tela que ele
- * abre raramente.
+ * Nasceu como seção de Configurações, pela ideia de que é configuração consultada de vez em
+ * quando. No uso ficou escondida, e desde a #157 tem aba própria no menu — ver `EquipePage`.
  *
  * Todo membro vê o escritório e a equipe. **Só o administrador** edita os dados, troca função,
  * remove e convida (as outras funções levariam 403), então só ele vê esses controles. O
@@ -37,7 +33,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 @Component({
   selector: 'app-equipe-escritorio',
   standalone: true,
-  imports: [LucideUsers, UiButton, UiModal],
+  imports: [UiButton, UiModal],
   templateUrl: './equipe-escritorio.html',
 })
 export class EquipeEscritorio implements OnInit {

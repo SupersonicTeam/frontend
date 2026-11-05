@@ -80,6 +80,14 @@ export const routes: Routes = [
         canActivate: [contadorGuard],
         loadComponent: () => import('@pages/contador/cliente').then((m) => m.ClientePage),
       },
+      {
+        // O escritorio e a equipe (#157). Era uma secao de Configuracoes e ficava escondida.
+        // Nao se confunde com `equipe/convite`, la em cima: aquela e publica, fora do shell, e
+        // casa o caminho inteiro; esta so casa `/equipe`.
+        path: 'equipe',
+        canActivate: [contadorGuard],
+        loadComponent: () => import('@pages/equipe/equipe').then((m) => m.EquipePage),
+      },
 
       // ── Dos dois, com **telas diferentes** por papel. Não é o mesmo componente com textos
       // trocados: `/tributario` escolhe entre dois componentes próprios, porque produtor e contador

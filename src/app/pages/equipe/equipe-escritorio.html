@@ -1,9 +1,6 @@
+<!-- Sem titulo proprio: quem da o titulo e a pagina \`/equipe\` (#157). Quando isto era secao de
+     Configuracoes, o h2 "Escritorio e equipe" fazia esse papel; ao lado do h1 "Equipe" so repetia. -->
 <div class="flex flex-col gap-4 rounded-card border border-border bg-card p-5 shadow-suave">
-  <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
-    <svg lucideUsers [size]="18" class="text-primary" />
-    Escritório e equipe
-  </h2>
-
   @if (erro()) {
     <div class="flex flex-wrap items-center justify-between gap-3 text-apoio text-muted-foreground">
       <span>Não foi possível carregar o escritório e a equipe.</span>
