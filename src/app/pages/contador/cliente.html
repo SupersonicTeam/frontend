@@ -214,6 +214,9 @@
                   <ui-button variant="sutil" (click)="verPreviaDanfe(nota)">Ver a DANFE</ui-button>
                 </div>
 
+                <!-- Ja passou por aqui antes? O historico diz (#150). -->
+                <app-historico-revisao [produtorId]="produtorId" [notaId]="nota.id" />
+
                 @if (motivoAberto(); as aberto) {
                   @if (aberto.alvo === 'nota' && aberto.id === nota.id) {
                     <div class="space-y-2 rounded-controle border border-border bg-surface p-3">
@@ -272,6 +275,9 @@
                    e APROVADA (#111): conferir o documento é o que faz o escritório saber o que
                    pedir ao produtor. -->
                 <ui-button variant="sutil" (click)="verPreviaDanfe(nota)">Ver a DANFE</ui-button>
+                <div class="w-full">
+                  <app-historico-revisao [produtorId]="produtorId" [notaId]="nota.id" />
+                </div>
               </li>
             }
           </ul>
@@ -480,6 +486,12 @@
                 <!-- Só o que o status permite: oferecer "Aceitar" num pedido que o produtor nem
                    respondeu daria 409 TRANSICAO_PENDENCIA_INVALIDA. -->
                 <div class="flex flex-wrap gap-2">
+                  @if (p.status === 'PENDENTE') {
+                    <!-- So enquanto o produtor nao respondeu (#150): depois, o servidor recusa. -->
+                    <ui-button variant="ghost" (click)="editandoPedido.set(p)">
+                      Editar pedido
+                    </ui-button>
+                  }
                   @for (acao of acoesDe(p); track acao.verbo) {
                     <ui-button
                       [variant]="acao.tom"
@@ -534,3 +546,12 @@
     }
   }
 </div>
+
+@if (editandoPedido(); as ep) {
+  <app-editar-pedido
+    [produtorId]="produtorId"
+    [pendencia]="ep"
+    (salvo)="aoEditarPedido($event)"
+    (fechar)="editandoPedido.set(null)"
+  />
+}

@@ -204,6 +204,23 @@ describe('ClientePage', () => {
   });
 
   /** A ficha editavel (#149) avisa o que mudou; o cabecalho acompanha sem recarregar. */
+  /** Editar o pedido (#150) troca o item, mas nao perde os anexos que ja tinham sido carregados. */
+  it('pedido editado substitui o da lista sem perder os anexos carregados', () => {
+    const fixture = abrir();
+    responder({});
+    const cmp = fixture.componentInstance;
+    const anexo = { id: 'a1', nomeArquivo: 'nf.pdf', situacao: 'LIMPO' };
+    cmp.pendencias.set([
+      { id: 'pe1', titulo: 'Antigo', status: 'PENDENTE', quantidadeAnexos: 1, anexos: [anexo] },
+    ] as never);
+
+    cmp.aoEditarPedido({ id: 'pe1', titulo: 'Novo', status: 'PENDENTE', anexos: [] } as never);
+
+    expect(cmp.pendencias()[0]!.titulo).toBe('Novo');
+    expect(cmp.pendencias()[0]!.anexos).toEqual([anexo]);
+    expect(cmp.editandoPedido()).toBeNull();
+  });
+
   it('etiquetas e responsavel mudados na ficha editavel chegam ao cabecalho', () => {
     const fixture = abrir();
     responder({});

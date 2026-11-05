@@ -4,6 +4,7 @@ import { Observable, map, of, switchMap } from 'rxjs';
 import type { FiltroCarteira, PaginaCarteira, ProdutorCarteira } from '@models/carteira.model';
 import type { Pendencia, StatusPendencia, TipoDocumentoPendencia } from '@models/pendencia.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
+import type { RevisaoNota } from '@services/notas/data-access/notas.service';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { statusDaGuia } from '@core/utils/guias';
 import type { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
@@ -455,6 +456,31 @@ export class CarteiraApi {
    */
   detalharPendencia(produtorId: string, pendenciaId: string): Observable<Pendencia> {
     return this.http.get<Pendencia>(`/contador/produtores/${produtorId}/pendencias/${pendenciaId}`);
+  }
+
+  /**
+   * `GET .../notas/{id}/revisoes` — o histórico de revisão da nota no lado do escritório (#150):
+   * `ENVIADA`, `RETIRADA`, `APROVADA`, `DEVOLVIDA` (com o motivo) e `APROVACAO_CADUCADA`.
+   */
+  revisoesDaNota(produtorId: string, notaId: string): Observable<RevisaoNota[]> {
+    return this.http.get<RevisaoNota[]>(
+      `/contador/produtores/${produtorId}/notas/${notaId}/revisoes`,
+    );
+  }
+
+  /**
+   * `PUT .../pendencias/{id}` — edita o pedido **enquanto `PENDENTE`** (#150). Mesmo corpo da
+   * criação; depois que o produtor mandou arquivo, o servidor recusa.
+   */
+  editarPendencia(
+    produtorId: string,
+    pendenciaId: string,
+    pedido: NovoPedidoDocumento,
+  ): Observable<Pendencia> {
+    return this.http.put<Pendencia>(
+      `/contador/produtores/${produtorId}/pendencias/${pendenciaId}`,
+      pedido,
+    );
   }
 
   /**
