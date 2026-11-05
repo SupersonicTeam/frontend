@@ -77,7 +77,20 @@ describe('ClientePage', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => {
+    // A secao de numeros (#138) tem o proprio spec (`apuracao-cliente.spec.ts`); aqui so drenamos
+    // o que ela pede, para o `verify()` continuar severo com o resto da ficha.
+    httpMock
+      .match(
+        (r) =>
+          r.url === '/escritorio' ||
+          /^\/contador\/produtores\/[^/]+\/(apuracao|creditos|relatorios\/conformidade)$/.test(
+            r.url,
+          ),
+      )
+      .forEach((r) => r.flush({}));
+    httpMock.verify();
+  });
 
   function abrir() {
     const fixture = TestBed.createComponent(ClientePage);
@@ -95,9 +108,7 @@ describe('ClientePage', () => {
     httpMock
       .expectOne((r) => r.url === '/contador/produtores')
       .flush(opcoes.carteira ?? [cliente()]);
-    httpMock
-      .expectOne((r) => r.url === '/contador/produtores/p1/notas')
-      .flush(opcoes.notas ?? []);
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush(opcoes.notas ?? []);
     httpMock.expectOne((r) => r.url === '/contador/guias').flush(opcoes.guias ?? []);
     httpMock
       .expectOne((r) => r.url === '/contador/produtores/p1/pendencias')
@@ -109,6 +120,16 @@ describe('ClientePage', () => {
     responder({});
 
     expect(fixture.componentInstance.cliente()?.nomeCompleto).toBe('João da Silva Produtor');
+  });
+
+  /** Os numeros (#138) saem com o produtorId da rota, e o aviso de "rota inexistente" sumiu. */
+  it('a secao de apuracao usa o cliente da rota, e o aviso antigo nao existe mais', () => {
+    const fixture = abrir();
+    responder({});
+    fixture.detectChanges();
+
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/apuracao').flush({});
+    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('não existe rota');
   });
 
   it('pede as notas que são trabalho do escritório, num pedido só com os três status', () => {
@@ -184,9 +205,7 @@ describe('ClientePage', () => {
 
     fixture.componentInstance.alternarNota('n9');
 
-    httpMock
-      .expectOne((r) => r.url === '/contador/produtores/p1/notas/n9/validacoes')
-      .flush([]);
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas/n9/validacoes').flush([]);
   });
 
   it('fechar a nota expandida não dispara requisição nova', () => {
@@ -403,9 +422,7 @@ describe('ClientePage', () => {
 
       page.aprovar(page.notasAguardandoAprovacao()[0]!);
 
-      const req = httpMock.expectOne(
-        (r) => r.url === '/contador/produtores/p1/notas/nr/aprovar',
-      );
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas/nr/aprovar');
       expect(req.request.body).toBeNull();
       req.flush(nota({ id: 'nr', status: 'APROVADA' as NotaFiscal['status'] }));
 
@@ -434,9 +451,7 @@ describe('ClientePage', () => {
       page.motivo.set('Falta o CFOP no item 2.');
       page.confirmarMotivo();
 
-      const req = httpMock.expectOne(
-        (r) => r.url === '/contador/produtores/p1/notas/nr/devolver',
-      );
+      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas/nr/devolver');
       expect(req.request.body).toEqual({ motivo: 'Falta o CFOP no item 2.' });
       req.flush(nota({ id: 'nr', status: 'DEVOLVIDA' as NotaFiscal['status'] }));
 

@@ -34,6 +34,7 @@ import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
+import { ApuracaoCliente } from './apuracao-cliente';
 
 /** Os quatro verbos do ciclo de um pedido de documento. */
 export type VerboPendencia = 'concluir' | 'rejeitar' | 'cancelar' | 'reabrir';
@@ -68,16 +69,11 @@ const STATUS_DE_TRABALHO = ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO', 'DEVO
  *
  * ## Só o que o escritório alcança de verdade
  *
- * As quatro fontes desta tela existem no escopo do contador e foram medidas respondendo 200:
- * a carteira, `/contador/produtores/{id}/notas`, `/contador/guias?produtorId=` e
- * `/contador/produtores/{id}/pendencias`.
- *
- * **Apuração e relatório de conformidade não estão aqui**, e não é esquecimento:
- * `/api/apuracao` e `/api/relatorios/conformidade` derivam o produtor da identidade e dão 403 para
- * contador, e a versão por cliente não existe (`/contador/produtores/{id}/apuracao` responde 404 —
- * só o `reabrir` mora lá). Pedido em SupersonicTeam/backend#255. Preencher esse espaço com os
- * números do produtor da identidade atual seria mostrar o dinheiro de **outra pessoa** na ficha
- * deste cliente; a tela prefere dizer que não sabe.
+ * Todas as fontes desta tela estão no escopo do contador: a carteira,
+ * `/contador/produtores/{id}/notas`, `/contador/guias?produtorId=`,
+ * `/contador/produtores/{id}/pendencias` e, desde a backend#255, a apuração, os créditos e o
+ * relatório de conformidade do cliente (`ApuracaoCliente`, #138). Nenhuma lê a identidade do token:
+ * a do escritório daria 403, ou os números de **outra pessoa** nesta ficha.
  *
  * ## As ações também ficaram de fora, de propósito
  *
@@ -89,6 +85,7 @@ const STATUS_DE_TRABALHO = ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO', 'DEVO
   selector: 'app-cliente',
   standalone: true,
   imports: [
+    ApuracaoCliente,
     LucideArrowLeft,
     LucideChevronDown,
     LucideChevronRight,

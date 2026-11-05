@@ -49,6 +49,7 @@ describe('ImpostosContador', () => {
     httpMock
       .expectOne((r) => r.url === '/contador/produtores')
       .flush([cliente('p1', 'Ana Produtora'), cliente('p2', 'Bruno')]);
+    httpMock.expectOne('/escritorio').flush({ minhaFuncao: 'CONTADOR' });
     fixture.detectChanges();
     return fixture;
   }

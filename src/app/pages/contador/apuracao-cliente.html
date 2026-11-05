@@ -1,0 +1,126 @@
+<section class="rounded-card border border-border bg-card p-4" aria-labelledby="apuracao-cliente">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <h2
+      id="apuracao-cliente"
+      class="flex items-center gap-2 font-heading font-semibold text-foreground"
+    >
+      <svg lucideReceipt [size]="18" aria-hidden="true" />
+      Apuração de {{ rotuloDoPeriodo() }}
+      @if (status(); as st) {
+        <span class="rounded-full px-2 py-0.5 text-apoio font-medium" [class]="st.classe">
+          {{ st.label }}
+        </span>
+      }
+    </h2>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <select
+        class="tap-target rounded-controle border border-border bg-card px-3 text-apoio text-foreground"
+        aria-label="Mês da apuração"
+        [value]="periodo()"
+        (change)="mudarPeriodo($any($event.target).value)"
+      >
+        @for (m of meses; track m.valor) {
+          <option [value]="m.valor" [selected]="m.valor === periodo()">{{ m.rotulo }}</option>
+        }
+      </select>
+      <ui-button variant="ghost" [carregando]="baixandoPdf()" (click)="baixarPdf()">
+        @if (!baixandoPdf()) {
+          <svg lucideDownload [size]="14" />
+        }
+        Relatório em PDF
+      </ui-button>
+    </div>
+  </div>
+
+  <div class="mt-3">
+    @if (carregando()) {
+      <ui-skeleton [linhas]="3" />
+    } @else if (erro()) {
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 text-apoio text-muted-foreground"
+      >
+        <span>Não foi possível carregar a apuração deste mês.</span>
+        <ui-button variant="ghost" (click)="carregar()">
+          <svg lucideRefreshCw [size]="14" /> Tentar novamente
+        </ui-button>
+      </div>
+    } @else if (apuracao(); as ap) {
+      @if (semNotas()) {
+        <p class="text-apoio text-muted-foreground">
+          Sem notas emitidas em {{ rotuloDoPeriodo() }}.
+        </p>
+      } @else {
+        <dl class="grid gap-3 sm:grid-cols-3">
+          <div class="rounded-controle bg-surface-2 p-3">
+            <dt class="text-apoio text-muted-foreground">Débito (o que ele vendeu)</dt>
+            <dd class="text-valor font-semibold tabular-nums text-foreground">
+              {{ moeda(ap.debitoIbs + ap.debitoCbs) }}
+            </dd>
+            <dd class="text-apoio text-muted-foreground">
+              IBS {{ moeda(ap.debitoIbs) }} · CBS {{ moeda(ap.debitoCbs) }}
+            </dd>
+          </div>
+          <div class="rounded-controle bg-surface-2 p-3">
+            <dt class="text-apoio text-muted-foreground">Crédito (o que ele comprou)</dt>
+            <dd class="text-valor font-semibold tabular-nums text-foreground">
+              {{ moeda(ap.creditoIbs + ap.creditoCbs) }}
+            </dd>
+            <dd class="text-apoio text-muted-foreground">
+              IBS {{ moeda(ap.creditoIbs) }} · CBS {{ moeda(ap.creditoCbs) }}
+            </dd>
+          </div>
+          <div class="rounded-controle bg-surface-2 p-3">
+            <dt class="text-apoio text-muted-foreground">Saldo</dt>
+            <dd class="text-valor font-semibold tabular-nums text-foreground">
+              {{ moeda(ap.saldoIbs + ap.saldoCbs) }}
+            </dd>
+            <dd class="text-apoio text-muted-foreground">
+              IBS {{ moeda(ap.saldoIbs) }} · CBS {{ moeda(ap.saldoCbs) }}
+            </dd>
+          </div>
+        </dl>
+
+        <p class="mt-3 text-apoio text-muted-foreground">
+          {{ ap.totalNotas }} nota(s) somada(s)
+          @if (ap.parcial) {
+            · mês em andamento, os valores ainda mudam
+          }
+          @if (ap.dataFechamento) {
+            · fechada em {{ data(ap.dataFechamento) }}
+          }
+        </p>
+
+        @if (creditos(); as c) {
+          <p class="mt-1 text-apoio text-muted-foreground">
+            Créditos do mês: {{ moeda(c.creditoTotal) }} em {{ c.quantidadeNotas }} nota(s) de
+            entrada.
+          </p>
+        }
+        @if (relatorio(); as r) {
+          <p class="mt-1 text-apoio text-muted-foreground">
+            Conformidade: {{ r.quantidadeSaidas }} saída(s) e {{ r.quantidadeEntradas }} entrada(s),
+            {{ r.saldoAPagar < 0 ? 'saldo credor de' : 'a pagar' }}
+            <span class="font-medium text-foreground">{{ moeda(r.saldoAPagar) }}</span
+            >.
+          </p>
+        }
+      }
+
+      @if (fechada() && podeReabrir() && dentroDoPrazoDeReabrir()) {
+        <div class="mt-3 flex w-fit flex-col gap-1">
+          <ui-button variant="ghost" [carregando]="reabrindo()" (click)="reabrir()">
+            @if (!reabrindo()) {
+              <svg lucideLockOpen [size]="14" />
+            }
+            Reabrir apuração
+          </ui-button>
+          <span class="text-apoio text-muted-foreground">
+            Volta o mês para aberto: notas autorizadas depois disso mudam os valores. Até 3 meses
+            para trás.
+          </span>
+        </div>
+      }
+    }
+  </div>
+</section>
