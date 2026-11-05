@@ -40,6 +40,8 @@ import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { ApuracaoCliente } from './apuracao-cliente';
 import { VinculoCliente } from './vinculo-cliente';
 import { FichaEditavel, type MudancaNaFicha } from './ficha-editavel';
+import { HistoricoRevisao } from './historico-revisao';
+import { EditarPedido } from './editar-pedido';
 
 /** Os quatro verbos do ciclo de um pedido de documento. */
 export type VerboPendencia = 'concluir' | 'rejeitar' | 'cancelar' | 'reabrir';
@@ -91,6 +93,8 @@ const STATUS_DE_TRABALHO = ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO', 'DEVO
   standalone: true,
   imports: [
     ApuracaoCliente,
+    EditarPedido,
+    HistoricoRevisao,
     FichaEditavel,
     VinculoCliente,
     LucideArrowLeft,
@@ -225,6 +229,15 @@ export class ClientePage {
   /** Etiquetas e responsável mudaram na ficha editável (#149): o cabeçalho acompanha. */
   aoMudarFicha(mudanca: MudancaNaFicha): void {
     this.cliente.update((c) => (c ? { ...c, ...mudanca } : c));
+  }
+
+  /** O pedido que está sendo editado (#150). Só `PENDENTE` oferece "Editar". */
+  readonly editandoPedido = signal<Pendencia | null>(null);
+
+  /** O servidor devolveu o pedido editado: ele substitui o da lista. */
+  aoEditarPedido(atualizada: Pendencia): void {
+    this.editandoPedido.set(null);
+    this.pendencias.update((lista) => lista.map((p) => (p.id === atualizada.id ? atualizada : p)));
   }
 
   aoMudarVinculo(nova: SituacaoDoVinculo): void {
