@@ -16,6 +16,9 @@ import {
   LucideLogOut,
   LucideSparkles,
   LucideClipboardList,
+  LucideUsers,
+  LucideDynamicIcon,
+  type LucideIcon,
 } from '@lucide/angular';
 import { NotificacoesService } from '@core/services/notificacoes.service';
 import { SessaoService } from '@core/services/sessao.service';
@@ -26,12 +29,32 @@ import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { ToastContainer } from '@shared/components/toast-container/toast-container';
 
-export interface NavItem {
-  title: string;
-  path: string;
-  icon: unknown;
-  directive: string;
+/** Um item do menu: para onde vai, o que diz e o ícone. */
+interface ItemDoMenu {
+  rota: string;
+  rotulo: string;
+  icone: LucideIcon;
 }
+
+/**
+ * O menu do contador, **um só** para a barra lateral e o celular (#157).
+ *
+ * Os dois eram escritos à mão, cada um no seu bloco do template, e divergiram: o do celular
+ * mostrava "Minhas notas" (a voz do produtor) e "Contador", sem Fechamento nem Prazos. Uma lista
+ * desenhada pelos dois impede isso por construção.
+ *
+ * - "Notas do produtor", e não "Minhas notas": para o contador, as notas são do cliente dele.
+ * - `/tributario` e `/calendario` são as mesmas rotas do produtor com telas diferentes
+ *   (`ImpostosContador` para conferir e fechar, `PrazosContador` para cobrar).
+ * - Equipe (#157) foi seção de Configurações até ficar evidente que ninguém a achava lá.
+ */
+const MENU_CONTADOR: readonly ItemDoMenu[] = [
+  { rota: '/contador', rotulo: 'Acompanhamento', icone: LucideCalculator },
+  { rota: '/documentos', rotulo: 'Notas do produtor', icone: LucideFileText },
+  { rota: '/tributario', rotulo: 'Fechamento', icone: LucideReceipt },
+  { rota: '/calendario', rotulo: 'Prazos e cobrança', icone: LucideCalendar },
+  { rota: '/equipe', rotulo: 'Equipe', icone: LucideUsers },
+];
 
 @Component({
   selector: 'app-layout',
@@ -41,6 +64,7 @@ export interface NavItem {
     AssistenteLauncher,
     LucideSparkles,
     LucideClipboardList,
+    LucideDynamicIcon,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
@@ -91,13 +115,7 @@ export class AppLayout implements OnInit {
     this.encerramento.encerrar();
   }
 
-  readonly navItems = [
-    { title: 'Dashboard', path: '/dashboard' },
-    { title: 'Calendário', path: '/calendario' },
-    { title: 'Documentos', path: '/documentos' },
-    { title: 'Chat', path: '/chat' },
-    { title: 'Contador', path: '/contador' },
-  ];
+  readonly menuContador = MENU_CONTADOR;
 
   toggleMobileMenu(): void {
     this.mobileMenuOpen.update((v) => !v);

@@ -274,43 +274,18 @@
           >
             Contador
           </p>
-          <a
-            routerLink="/contador"
-            routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <svg lucideCalculator [size]="20" /><span>Acompanhamento</span>
-          </a>
-          <!-- "Minhas notas" e a voz do produtor: para o contador, as notas sao
-               do cliente dele. -->
-          <a
-            routerLink="/documentos"
-            routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <svg lucideFileText [size]="20" /><span>Notas do produtor</span>
-          </a>
-          <!-- Mesmas rotas do produtor, telas diferentes: /tributario e /calendario despacham
-               para `ImpostosContador` (conferir e fechar) e `PrazosContador` (cobrar), em vez das
-               versoes do produtor. -->
-          <a
-            routerLink="/tributario"
-            routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <svg lucideReceipt [size]="20" /><span>Fechamento</span>
-          </a>
-          <a
-            routerLink="/calendario"
-            routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
-          >
-            <svg lucideCalendar [size]="20" /><span>Prazos e cobrança</span>
-          </a>
+          <!-- Os itens vem de \`MENU_CONTADOR\` (app-layout.ts), o mesmo que desenha o menu do
+               celular: escritos duas vezes a mao, os dois menus divergiram (#157). -->
+          @for (item of menuContador; track item.rota) {
+            <a
+              [routerLink]="item.rota"
+              routerLinkActive="bg-sidebar-accent text-sidebar-primary font-semibold"
+              [routerLinkActiveOptions]="{ exact: false }"
+              class="flex items-center gap-3 rounded-controle px-3 py-3 text-apoio font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+            >
+              <svg [lucideIcon]="item.icone" [size]="20" /><span>{{ item.rotulo }}</span>
+            </a>
+          }
         }
       </nav>
     </aside>
@@ -345,17 +320,15 @@
             >
               <svg lucideCalendar [size]="22" /><span>Prazos</span>
             </a>
-          }
-          <a
-            routerLink="/documentos"
-            routerLinkActive="bg-primary/10 text-primary"
-            [routerLinkActiveOptions]="{ exact: false }"
-            class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
-            (click)="closeMobileMenu()"
-          >
-            <svg lucideFileText [size]="22" /><span>Minhas notas</span>
-          </a>
-          @if (sessao.ehProdutor()) {
+            <a
+              routerLink="/documentos"
+              routerLinkActive="bg-primary/10 text-primary"
+              [routerLinkActiveOptions]="{ exact: false }"
+              class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
+              (click)="closeMobileMenu()"
+            >
+              <svg lucideFileText [size]="22" /><span>Minhas notas</span>
+            </a>
             <a
               routerLink="/tributario"
               routerLinkActive="bg-primary/10 text-primary"
@@ -375,16 +348,21 @@
               <svg lucideMessageSquare [size]="22" /><span>Assistente</span>
             </a>
           }
+          <!-- O menu do contador no celular e o mesmo \`MENU_CONTADOR\` da barra lateral (#157). Antes
+               ele era escrito a parte e mostrava "Minhas notas", na voz do produtor, e "Contador",
+               sem Fechamento nem Prazos. -->
           @if (sessao.ehContador()) {
-            <a
-              routerLink="/contador"
-              routerLinkActive="bg-primary/10 text-primary"
-              [routerLinkActiveOptions]="{ exact: false }"
-              class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
-              (click)="closeMobileMenu()"
-            >
-              <svg lucideCalculator [size]="22" /><span>Contador</span>
-            </a>
+            @for (item of menuContador; track item.rota) {
+              <a
+                [routerLink]="item.rota"
+                routerLinkActive="bg-primary/10 text-primary"
+                [routerLinkActiveOptions]="{ exact: false }"
+                class="flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-colors text-foreground hover:bg-muted"
+                (click)="closeMobileMenu()"
+              >
+                <svg [lucideIcon]="item.icone" [size]="22" /><span>{{ item.rotulo }}</span>
+              </a>
+            }
           }
         </nav>
       </div>

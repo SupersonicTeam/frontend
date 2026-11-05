@@ -182,10 +182,24 @@
     </form>
   </div>
 
-  <!-- O escritorio e a equipe (#148): secao, nao pagina -- e configuracao consultada de vez em
-       quando, como o catalogo logo abaixo. -->
+  <!-- O escritorio e a equipe moraram aqui (#148) e ficavam escondidos; desde a #157 sao uma aba
+       do menu. A linha fica para quem ainda vem procurar aqui. -->
   @if (sessao.ehContador()) {
-    <app-equipe-escritorio />
+    <p
+      class="rounded-card border border-border bg-card px-5 py-4 text-apoio text-muted-foreground shadow-suave"
+    >
+      <svg
+        lucideUsers
+        [size]="18"
+        class="mr-2 inline-block align-middle text-primary"
+        aria-hidden="true"
+      />Os dados do escritório e a equipe agora ficam em
+      <a
+        routerLink="/equipe"
+        class="tap-target inline-flex items-center font-medium text-primary underline"
+        >Equipe</a
+      >.
+    </p>
   }
 
   <!-- ── Catálogo de obrigações do escritório (backend#181) ──

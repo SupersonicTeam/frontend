@@ -7,7 +7,9 @@ import {
   LucideMoon,
   LucideSettings,
   LucideUser,
+  LucideUsers,
 } from '@lucide/angular';
+import { RouterLink } from '@angular/router';
 import { ThemeService } from '@core/services/theme.service';
 import { SessaoService } from '@core/services/sessao.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
@@ -57,14 +59,14 @@ const MESES_POR_EXTENSO = [
  * é a única coisa que sempre funcionou aqui, continua igual.
  */
 import { EscritorioProdutor } from './escritorio-produtor';
-import { EquipeEscritorio } from './equipe-escritorio';
 import { PrivacidadeConta } from './privacidade-conta';
 
 @Component({
   selector: 'app-configuracoes',
   standalone: true,
   imports: [
-    EquipeEscritorio,
+    RouterLink,
+    LucideUsers,
     PrivacidadeConta,
     EscritorioProdutor,
     UiCard,

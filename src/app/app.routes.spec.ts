@@ -26,6 +26,11 @@ describe('rotas por papel', () => {
     expect(guardsDe('contador')).toContain(contadorGuard);
   });
 
+  /** A equipe do escritório (#157): aba própria do contador, não mais seção de Configurações. */
+  it('/equipe é do contador', () => {
+    expect(guardsDe('equipe')).toContain(contadorGuard);
+  });
+
   it('/documentos é dos dois — e despacha para a tela de cada papel (#136)', () => {
     expect(guardsDe('documentos')).toEqual([]);
   });
@@ -61,6 +66,7 @@ describe('links do app (#112)', () => {
     '/contador',
     '/dashboard',
     '/documentos',
+    '/equipe',
     '/tributario',
   ];
 

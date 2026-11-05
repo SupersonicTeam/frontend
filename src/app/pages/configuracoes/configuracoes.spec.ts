@@ -39,10 +39,6 @@ describe('ConfiguracoesPage', () => {
     httpMock
       .match((r) => r.url === '/convites' || r.url === '/vinculos')
       .forEach((r) => r.flush([]));
-    // A secao de equipe do contador (#148) tambem tem spec proprio.
-    httpMock
-      .match((r) => r.url.startsWith('/escritorio'))
-      .forEach((r) => r.flush(r.request.url === '/escritorio' ? { minhaFuncao: 'CONTADOR' } : []));
     httpMock.verify();
     localStorage.clear();
   });
@@ -51,6 +47,20 @@ describe('ConfiguracoesPage', () => {
    * `/api/dashboard` e do produtor do token: para o contador responde 403 `PAPEL_NAO_AUTORIZADO`,
    * e a tela pedia mesmo assim, so para mostrar um cadastro de produtor que ele nao tem (#136).
    */
+  /** A equipe saiu daqui para a aba /equipe (#157); fica uma linha apontando para la. */
+  it('o contador nao tem mais a secao de equipe, so o link para a aba', () => {
+    entrarComo('CONTADOR');
+    const fixture = TestBed.createComponent(ConfiguracoesPage);
+    fixture.detectChanges();
+    httpMock.match((r) => r.url === '/contador/obrigacoes').forEach((r) => r.flush([]));
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    expect(el.querySelector('app-equipe-escritorio')).toBeNull();
+    expect(el.querySelector('a[href="/equipe"]')).not.toBeNull();
+    httpMock.expectNone((r) => r.url.startsWith('/escritorio'));
+  });
+
   it('o contador nao pede /api/dashboard: a rota e do produtor', () => {
     entrarComo('CONTADOR');
     const fixture = TestBed.createComponent(ConfiguracoesPage);
