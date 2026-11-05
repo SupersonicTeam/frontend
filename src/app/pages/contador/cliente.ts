@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import type { Observable } from 'rxjs';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   LucideArrowLeft,
   LucideChevronDown,
@@ -22,7 +22,10 @@ import {
   TIPO_DOCUMENTO_LABEL,
   TIPOS_DOCUMENTO,
 } from '@models/pendencia.model';
-import type { NovoPedidoDocumento } from '@services/contador/data-access/carteira.service';
+import type {
+  NovoPedidoDocumento,
+  SituacaoDoVinculo,
+} from '@services/contador/data-access/carteira.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ToastService } from '@core/services/toast.service';
 import { filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
@@ -35,6 +38,7 @@ import { UiButton } from '@shared/ui/ui-button';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
 import { ApuracaoCliente } from './apuracao-cliente';
+import { VinculoCliente } from './vinculo-cliente';
 
 /** Os quatro verbos do ciclo de um pedido de documento. */
 export type VerboPendencia = 'concluir' | 'rejeitar' | 'cancelar' | 'reabrir';
@@ -86,6 +90,7 @@ const STATUS_DE_TRABALHO = ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO', 'DEVO
   standalone: true,
   imports: [
     ApuracaoCliente,
+    VinculoCliente,
     LucideArrowLeft,
     LucideChevronDown,
     LucideChevronRight,
@@ -107,6 +112,7 @@ const STATUS_DE_TRABALHO = ['COM_INCONSISTENCIAS', 'AGUARDANDO_APROVACAO', 'DEVO
 export class ClientePage {
   private readonly carteiraApi = inject(CarteiraApi);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 
   readonly produtorId = this.route.snapshot.paramMap.get('produtorId') ?? '';
@@ -194,6 +200,11 @@ export class ClientePage {
           this.carregando.set(false);
           return;
         }
+        // Vinculo suspenso: as rotas do cliente respondem 404, nao ha trabalho para buscar (#147).
+        if (cliente.situacaoVinculo !== 'ATIVO') {
+          this.carregando.set(false);
+          return;
+        }
         this.carregarTrabalho();
       },
       error: () => {
@@ -201,6 +212,24 @@ export class ClientePage {
         this.carregando.set(false);
       },
     });
+  }
+
+  /**
+   * Depois de suspender, reativar ou encerrar (#147).
+   *
+   * Encerrado não volta, então a ficha deixa de ter o que mostrar e devolve para a carteira.
+   * Reativado, recarrega: o trabalho do cliente volta a ser alcançável.
+   */
+  aoMudarVinculo(nova: SituacaoDoVinculo): void {
+    if (nova.situacao === 'ENCERRADO') {
+      void this.router.navigate(['/contador']);
+      return;
+    }
+    if (nova.situacao === 'ATIVO') {
+      this.carregar();
+      return;
+    }
+    this.cliente.update((c) => (c ? { ...c, situacaoVinculo: nova.situacao } : c));
   }
 
   /**

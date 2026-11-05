@@ -38,6 +38,17 @@ export class EscritorioApi {
    * tela; mostrar um que dá 403 ensina a desconfiar do sistema. O servidor continua sendo quem
    * decide de verdade.
    */
+  /**
+   * Quem convida cliente e mexe no vínculo (suspender, reativar, encerrar): só o administrador
+   * (#147). As outras funções recebem 403; na dúvida, `false`, pela mesma razão do reabrir.
+   */
+  ehAdministrador(): Observable<boolean> {
+    return this.meuEscritorio().pipe(
+      map((e) => e.minhaFuncao === 'ADMINISTRADOR'),
+      catchError(() => of(false)),
+    );
+  }
+
   podeReabrirApuracao(): Observable<boolean> {
     return this.meuEscritorio().pipe(
       map((e) => e.minhaFuncao === 'ADMINISTRADOR' || e.minhaFuncao === 'CONTADOR'),

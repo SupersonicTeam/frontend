@@ -60,6 +60,7 @@ describe('AppLayout', () => {
     // `/contador/produtores` para o escritório. Drenar aqui mantém os testes do shell focados
     // no que eles provam — nome, papel e painéis.
     httpMock.match((r) => r.url === '/alertas').forEach((r) => r.flush([]));
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
     httpMock.match((r) => r.url === '/contador/produtores').forEach((r) => r.flush([]));
     fixture.detectChanges();
     return fixture;
@@ -112,6 +113,7 @@ describe('AppLayout', () => {
 
     httpMock.match((r) => r.url === '/auth/me').forEach((r) => r.flush({}));
     httpMock.match((r) => r.url === '/alertas').forEach((r) => r.flush([]));
+    httpMock.match((r) => r.url === '/convites').forEach((r) => r.flush([]));
   });
 
   /**

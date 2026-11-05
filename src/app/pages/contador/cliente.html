@@ -54,151 +54,449 @@
       </p>
     </header>
 
-    <!-- Os numeros do cliente (#138), logo abaixo do cabecalho: e a primeira coisa que o contador
+    <!-- O ciclo do vinculo (#147): so o administrador ve os botoes. -->
+    <app-vinculo-cliente [cliente]="c" (mudou)="aoMudarVinculo($event)" />
+
+    @if (c.situacaoVinculo !== 'ATIVO') {
+      <!-- Vinculo suspenso: o escritorio nao alcanca os dados do produtor (o servidor responde 404
+           nas rotas do cliente), entao nao ha numeros nem trabalho para mostrar. -->
+      <ui-empty-state
+        titulo="Vínculo suspenso"
+        descricao="Enquanto o vínculo estiver suspenso, o escritório não alcança as notas, guias e documentos deste cliente. Reativar devolve o acesso; encerrar corta de vez."
+      >
+        <svg icone lucideUserX [size]="24" aria-hidden="true" />
+      </ui-empty-state>
+    } @else {
+      <!-- Os numeros do cliente (#138), logo abaixo do cabecalho: e a primeira coisa que o contador
          confere. Havia no fim da ficha um aviso de que a apuracao nao tinha rota no escopo do
          escritorio; tem desde a backend#255, sempre com o produtorId desta ficha. -->
-    <app-apuracao-cliente [produtorId]="produtorId" />
+      <app-apuracao-cliente [produtorId]="produtorId" />
 
-    @if (nadaAFazer()) {
-      <ui-empty-state
-        titulo="Nada pendente com este cliente"
-        descricao="Sem nota travada, guia a cobrar ou documento esperando conferência."
-      >
-        <svg icone lucideInbox [size]="24" aria-hidden="true" />
-      </ui-empty-state>
-    }
+      @if (nadaAFazer()) {
+        <ui-empty-state
+          titulo="Nada pendente com este cliente"
+          descricao="Sem nota travada, guia a cobrar ou documento esperando conferência."
+        >
+          <svg icone lucideInbox [size]="24" aria-hidden="true" />
+        </ui-empty-state>
+      }
 
-    <!-- ── Notas com inconsistência ── -->
-    @if (notasComInconsistencia().length) {
-      <section
-        class="rounded-card border bg-card p-4"
-        [class]="foco() === 'inconsistencia' ? 'border-perigo-borda' : 'border-border'"
-      >
-        <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
-          <svg lucideFileWarning [size]="18" class="text-perigo-ink" aria-hidden="true" />
-          {{ notasComInconsistencia().length }}
-          {{ notasComInconsistencia().length === 1 ? 'nota travada' : 'notas travadas' }}
-        </h2>
-        <p class="mt-1 text-apoio text-muted-foreground">
-          O validador fiscal recusou. Abra para ver o que ele apontou — é o que o produtor precisa
-          corrigir.
-        </p>
+      <!-- ── Notas com inconsistência ── -->
+      @if (notasComInconsistencia().length) {
+        <section
+          class="rounded-card border bg-card p-4"
+          [class]="foco() === 'inconsistencia' ? 'border-perigo-borda' : 'border-border'"
+        >
+          <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
+            <svg lucideFileWarning [size]="18" class="text-perigo-ink" aria-hidden="true" />
+            {{ notasComInconsistencia().length }}
+            {{ notasComInconsistencia().length === 1 ? 'nota travada' : 'notas travadas' }}
+          </h2>
+          <p class="mt-1 text-apoio text-muted-foreground">
+            O validador fiscal recusou. Abra para ver o que ele apontou — é o que o produtor precisa
+            corrigir.
+          </p>
 
-        <ul class="mt-3 divide-y divide-border">
-          @for (nota of notasComInconsistencia(); track nota.id) {
-            <li>
-              <button
-                type="button"
-                class="tap-target flex w-full items-center gap-2 py-2 text-left"
-                [attr.aria-expanded]="notaExpandida() === nota.id"
-                (click)="alternarNota(nota.id)"
-              >
-                @if (notaExpandida() === nota.id) {
-                  <svg
-                    lucideChevronDown
-                    [size]="16"
-                    class="shrink-0 text-perigo-ink"
-                    aria-hidden="true"
-                  />
-                } @else {
-                  <svg
-                    lucideChevronRight
-                    [size]="16"
-                    class="shrink-0 text-perigo-ink"
-                    aria-hidden="true"
-                  />
-                }
-                <span class="min-w-0 flex-1 text-apoio text-foreground">
-                  <span class="font-medium">Nota {{ nota.numero }}</span>
-                  · {{ nota.destinatarioNome }}
-                  <span class="text-muted-foreground">· {{ dataCurta(nota.dataEmissao) }}</span>
-                </span>
-                <ui-badge-status [status]="nota.status" />
-              </button>
-
-              @if (notaExpandida() === nota.id) {
-                <div class="pb-3 pl-6">
-                  @if (carregandoValidacoes()) {
-                    <p class="flex items-center gap-2 text-apoio text-muted-foreground">
-                      <svg lucideLoaderCircle [size]="14" class="animate-spin" aria-hidden="true" />
-                      Buscando o que o fisco apontou…
-                    </p>
-                  } @else if (validacoes().length) {
-                    <ul class="flex flex-col gap-1.5">
-                      @for (v of validacoes(); track v.code + (v.field ?? '')) {
-                        <li class="text-apoio leading-relaxed text-foreground">
-                          @if (v.field) {
-                            <span class="font-medium">{{ rotuloDoCampo(v.field) }}:</span>
-                          }
-                          {{ v.message }}
-                          @if (v.suggestion) {
-                            <span class="block text-muted-foreground">{{ v.suggestion }}</span>
-                          }
-                        </li>
-                      }
-                    </ul>
+          <ul class="mt-3 divide-y divide-border">
+            @for (nota of notasComInconsistencia(); track nota.id) {
+              <li>
+                <button
+                  type="button"
+                  class="tap-target flex w-full items-center gap-2 py-2 text-left"
+                  [attr.aria-expanded]="notaExpandida() === nota.id"
+                  (click)="alternarNota(nota.id)"
+                >
+                  @if (notaExpandida() === nota.id) {
+                    <svg
+                      lucideChevronDown
+                      [size]="16"
+                      class="shrink-0 text-perigo-ink"
+                      aria-hidden="true"
+                    />
                   } @else {
-                    <p class="text-apoio text-muted-foreground">
-                      O backend não registrou validações para esta nota.
-                    </p>
+                    <svg
+                      lucideChevronRight
+                      [size]="16"
+                      class="shrink-0 text-perigo-ink"
+                      aria-hidden="true"
+                    />
                   }
-                </div>
-              }
-            </li>
-          }
-        </ul>
-      </section>
-    }
+                  <span class="min-w-0 flex-1 text-apoio text-foreground">
+                    <span class="font-medium">Nota {{ nota.numero }}</span>
+                    · {{ nota.destinatarioNome }}
+                    <span class="text-muted-foreground">· {{ dataCurta(nota.dataEmissao) }}</span>
+                  </span>
+                  <ui-badge-status [status]="nota.status" />
+                </button>
 
-    <!-- ── Esperando a aprovação do escritório (backend#178) ──
+                @if (notaExpandida() === nota.id) {
+                  <div class="pb-3 pl-6">
+                    @if (carregandoValidacoes()) {
+                      <p class="flex items-center gap-2 text-apoio text-muted-foreground">
+                        <svg
+                          lucideLoaderCircle
+                          [size]="14"
+                          class="animate-spin"
+                          aria-hidden="true"
+                        />
+                        Buscando o que o fisco apontou…
+                      </p>
+                    } @else if (validacoes().length) {
+                      <ul class="flex flex-col gap-1.5">
+                        @for (v of validacoes(); track v.code + (v.field ?? '')) {
+                          <li class="text-apoio leading-relaxed text-foreground">
+                            @if (v.field) {
+                              <span class="font-medium">{{ rotuloDoCampo(v.field) }}:</span>
+                            }
+                            {{ v.message }}
+                            @if (v.suggestion) {
+                              <span class="block text-muted-foreground">{{ v.suggestion }}</span>
+                            }
+                          </li>
+                        }
+                      </ul>
+                    } @else {
+                      <p class="text-apoio text-muted-foreground">
+                        O backend não registrou validações para esta nota.
+                      </p>
+                    }
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <!-- ── Esperando a aprovação do escritório (backend#178) ──
          Era uma lista de leitura com um aviso de que os verbos eram de outra issue. São estes:
          enquanto o escritório não aprova, `gerar-xml` responde 409 APROVACAO_EXIGIDA para o
          produtor — este bloco é o que destrava a emissão dele. -->
-    @if (notasAguardandoAprovacao().length) {
-      <section
-        class="rounded-card border bg-card p-4"
-        [class]="foco() === 'aprovacao' ? 'border-aviso-borda' : 'border-border'"
-      >
-        <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
-          <svg lucideStamp [size]="18" class="text-aviso-ink" aria-hidden="true" />
-          {{ notasAguardandoAprovacao().length }} na sua mesa
-        </h2>
-        <p class="mt-1 text-apoio text-muted-foreground">
-          O produtor montou e enviou para a sua revisão. Enquanto você não aprova, ele não consegue
-          emitir.
-        </p>
+      @if (notasAguardandoAprovacao().length) {
+        <section
+          class="rounded-card border bg-card p-4"
+          [class]="foco() === 'aprovacao' ? 'border-aviso-borda' : 'border-border'"
+        >
+          <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
+            <svg lucideStamp [size]="18" class="text-aviso-ink" aria-hidden="true" />
+            {{ notasAguardandoAprovacao().length }} na sua mesa
+          </h2>
+          <p class="mt-1 text-apoio text-muted-foreground">
+            O produtor montou e enviou para a sua revisão. Enquanto você não aprova, ele não
+            consegue emitir.
+          </p>
 
-        <ul class="mt-3 divide-y divide-border">
-          @for (nota of notasAguardandoAprovacao(); track nota.id) {
-            <li class="space-y-2 py-3">
-              <div class="flex flex-wrap items-center gap-2 text-apoio">
-                <span class="min-w-0 flex-1 text-foreground">
+          <ul class="mt-3 divide-y divide-border">
+            @for (nota of notasAguardandoAprovacao(); track nota.id) {
+              <li class="space-y-2 py-3">
+                <div class="flex flex-wrap items-center gap-2 text-apoio">
+                  <span class="min-w-0 flex-1 text-foreground">
+                    <span class="font-medium">Nota {{ nota.numero }}</span>
+                    · {{ nota.destinatarioNome }}
+                    <span class="text-muted-foreground">· {{ dataCurta(nota.dataEmissao) }}</span>
+                  </span>
+                  <strong class="font-semibold text-foreground">
+                    {{ moeda(nota.valorTotalNota) }}
+                  </strong>
+                  <ui-badge-status [status]="nota.status" />
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                  <ui-button [carregando]="executando() === nota.id" (click)="aprovar(nota)">
+                    Aprovar
+                  </ui-button>
+                  <ui-button variant="ghost" (click)="abrirMotivoDaNota(nota)">Devolver</ui-button>
+                  <!-- A prévia é o que permite conferir a nota antes de aprovar, em vez de decidir
+                     pelos números da listagem. -->
+                  <ui-button variant="sutil" (click)="verPreviaDanfe(nota)">Ver a DANFE</ui-button>
+                </div>
+
+                @if (motivoAberto(); as aberto) {
+                  @if (aberto.alvo === 'nota' && aberto.id === nota.id) {
+                    <div class="space-y-2 rounded-controle border border-border bg-surface p-3">
+                      <label class="block">
+                        <span class="text-apoio font-medium text-foreground">
+                          O que o produtor precisa corrigir
+                        </span>
+                        <textarea
+                          rows="2"
+                          [value]="motivo()"
+                          (input)="motivo.set($any($event.target).value)"
+                          maxlength="500"
+                          class="mt-1 w-full rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
+                        ></textarea>
+                      </label>
+                      <p class="text-apoio text-muted-foreground">
+                        De 5 a 500 caracteres. Fica no histórico da nota e é o que ele lê.
+                      </p>
+                      <div class="flex flex-wrap gap-2">
+                        <ui-button
+                          [disabled]="!motivoValido()"
+                          [carregando]="executando() === nota.id"
+                          (click)="confirmarMotivo()"
+                        >
+                          Devolver ao produtor
+                        </ui-button>
+                        <ui-button variant="sutil" (click)="fecharMotivo()">Voltar</ui-button>
+                      </div>
+                    </div>
+                  }
+                }
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <!-- ── Devolvidas: a bola está com o produtor ── -->
+      @if (notasDevolvidas().length) {
+        <section class="rounded-card border border-border bg-card p-4">
+          <h2 class="font-heading font-semibold text-foreground">
+            {{ notasDevolvidas().length }} devolvida(s) ao produtor
+          </h2>
+          <p class="mt-1 text-apoio text-muted-foreground">
+            Você já devolveu; está esperando ele corrigir.
+          </p>
+          <ul class="mt-3 divide-y divide-border">
+            @for (nota of notasDevolvidas(); track nota.id) {
+              <li class="flex flex-wrap items-center gap-2 py-2 text-apoio text-foreground">
+                <span class="min-w-0 flex-1">
                   <span class="font-medium">Nota {{ nota.numero }}</span>
                   · {{ nota.destinatarioNome }}
-                  <span class="text-muted-foreground">· {{ dataCurta(nota.dataEmissao) }}</span>
+                </span>
+                <ui-badge-status [status]="nota.status" />
+                <!-- A prévia aceita RASCUNHO, COM_INCONSISTENCIAS, DEVOLVIDA, AGUARDANDO_APROVACAO
+                   e APROVADA (#111): conferir o documento é o que faz o escritório saber o que
+                   pedir ao produtor. -->
+                <ui-button variant="sutil" (click)="verPreviaDanfe(nota)">Ver a DANFE</ui-button>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <!-- ── Guias a cobrar ── -->
+      @if (guiasACobrar().length) {
+        <section
+          class="rounded-card border bg-card p-4"
+          [class]="foco() === 'guias' ? 'border-perigo-borda' : 'border-border'"
+        >
+          <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
+            <svg lucideHandCoins [size]="18" class="text-perigo-ink" aria-hidden="true" />
+            {{ moeda(totalACobrar()) }} a cobrar
+          </h2>
+          <!--
+          Sem filtro de período: guia atrasada de agosto não pode sumir porque o contador está
+          olhando outubro.
+        -->
+          <p class="mt-1 text-apoio text-muted-foreground">
+            De qualquer mês. Lançar e dar baixa ficam em Prazos e cobrança, que é a tela delas.
+          </p>
+          <ul class="mt-3 divide-y divide-border">
+            @for (guia of guiasACobrar(); track guia.id) {
+              <li class="flex flex-wrap items-center gap-2 py-2 text-apoio">
+                <span
+                  class="rounded-full px-2 py-0.5 font-medium"
+                  [class]="
+                    guia.status === 'vencido'
+                      ? 'bg-perigo-soft text-perigo-ink'
+                      : 'bg-aviso-soft text-aviso-ink'
+                  "
+                >
+                  {{ guia.status === 'vencido' ? 'vencida' : 'a vencer' }}
+                </span>
+                <span class="min-w-0 flex-1 text-foreground">
+                  <span class="font-medium">{{ guia.tipoGuia }}</span>
+                  <span class="text-muted-foreground"> · {{ dataCurta(guia.dataVencimento) }}</span>
                 </span>
                 <strong class="font-semibold text-foreground">
-                  {{ moeda(nota.valorTotalNota) }}
+                  {{ moeda(guia.valor) }}
                 </strong>
-                <ui-badge-status [status]="nota.status" />
-              </div>
+              </li>
+            }
+          </ul>
+          <ui-button variant="ghost" routerLink="/calendario" class="mt-3 inline-block">
+            Cobrar em Prazos
+          </ui-button>
+        </section>
+      }
 
-              <div class="flex flex-wrap gap-2">
-                <ui-button [carregando]="executando() === nota.id" (click)="aprovar(nota)">
-                  Aprovar
-                </ui-button>
-                <ui-button variant="ghost" (click)="abrirMotivoDaNota(nota)">Devolver</ui-button>
-                <!-- A prévia é o que permite conferir a nota antes de aprovar, em vez de decidir
-                     pelos números da listagem. -->
-                <ui-button variant="sutil" (click)="verPreviaDanfe(nota)">Ver a DANFE</ui-button>
-              </div>
+      <!-- ── Pedidos de documento (backend#180) ──
+         Era uma lista só de leitura dos que esperavam conferência. Agora é o ciclo inteiro do
+         lado do escritório: pedir, aceitar, devolver com motivo, cancelar e reabrir. -->
+      <section
+        class="rounded-card border bg-card p-4"
+        [class]="foco() === 'documentos' ? 'border-info-borda' : 'border-border'"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
+            <svg lucideInbox [size]="18" class="text-info-ink" aria-hidden="true" />
+            Documentos
+            @if (pedidosEsperandoConferencia() > 0) {
+              <span
+                class="rounded-full bg-info-soft px-2 py-0.5 text-apoio font-medium text-info-ink"
+              >
+                {{ pedidosEsperandoConferencia() }} esperando conferência
+              </span>
+            }
+          </h2>
+          <ui-button variant="ghost" (click)="pedindo.set(!pedindo())">
+            {{ pedindo() ? 'Fechar' : 'Pedir documento' }}
+          </ui-button>
+        </div>
 
-              @if (motivoAberto(); as aberto) {
-                @if (aberto.alvo === 'nota' && aberto.id === nota.id) {
+        @if (pedindo()) {
+          <div class="mt-3 space-y-3 rounded-controle border border-border bg-surface p-3">
+            <label class="block">
+              <span class="text-apoio font-medium text-foreground">O que você precisa</span>
+              <input
+                type="text"
+                [value]="novoTitulo()"
+                (input)="novoTitulo.set($any($event.target).value)"
+                maxlength="120"
+                placeholder="Comprovantes de frete de setembro"
+                class="tap-target mt-1 w-full rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
+              />
+            </label>
+
+            <fieldset>
+              <legend class="text-apoio font-medium text-foreground">Tipos aceitos</legend>
+              <div class="mt-1 flex flex-wrap gap-2">
+                @for (tipo of tiposPossiveis; track tipo) {
+                  <label
+                    class="tap-target flex cursor-pointer items-center gap-2 rounded-controle border border-border px-3 py-2 text-apoio text-foreground"
+                    [class.border-primary]="novosTipos().includes(tipo)"
+                    [class.bg-primary\/10]="novosTipos().includes(tipo)"
+                  >
+                    <input
+                      type="checkbox"
+                      class="size-4 rounded border-border accent-primary"
+                      [checked]="novosTipos().includes(tipo)"
+                      (change)="alternarTipo(tipo)"
+                    />
+                    {{ rotuloDoTipo[tipo] }}
+                  </label>
+                }
+              </div>
+            </fieldset>
+
+            <div class="flex flex-wrap items-end gap-3">
+              <label class="block">
+                <span class="text-apoio font-medium text-foreground">Prazo (opcional)</span>
+                <input
+                  type="date"
+                  [value]="novoPrazo()"
+                  (input)="novoPrazo.set($any($event.target).value)"
+                  class="tap-target mt-1 rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
+                />
+              </label>
+              <ui-button
+                [disabled]="!podeCriarPedido()"
+                [carregando]="executando() === 'novo'"
+                (click)="criarPedido()"
+              >
+                Pedir ao produtor
+              </ui-button>
+            </div>
+
+            @if (!podeCriarPedido()) {
+              <p class="text-apoio text-muted-foreground">
+                Diga o que precisa e marque ao menos um tipo — o servidor exige os dois.
+              </p>
+            }
+          </div>
+        }
+
+        @if (pendencias().length === 0) {
+          <p class="mt-3 text-apoio text-muted-foreground">
+            Nenhum documento pedido a este cliente ainda.
+          </p>
+        } @else {
+          <ul class="mt-3 divide-y divide-border">
+            @for (p of pedidosOrdenados(); track p.id) {
+              <li class="py-3 space-y-2">
+                <div class="flex flex-wrap items-start justify-between gap-2">
+                  <div class="min-w-0 flex-1">
+                    <p class="font-medium text-foreground">{{ p.titulo }}</p>
+                    <p class="text-apoio text-muted-foreground">
+                      @if (p.dataLimite) {
+                        prazo {{ dataCurta(p.dataLimite) }} ·
+                      }
+                      {{ p.quantidadeAnexos }}
+                      {{ p.quantidadeAnexos === 1 ? 'arquivo' : 'arquivos' }}
+                    </p>
+                  </div>
+                  <span
+                    class="shrink-0 rounded-full px-2 py-0.5 text-apoio font-medium"
+                    [class]="
+                      p.status === 'ENVIADA'
+                        ? 'bg-info-soft text-info-ink'
+                        : p.status === 'PENDENTE'
+                          ? 'bg-aviso-soft text-aviso-ink'
+                          : p.status === 'CONCLUIDA'
+                            ? 'bg-sucesso-soft text-sucesso-ink'
+                            : 'bg-surface-2 text-muted-foreground'
+                    "
+                    >{{ rotuloDoStatus(p.status) }}</span
+                  >
+                </div>
+
+                @if (p.motivo) {
+                  <p class="text-apoio text-muted-foreground">Último motivo: {{ p.motivo }}</p>
+                }
+
+                <!-- Os arquivos que o produtor mandou. Só anexo LIMPO baixa; em verificação o
+                   servidor responde 409, e o botão diz isso em vez de falhar calado. -->
+                @for (anexo of p.anexos; track anexo.id) {
+                  <div class="flex flex-wrap items-center gap-2 text-apoio">
+                    <span class="min-w-0 flex-1 truncate text-foreground">{{
+                      anexo.nomeArquivo
+                    }}</span>
+                    @if (anexo.situacao === 'EM_VERIFICACAO') {
+                      <span class="flex items-center gap-1.5 text-muted-foreground">
+                        <svg
+                          lucideLoaderCircle
+                          [size]="14"
+                          class="animate-spin"
+                          aria-hidden="true"
+                        />
+                        em verificação
+                      </span>
+                    } @else {
+                      <button
+                        type="button"
+                        class="tap-target rounded-controle border border-border px-3 py-1.5 font-medium text-foreground hover:bg-muted"
+                        (click)="baixarAnexo(p, anexo.id)"
+                      >
+                        Baixar
+                      </button>
+                    }
+                  </div>
+                }
+
+                <!-- Só o que o status permite: oferecer "Aceitar" num pedido que o produtor nem
+                   respondeu daria 409 TRANSICAO_PENDENCIA_INVALIDA. -->
+                <div class="flex flex-wrap gap-2">
+                  @for (acao of acoesDe(p); track acao.verbo) {
+                    <ui-button
+                      [variant]="acao.tom"
+                      [carregando]="executando() === p.id"
+                      (click)="acionar(p, acao.verbo)"
+                    >
+                      {{ acao.rotulo }}
+                    </ui-button>
+                  }
+                </div>
+
+                @if (motivoAberto()?.id === p.id) {
                   <div class="space-y-2 rounded-controle border border-border bg-surface p-3">
                     <label class="block">
                       <span class="text-apoio font-medium text-foreground">
-                        O que o produtor precisa corrigir
+                        {{
+                          motivoAberto()!.verbo === 'rejeitar'
+                            ? 'O que o produtor precisa refazer'
+                            : 'Por que está cancelando'
+                        }}
                       </span>
                       <textarea
                         rows="2"
@@ -209,301 +507,27 @@
                       ></textarea>
                     </label>
                     <p class="text-apoio text-muted-foreground">
-                      De 5 a 500 caracteres. Fica no histórico da nota e é o que ele lê.
+                      De 5 a 500 caracteres. Este texto é o que o produtor lê no pedido dele.
                     </p>
                     <div class="flex flex-wrap gap-2">
                       <ui-button
                         [disabled]="!motivoValido()"
-                        [carregando]="executando() === nota.id"
+                        [carregando]="executando() === p.id"
                         (click)="confirmarMotivo()"
                       >
-                        Devolver ao produtor
+                        Confirmar
                       </ui-button>
                       <ui-button variant="sutil" (click)="fecharMotivo()">Voltar</ui-button>
                     </div>
                   </div>
                 }
-              }
-            </li>
-          }
-        </ul>
+              </li>
+            }
+          </ul>
+        }
       </section>
+
+      <!-- Lugar reservado para o "Historico de operacoes" do cliente (#137, auditoria). -->
     }
-
-    <!-- ── Devolvidas: a bola está com o produtor ── -->
-    @if (notasDevolvidas().length) {
-      <section class="rounded-card border border-border bg-card p-4">
-        <h2 class="font-heading font-semibold text-foreground">
-          {{ notasDevolvidas().length }} devolvida(s) ao produtor
-        </h2>
-        <p class="mt-1 text-apoio text-muted-foreground">
-          Você já devolveu; está esperando ele corrigir.
-        </p>
-        <ul class="mt-3 divide-y divide-border">
-          @for (nota of notasDevolvidas(); track nota.id) {
-            <li class="flex flex-wrap items-center gap-2 py-2 text-apoio text-foreground">
-              <span class="min-w-0 flex-1">
-                <span class="font-medium">Nota {{ nota.numero }}</span>
-                · {{ nota.destinatarioNome }}
-              </span>
-              <ui-badge-status [status]="nota.status" />
-              <!-- A prévia aceita RASCUNHO, COM_INCONSISTENCIAS, DEVOLVIDA, AGUARDANDO_APROVACAO
-                   e APROVADA (#111): conferir o documento é o que faz o escritório saber o que
-                   pedir ao produtor. -->
-              <ui-button variant="sutil" (click)="verPreviaDanfe(nota)">Ver a DANFE</ui-button>
-            </li>
-          }
-        </ul>
-      </section>
-    }
-
-    <!-- ── Guias a cobrar ── -->
-    @if (guiasACobrar().length) {
-      <section
-        class="rounded-card border bg-card p-4"
-        [class]="foco() === 'guias' ? 'border-perigo-borda' : 'border-border'"
-      >
-        <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
-          <svg lucideHandCoins [size]="18" class="text-perigo-ink" aria-hidden="true" />
-          {{ moeda(totalACobrar()) }} a cobrar
-        </h2>
-        <!--
-          Sem filtro de período: guia atrasada de agosto não pode sumir porque o contador está
-          olhando outubro.
-        -->
-        <p class="mt-1 text-apoio text-muted-foreground">
-          De qualquer mês. Lançar e dar baixa ficam em Prazos e cobrança, que é a tela delas.
-        </p>
-        <ul class="mt-3 divide-y divide-border">
-          @for (guia of guiasACobrar(); track guia.id) {
-            <li class="flex flex-wrap items-center gap-2 py-2 text-apoio">
-              <span
-                class="rounded-full px-2 py-0.5 font-medium"
-                [class]="
-                  guia.status === 'vencido'
-                    ? 'bg-perigo-soft text-perigo-ink'
-                    : 'bg-aviso-soft text-aviso-ink'
-                "
-              >
-                {{ guia.status === 'vencido' ? 'vencida' : 'a vencer' }}
-              </span>
-              <span class="min-w-0 flex-1 text-foreground">
-                <span class="font-medium">{{ guia.tipoGuia }}</span>
-                <span class="text-muted-foreground"> · {{ dataCurta(guia.dataVencimento) }}</span>
-              </span>
-              <strong class="font-semibold text-foreground">
-                {{ moeda(guia.valor) }}
-              </strong>
-            </li>
-          }
-        </ul>
-        <ui-button variant="ghost" routerLink="/calendario" class="mt-3 inline-block">
-          Cobrar em Prazos
-        </ui-button>
-      </section>
-    }
-
-    <!-- ── Pedidos de documento (backend#180) ──
-         Era uma lista só de leitura dos que esperavam conferência. Agora é o ciclo inteiro do
-         lado do escritório: pedir, aceitar, devolver com motivo, cancelar e reabrir. -->
-    <section
-      class="rounded-card border bg-card p-4"
-      [class]="foco() === 'documentos' ? 'border-info-borda' : 'border-border'"
-    >
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <h2 class="flex items-center gap-2 font-heading font-semibold text-foreground">
-          <svg lucideInbox [size]="18" class="text-info-ink" aria-hidden="true" />
-          Documentos
-          @if (pedidosEsperandoConferencia() > 0) {
-            <span
-              class="rounded-full bg-info-soft px-2 py-0.5 text-apoio font-medium text-info-ink"
-            >
-              {{ pedidosEsperandoConferencia() }} esperando conferência
-            </span>
-          }
-        </h2>
-        <ui-button variant="ghost" (click)="pedindo.set(!pedindo())">
-          {{ pedindo() ? 'Fechar' : 'Pedir documento' }}
-        </ui-button>
-      </div>
-
-      @if (pedindo()) {
-        <div class="mt-3 space-y-3 rounded-controle border border-border bg-surface p-3">
-          <label class="block">
-            <span class="text-apoio font-medium text-foreground">O que você precisa</span>
-            <input
-              type="text"
-              [value]="novoTitulo()"
-              (input)="novoTitulo.set($any($event.target).value)"
-              maxlength="120"
-              placeholder="Comprovantes de frete de setembro"
-              class="tap-target mt-1 w-full rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
-            />
-          </label>
-
-          <fieldset>
-            <legend class="text-apoio font-medium text-foreground">Tipos aceitos</legend>
-            <div class="mt-1 flex flex-wrap gap-2">
-              @for (tipo of tiposPossiveis; track tipo) {
-                <label
-                  class="tap-target flex cursor-pointer items-center gap-2 rounded-controle border border-border px-3 py-2 text-apoio text-foreground"
-                  [class.border-primary]="novosTipos().includes(tipo)"
-                  [class.bg-primary\/10]="novosTipos().includes(tipo)"
-                >
-                  <input
-                    type="checkbox"
-                    class="size-4 rounded border-border accent-primary"
-                    [checked]="novosTipos().includes(tipo)"
-                    (change)="alternarTipo(tipo)"
-                  />
-                  {{ rotuloDoTipo[tipo] }}
-                </label>
-              }
-            </div>
-          </fieldset>
-
-          <div class="flex flex-wrap items-end gap-3">
-            <label class="block">
-              <span class="text-apoio font-medium text-foreground">Prazo (opcional)</span>
-              <input
-                type="date"
-                [value]="novoPrazo()"
-                (input)="novoPrazo.set($any($event.target).value)"
-                class="tap-target mt-1 rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
-              />
-            </label>
-            <ui-button
-              [disabled]="!podeCriarPedido()"
-              [carregando]="executando() === 'novo'"
-              (click)="criarPedido()"
-            >
-              Pedir ao produtor
-            </ui-button>
-          </div>
-
-          @if (!podeCriarPedido()) {
-            <p class="text-apoio text-muted-foreground">
-              Diga o que precisa e marque ao menos um tipo — o servidor exige os dois.
-            </p>
-          }
-        </div>
-      }
-
-      @if (pendencias().length === 0) {
-        <p class="mt-3 text-apoio text-muted-foreground">
-          Nenhum documento pedido a este cliente ainda.
-        </p>
-      } @else {
-        <ul class="mt-3 divide-y divide-border">
-          @for (p of pedidosOrdenados(); track p.id) {
-            <li class="py-3 space-y-2">
-              <div class="flex flex-wrap items-start justify-between gap-2">
-                <div class="min-w-0 flex-1">
-                  <p class="font-medium text-foreground">{{ p.titulo }}</p>
-                  <p class="text-apoio text-muted-foreground">
-                    @if (p.dataLimite) {
-                      prazo {{ dataCurta(p.dataLimite) }} ·
-                    }
-                    {{ p.quantidadeAnexos }}
-                    {{ p.quantidadeAnexos === 1 ? 'arquivo' : 'arquivos' }}
-                  </p>
-                </div>
-                <span
-                  class="shrink-0 rounded-full px-2 py-0.5 text-apoio font-medium"
-                  [class]="
-                    p.status === 'ENVIADA'
-                      ? 'bg-info-soft text-info-ink'
-                      : p.status === 'PENDENTE'
-                        ? 'bg-aviso-soft text-aviso-ink'
-                        : p.status === 'CONCLUIDA'
-                          ? 'bg-sucesso-soft text-sucesso-ink'
-                          : 'bg-surface-2 text-muted-foreground'
-                  "
-                  >{{ rotuloDoStatus(p.status) }}</span
-                >
-              </div>
-
-              @if (p.motivo) {
-                <p class="text-apoio text-muted-foreground">Último motivo: {{ p.motivo }}</p>
-              }
-
-              <!-- Os arquivos que o produtor mandou. Só anexo LIMPO baixa; em verificação o
-                   servidor responde 409, e o botão diz isso em vez de falhar calado. -->
-              @for (anexo of p.anexos; track anexo.id) {
-                <div class="flex flex-wrap items-center gap-2 text-apoio">
-                  <span class="min-w-0 flex-1 truncate text-foreground">{{
-                    anexo.nomeArquivo
-                  }}</span>
-                  @if (anexo.situacao === 'EM_VERIFICACAO') {
-                    <span class="flex items-center gap-1.5 text-muted-foreground">
-                      <svg lucideLoaderCircle [size]="14" class="animate-spin" aria-hidden="true" />
-                      em verificação
-                    </span>
-                  } @else {
-                    <button
-                      type="button"
-                      class="tap-target rounded-controle border border-border px-3 py-1.5 font-medium text-foreground hover:bg-muted"
-                      (click)="baixarAnexo(p, anexo.id)"
-                    >
-                      Baixar
-                    </button>
-                  }
-                </div>
-              }
-
-              <!-- Só o que o status permite: oferecer "Aceitar" num pedido que o produtor nem
-                   respondeu daria 409 TRANSICAO_PENDENCIA_INVALIDA. -->
-              <div class="flex flex-wrap gap-2">
-                @for (acao of acoesDe(p); track acao.verbo) {
-                  <ui-button
-                    [variant]="acao.tom"
-                    [carregando]="executando() === p.id"
-                    (click)="acionar(p, acao.verbo)"
-                  >
-                    {{ acao.rotulo }}
-                  </ui-button>
-                }
-              </div>
-
-              @if (motivoAberto()?.id === p.id) {
-                <div class="space-y-2 rounded-controle border border-border bg-surface p-3">
-                  <label class="block">
-                    <span class="text-apoio font-medium text-foreground">
-                      {{
-                        motivoAberto()!.verbo === 'rejeitar'
-                          ? 'O que o produtor precisa refazer'
-                          : 'Por que está cancelando'
-                      }}
-                    </span>
-                    <textarea
-                      rows="2"
-                      [value]="motivo()"
-                      (input)="motivo.set($any($event.target).value)"
-                      maxlength="500"
-                      class="mt-1 w-full rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
-                    ></textarea>
-                  </label>
-                  <p class="text-apoio text-muted-foreground">
-                    De 5 a 500 caracteres. Este texto é o que o produtor lê no pedido dele.
-                  </p>
-                  <div class="flex flex-wrap gap-2">
-                    <ui-button
-                      [disabled]="!motivoValido()"
-                      [carregando]="executando() === p.id"
-                      (click)="confirmarMotivo()"
-                    >
-                      Confirmar
-                    </ui-button>
-                    <ui-button variant="sutil" (click)="fecharMotivo()">Voltar</ui-button>
-                  </div>
-                </div>
-              }
-            </li>
-          }
-        </ul>
-      }
-    </section>
-
-    <!-- Lugar reservado para o "Historico de operacoes" do cliente (#137, auditoria). -->
   }
 </div>

@@ -60,7 +60,13 @@ describe('ContadorPage — triagem da carteira', () => {
     httpMock = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => httpMock.verify());
+  afterEach(() => {
+    // O cartao de convites (#147) tem o proprio spec; aqui so drenamos o que ele pede.
+    httpMock
+      .match((r) => r.url === '/escritorio' || r.url === '/contador/convites')
+      .forEach((r) => r.flush(r.request.url === '/escritorio' ? { minhaFuncao: 'CONTADOR' } : []));
+    httpMock.verify();
+  });
 
   function abrir() {
     const fixture = TestBed.createComponent(ContadorPage);
