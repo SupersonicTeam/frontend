@@ -77,12 +77,24 @@
             <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
               CPF ou CNPJ
               <input
-                class="tap-target rounded-controle border border-border bg-background px-3 text-apoio"
+                #campoDocumento
+                class="tap-target rounded-controle border bg-background px-3 text-apoio"
                 inputmode="numeric"
+                placeholder="000.000.000-00"
+                [class.border-border]="!erroDocumento()"
+                [class.border-perigo]="erroDocumento()"
+                [attr.aria-invalid]="erroDocumento() ? 'true' : null"
+                [attr.aria-describedby]="erroDocumento() ? 'convite-doc-erro' : null"
                 [value]="cpfCnpj()"
-                (input)="cpfCnpj.set($any($event.target).value)"
+                (input)="documento.digitar($event)"
+                (blur)="documento.sair()"
               />
             </label>
+            <!-- Fora do <label>: dentro dele a frase entraria no nome do campo, e o leitor de tela
+                 a leria duas vezes (nome e descricao). -->
+            @if (erroDocumento(); as e) {
+              <p id="convite-doc-erro" class="-mt-2 text-apoio text-perigo-ink">{{ e }}</p>
+            }
             <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
               Senha
               <input

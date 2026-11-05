@@ -43,6 +43,7 @@ import { FichaEditavel, type MudancaNaFicha } from './ficha-editavel';
 import { HistoricoRevisao } from './historico-revisao';
 import { EditarPedido } from './editar-pedido';
 import { HistoricoOperacoes } from './historico-operacoes';
+import { formatarCpfCnpj } from '@core/utils/mascaras';
 
 /** Os quatro verbos do ciclo de um pedido de documento. */
 export type VerboPendencia = 'concluir' | 'rejeitar' | 'cancelar' | 'reabrir';
@@ -654,7 +655,10 @@ export class ClientePage {
 
   /** Documento, regime e praça, quando o backend os manda. */
   identificacao(cliente: ProdutorCarteira): string {
-    return [cliente.cpfCnpj, cliente.regime, cliente.uf].filter(Boolean).join(' · ');
+    // O documento vem só com dígitos; sem a máscara saía "34524970894" (#156).
+    return [formatarCpfCnpj(cliente.cpfCnpj), cliente.regime, cliente.uf]
+      .filter(Boolean)
+      .join(' · ');
   }
 
   recarregar(): void {

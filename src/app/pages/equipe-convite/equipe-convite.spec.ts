@@ -116,6 +116,17 @@ describe('EquipeConvitePage', () => {
     expect(navegou).toContain('/login');
   });
 
+  it('CPF com digito errado nao vai ao servidor: o campo e marcado (#156)', () => {
+    const cmp = abrir().componentInstance;
+    cmp.nome.set('Ana Souza');
+    cmp.cpfCnpj.set('123.456.789-00');
+    cmp.senha.set('uma-senha-longa');
+    cmp.cadastrar();
+
+    httpMock.expectNone('/auth/cadastro/equipe');
+    expect(cmp.erroDocumento()).toBe('CPF/CNPJ inválido. Confira os dígitos.');
+  });
+
   it('o token sobrevive a ida ao login: fica na aba e volta sem o fragmento', () => {
     abrir().componentInstance.irAoLogin();
     expect(sessionStorage.getItem(CHAVE_TOKEN_CONVITE)).toBe('tok-1');

@@ -1,14 +1,11 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { LucideLoaderCircle, LucideUserPlus } from '@lucide/angular';
 import { ToastService } from '@core/services/toast.service';
-import { aplicarMascara, mascaraCpfCnpj, soDigitos } from '@core/utils/mascaras';
+import { criarCampoCpfCnpj } from '@core/utils/campo-cpf-cnpj';
 import { AuthApi, ContaError, type CadastroRequest } from '@services/auth/data-access/auth.service';
 import type { Papel } from '@core/services/sessao.service';
-
-/** CPF tem 11 dígitos, CNPJ tem 14 — o backend recusa qualquer outro tamanho. */
-const TAMANHOS_VALIDOS = [11, 14];
 
 /**
  * Criar conta (issue #131).
@@ -33,7 +30,13 @@ export class CadastroPage {
 
   readonly papel = signal<Papel>('PRODUTOR');
   readonly nome = signal('');
-  readonly cpfCnpj = signal('');
+  /**
+   * O documento (#156): julgado só depois que a pessoa sai do campo com algo escrito, ou tenta
+   * enviar, e com o dígito verificador conferido aqui — antes um CPF como `123.456.789-00` passava,
+   * e só o servidor recusava, com a frase sem acento no topo. A regra mora em `criarCampoCpfCnpj`.
+   */
+  readonly documento = criarCampoCpfCnpj();
+  readonly cpfCnpj = this.documento.valor;
   readonly email = signal('');
   readonly senha = signal('');
 
@@ -42,12 +45,12 @@ export class CadastroPage {
   readonly erro = signal<string | null>(null);
   readonly erroSenha = signal<string | null>(null);
 
-  readonly documentoValido = computed(() =>
-    TAMANHOS_VALIDOS.includes(soDigitos(this.cpfCnpj()).length),
-  );
+  private readonly campoDocumento = viewChild<ElementRef<HTMLInputElement>>('campoDocumento');
+  readonly erroDocumento = this.documento.erro;
 
   /**
-   * O botão só libera com os campos cheios e o documento no tamanho certo.
+   * O botão só libera com os campos cheios. O documento é conferido no `criar()`, que marca o
+   * campo e põe o foco nele: um botão desligado não diria o que está errado.
    *
    * A **força** da senha não é checada aqui: quem decide é o backend, que conhece a lista de senhas
    * comuns e sabe se ela contém o e-mail ou o documento. Reimplementar essa regra no cliente daria
@@ -57,18 +60,18 @@ export class CadastroPage {
     () =>
       !this.enviando() &&
       this.nome().trim().length > 0 &&
-      this.documentoValido() &&
+      this.cpfCnpj().trim().length > 0 &&
       this.email().trim().length > 0 &&
       this.senha().length > 0,
   );
 
-  /** Máscara sem perder o cursor (#102); o envio segue cru. */
-  aoDigitarDocumento(evento: Event): void {
-    this.cpfCnpj.set(aplicarMascara(evento, mascaraCpfCnpj));
-  }
-
   criar(): void {
     if (!this.podeEnviar()) return;
+    // `conferir()` também limpa a frase de documento de uma tentativa anterior.
+    if (!this.documento.conferir()) {
+      this.campoDocumento()?.nativeElement.focus();
+      return;
+    }
 
     this.enviando.set(true);
     this.erro.set(null);
@@ -109,6 +112,13 @@ export class CadastroPage {
   private mostrar(falha: ContaError): void {
     if (falha?.codigo === 'SENHA_FRACA' || falha?.campo === 'senha') {
       this.erroSenha.set(falha.message);
+      return;
+    }
+    // O `@ValidCpfCnpj` do backend responde "CPF/CNPJ informado tem digito verificador invalido",
+    // sem acento e no topo. Com o campo marcado, a nossa frase diz o mesmo no lugar certo.
+    if (falha?.campo === 'cpfCnpj') {
+      this.documento.recusadoPeloServidor();
+      this.campoDocumento()?.nativeElement.focus();
       return;
     }
     if (falha?.codigo === 'MUITAS_TENTATIVAS') {
