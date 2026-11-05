@@ -41,6 +41,7 @@ export type CodigoConta =
   | 'TOKEN_REDEFINICAO_INVALIDO'
   | 'SENHA_ATUAL_INCORRETA'
   | 'MUITAS_TENTATIVAS'
+  | 'CONVITE_EQUIPE_INVALIDO'
   | 'DESCONHECIDO';
 
 /**
@@ -191,6 +192,29 @@ export class AuthApi {
   }
 
   /**
+   * `POST /auth/cadastro/equipe` — cria a conta de contador **pelo convite de equipe** (#148).
+   *
+   * Rota pública, como o cadastro comum. O e-mail não vai no corpo: é o do convite, que o token
+   * identifica. Token inválido, usado ou vencido → 400 `CONVITE_EQUIPE_INVALIDO`. Não devolve
+   * token: depois do cadastro, o contador entra pelo login, já membro da equipe.
+   */
+  cadastrarPorConvite(dados: {
+    token: string;
+    nomeCompleto: string;
+    cpfCnpj: string;
+    senha: string;
+  }): Observable<void> {
+    return this.api
+      .post<void>('/auth/cadastro/equipe', {
+        token: dados.token,
+        nomeCompleto: dados.nomeCompleto.trim(),
+        cpfCnpj: soDigitos(dados.cpfCnpj),
+        senha: dados.senha,
+      })
+      .pipe(AuthApi.traduzirFalhaDeConta<void>());
+  }
+
+  /**
    * Pede o link de redefinição.
    *
    * **Responde 202 sempre**, exista a conta ou não — medido nos dois casos. É deliberado: a
@@ -306,6 +330,7 @@ export class AuthApi {
       'TOKEN_REDEFINICAO_INVALIDO',
       'SENHA_ATUAL_INCORRETA',
       'MUITAS_TENTATIVAS',
+      'CONVITE_EQUIPE_INVALIDO',
     ];
     const codigo = conhecidos.find((c) => c === primeiro?.code) ?? 'DESCONHECIDO';
 

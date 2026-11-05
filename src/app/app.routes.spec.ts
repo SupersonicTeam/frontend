@@ -82,4 +82,13 @@ describe('links do app (#112)', () => {
     expect(coringa?.redirectTo).toBeUndefined();
     expect(coringa?.loadComponent).toBeDefined();
   });
+
+  /** O convite de equipe (#148) e publico: quem chega pode nao ter conta nem sessao. */
+  it('/equipe/convite fica fora do shell e sem guard', () => {
+    const rota = routes.find((r) => r.path === 'equipe/convite');
+    expect(rota).toBeTruthy();
+    expect(rota?.canActivate ?? []).toEqual([]);
+    const doShell = routes.find((r) => r.path === '')?.children ?? [];
+    expect(doShell.some((r) => r.path === 'equipe/convite')).toBe(false);
+  });
 });

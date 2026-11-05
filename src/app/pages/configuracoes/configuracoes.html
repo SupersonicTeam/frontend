@@ -182,6 +182,12 @@
     </form>
   </div>
 
+  <!-- O escritorio e a equipe (#148): secao, nao pagina -- e configuracao consultada de vez em
+       quando, como o catalogo logo abaixo. -->
+  @if (sessao.ehContador()) {
+    <app-equipe-escritorio />
+  }
+
   <!-- ── Catálogo de obrigações do escritório (backend#181) ──
        É o que alimenta as obrigações no calendário dos clientes: o que estiver aqui como ativa
        aparece lá. Coisa do escritório, então só o contador vê. -->

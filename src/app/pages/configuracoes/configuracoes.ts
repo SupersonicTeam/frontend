@@ -57,11 +57,13 @@ const MESES_POR_EXTENSO = [
  * é a única coisa que sempre funcionou aqui, continua igual.
  */
 import { EscritorioProdutor } from './escritorio-produtor';
+import { EquipeEscritorio } from './equipe-escritorio';
 
 @Component({
   selector: 'app-configuracoes',
   standalone: true,
   imports: [
+    EquipeEscritorio,
     EscritorioProdutor,
     UiCard,
     UiButton,

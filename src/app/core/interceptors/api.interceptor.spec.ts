@@ -40,6 +40,23 @@ describe('apiInterceptor (toast global de erro)', () => {
     expect(toasts[0].message).toBe('Período inválido');
   });
 
+  /**
+   * Membro removido do escritorio (#148): o 403 vem com `rejectedValue: "SEM_ESCRITORIO"` e vira
+   * a explicacao certa, uma vez so, mesmo numa rota tratada localmente.
+   */
+  it('SEM_ESCRITORIO diz que a pessoa saiu do escritorio, uma vez so', () => {
+    const corpo = {
+      errors: [{ code: 'PAPEL_NAO_AUTORIZADO', message: 'x', rejectedValue: 'SEM_ESCRITORIO' }],
+    };
+    for (const url of ['/contador/produtores', '/contador/guias']) {
+      http.get(url).subscribe({ next: () => undefined, error: () => undefined });
+      httpMock.expectOne(`/api${url}`).flush(corpo, { status: 403, statusText: 'Forbidden' });
+    }
+    const toasts = toast.toasts();
+    expect(toasts.length).toBe(1);
+    expect(toasts[0].message).toContain('não faz mais parte de um escritório');
+  });
+
   it('NÃO exibe toast para /api/notas (tratado localmente com painéis próprios)', () => {
     http.get('/notas').subscribe({ next: () => undefined, error: () => undefined });
     httpMock.expectOne('/api/notas').flush({ message: 'x' }, { status: 500, statusText: 'x' });
