@@ -216,6 +216,48 @@ describe('NotasContador', () => {
     req.flush([]);
   });
 
+  it('"Mostrar mais" pede a página seguinte do mesmo recorte: cliente, caixa e busca', () => {
+    const cmp = abrir().componentInstance;
+    responder();
+    cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
+    resumo().flush(RESUMO_ZERADO);
+    lista().flush([nota('n1', 'AGUARDANDO_APROVACAO')], { headers: { 'X-Total-Count': '25' } });
+
+    cmp.mostrarMais();
+
+    const req = lista();
+    expect(req.request.params.get('page')).toBe('1');
+    expect(req.request.params.get('produtorId')).toBe('p1');
+    expect(req.request.params.getAll('status')).toEqual(['AGUARDANDO_APROVACAO']);
+    req.flush([nota('n2', 'AGUARDANDO_APROVACAO')], { headers: { 'X-Total-Count': '25' } });
+    expect(cmp.notas().map((n) => n.id)).toEqual(['n1', 'n2']);
+  });
+
+  it('a caixa "Todas" não manda status nenhum', () => {
+    const cmp = abrir().componentInstance;
+    responder();
+
+    cmp.trocarCaixa('todas');
+
+    const req = lista();
+    expect(req.request.params.has('status')).toBe(false);
+    req.flush([]);
+  });
+
+  it('404 de um cliente que saiu da carteira não oferece "tentar de novo"', () => {
+    const fixture = abrir();
+    responder();
+    fixture.componentInstance.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
+    resumo().flush(RESUMO_ZERADO);
+    lista().flush({}, { status: 404, statusText: 'Not Found' });
+    fixture.detectChanges();
+
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(fixture.componentInstance.erro()).toBe('fora-da-carteira');
+    expect(texto).toContain('não está mais ativo na carteira');
+    expect(texto).not.toContain('Tentar de novo');
+  });
+
   it('busca curta não sai: o servidor recusaria com 400', () => {
     const cmp = abrir().componentInstance;
     responder();

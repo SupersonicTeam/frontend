@@ -8,8 +8,10 @@
         @if (cliente(); as c) {
           as notas de <span class="font-medium text-foreground">{{ c.nomeCompleto }}</span
           >, para triar, conferir e aprovar
-        } @else {
+        } @else if (todaCarteira()) {
           as notas de toda a carteira, para triar, conferir e aprovar
+        } @else {
+          as notas da carteira, para triar, conferir e aprovar
         }
       </p>
     </div>
@@ -79,6 +81,15 @@
 
     @if (carregando()) {
       <ui-skeleton [linhas]="4" formato="bloco" altura="4.5rem" />
+    } @else if (erro() === 'fora-da-carteira') {
+      <!-- 404: o cliente deixou de ser ativo (suspenso, encerrado) depois que a tela abriu. Tentar
+           de novo so repetiria o 404; o caminho e escolher outro cliente ou a carteira inteira. -->
+      <ui-empty-state
+        titulo="Este cliente não está mais ativo na carteira"
+        descricao="O vínculo foi suspenso ou encerrado. Escolha outro cliente, ou Toda a carteira, no seletor acima."
+      >
+        <svg icone lucideFileText [size]="24" aria-hidden="true" />
+      </ui-empty-state>
     } @else if (erro()) {
       <ui-empty-state
         titulo="Não foi possível carregar as notas"

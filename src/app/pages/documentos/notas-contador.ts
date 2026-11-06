@@ -31,7 +31,7 @@ export interface CaixaTriagem {
   /** É também a chave do `/contador/notas/resumo` que conta a caixa. */
   chave: keyof ResumoNotasCarteira;
   rotulo: string;
-  /** Vazio = todas as notas do cliente. */
+  /** Vazio = todas as notas do recorte (a carteira inteira ou o cliente escolhido). */
   status: StatusNotaFiltro[];
 }
 
@@ -135,7 +135,11 @@ export class NotasContador {
   readonly pagina = signal(0);
   readonly carregando = signal(false);
   readonly carregandoMais = signal(false);
-  readonly erro = signal(false);
+  /**
+   * A falha da lista: `'fora-da-carteira'` é o 404 de um cliente que deixou de ser ativo depois que
+   * a tela abriu (tentar de novo não adianta); `'falha'` é o resto.
+   */
+  readonly erro = signal<false | 'falha' | 'fora-da-carteira'>(false);
   /** Quantas notas há em cada caixa. `null` = ainda não sabe (ou não conseguiu saber). */
   readonly contagens = signal<Record<string, number | null>>({});
 
@@ -212,11 +216,11 @@ export class NotasContador {
         this.pagina.set(0);
         this.carregando.set(false);
       },
-      error: () => {
+      error: (falha: HttpErrorResponse) => {
         if (vez !== this.vez || silencioso) return;
         this.notas.set([]);
         this.total.set(0);
-        this.erro.set(true);
+        this.erro.set(falha.status === 404 && this.cliente() ? 'fora-da-carteira' : 'falha');
         this.carregando.set(false);
       },
     });

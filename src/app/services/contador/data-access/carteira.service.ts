@@ -136,7 +136,7 @@ export interface SituacaoDoVinculo {
   fim: string | null;
 }
 
-/** Uma página das notas de um cliente: o total vem do header `X-Total-Count`, não do corpo. */
+/** Uma página das notas da carteira (ou de um cliente): o total vem do `X-Total-Count`. */
 export interface PaginaNotasCarteira {
   itens: NotaCarteira[];
   total: number;
@@ -643,11 +643,7 @@ export class CarteiraApi {
 
   /** Os filtros de notas, com `status` repetido (o backend aceita mais de um por consulta). */
   private paramsDasNotas(filtro: FiltroNotasCliente): HttpParams {
-    let params = new HttpParams();
-    for (const status of filtro.status ?? []) {
-      params = params.append('status', status);
-    }
-    return this.anexar(params, {
+    return this.anexar(this.statusRepetido(filtro.status), {
       de: filtro.de,
       ate: filtro.ate,
       busca: filtro.busca,
@@ -658,11 +654,7 @@ export class CarteiraApi {
   }
 
   private paramsDaCarteiraDeNotas(filtro: FiltroNotasCarteira): HttpParams {
-    let params = new HttpParams();
-    for (const status of filtro.status ?? []) {
-      params = params.append('status', status);
-    }
-    return this.anexar(params, {
+    return this.anexar(this.statusRepetido(filtro.status), {
       tipoDocumento: filtro.tipoDocumento,
       emitidaDe: filtro.emitidaDe,
       emitidaAte: filtro.emitidaAte,
@@ -673,6 +665,11 @@ export class CarteiraApi {
       size: filtro.size,
       sort: filtro.sort,
     });
+  }
+
+  /** `status` repetido (o servidor lê como OU), nunca juntado por vírgula. */
+  private statusRepetido(status: readonly StatusNotaFiltro[] = []): HttpParams {
+    return status.reduce((params, s) => params.append('status', s), new HttpParams());
   }
 
   /** Monta os parâmetros da carteira, com `etiqueta` repetido em vez de juntado por vírgula. */
