@@ -1,11 +1,12 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { PrazosContador } from './prazos-contador';
 import { ToastService } from '@core/services/toast.service';
 import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
+import type { ProdutorCarteira } from '@models/carteira.model';
 
 /**
  * Prazos na visão do contador: a fila de cobrança.
@@ -41,6 +42,8 @@ describe('PrazosContador', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
+    // Com dois clientes, o seletor so escolhe sozinho o que o contador ja esta atendendo (#136).
+    TestBed.inject(ClienteEmFocoService).escolher('p-joao');
   });
 
   afterEach(() => httpMock.verify());
@@ -67,7 +70,9 @@ describe('PrazosContador', () => {
     },
   ];
 
-  /** Responde a carteira que o `ngOnInit` busca antes das guias. */
+  const MARIA = CLIENTES[1] as unknown as ProdutorCarteira;
+
+  /** Responde a carteira que o `<app-seletor-cliente>` busca antes das guias. */
   function flushCarteira(clientes: unknown[] = CLIENTES) {
     httpMock.expectOne((r) => r.url === '/contador/produtores').flush(clientes);
   }
@@ -206,7 +211,7 @@ describe('PrazosContador', () => {
    * atendia o outro. Escrita no cliente errado e bem pior do que leitura errada.
    */
   describe('as guias sao do cliente escolhido (#106)', () => {
-    it('abre no primeiro da carteira e pergunta as guias DELE', () => {
+    it('abre no cliente que o contador está atendendo e pergunta as guias DELE', () => {
       const fixture = TestBed.createComponent(PrazosContador);
       fixture.detectChanges();
       flushCarteira();
@@ -217,10 +222,40 @@ describe('PrazosContador', () => {
       expect(fixture.componentInstance.clienteAtual()?.nomeCompleto).toBe('João da Silva Produtor');
     });
 
+    /**
+     * Roteiro da demo (06/11): "Cobrar em Prazos" na ficha do Carlos abria o PRIMEIRO cliente da
+     * carteira, que nao tinha nada vencido. O endereco manda mais que o cliente em foco.
+     */
+    it('o ?cliente= do endereço manda: é o que o "Cobrar em Prazos" da ficha envia', async () => {
+      await TestBed.inject(Router).navigateByUrl('/?cliente=p-maria');
+      const fixture = TestBed.createComponent(PrazosContador);
+      fixture.detectChanges();
+      flushCarteira();
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
+      expect(req.request.params.get('produtorId')).toBe('p-maria');
+      req.flush([]);
+    });
+
+    it('com dois clientes e nenhum em foco, pede a escolha em vez de abrir o primeiro', () => {
+      TestBed.inject(ClienteEmFocoService).limpar();
+      const fixture = TestBed.createComponent(PrazosContador);
+      fixture.detectChanges();
+      flushCarteira();
+      fixture.detectChanges();
+
+      httpMock.expectNone((r) => r.url === '/contador/guias');
+      expect(fixture.componentInstance.cliente()).toBeNull();
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+        'Escolha um cliente para ver as guias',
+      );
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('Lançar guia');
+    });
+
     it('trocar de cliente refaz a busca para o outro', () => {
       const cmp = montar().componentInstance;
 
-      cmp.trocarCliente('p-maria');
+      cmp.aoTrocarCliente(MARIA);
 
       const req = httpMock.expectOne((r) => r.url === '/contador/guias');
       expect(req.request.params.get('produtorId')).toBe('p-maria');
@@ -230,7 +265,7 @@ describe('PrazosContador', () => {
 
     it('a guia lancada nasce no cliente ESCOLHIDO, nao no primeiro', () => {
       const cmp = montar().componentInstance;
-      cmp.trocarCliente('p-maria');
+      cmp.aoTrocarCliente(MARIA);
       httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
 
       cmp.formTipo.set('ICMS');
@@ -242,37 +277,6 @@ describe('PrazosContador', () => {
       expect(post.request.body.produtorId).toBe('p-maria');
       post.flush({});
       httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'GET').flush([]);
-    });
-
-    it('abre no cliente que o contador está atendendo, não no primeiro da carteira', () => {
-      TestBed.inject(ClienteEmFocoService).escolher('p-maria');
-      const fixture = TestBed.createComponent(PrazosContador);
-      fixture.detectChanges();
-      flushCarteira();
-
-      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
-      expect(req.request.params.get('produtorId')).toBe('p-maria');
-      req.flush([]);
-    });
-
-    it('cliente que saiu da carteira não vale: abre no primeiro', () => {
-      TestBed.inject(ClienteEmFocoService).escolher('p-de-outro-escritorio');
-      const fixture = TestBed.createComponent(PrazosContador);
-      fixture.detectChanges();
-      flushCarteira();
-
-      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
-      expect(req.request.params.get('produtorId')).toBe('p-joao');
-      req.flush([]);
-    });
-
-    it('trocar de cliente vale também para as outras telas', () => {
-      const cmp = montar().componentInstance;
-
-      cmp.trocarCliente('p-maria');
-      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
-
-      expect(TestBed.inject(ClienteEmFocoService).produtorId()).toBe('p-maria');
     });
 
     it('carteira vazia nao inventa produtor: nao pergunta guia de ninguem', () => {

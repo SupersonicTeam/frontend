@@ -50,7 +50,12 @@
           A nota <strong>{{ notasComProblema()[0].numero }}</strong
           >, para {{ notasComProblema()[0].destinatarioNome }}, não pode ser emitida como está.
           @if (motivoPendencia()) {
-            <br />O que o fisco aponta: <em>{{ motivoPendencia() }}</em>
+            <br />{{
+              notasComProblema()[0].status === 'DEVOLVIDA'
+                ? 'O que o escritório pediu:'
+                : 'O que o fisco aponta:'
+            }}
+            <em>{{ motivoPendencia() }}</em>
           }
         </p>
       } @else if (proximoVencimento()) {

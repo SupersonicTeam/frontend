@@ -147,6 +147,9 @@ const ESPERANDO_O_PRODUTOR: readonly string[] = [
   'RASCUNHO',
 ];
 
+/** "a, b e c": a conjunção do português, do próprio navegador. */
+const LISTA_COM_E = new Intl.ListFormat('pt-BR', { type: 'conjunction' });
+
 const MESES_PT = [
   'Janeiro',
   'Fevereiro',
@@ -438,8 +441,8 @@ export class DocumentosPage implements OnInit {
 
   /**
    * "1 com inconsistência, 1 devolvida pelo escritório e 2 em rascunho": o que compõe o número de
-   * "esperam por você", com "e" só antes do último. Com três tipos, o `@if` por par do template
-   * não dava mais conta da conjunção.
+   * "esperam por você", com "e" só antes do último (`Intl.ListFormat`). Com três tipos, o `@if`
+   * por par do template não dava mais conta da conjunção.
    */
   readonly detalheDoQueEspera = computed(() => {
     const r = this.resumoDoPeriodo();
@@ -450,9 +453,7 @@ export class DocumentosPage implements OnInit {
         : '',
       r.rascunhos ? `${r.rascunhos} em rascunho` : '',
     ].filter(Boolean);
-    return partes.length > 1
-      ? `${partes.slice(0, -1).join(', ')} e ${partes[partes.length - 1]}`
-      : (partes[0] ?? '');
+    return LISTA_COM_E.format(partes);
   });
 
   /**

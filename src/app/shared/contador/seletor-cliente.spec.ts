@@ -96,6 +96,19 @@ describe('SeletorCliente', () => {
     );
   });
 
+  it('um id velho no endereco nao apaga o cliente lembrado: passa a vez a ele', () => {
+    const { emitidos } = montar('de-outro-escritorio', 'p2');
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores')
+      .flush([cliente('p1', 'Ana'), cliente('p2', 'Bruno')]);
+
+    expect(emitidos.map((c) => c?.id)).toEqual(['p2']);
+    expect(navegou).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({ queryParams: { cliente: 'p2' }, replaceUrl: true }),
+    );
+  });
+
   it('sem pedido no endereco, usa o cliente lembrado de outra tela', () => {
     const { emitidos } = montar(undefined, 'p1');
     httpMock

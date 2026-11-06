@@ -608,8 +608,13 @@ export class DashboardPage implements OnInit {
       next: (pagina) => {
         this.totalDeNotas.set(pagina.totalElements ?? pagina.content.length);
         this.notasComProblema.set(
+          // A DEVOLVIDA tambem espera o produtor: o escritorio devolveu para ele corrigir. Ficava
+          // fora, e o painel falava de prazo com uma nota devolvida na mesa dele (demo, 06/11).
           pagina.content.filter(
-            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+            (n) =>
+              n.status === 'COM_INCONSISTENCIAS' ||
+              n.status === 'REJEITADA' ||
+              n.status === 'DEVOLVIDA',
           ),
         );
         this.carregarMotivoDaPendencia();
@@ -653,6 +658,18 @@ export class DashboardPage implements OnInit {
     const nota = this.notasComProblema()[0];
     if (!nota) {
       this.motivoPendencia.set(null);
+      return;
+    }
+    // Na devolvida, o motivo e o do escritorio, e mora no historico da revisao (como em Minhas
+    // notas); nas outras, e o que a validacao fiscal apontou.
+    if (nota.status === 'DEVOLVIDA') {
+      this.notasApi.revisoes(nota.id).subscribe({
+        next: (historico) =>
+          this.motivoPendencia.set(
+            historico.find((r) => r.acao === 'DEVOLVIDA' && r.motivo)?.motivo ?? null,
+          ),
+        error: () => this.motivoPendencia.set(null),
+      });
       return;
     }
     this.notasApi.listarValidacoes(nota.id).subscribe({

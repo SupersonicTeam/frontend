@@ -155,10 +155,19 @@ describe('NotaPreview — itens', () => {
  * para toda nota: a do Carlos não tinha o nome dele.
  */
 describe('NotaPreview — emitente', () => {
-  function emitente(destinatarioNome: string, nomeDaSessao = 'Carlos Eduardo Rossi') {
+  function emitente(
+    destinatarioNome: string,
+    nomeDaSessao = 'Carlos Eduardo Rossi',
+    produtor = true,
+  ) {
     TestBed.configureTestingModule({
       imports: [NotaPreview],
-      providers: [{ provide: SessaoService, useValue: { nome: signal(nomeDaSessao) } }],
+      providers: [
+        {
+          provide: SessaoService,
+          useValue: { nome: signal(nomeDaSessao), ehProdutor: signal(produtor) },
+        },
+      ],
     });
     const f = TestBed.createComponent(NotaPreview);
     f.componentRef.setInput('nota', {
@@ -184,6 +193,13 @@ describe('NotaPreview — emitente', () => {
 
   it('na compra importada o produtor é o destinatário: não repete o nome dele como emitente', () => {
     expect(emitente('CARLOS EDUARDO ROSSI ').nome).toBe('Fornecedor');
+  });
+
+  it('na sessão do contador, o nome dele não vira emitente da nota do cliente', () => {
+    expect(emitente('Cooperativa', 'Patricia Moreira Lopes', false)).toEqual({
+      nome: 'Produtor rural',
+      detalhe: 'Emissor da NF-e',
+    });
   });
 
   it('sem nome na sessão, não confunde nota nenhuma com compra', () => {

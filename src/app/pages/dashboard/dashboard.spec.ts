@@ -167,6 +167,32 @@ describe('DashboardPage', () => {
     expect(fixture.componentInstance.motivoPendencia()).toBe('Endereço obrigatório');
   });
 
+  it('nota devolvida pelo escritório também chama o produtor, com o motivo da devolução', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(buildResponse());
+    flushNotasComPendencia([
+      {
+        id: 'dev-1',
+        numero: 3221,
+        status: 'DEVOLVIDA',
+        destinatarioNome: 'Terminal Exportador de Graos Litoral Ltda',
+      } as NotaFiscal,
+    ]);
+    httpMock
+      .expectOne((r) => r.url === '/notas/dev-1/revisoes')
+      .flush([{ acao: 'DEVOLVIDA', motivo: 'Peso divergente do romaneio' }]);
+    httpMock.expectNone((r) => r.url.includes('/validacoes'));
+    flushVencimentos();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.notasComProblema().map((n) => n.id)).toEqual(['dev-1']);
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('O que o escritório pediu:');
+    expect(texto).toContain('Peso divergente do romaneio');
+    expect(texto).toContain('Corrigir agora');
+  });
+
   it('prazo no assistente: frase pelo título, sem ponto duplo, e o botão leva aos Prazos', () => {
     const fixture = TestBed.createComponent(DashboardPage);
     fixture.detectChanges();

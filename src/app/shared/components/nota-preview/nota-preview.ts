@@ -35,6 +35,8 @@ export class NotaPreview {
    * pôr o nome dele nos dois quadros.
    */
   readonly emitente = computed(() => {
+    // Fora da sessão do produtor quem está logado não é o emitente: volta ao rótulo genérico.
+    if (!this.sessao.ehProdutor()) return { nome: 'Produtor rural', detalhe: 'Emissor da NF-e' };
     const eu = NotaPreview.normalizar(this.sessao.nome());
     const entrada = !!eu && NotaPreview.normalizar(this.nota().destinatarioNome) === eu;
     if (entrada) return { nome: 'Fornecedor', detalhe: 'Nota de entrada, importada do XML' };

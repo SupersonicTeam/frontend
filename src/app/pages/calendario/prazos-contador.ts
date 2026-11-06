@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import {
   LucideCheck,
   LucideFileText,
@@ -7,22 +7,21 @@ import {
   LucideMessageSquare,
   LucideLoaderCircle,
   LucideTriangleAlert,
+  LucideUsers,
 } from '@lucide/angular';
 import { HttpErrorResponse } from '@angular/common/http';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
 import { dataDoPagamento } from '@core/utils/guias';
 import { formatarData } from '@core/utils/periodo';
-import { ActivatedRoute, Router } from '@angular/router';
 import { ToastService } from '@core/services/toast.service';
-import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import {
   NotificacaoApi,
   type NotificacaoError,
 } from '@services/notificacao/data-access/notificacao.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
-import { CarteiraApi } from '@services/contador/data-access/carteira.service';
 import type { ProdutorCarteira } from '@models/carteira.model';
+import { SeletorCliente } from '@shared/contador/seletor-cliente';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiModal } from '@shared/ui/ui-modal';
@@ -70,18 +69,16 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
     LucideMessageSquare,
     LucideLoaderCircle,
     LucideTriangleAlert,
+    LucideUsers,
+    SeletorCliente,
   ],
   templateUrl: './prazos-contador.html',
 })
-export class PrazosContador implements OnInit {
+export class PrazosContador {
   private readonly contadorApi = inject(ContadorApi);
   private readonly toast = inject(ToastService);
 
-  private readonly carteiraApi = inject(CarteiraApi);
   private readonly notificacaoApi = inject(NotificacaoApi);
-  private readonly foco = inject(ClienteEmFocoService);
-  private readonly rota = inject(ActivatedRoute);
-  private readonly router = inject(Router);
 
   /**
    * De quem sao as guias desta tela (issue #106).
@@ -95,14 +92,13 @@ export class PrazosContador implements OnInit {
    * Nao precisou esperar o JWT da #93: desde a #95 a carteira devolve os ids de verdade. O que o
    * JWT resolve e o lado do PRODUTOR, onde o id proprio ainda vem de constante.
    */
-  readonly clientes = signal<ProdutorCarteira[]>([]);
+  readonly cliente = signal<ProdutorCarteira | null | undefined>(undefined);
   readonly clienteId = signal<string | null>(null);
 
-  readonly clienteAtual = computed(
-    () => this.clientes().find((c) => c.id === this.clienteId()) ?? null,
-  );
+  readonly clienteAtual = computed(() => this.cliente() ?? null);
 
-  readonly carregando = signal(false);
+  /** Começa carregando: até o seletor responder, não se sabe de quem são as guias. */
+  readonly carregando = signal(true);
   readonly guias = signal<GuiaFiscal[]>([]);
   readonly situacao = signal<Situacao>('todas');
 
@@ -243,48 +239,21 @@ export class PrazosContador implements OnInit {
     return '';
   });
 
-  ngOnInit(): void {
-    this.carteiraApi.listar().subscribe({
-      next: (pagina) => {
-        this.clientes.set(pagina.itens);
-        // O cliente pedido no endereço ("Cobrar em Prazos" da ficha), senão o que o contador está
-        // atendendo, senão o primeiro da carteira. Antes era sempre o primeiro: da ficha do Carlos,
-        // com guia vencida, o botão caía em outro cliente dizendo "Nada para cobrar agora".
-        const pedido = this.rota.snapshot.queryParamMap.get('cliente') ?? this.foco.produtorId();
-        const escolhido = pagina.itens.find((c) => c.id === pedido) ?? pagina.itens[0];
-        this.selecionar(escolhido?.id ?? null);
-        this.carregar();
-      },
-      error: (err: HttpErrorResponse) => {
-        this.erro.set(falhaDaApi(err));
-        this.carregando.set(false);
-      },
-    });
-  }
-
-  /** Troca o cliente e recarrega — a lista e do cliente, nao da tela. */
-  trocarCliente(id: string): void {
-    if (this.clienteId() === id) return;
-    this.selecionar(id);
-    this.carregar();
-  }
-
   /**
-   * O cliente desta tela vale também para as outras (`ClienteEmFocoService`), e o endereço o
-   * acompanha sem empilhar histórico — como no `SeletorCliente`. Sem isso um `?cliente=` antigo
-   * reabriria o cliente anterior ao recarregar.
+   * O cliente vem do `<app-seletor-cliente>`, como em Notas e no Fechamento (#136): do endereço
+   * (`?cliente=`, que o "Cobrar em Prazos" da ficha manda), senão do cliente em foco, senão do
+   * único da carteira. Esta tela tinha um seletor próprio que abria sempre no **primeiro** cliente:
+   * da ficha do Carlos, com guia vencida, o botão caía em outro dizendo "Nada para cobrar agora"
+   * (roteiro da demo, 06/11). Com mais de um cliente e nenhum escolhido, a tela pede a escolha em
+   * vez de adivinhar.
    */
-  private selecionar(id: string | null): void {
-    this.clienteId.set(id);
-    this.foco.escolher(id);
-    if (this.rota.snapshot.queryParamMap.get('cliente') !== id) {
-      void this.router.navigate([], {
-        relativeTo: this.rota,
-        queryParams: { cliente: id },
-        queryParamsHandling: 'merge',
-        replaceUrl: true,
-      });
-    }
+  aoTrocarCliente(cliente: ProdutorCarteira | null): void {
+    const atual = this.cliente();
+    if (atual !== undefined && (atual?.id ?? null) === (cliente?.id ?? null)) return;
+    this.cliente.set(cliente);
+    this.clienteId.set(cliente?.id ?? null);
+    this.guias.set([]);
+    this.carregar();
   }
 
   /**

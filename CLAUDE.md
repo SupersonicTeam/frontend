@@ -120,9 +120,13 @@ exatamente o que produziu o bug acima.
 **Tela do contador que lê dado de um produtor escolhe o cliente no topo** (#136): `<app-seletor-cliente>`
 (`shared/contador/seletor-cliente.ts`), alimentado por `GET /contador/produtores`. O cliente vem do
 `?cliente=` do endereço, senão do `ClienteEmFocoService` (a escolha sobrevive ao menu), senão do único
-cliente da carteira; id fora da carteira vira "nenhum". Ele emite `clienteChange` só **depois** de a
+cliente da carteira; cada fonte só vale se estiver na carteira, e a que falha passa a vez à seguinte
+(um `?cliente=` velho não apaga o cliente em foco). Ele emite `clienteChange` só **depois** de a
 carteira responder (`undefined` = carregando, `null` = escolher). Sem cliente, a tela mostra um
-`<ui-empty-state>` e **não chama nada**. As rotas do produtor (`/notas`, `/apuracao`, `/relatorios`,
+`<ui-empty-state>` e **não chama nada**. Usam o seletor: Notas, Fechamento e, desde o roteiro da demo
+(06/11), **Prazos e cobrança** — que tinha seletor próprio e abria sempre no primeiro cliente; o
+"Cobrar em Prazos" da ficha caía em outro cliente. A ficha (`/contador/:produtorId`) grava o cliente
+em foco ao abrir, e seus links para as outras telas levam `?cliente=`. As rotas do produtor (`/notas`, `/apuracao`, `/relatorios`,
 `/creditos`, `/dashboard`, `/vinculos`, `/pendencias`, `/alertas`, `/assistente/*`, `/convites`)
 derivam o produtor do token e dão **403 `PAPEL_NAO_AUTORIZADO`** ao contador — nunca as chame com
 sessão de contador.

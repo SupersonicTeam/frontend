@@ -119,6 +119,21 @@ describe('PrazosProdutor', () => {
     expect(fechamento).toMatch(/, a apuração de IBS\/CBS do mês fecha sozinha no último dia\.$/);
     expect(fechamento).not.toContain('..');
     expect(prazo('DITR, declaração do ITR.')).toMatch(/, DITR, declaração do ITR\.$/);
+
+    // O pedido do escritório é texto de gente: começa com nome próprio e pode perguntar.
+    const pedido = (descricao: string) =>
+      cmp.frasePrazo({
+        id: 'pend-1',
+        titulo: 'Extrato',
+        descricao,
+        dataVencimento: emDias(5),
+        tipo: 'solicitacao',
+        status: 'pendente',
+      });
+    expect(pedido('Banco do Brasil: extrato de outubro')).toMatch(
+      /, Banco do Brasil: extrato de outubro\.$/,
+    );
+    expect(pedido('Pode mandar o extrato?')).toMatch(/, Pode mandar o extrato\?$/);
   });
 
   it('uma guia paga aparece como paga — não como pendente', () => {
