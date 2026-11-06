@@ -293,8 +293,21 @@ export class PrazosProdutor implements OnInit {
           : this.diasAte(v.dataVencimento) < 0
             ? 'Vencia em'
             : 'Vence em';
-    const referencia = v.descricao ? `, ${v.descricao.toLowerCase()}` : '';
+    const descricao = PrazosProdutor.descricaoNoMeioDaFrase(v.descricao);
+    const referencia = descricao ? `, ${descricao}` : '';
     return `${verbo} ${quando}${referencia}.`;
+  }
+
+  /**
+   * A descrição entra depois da vírgula, então só a primeira letra desce — e só se for palavra
+   * comum: o `toLowerCase()` inteiro fazia "IBS/CBS" virar "ibs/cbs" e "DITR", "ditr". O ponto
+   * final dela sai, porque a frase põe o seu ("...no último dia.." era o resultado).
+   */
+  private static descricaoNoMeioDaFrase(descricao?: string): string {
+    const texto = (descricao ?? '').trim().replace(/\.+$/, '');
+    if (!texto) return '';
+    const sigla = /^\p{Lu}{2,}/u.test(texto);
+    return sigla ? texto : texto.charAt(0).toLocaleLowerCase('pt-BR') + texto.slice(1);
   }
 
   /** "20 de outubro". Sem o ano, que na janela de seis meses so faz ruido. */

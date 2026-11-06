@@ -12,7 +12,9 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
 import { dataDoPagamento } from '@core/utils/guias';
 import { formatarData } from '@core/utils/periodo';
+import { ActivatedRoute, Router } from '@angular/router';
 import { ToastService } from '@core/services/toast.service';
+import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import {
   NotificacaoApi,
   type NotificacaoError,
@@ -77,6 +79,9 @@ export class PrazosContador implements OnInit {
 
   private readonly carteiraApi = inject(CarteiraApi);
   private readonly notificacaoApi = inject(NotificacaoApi);
+  private readonly foco = inject(ClienteEmFocoService);
+  private readonly rota = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   /**
    * De quem sao as guias desta tela (issue #106).
@@ -242,9 +247,12 @@ export class PrazosContador implements OnInit {
     this.carteiraApi.listar().subscribe({
       next: (pagina) => {
         this.clientes.set(pagina.itens);
-        // Abre no primeiro da carteira; antes abria sempre no produtor semente, fosse ele cliente
-        // deste escritorio ou nao.
-        this.clienteId.set(pagina.itens[0]?.id ?? null);
+        // O cliente pedido no endereço ("Cobrar em Prazos" da ficha), senão o que o contador está
+        // atendendo, senão o primeiro da carteira. Antes era sempre o primeiro: da ficha do Carlos,
+        // com guia vencida, o botão caía em outro cliente dizendo "Nada para cobrar agora".
+        const pedido = this.rota.snapshot.queryParamMap.get('cliente') ?? this.foco.produtorId();
+        const escolhido = pagina.itens.find((c) => c.id === pedido) ?? pagina.itens[0];
+        this.selecionar(escolhido?.id ?? null);
         this.carregar();
       },
       error: (err: HttpErrorResponse) => {
@@ -257,8 +265,26 @@ export class PrazosContador implements OnInit {
   /** Troca o cliente e recarrega — a lista e do cliente, nao da tela. */
   trocarCliente(id: string): void {
     if (this.clienteId() === id) return;
-    this.clienteId.set(id);
+    this.selecionar(id);
     this.carregar();
+  }
+
+  /**
+   * O cliente desta tela vale também para as outras (`ClienteEmFocoService`), e o endereço o
+   * acompanha sem empilhar histórico — como no `SeletorCliente`. Sem isso um `?cliente=` antigo
+   * reabriria o cliente anterior ao recarregar.
+   */
+  private selecionar(id: string | null): void {
+    this.clienteId.set(id);
+    this.foco.escolher(id);
+    if (this.rota.snapshot.queryParamMap.get('cliente') !== id) {
+      void this.router.navigate([], {
+        relativeTo: this.rota,
+        queryParams: { cliente: id },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    }
   }
 
   /**

@@ -43,7 +43,7 @@
         <div class="text-apoio">
           <p class="font-heading text-valor font-semibold text-foreground">{{ e.nome }}</p>
           <p class="text-muted-foreground">
-            {{ e.cnpj ? 'CNPJ ' + e.cnpj + ' · ' : '' }}você é
+            {{ e.cnpj ? 'CNPJ ' + formatarCpfCnpj(e.cnpj) + ' · ' : '' }}você é
             <span class="font-medium text-foreground">{{ rotuloDaFuncao(e.minhaFuncao) }}</span>
           </p>
         </div>

@@ -28,6 +28,7 @@ import type {
 } from '@services/contador/data-access/carteira.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ToastService } from '@core/services/toast.service';
+import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import { filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
@@ -123,6 +124,7 @@ export class ClientePage {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly clienteEmFoco = inject(ClienteEmFocoService);
 
   readonly produtorId = this.route.snapshot.paramMap.get('produtorId') ?? '';
 
@@ -214,6 +216,9 @@ export class ClientePage {
           this.carregando.set(false);
           return;
         }
+        // Quem abriu a ficha está atendendo este cliente: Notas, Fechamento e Prazos abrem nele,
+        // em vez de pedir para escolher de novo (ou abrir em outro, como o Prazos fazia).
+        this.clienteEmFoco.escolher(cliente.id);
         this.carregarTrabalho();
       },
       error: () => {

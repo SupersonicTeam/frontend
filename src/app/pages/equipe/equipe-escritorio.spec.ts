@@ -110,6 +110,9 @@ describe('EquipeEscritorio', () => {
       membros: 2,
     });
     expect(cmp.editando()).toBe(false);
+    f.detectChanges();
+    // Grava só dígitos, mostra com máscara: "48315276000195" era o que a Equipe exibia.
+    expect(el(f).textContent).toContain('CNPJ 11.222.333/0001-81');
   });
 
   it('o administrador exclui etiqueta do catalogo', () => {

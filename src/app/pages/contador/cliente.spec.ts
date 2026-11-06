@@ -1,12 +1,20 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
+import {
+  ActivatedRoute,
+  Router,
+  RouterLink,
+  convertToParamMap,
+  provideRouter,
+} from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { vi } from 'vitest';
 import { ClientePage } from './cliente';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { Pendencia as PendenciaTeste } from '@models/pendencia.model';
+import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 
 /**
  * A tela de um cliente da carteira: `/contador/{produtorId}`.
@@ -131,6 +139,47 @@ describe('ClientePage', () => {
     responder({});
 
     expect(fixture.componentInstance.cliente()?.nomeCompleto).toBe('João da Silva Produtor');
+  });
+
+  it('abrir a ficha faz deste o cliente em foco: Notas, Fechamento e Prazos abrem nele', () => {
+    abrir();
+    responder({});
+
+    expect(TestBed.inject(ClienteEmFocoService).produtorId()).toBe('p1');
+  });
+
+  it('cliente suspenso não vira o cliente em foco: as outras telas só listam os ativos', () => {
+    abrir();
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'ATIVO')
+      .flush([]);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores' && r.params.get('situacao') === 'SUSPENSO')
+      .flush([cliente({ situacaoVinculo: 'SUSPENSO', atencao: null })]);
+
+    expect(TestBed.inject(ClienteEmFocoService).produtorId()).toBeNull();
+  });
+
+  it('"Cobrar em Prazos" leva o cliente no endereço', () => {
+    const fixture = abrir();
+    responder({
+      guias: [
+        {
+          id: 'g1',
+          produtorId: 'p1',
+          tipoGuia: 'ICMS',
+          dataVencimento: '2020-01-10',
+          valor: 10,
+          status: 'pendente',
+        },
+      ],
+    });
+    fixture.detectChanges();
+
+    const link = fixture.debugElement
+      .queryAll(By.directive(RouterLink))
+      .find((de) => (de.nativeElement as HTMLElement).textContent?.includes('Cobrar em Prazos'));
+    expect(link?.injector.get(RouterLink).urlTree?.toString()).toBe('/calendario?cliente=p1');
   });
 
   /** Os numeros (#138) saem com o produtorId da rota, e o aviso de "rota inexistente" sumiu. */

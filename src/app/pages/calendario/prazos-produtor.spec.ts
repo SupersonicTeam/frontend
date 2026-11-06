@@ -99,6 +99,28 @@ describe('PrazosProdutor', () => {
     flushContadorVazio();
   });
 
+  it('a descrição entra na frase sem ponto duplo e sem apagar a sigla', () => {
+    const fixture = TestBed.createComponent(PrazosProdutor);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush([]);
+    flushContadorVazio();
+    const cmp = fixture.componentInstance;
+    const prazo = (descricao: string) =>
+      cmp.frasePrazo({
+        id: 'fech:2026-11-30',
+        titulo: 'Fechamento da apuração do mês',
+        descricao,
+        dataVencimento: emDias(10),
+        tipo: 'obrigacao',
+        status: null,
+      });
+
+    const fechamento = prazo('A apuração de IBS/CBS do mês fecha sozinha no último dia.');
+    expect(fechamento).toMatch(/, a apuração de IBS\/CBS do mês fecha sozinha no último dia\.$/);
+    expect(fechamento).not.toContain('..');
+    expect(prazo('DITR, declaração do ITR.')).toMatch(/, DITR, declaração do ITR\.$/);
+  });
+
   it('uma guia paga aparece como paga — não como pendente', () => {
     // Era o bug: o mapeamento só reconhecia "vencido" e jogava todo o resto em "pendente", então
     // guia quitada seguia cobrando atenção no calendário. O próprio DTO do backend registra isso.

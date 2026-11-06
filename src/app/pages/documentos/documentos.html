@@ -51,16 +51,7 @@
             }}
           </p>
           <p class="text-apoio text-muted-foreground">
-            @if (resumoDoPeriodo().comInconsistencia) {
-              {{ resumoDoPeriodo().comInconsistencia }} com inconsistência
-            }
-            @if (resumoDoPeriodo().comInconsistencia && resumoDoPeriodo().rascunhos) {
-              e
-            }
-            @if (resumoDoPeriodo().rascunhos) {
-              {{ resumoDoPeriodo().rascunhos }} em rascunho
-            }
-            — nenhuma delas virou documento fiscal ainda.
+            {{ detalheDoQueEspera() }} — nenhuma delas virou documento fiscal ainda.
           </p>
           <button
             type="button"

@@ -627,6 +627,18 @@ export class DashboardPage implements OnInit {
   /** Vencimento mais proximo ainda em aberto, para o assistente antecipar o prazo. */
   readonly proximoVencimento = computed(() => this.alertas()[0] ?? null);
 
+  /**
+   * "Funrural (recolhimento) vence em 20 de nov." — pelo título, que é o nome do prazo; a descrição
+   * é a explicação longa. E sem ponto duplo: o mês abreviado já termina em ponto, e a frase saía
+   * "vence em 20 de nov.." (achado do roteiro da demo, 06/11).
+   */
+  readonly fraseDoVencimento = computed(() => {
+    const venc = this.proximoVencimento();
+    if (!venc) return '';
+    const frase = `${venc.titulo || venc.descricao || 'Um prazo'} vence em ${this.formatDate(venc.dataVencimento)}`;
+    return frase.endsWith('.') ? frase : `${frase}.`;
+  });
+
   /** Ha algo que o assistente precise dizer? Evita renderizar bloco vazio. */
   readonly temInsight = computed(
     () => this.notasComProblema().length > 0 || this.proximoVencimento() !== null,

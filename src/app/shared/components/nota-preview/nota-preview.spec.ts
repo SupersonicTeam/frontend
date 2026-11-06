@@ -1,4 +1,6 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { SessaoService } from '@core/services/sessao.service';
 import { NotaPreview } from './nota-preview';
 import type { ItemNotaFiscal, NotaFiscal } from '@models/nota-fiscal.model';
 
@@ -145,5 +147,46 @@ describe('NotaPreview — itens', () => {
     expect(c.formatReducao(0)).toBe('sem redução');
     expect(c.formatReducao(null)).toBe('—');
     expect(c.formatReducao(12.5)).toBe('12,5%');
+  });
+});
+
+/**
+ * O quadro do emitente (roteiro da demo, 06/11). Era "Produtor rural / Emissor da NF-e" cravado
+ * para toda nota: a do Carlos não tinha o nome dele.
+ */
+describe('NotaPreview — emitente', () => {
+  function emitente(destinatarioNome: string, nomeDaSessao = 'Carlos Eduardo Rossi') {
+    TestBed.configureTestingModule({
+      imports: [NotaPreview],
+      providers: [{ provide: SessaoService, useValue: { nome: signal(nomeDaSessao) } }],
+    });
+    const f = TestBed.createComponent(NotaPreview);
+    f.componentRef.setInput('nota', {
+      id: 'n1',
+      numero: 1,
+      naturezaOperacao: 'Venda',
+      status: 'RASCUNHO',
+      dataEmissao: '2026-10-01',
+      destinatarioNome,
+      destinatarioCpfCnpj: '12345678000195',
+      itens: [],
+    } satisfies NotaFiscal);
+    f.detectChanges();
+    return f.componentInstance.emitente();
+  }
+
+  it('na nota própria, o emitente é o produtor logado', () => {
+    expect(emitente('Graneleira Vale do Teles Pires Ltda')).toEqual({
+      nome: 'Carlos Eduardo Rossi',
+      detalhe: 'Emissor da NF-e',
+    });
+  });
+
+  it('na compra importada o produtor é o destinatário: não repete o nome dele como emitente', () => {
+    expect(emitente('CARLOS EDUARDO ROSSI ').nome).toBe('Fornecedor');
+  });
+
+  it('sem nome na sessão, não confunde nota nenhuma com compra', () => {
+    expect(emitente('', '')).toEqual({ nome: 'Produtor rural', detalhe: 'Emissor da NF-e' });
   });
 });
