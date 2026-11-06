@@ -2,32 +2,36 @@ import { NavigationError } from '@angular/router';
 import {
   AmbienteDeRecarga,
   CHAVE_RECARGA_CHUNK,
-  INTERVALO_MINIMO_MS,
   ehFalhaDeChunk,
+  navegacaoDeuCerto,
   recarregarSeChunkFaltou,
 } from './recarga-apos-deploy';
+
+/** Um ambiente de mentira: `sessionStorage` em memória, rede ligável, navegação espionada. */
+function ambienteFalso(guardado: Record<string, string> = {}, online = true) {
+  const dados: Record<string, string> = { ...guardado };
+  const ir = vi.fn();
+  const ambiente: AmbienteDeRecarga = {
+    armazenamento: {
+      getItem: (k) => dados[k] ?? null,
+      setItem: (k, v) => {
+        dados[k] = v;
+      },
+      removeItem: (k) => {
+        delete dados[k];
+      },
+    },
+    online: () => online,
+    ir,
+  };
+  return { ambiente, ir, dados };
+}
 
 /** Aba aberta antes de um deploy: recarregar no destino, uma vez (#162). */
 describe('recarga após deploy', () => {
   const falhaChrome = new TypeError(
     'Failed to fetch dynamically imported module: https://www.agroconia.com.br/chunk-GQNNXNPM.js',
   );
-
-  function ambiente(guardado: Record<string, string> = {}, agora = 1_000_000) {
-    const dados = { ...guardado };
-    const ir = vi.fn();
-    const amb: AmbienteDeRecarga = {
-      armazenamento: {
-        getItem: (k) => dados[k] ?? null,
-        setItem: (k, v) => {
-          dados[k] = v;
-        },
-      },
-      agora: () => agora,
-      ir,
-    };
-    return { amb, ir, dados };
-  }
 
   const erroDeNavegacao = (erro: unknown, url = '/cadastro') => new NavigationError(1, url, erro);
 
@@ -48,48 +52,57 @@ describe('recarga após deploy', () => {
   });
 
   describe('recarregarSeChunkFaltou', () => {
-    it('falha de chunk: recarrega no endereço para onde a pessoa ia e anota a hora', () => {
-      const { amb, ir, dados } = ambiente();
-      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome), amb)).toBe(true);
+    it('falha de chunk: recarrega no endereço para onde a pessoa ia e marca a aba', () => {
+      const { ambiente, ir, dados } = ambienteFalso();
+      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome), ambiente)).toBe(true);
       expect(ir).toHaveBeenCalledWith('/cadastro');
-      expect(dados[CHAVE_RECARGA_CHUNK]).toBe('1000000');
+      expect(dados[CHAVE_RECARGA_CHUNK]).toBe('/cadastro');
     });
 
     it('outro erro de navegação segue como antes, sem recarregar', () => {
-      const { amb, ir } = ambiente();
-      expect(recarregarSeChunkFaltou(erroDeNavegacao(new Error('guarda quebrou')), amb)).toBe(
-        false,
-      );
+      const { ambiente, ir } = ambienteFalso();
+      const evento = erroDeNavegacao(new Error('guarda quebrou'));
+      expect(recarregarSeChunkFaltou(evento, ambiente)).toBe(false);
       expect(ir).not.toHaveBeenCalled();
     });
 
-    it('falhou de novo logo depois de recarregar: não recarrega outra vez (sem laço)', () => {
-      const agora = 1_000_000;
-      const { amb, ir } = ambiente(
-        { [CHAVE_RECARGA_CHUNK]: String(agora - INTERVALO_MINIMO_MS + 1) },
-        agora,
-      );
-      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome), amb)).toBe(false);
+    it('já recarregou e ainda não houve navegação boa: não recarrega outra vez (sem laço)', () => {
+      const { ambiente, ir } = ambienteFalso({ [CHAVE_RECARGA_CHUNK]: '/cadastro' });
+      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome), ambiente)).toBe(false);
       expect(ir).not.toHaveBeenCalled();
     });
 
-    it('a recarga anterior foi há mais tempo (outro deploy): recarrega de novo', () => {
-      const agora = 1_000_000;
-      const { amb, ir } = ambiente(
-        { [CHAVE_RECARGA_CHUNK]: String(agora - INTERVALO_MINIMO_MS) },
-        agora,
+    it('depois de uma navegação boa, a falha seguinte (outro deploy) recarrega de novo', () => {
+      const { ambiente, ir } = ambienteFalso({ [CHAVE_RECARGA_CHUNK]: '/cadastro' });
+      navegacaoDeuCerto(ambiente);
+      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome, '/documentos'), ambiente)).toBe(
+        true,
       );
-      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome), amb)).toBe(true);
-      expect(ir).toHaveBeenCalledTimes(1);
+      expect(ir).toHaveBeenCalledWith('/documentos');
+    });
+
+    it('sem rede não recarrega: o app segue aberto em vez da página de erro do navegador', () => {
+      const { ambiente, ir, dados } = ambienteFalso({}, false);
+      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome), ambiente)).toBe(false);
+      expect(ir).not.toHaveBeenCalled();
+      expect(dados[CHAVE_RECARGA_CHUNK]).toBeUndefined();
     });
 
     it('sem sessionStorage não há como lembrar, então não recarrega', () => {
-      const { amb, ir } = ambiente();
-      amb.armazenamento.getItem = () => {
+      const { ambiente, ir } = ambienteFalso();
+      ambiente.armazenamento.getItem = () => {
         throw new DOMException('bloqueado', 'SecurityError');
       };
-      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome), amb)).toBe(false);
+      expect(recarregarSeChunkFaltou(erroDeNavegacao(falhaChrome), ambiente)).toBe(false);
       expect(ir).not.toHaveBeenCalled();
     });
+  });
+
+  it('navegacaoDeuCerto não lança sem sessionStorage', () => {
+    const { ambiente } = ambienteFalso();
+    ambiente.armazenamento.removeItem = () => {
+      throw new DOMException('bloqueado', 'SecurityError');
+    };
+    expect(() => navegacaoDeuCerto(ambiente)).not.toThrow();
   });
 });
