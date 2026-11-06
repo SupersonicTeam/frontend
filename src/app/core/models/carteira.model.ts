@@ -6,6 +6,8 @@
  * produtor: o mesmo produtor pode ter vários vínculos encerrados com o mesmo escritório.
  */
 
+import type { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
+
 /** Situação do vínculo entre o produtor e o escritório. */
 export type SituacaoVinculo = 'ATIVO' | 'SUSPENSO' | 'ENCERRADO';
 
@@ -119,4 +121,43 @@ export function totalDeAtencao(atencao: AtencaoCarteira | null): number {
     atencao.vencimentosProximos7Dias +
     atencao.pendenciasEnviadas
   );
+}
+
+/**
+ * Uma nota na lista da carteira inteira (`GET /api/contador/notas`, backend#341). É um **resumo**:
+ * não traz `itens`, XML nem documento do destinatário. Detalhe, prévia da DANFE, aprovar e
+ * devolver continuam nas rotas por cliente, com o `produtorId` da própria nota.
+ */
+export interface NotaCarteira {
+  id: string;
+  produtorId: string;
+  produtorNome: string;
+  numero?: number | null;
+  serie?: number | null;
+  naturezaOperacao?: string | null;
+  status: StatusNotaFiscal;
+  tipoDocumento?: 'NFE' | 'NFA' | null;
+  dataEmissao?: string | null;
+  destinatarioNome?: string | null;
+  valorTotalProdutos?: number | null;
+  valorTotalNota?: number | null;
+  valorTotalIbs?: number | null;
+  valorTotalCbs?: number | null;
+  chaveAcesso?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+}
+
+/**
+ * `GET /api/contador/notas/resumo`: quantas notas há em cada caixa da triagem, numa consulta só.
+ * `todas` conta também os status que nenhuma caixa mostra (`APROVADA`, `XML_GERADO`...).
+ */
+export interface ResumoNotasCarteira {
+  revisao: number;
+  travadas: number;
+  rascunhos: number;
+  devolvidas: number;
+  autorizadas: number;
+  canceladas: number;
+  todas: number;
 }

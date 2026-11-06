@@ -9,21 +9,16 @@
           as notas de <span class="font-medium text-foreground">{{ c.nomeCompleto }}</span
           >, para triar, conferir e aprovar
         } @else {
-          as notas de um cliente da carteira, para triar, conferir e aprovar
+          as notas de toda a carteira, para triar, conferir e aprovar
         }
       </p>
     </div>
-    <app-seletor-cliente (clienteChange)="aoTrocarCliente($event)" />
+    <!-- "Toda a carteira" e a opcao vazia do seletor (#164): sem cliente, a tela mostra as notas
+         de todos os clientes ativos, em vez de pedir uma escolha antes de mostrar qualquer coisa. -->
+    <app-seletor-cliente [todaCarteira]="true" (clienteChange)="aoTrocarCliente($event)" />
   </header>
 
-  @if (cliente() === null) {
-    <ui-empty-state
-      titulo="Escolha um cliente para ver as notas"
-      descricao="O escritório não tem notas próprias: cada nota é de um produtor da carteira. Escolha qual no seletor acima. Um cliente entra na carteira quando o produtor aceita o convite do escritório."
-    >
-      <svg icone lucideUsers [size]="24" aria-hidden="true" />
-    </ui-empty-state>
-  } @else if (cliente(); as c) {
+  @if (cliente() !== undefined) {
     <!-- A TRIAGEM. Cada caixa e um filtro de status no servidor, e a contagem nao muda quando uma
          e escolhida: ela conta sobre a busca, nao sobre a caixa. -->
     <div class="flex flex-col gap-2">
@@ -70,7 +65,7 @@
         id="busca-notas"
         type="search"
         class="tap-target min-w-0 flex-1 rounded-controle border border-border bg-card px-3 text-apoio text-foreground sm:max-w-sm"
-        placeholder="Número, destinatário ou natureza"
+        placeholder="Número, destinatário, produto ou CPF/CNPJ"
         [value]="busca()"
         (input)="busca.set($any($event.target).value)"
       />
@@ -87,7 +82,7 @@
     } @else if (erro()) {
       <ui-empty-state
         titulo="Não foi possível carregar as notas"
-        descricao="A lista deste cliente não respondeu. Tente de novo em instantes."
+        descricao="A lista não respondeu. Tente de novo em instantes."
       >
         <svg icone lucideFileText [size]="24" aria-hidden="true" />
         <ui-button acao variant="ghost" (click)="recarregar()">
@@ -100,7 +95,9 @@
         [descricao]="
           buscaAplicada()
             ? 'Nada encontrado para “' + buscaAplicada() + '” nesta situação.'
-            : 'Este cliente não tem nota nesta situação agora.'
+            : todaCarteira()
+              ? 'Nenhum cliente da carteira tem nota nesta situação agora.'
+              : 'Este cliente não tem nota nesta situação agora.'
         "
       >
         <svg icone lucideFileText [size]="24" aria-hidden="true" />
@@ -115,6 +112,16 @@
                   Nota {{ nota.numero }}
                   <ui-badge-status [status]="nota.status" />
                 </p>
+                @if (todaCarteira()) {
+                  <!-- Com a carteira inteira, de quem e a nota e a primeira coisa a saber: e o
+                       cliente que o contador vai atender, e a ficha dele esta a um clique. -->
+                  <a
+                    [routerLink]="['/contador', nota.produtorId]"
+                    class="tap-target inline-flex items-center text-apoio font-medium text-primary hover:underline"
+                  >
+                    {{ nota.produtorNome }}
+                  </a>
+                }
                 <p class="text-apoio text-muted-foreground">
                   {{ nota.destinatarioNome || 'Sem destinatário' }} · {{ data(nota.dataEmissao) }}
                   @if (nota.naturezaOperacao) {
@@ -208,15 +215,17 @@
       </div>
     }
 
-    <p class="border-t border-border pt-4 text-apoio text-muted-foreground">
-      Pedidos de documento, guias e o resto do atendimento deste cliente estão na
-      <a
-        [routerLink]="['/contador', c.id]"
-        class="tap-target inline-flex items-center font-medium text-primary underline"
-      >
-        ficha do cliente</a
-      >.
-    </p>
+    @if (cliente(); as c) {
+      <p class="border-t border-border pt-4 text-apoio text-muted-foreground">
+        Pedidos de documento, guias e o resto do atendimento deste cliente estão na
+        <a
+          [routerLink]="['/contador', c.id]"
+          class="tap-target inline-flex items-center font-medium text-primary underline"
+        >
+          ficha do cliente</a
+        >.
+      </p>
+    }
   }
 </div>
 
