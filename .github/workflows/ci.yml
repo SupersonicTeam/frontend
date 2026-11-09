@@ -33,5 +33,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      # O build de produção usa o environment.prod.ts? (#175: sem o fileReplacements, o
+      # dominioBase iria como localhost e o modo escritório ficaria morto no ar.)
+      - name: Conferir build de produção
+        run: node scripts/conferir-build-producao.mjs
+
       - name: Test
         run: npm test -- --watch=false
