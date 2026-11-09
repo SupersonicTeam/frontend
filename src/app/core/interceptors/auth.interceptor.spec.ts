@@ -185,6 +185,31 @@ describe('authInterceptor', () => {
     });
   });
 
+  /** O endpoint público do host (#175): pelo início do caminho, nunca por `includes`. */
+  it.each(['/publico/escritorios/x', '/api/publico/escritorios/x'])(
+    '%s é público: sem token, e o 401 dele não renova',
+    (rota) => {
+      entrarComo('CONTADOR');
+      http.get(rota).subscribe({ error: () => undefined });
+
+      const req = httpMock.expectOne(rota);
+      expect(req.request.headers.has('Authorization')).toBe(false);
+      req.flush(null, { status: 401, statusText: 'Unauthorized' });
+
+      httpMock.expectNone((r) => r.url.includes('/auth/refresh'));
+      expect(encerrou).toEqual([]);
+    },
+  );
+
+  it('/publico/ no meio do caminho continua levando Authorization', () => {
+    const atual = entrarComo('CONTADOR');
+    http.get('/contador/publico/x').subscribe();
+
+    const req = httpMock.expectOne('/contador/publico/x');
+    expect(req.request.headers.get('Authorization')).toBe(`Bearer ${atual.token}`);
+    req.flush({});
+  });
+
   it('401 SEM sessão não tenta renovar: não há o que renovar', () => {
     http.get('/dashboard').subscribe({ error: () => undefined });
 

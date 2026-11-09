@@ -30,7 +30,10 @@ export type MotivoDaSaida = 'pedido' | 'expirada';
  * produtor da sessão anterior.
  *
  * Então aqui ficam **todos** os caches com dado de usuário. Ao criar um service `root` que guarde
- * resposta do servidor em signal, acrescente-o a esta lista:
+ * resposta do servidor em signal, acrescente-o a esta lista. **Exceção:** o `EscritorioDoHostService`
+ * (#175) fica de fora: ele guarda o escritório do **endereço**, público e igual para qualquer
+ * visitante, e não da sessão. Limpo aqui, o `/login` do subdomínio perderia a marca, porque ele só é
+ * resolvido na carga da página. A lista:
  *
  * - `DashboardApi` — KPIs, notas e o **nome do produtor** (a origem do vazamento acima);
  * - `AssistenteStore` — a conversa com a Ceres, que é dado do usuário por definição;

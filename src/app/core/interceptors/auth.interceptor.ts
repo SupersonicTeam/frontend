@@ -21,10 +21,20 @@ const ROTAS_PUBLICAS = [
   '/auth/senha/redefinir',
 ];
 
+/**
+ * Os endpoints públicos por **prefixo** (#175): `GET /publico/escritorios/{slug}`, que o
+ * inicializador do host chama antes de haver sessão. Comparado pelo **início** do caminho, nunca
+ * com `includes`: uma rota futura com `/publico/` no meio sairia sem `Authorization` e sem renovação.
+ */
+const PREFIXOS_PUBLICOS = ['/publico/', '/api/publico/'];
+
 /** A URL chega relativa (`/auth/login`) ou já com a baseURL (`/api/auth/login`). */
 function ehPublica(url: string): boolean {
   const caminho = url.split('?')[0] ?? '';
-  return ROTAS_PUBLICAS.some((r) => caminho === r || caminho.endsWith(r));
+  return (
+    ROTAS_PUBLICAS.some((r) => caminho === r || caminho.endsWith(r)) ||
+    PREFIXOS_PUBLICOS.some((p) => caminho.startsWith(p))
+  );
 }
 
 /**

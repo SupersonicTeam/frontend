@@ -21,6 +21,7 @@ import { routes } from './app.routes';
 import { authInterceptor } from '@core/interceptors/auth.interceptor';
 import { apiInterceptor } from '@core/interceptors/api.interceptor';
 import { ThemeService } from '@core/services/theme.service';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
 import {
   AMBIENTE_DE_RECARGA,
   navegacaoDeuCerto,
@@ -56,6 +57,10 @@ export const appConfig: ApplicationConfig = {
       inject(ThemeService);
     }),
     provideAppInitializer(liberarRecargaAoNavegar),
+    // O escritório do endereço (#175): no host principal termina na hora, sem requisição; num
+    // `{slug}.{base}`, pergunta ao endpoint público antes de o app montar (o login já nasce com a
+    // marca, e a landing nunca pisca no subdomínio). Nunca rejeita.
+    provideAppInitializer(() => inject(EscritorioDoHostService).resolver()),
     // **A ordem importa.** O `authInterceptor` vem primeiro: ele anexa o `Authorization` e, no 401,
     // renova o token e **repete** a requisição. Como o `apiInterceptor` está depois (mais perto da
     // rede), a repetição passa por ele de novo e ganha a baseURL e o `Accept` como qualquer outra.
