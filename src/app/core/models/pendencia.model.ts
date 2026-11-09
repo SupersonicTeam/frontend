@@ -19,7 +19,11 @@ export type StatusPendencia = 'PENDENTE' | 'ENVIADA' | 'CONCLUIDA' | 'CANCELADA'
 
 /** Tipos de documento que o escritório pode pedir. */
 export type TipoDocumentoPendencia =
-  'NOTA_FISCAL' | 'COMPROVANTE_PAGAMENTO' | 'EXTRATO' | 'CONTRATO' | 'OUTRO';
+  | 'NOTA_FISCAL'
+  | 'COMPROVANTE_PAGAMENTO'
+  | 'EXTRATO'
+  | 'CONTRATO'
+  | 'OUTRO';
 
 /**
  * Antivírus (#227). `LIMPO` pode ser baixado; `EM_VERIFICACAO` ainda não — o download responde
