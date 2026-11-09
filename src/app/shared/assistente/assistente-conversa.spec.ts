@@ -40,7 +40,7 @@ describe('AssistenteConversa — resposta da Ceres', () => {
       '- Nota 3224 (serie 1): aguardando aprovacao do contador.',
       '- Nota 3222 (serie 1): devolvida pelo contador.',
     ].join('\n'),
-    fontesDados: [{ funcao: 'resumoDoProdutor', parametros: {} }],
+    fontesDados: [{ funcao: 'resumoDoProdutor', parametros: {}, origem: 'PRODUTOR' }],
     citacoes: [],
     modoFallback: false,
     atalhos: [],
@@ -140,7 +140,11 @@ describe('AssistenteConversa — resposta da Ceres', () => {
       rota: 'DADOS',
       texto: 'O feijao tem reducao de 100% de IBS e CBS.',
       fontesDados: [
-        { funcao: 'consultarTratamentoProduto', parametros: { produtoOuNcm: 'feijao' } },
+        {
+          funcao: 'consultarTratamentoProduto',
+          parametros: { produtoOuNcm: 'feijao' },
+          origem: 'TABELA_OFICIAL',
+        },
       ],
       citacoes: [],
     });
@@ -157,8 +161,16 @@ describe('AssistenteConversa — resposta da Ceres', () => {
       rota: 'MISTO',
       texto: 'As suas vendas de feijao somam R$ 10,00 e o feijao tem reducao.',
       fontesDados: [
-        { funcao: 'totalVendasPorProduto', parametros: { descricaoOuNcm: 'feijao' } },
-        { funcao: 'consultarTratamentoProduto', parametros: { produtoOuNcm: 'feijao' } },
+        {
+          funcao: 'totalVendasPorProduto',
+          parametros: { descricaoOuNcm: 'feijao' },
+          origem: 'PRODUTOR',
+        },
+        {
+          funcao: 'consultarTratamentoProduto',
+          parametros: { produtoOuNcm: 'feijao' },
+          origem: 'TABELA_OFICIAL',
+        },
       ],
       citacoes: [],
     });
@@ -171,5 +183,21 @@ describe('AssistenteConversa — resposta da Ceres', () => {
     expect(oficial.textContent).toContain('Consultado na tabela oficial do IBS/CBS');
     expect(oficial.textContent).not.toContain('Vendas de produto');
     expect(el.textContent).toContain('resposta das suas notas e da legislação');
+  });
+
+  it('origem que a tela não conhece vai para o bloco neutro, nunca para "das suas notas"', () => {
+    const el = montar({
+      autor: 'ceres',
+      rota: 'DADOS',
+      texto: 'Encontrei 3 notas.',
+      fontesDados: [{ funcao: 'funcaoNovaDoBackend', parametros: {}, origem: 'COOPERATIVA' }],
+      citacoes: [],
+    });
+
+    expect(el.querySelector('[data-fontes="neutra"]')?.textContent).toContain(
+      'Consultado pelo AgroConIA',
+    );
+    expect(el.textContent).not.toContain('Calculado a partir das suas notas');
+    expect(el.textContent).toContain('resposta do AgroConIA');
   });
 });

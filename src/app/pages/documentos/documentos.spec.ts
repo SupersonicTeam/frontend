@@ -1558,4 +1558,88 @@ describe('DocumentosPage', () => {
       expect(ditos.find((d) => d.tom === 'info')?.msg).toContain('não informou');
     });
   });
+  /** Contratos novos da backend#389 (#166). */
+  describe('regra fiscal do XML e avisos ao salvar', () => {
+    function preencherNota(cmp: DocumentosPage) {
+      cmp.abrirNovaNota();
+      cmp.formNumero.set('10');
+      cmp.formNatureza.set('Venda de produção');
+      cmp.formData.set('2026-11-01');
+      cmp.formDestNome.set('Cooperativa');
+      cmp.formDestCpfCnpj.set('11222333000181');
+      cmp.formItens.set([
+        {
+          descricao: 'Soja em grãos',
+          codigoProduto: '',
+          ncm: '12019000',
+          cfop: '5101',
+          unidade: 'KG',
+          quantidade: '10',
+          valorUnitario: '2',
+          valorTotal: '20',
+        },
+      ]);
+    }
+
+    it('aviso ao salvar vira alerta com o item, e a nota é salva mesmo assim', () => {
+      const fixture = comNotas([]);
+      const cmp = fixture.componentInstance;
+      const toast = TestBed.inject(ToastService);
+      const aviso = vi.spyOn(toast, 'warning');
+      const erro = vi.spyOn(toast, 'error');
+      preencherNota(cmp);
+
+      cmp.salvarNota();
+      httpMock
+        .expectOne((r) => r.url === '/notas' && r.method === 'POST')
+        .flush({
+          ...nota('n9', '2026-11-01', { status: 'RASCUNHO' }),
+          avisos: [
+            {
+              codigo: 'CCLASSTRIB_NAO_ADMITIDO',
+              numeroItem: 1,
+              campo: 'itens[0].cClassTrib',
+              mensagem: 'O cClassTrib informado não é admitido para este NCM.',
+            },
+          ],
+        });
+      httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush(pagina([])));
+      flushPendencias();
+
+      expect(aviso).toHaveBeenCalledWith(
+        'Item 1: O cClassTrib informado não é admitido para este NCM.',
+      );
+      expect(erro).not.toHaveBeenCalled();
+    });
+
+    it('409 XML_REGRA_FISCAL_DESATUALIZADA recarrega a nota e explica com texto da tela', () => {
+      const fixture = comNotas([nota('n1', '2026-11-01', { status: 'XML_GERADO' })]);
+      const cmp = fixture.componentInstance;
+      const aviso = vi.spyOn(TestBed.inject(ToastService), 'warning');
+
+      cmp.enviarSefaz(cmp.notas()[0]!);
+      httpMock.expectOne('/notas/n1/enviar-sefaz').flush(
+        {
+          message: 'Nota 0d1f... com XML de regra antiga',
+          errors: [
+            {
+              code: 'XML_REGRA_FISCAL_DESATUALIZADA',
+              message: 'XML gerado pela regra 2026.1',
+              suggestion: 'POST /api/notas/{id}/gerar-xml',
+            },
+          ],
+        },
+        { status: 409, statusText: 'Conflict' },
+      );
+      httpMock
+        .expectOne('/notas/n1')
+        .flush(nota('n1', '2026-11-01', { status: 'COM_INCONSISTENCIAS' }));
+
+      expect(cmp.notas()[0]!.status).toBe('COM_INCONSISTENCIAS');
+      const texto = aviso.mock.calls[0]?.[0] ?? '';
+      expect(texto).toContain('Nada foi enviado');
+      expect(texto).not.toContain('/api/');
+      expect(texto).not.toContain('0d1f');
+    });
+  });
 });

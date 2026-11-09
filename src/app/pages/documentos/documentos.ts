@@ -34,7 +34,7 @@ import {
 } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
-import { CancelamentoNota, NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
+import { AvisoNota, CancelamentoNota, NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
 import {
   type Pendencia,
   STATUS_PENDENCIA_LABEL,
@@ -1263,12 +1263,39 @@ export class DocumentosPage implements OnInit {
           this.toastService.error(
             'SEFAZ indisponível após as tentativas. Tente novamente em instantes.',
           );
+        } else if (env?.errors?.[0]?.code === 'XML_REGRA_FISCAL_DESATUALIZADA') {
+          // backend#389: o XML foi gerado por uma regra fiscal anterior. Nada foi transmitido e a
+          // nota voltou a COM_INCONSISTENCIAS (perdendo a aprovação, se tinha). O texto é da tela:
+          // a `message` traz o id da nota e a `suggestion` cita a rota da API.
+          this.toastService.warning(
+            'Nada foi enviado: a regra fiscal mudou depois que o XML foi gerado. A nota voltou ' +
+              'para correção; confira e gere o XML de novo. Se o escritório já tinha aprovado, ' +
+              'ela passa pela revisão outra vez.',
+          );
+          this.recarregarNotaDoServidor(nota);
         } else if (err?.status === 409) {
           this.toastService.error(env?.message ?? 'Envio inválido para o status atual.');
         } else {
           this.toastService.error(env?.message ?? 'Falha ao enviar à SEFAZ.');
         }
       },
+    });
+  }
+
+  /**
+   * Busca a nota de novo e troca nas listas e no modal. Sem isto, depois do 409 de regra fiscal
+   * a tela seguia com a nota em `XML_GERADO` e o botão de enviar, que falharia de novo.
+   */
+  private recarregarNotaDoServidor(nota: NotaFiscal): void {
+    this.notasApi.obter(nota.id).subscribe({
+      next: (atual) => {
+        this.atualizarNotaLocal(atual);
+        if (this.previewNota()?.id === atual.id && this.podeVerValidacoes(atual)) {
+          this.verValidacoes(atual);
+        }
+      },
+      // Sem a nota nova, ao menos a lista vem do servidor.
+      error: () => this.recarregarAposMudanca(),
     });
   }
 
@@ -1543,9 +1570,14 @@ export class DocumentosPage implements OnInit {
     const id = this.formNotaId();
     const req$ = id ? this.notasApi.atualizar(id, req) : this.notasApi.criar(req);
     req$.subscribe({
-      next: () => {
+      next: (salva) => {
         this.salvando.set(false);
         this.toastService.success(id ? 'Nota atualizada!' : 'Nota criada em rascunho!');
+        // backend#389: a nota foi salva, mas algo merece atenção (ex.: cClassTrib não admitido
+        // para o NCM). É aviso, não erro: o formulário fecha do mesmo jeito.
+        for (const aviso of salva?.avisos ?? []) {
+          this.toastService.warning(DocumentosPage.textoDoAviso(aviso));
+        }
         this.fecharForm();
         this.recarregarAposMudanca();
         // A nota corrigida sai da fila (ou continua, se o fisco ainda reclamar).
@@ -1562,6 +1594,11 @@ export class DocumentosPage implements OnInit {
         }
       },
     });
+  }
+
+  /** "Item 2: ..." — o aviso com o item, quando o servidor diz qual. */
+  private static textoDoAviso(aviso: AvisoNota): string {
+    return aviso.numeroItem ? `Item ${aviso.numeroItem}: ${aviso.mensagem}` : aviso.mensagem;
   }
 
   /** Primeiro erro do backend cujo `field` casa (exato ou por prefixo) com o campo dado. */

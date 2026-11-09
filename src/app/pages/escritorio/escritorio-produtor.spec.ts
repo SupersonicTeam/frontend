@@ -61,7 +61,7 @@ describe('EscritorioProdutor', () => {
     const fixture = TestBed.createComponent(EscritorioProdutor);
     fixture.detectChanges();
     httpMock.expectOne('/convites').flush(convites);
-    httpMock.expectOne('/vinculos').flush(vinculos);
+    httpMock.expectOne((r) => r.url === '/vinculos').flush(vinculos);
     httpMock.match((r) => r.url === '/pendencias').forEach((r) => r.flush(pedidos));
     fixture.detectChanges();
     return fixture;
@@ -113,7 +113,7 @@ describe('EscritorioProdutor', () => {
     const fixture = TestBed.createComponent(EscritorioProdutor);
     fixture.detectChanges();
     httpMock.expectOne('/convites').flush([]);
-    httpMock.expectOne('/vinculos').flush([vinculo('ATIVO')]);
+    httpMock.expectOne((r) => r.url === '/vinculos').flush([vinculo('ATIVO')]);
     const req = httpMock.expectOne((r) => r.url === '/pendencias');
     expect(req.request.params.getAll('status')).toEqual(['PENDENTE']);
     req.flush([]);
@@ -132,7 +132,9 @@ describe('EscritorioProdutor', () => {
     const fixture = TestBed.createComponent(EscritorioProdutor);
     fixture.detectChanges();
     httpMock.expectOne('/convites').flush([]);
-    httpMock.expectOne('/vinculos').flush(null, { status: 500, statusText: 'erro' });
+    httpMock
+      .expectOne((r) => r.url === '/vinculos')
+      .flush(null, { status: 500, statusText: 'erro' });
     fixture.detectChanges();
 
     expect(texto(fixture)).toContain('Não foi possível carregar');
@@ -145,7 +147,7 @@ describe('EscritorioProdutor', () => {
       const fixture = TestBed.createComponent(EscritorioProdutor);
       fixture.detectChanges();
       httpMock.expectOne('/convites').flush([]);
-      httpMock.expectOne('/vinculos').flush([vinculo('ATIVO')]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([vinculo('ATIVO')]);
       httpMock
         .expectOne((r) => r.url === '/pendencias')
         .flush(null, { status: 500, statusText: 'erro' });
@@ -159,7 +161,7 @@ describe('EscritorioProdutor', () => {
       const fixture = TestBed.createComponent(EscritorioProdutor);
       fixture.detectChanges();
       httpMock.expectOne('/convites').flush(null, { status: 500, statusText: 'erro' });
-      httpMock.expectOne('/vinculos').flush([]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
       fixture.detectChanges();
 
       expect(texto(fixture)).toContain('Não foi possível carregar os convites');
@@ -170,7 +172,9 @@ describe('EscritorioProdutor', () => {
       const fixture = TestBed.createComponent(EscritorioProdutor);
       fixture.detectChanges();
       httpMock.expectOne('/convites').flush([]);
-      httpMock.expectOne('/vinculos').flush(null, { status: 500, statusText: 'erro' });
+      httpMock
+        .expectOne((r) => r.url === '/vinculos')
+        .flush(null, { status: 500, statusText: 'erro' });
       fixture.detectChanges();
 
       fixture.componentInstance.carregar();
@@ -179,7 +183,7 @@ describe('EscritorioProdutor', () => {
       expect(texto(fixture)).not.toContain('Nenhum escritório atende você agora');
 
       httpMock.expectOne('/convites').flush([]);
-      httpMock.expectOne('/vinculos').flush([]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
     });
   });
 
@@ -190,7 +194,7 @@ describe('EscritorioProdutor', () => {
     expect(req.request.method).toBe('POST');
     req.flush({ ...convite, situacao: 'ACEITO' });
     httpMock.match('/convites').forEach((r) => r.flush([]));
-    httpMock.expectOne('/vinculos').flush([vinculo('ATIVO')]);
+    httpMock.expectOne((r) => r.url === '/vinculos').flush([vinculo('ATIVO')]);
     httpMock.match((r) => r.url === '/pendencias').forEach((r) => r.flush([]));
     httpMock.match((r) => r.url === '/alertas').forEach((r) => r.flush([]));
     f.detectChanges();
@@ -203,14 +207,11 @@ describe('EscritorioProdutor', () => {
     f.componentInstance.responder(f.componentInstance.convites()[0]!, 'recusar');
     httpMock.expectOne('/convites/c1/recusar').flush({ ...convite, situacao: 'RECUSADO' });
     httpMock.match('/convites').forEach((r) => r.flush([]));
-    httpMock.expectOne('/vinculos').flush([]);
+    httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
     httpMock.match((r) => r.url === '/alertas').forEach((r) => r.flush([]));
   });
 
-  /**
-   * O backend não devolve ao produtor o vínculo encerrado (medido em 05/11: `/vinculos` volta `[]`).
-   * Sem o aviso, a tela seguinte só dizia "nenhum escritório atende você", sem contar o que houve.
-   */
+  /** Sem o aviso, a tela seguinte só dizia "nenhum escritório atende você", sem contar o que houve. */
   it('encerrar pede confirmação, chama a rota e conta na tela o que aconteceu', () => {
     const f = abrir([], [vinculo('ATIVO')]);
     const cmp = f.componentInstance;
@@ -221,10 +222,50 @@ describe('EscritorioProdutor', () => {
     expect(req.request.method).toBe('POST');
     req.flush(null);
     httpMock.expectOne('/convites').flush([]);
-    httpMock.expectOne('/vinculos').flush([]);
+    httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
     f.detectChanges();
 
     expect(texto(f)).toContain('Você encerrou o vínculo com Contabilidade Campo Bom');
     expect(texto(f)).toContain('peça um convite novo');
+  });
+
+  /** Histórico (#166, backend#353): a aba pede os encerrados também. */
+  describe('histórico de vínculos', () => {
+    const encerrado = {
+      ...vinculo('ENCERRADO'),
+      id: 'v0',
+      escritorio: 'Escritório Antigo',
+      inicio: '2025-01-10T10:00:00-03:00',
+      fim: '2026-03-20T10:00:00-03:00',
+    };
+
+    it('pede ATIVO, SUSPENSO e ENCERRADO, com o parâmetro repetido', () => {
+      const fixture = TestBed.createComponent(EscritorioProdutor);
+      fixture.detectChanges();
+      httpMock.expectOne('/convites').flush([]);
+      const req = httpMock.expectOne((r) => r.url === '/vinculos');
+      expect(req.request.params.getAll('situacao')).toEqual(['ATIVO', 'SUSPENSO', 'ENCERRADO']);
+      req.flush([]);
+    });
+
+    it('lista quem já atendeu com o período, sem dizer quem encerrou', () => {
+      const f = abrir([], [vinculo('ATIVO'), encerrado]);
+
+      expect(texto(f)).toContain('Escritórios que já atenderam você');
+      expect(texto(f)).toContain('Escritório Antigo');
+      expect(texto(f)).toContain('de 10/01/2025 a 20/03/2026');
+      // Pode ter sido o escritório quem encerrou (backend#402): a tela não afirma que foi você.
+      expect(texto(f)).not.toContain('Você encerrou');
+      // O encerrado não vira cartão de quem atende agora.
+      expect(f.componentInstance.vinculosAtuais().map((v) => v.id)).toEqual(['v1']);
+    });
+
+    it('só com histórico, ainda explica que nenhum escritório atende agora', () => {
+      const f = abrir([], [encerrado]);
+
+      expect(texto(f)).toContain('Nenhum escritório atende você agora');
+      expect(texto(f)).toContain('Escritório Antigo');
+      httpMock.expectNone((r) => r.url === '/pendencias');
+    });
   });
 });

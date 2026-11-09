@@ -43,7 +43,17 @@ export interface CeresFonteDado {
   /** Nome da função consultada (ex.: `proximosVencimentos`). Rótulo em `@core/utils/ceres`. */
   funcao: string;
   parametros: Record<string, string>;
+  /**
+   * De onde veio o dado (backend#342): `PRODUTOR` (as notas, guias e apurações dele) ou
+   * `TABELA_OFICIAL` (a tabela do IBS/CBS, igual para todos). Vem sempre, também no SSE; o tipo
+   * aceita qualquer texto porque um valor novo do backend não pode quebrar a tela, e cai num selo
+   * neutro (`origemDaFonte`).
+   */
+  origem?: OrigemFonteCeres | (string & {});
 }
+
+/** Os valores de `CeresFonteDado.origem` que o contrato documenta hoje. */
+export type OrigemFonteCeres = 'PRODUTOR' | 'TABELA_OFICIAL';
 
 /** Resposta de `POST /api/assistente/chat`, e do evento `resposta` no streaming. */
 export interface CeresResposta {

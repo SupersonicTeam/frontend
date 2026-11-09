@@ -139,7 +139,9 @@ describe('ChatPage (#51, ligada à Ceres na #76)', () => {
         texto: 'A guia vence em 20/10/2026, no valor de R$ 1.840,55.',
         rota: 'DADOS',
         citacoes: [],
-        fontesDados: [{ funcao: 'proximosVencimentos', parametros: { dias: '30' } }],
+        fontesDados: [
+          { funcao: 'proximosVencimentos', parametros: { dias: '30' }, origem: 'PRODUTOR' },
+        ],
         modoFallback: false,
       },
     ]);

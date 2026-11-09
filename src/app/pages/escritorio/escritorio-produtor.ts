@@ -4,6 +4,7 @@ import {
   LucideBuilding2,
   LucideClipboardList,
   LucideEye,
+  LucideHistory,
   LucideMail,
   LucideTriangleAlert,
 } from '@lucide/angular';
@@ -33,9 +34,10 @@ const PEDIDOS_NA_ABA = 3;
  * **Erro não vira estado vazio** (#107): se `/api/vinculos` falha, a tela diz que não carregou, em
  * vez de afirmar que nenhum escritório atende a pessoa.
  *
- * **O backend não devolve ao produtor os vínculos encerrados** (medido em 05/11: depois de
- * encerrar, `GET /api/vinculos` volta `[]`). Por isso não há histórico aqui, e o encerramento feito
- * nesta tela é contado na própria tela, logo depois, em vez de sumir sem explicação.
+ * **Histórico (#166, backend#353):** a aba pede também os vínculos `ENCERRADO` e os lista abaixo,
+ * com o período. Ela **não diz quem encerrou**: o backend ainda não informa isso (backend#402), e o
+ * vínculo pode ter sido encerrado pelo escritório. "Você encerrou" só aparece no aviso do
+ * encerramento feito nesta tela, agora há pouco (`encerradoAgora`).
  *
  * Erros das chamadas passam pelo toast global do `apiInterceptor`, que já mostra a mensagem do
  * servidor.
@@ -48,6 +50,7 @@ const PEDIDOS_NA_ABA = 3;
     LucideBuilding2,
     LucideClipboardList,
     LucideEye,
+    LucideHistory,
     LucideMail,
     LucideTriangleAlert,
     UiButton,
@@ -232,6 +235,31 @@ const PEDIDOS_NA_ABA = 3;
             <svg icone lucideBuilding2 [size]="28" class="text-primary" aria-hidden="true" />
           </ui-empty-state>
         }
+
+        @if (historico().length) {
+          <!-- Quem ja atendeu (#166). Sem dizer quem encerrou: o backend ainda nao informa
+               (backend#402), e pode ter sido o escritorio. -->
+          <section class="rounded-card border border-border bg-card p-5 shadow-suave">
+            <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
+              <svg lucideHistory [size]="18" class="text-primary" aria-hidden="true" />
+              Escritórios que já atenderam você
+            </h2>
+            <ul class="mt-2 divide-y divide-border">
+              @for (v of historico(); track v.id) {
+                <li class="flex flex-wrap items-baseline justify-between gap-2 py-2 text-apoio">
+                  <span class="font-medium text-foreground">{{ v.escritorio }}</span>
+                  <span class="text-muted-foreground">
+                    de {{ data(v.inicio) }} a {{ v.fim ? data(v.fim) : '—' }}
+                  </span>
+                </li>
+              }
+            </ul>
+            <p class="mt-2 text-apoio text-muted-foreground">
+              Um vínculo encerrado não volta: para ser atendido de novo por um destes escritórios,
+              peça um convite novo.
+            </p>
+          </section>
+        }
       }
     </div>
 
@@ -274,13 +302,18 @@ export class EscritorioProdutor implements OnInit {
   readonly respondendo = signal<string | null>(null);
   readonly encerrando = signal<VinculoDoProdutor | null>(null);
   readonly encerrandoAgora = signal(false);
-  /** O vínculo que a pessoa acabou de encerrar aqui: o backend não o devolve mais depois. */
+  /**
+   * O vínculo que a pessoa acabou de encerrar aqui. É o único caso em que a tela sabe quem encerrou
+   * (foi ela), então é o único que diz "Você encerrou"; no histórico ele aparece sem autor.
+   */
   readonly encerradoAgora = signal<{ escritorio: string; quando: string } | null>(null);
 
-  /** Encerrado é histórico: não há o que fazer com ele aqui. */
+  /** Os que estão valendo: ativos e suspensos. */
   readonly vinculosAtuais = computed(() =>
     this.vinculos().filter((v) => v.situacao !== 'ENCERRADO'),
   );
+  /** Os encerrados, na ordem do servidor: do que terminou por último ao que terminou primeiro. */
+  readonly historico = computed(() => this.vinculos().filter((v) => v.situacao === 'ENCERRADO'));
   /** Só um escritório ativo pede documento; suspenso não acessa nada. */
   readonly temAtivo = computed(() => this.vinculos().some((v) => v.situacao === 'ATIVO'));
   readonly pedidosNaAba = computed(() => (this.pedidos() ?? []).slice(0, PEDIDOS_NA_ABA));
@@ -302,7 +335,7 @@ export class EscritorioProdutor implements OnInit {
         this.erroConvites.set(true);
       },
     });
-    this.api.listar().subscribe({
+    this.api.listar(['ATIVO', 'SUSPENSO', 'ENCERRADO']).subscribe({
       next: (lista) => {
         this.vinculos.set(lista);
         this.carregou.set(true);
