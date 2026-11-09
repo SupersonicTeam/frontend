@@ -53,6 +53,10 @@
       </div>
     }
 
+    <!-- O endereco proprio do escritorio (#175), logo abaixo dos dados. So aparece com o endereco
+         no ar; o componente decide o que cada funcao ve. -->
+    <app-endereco-escritorio [escritorio]="e" (mudou)="escritorio.set($event)" />
+
     <!-- A equipe. Todo membro ve; so o administrador troca funcao e remove. -->
     <ul class="divide-y divide-border">
       @for (m of membros(); track m.id) {

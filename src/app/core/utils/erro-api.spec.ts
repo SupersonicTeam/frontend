@@ -100,4 +100,22 @@ describe('falhaDaApi', () => {
 
     expect(falha.mensagem).toContain('418');
   });
+
+  it('o expectedValue chega como valorEsperado (ex.: quando a troca do endereço libera, #175)', () => {
+    const falha = falhaDaApi(
+      erro(409, {
+        errors: [
+          {
+            code: 'ENDERECO_TROCA_RECENTE',
+            message: 'x',
+            expectedValue: '2026-12-09T14:30:00Z',
+          },
+        ],
+      }),
+    );
+
+    expect(falha.codigo).toBe('ENDERECO_TROCA_RECENTE');
+    expect(falha.valorEsperado).toBe('2026-12-09T14:30:00Z');
+    expect(falhaDaApi(erro(500, null)).valorEsperado).toBeUndefined();
+  });
 });

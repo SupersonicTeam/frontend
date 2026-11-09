@@ -17,6 +17,7 @@ import { falhaDaApi } from '@core/utils/erro-api';
 import { formatarCpfCnpj, soDigitos } from '@core/utils/mascaras';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiModal } from '@shared/ui/ui-modal';
+import { EnderecoEscritorio } from './endereco-escritorio';
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -33,7 +34,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 @Component({
   selector: 'app-equipe-escritorio',
   standalone: true,
-  imports: [UiButton, UiModal],
+  imports: [EnderecoEscritorio, UiButton, UiModal],
   templateUrl: './equipe-escritorio.html',
 })
 export class EquipeEscritorio implements OnInit {
@@ -246,6 +247,10 @@ export class EquipeEscritorio implements OnInit {
     const falha = falhaDaApi(erro);
     if (falha.codigo === 'ULTIMO_ADMINISTRADOR') {
       return 'A equipe precisa de pelo menos um administrador. Promova outra pessoa antes.';
+    }
+    // Apagar o CNPJ de um escritório com endereço próprio (#175): o endereço exige CNPJ.
+    if (falha.codigo === 'ENDERECO_EXIGE_CNPJ') {
+      return 'Remova o endereço do escritório antes de apagar o CNPJ.';
     }
     if (erro.status === 403) return 'Só o administrador do escritório faz isso.';
     return falha.mensagem;

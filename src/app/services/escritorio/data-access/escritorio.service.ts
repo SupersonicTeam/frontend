@@ -26,6 +26,15 @@ export interface Escritorio {
   cnpj: string | null;
   minhaFuncao: FuncaoEscritorio;
   membros: number;
+  /**
+   * O endereço próprio, `{slug}.{base}` (#175, backend#464); `null` sem endereço. Qualquer membro
+   * vê. Os links saem do `slug` pelo `urlDoHost`, nunca do `enderecoHost`.
+   */
+  slug?: string | null;
+  /** Vem no contrato, mas a tela não usa: o host se monta a partir do `slug`. */
+  enderecoHost?: string | null;
+  /** Até quando a troca do endereço está bloqueada (30 dias depois da última); `null` = liberada. */
+  enderecoAlteravelEm?: string | null;
 }
 
 /** Um membro da equipe (`GET /api/escritorio/membros`). */
@@ -113,6 +122,26 @@ export class EscritorioApi {
     return this.http
       .patch<Escritorio>('/escritorio', dados)
       .pipe(tap((novo) => (this.escritorio$ = of(novo))));
+  }
+
+  /**
+   * `PUT /api/escritorio/endereco` — define ou troca o endereço próprio (#175). Só administrador,
+   * só com CNPJ. A ciência da exposição pública é a caixa que a tela exige marcar. Erros:
+   * 400 `SLUG_INVALIDO`, 409 `SLUG_INDISPONIVEL` e `ENDERECO_TROCA_RECENTE` (com `expectedValue`),
+   * 422 `ENDERECO_EXIGE_CNPJ`. O escritório devolvido vai para o cache, como no `atualizar()`.
+   */
+  definirEndereco(slug: string): Observable<Escritorio> {
+    return this.http
+      .put<Escritorio>('/escritorio/endereco', { slug, cienteExposicaoPublica: true })
+      .pipe(tap((novo) => (this.escritorio$ = of(novo))));
+  }
+
+  /**
+   * `DELETE /api/escritorio/endereco` — 204. O endereço sai do ar na hora, fica 90 dias em carência
+   * e a remoção conta como alteração (o `enderecoAlteravelEm` muda): o cache é esquecido.
+   */
+  removerEndereco(): Observable<void> {
+    return this.http.delete<void>('/escritorio/endereco').pipe(tap(() => this.limpar()));
   }
 
   /** `GET /api/escritorio/membros` — a equipe. */
