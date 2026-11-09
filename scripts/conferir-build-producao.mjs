@@ -7,9 +7,11 @@
 //
 // 1. a configuração `production` do `angular.json` não troca o `environment.ts` pelo `.prod.ts`;
 // 2. nenhum `.js` do build contém `agroconia.com.br` (o domínio só pode chegar lá pelo `.prod.ts`);
-// 3. algum `.ts` ou `.html` de `src/app/` fora dos specs escreve `agroconia.com.br` à mão — um texto
-//    assim faria a conferência 2 passar mesmo sem o `fileReplacements`. Os textos que citam www
-//    montam o endereço com o `urlDoHost` (`core/utils/host-escritorio.ts`).
+// 3. algum fonte que vai para o bundle escreve `agroconia.com.br` à mão (`.ts` de `src/` fora dos
+//    environments e dos specs, e os templates `.html` de `src/app/`) — um texto assim faria a
+//    conferência 2 passar mesmo sem o `fileReplacements`. Os textos que citam www montam o endereço
+//    com o `urlDoHost` (`core/utils/host-escritorio.ts`). O `src/index.html` fica de fora: ele não
+//    vira `.js`, e a landing (#174) põe o domínio nas tags de SEO dele.
 //
 // Node puro, sem dependência. Uso: `node scripts/conferir-build-producao.mjs` (depois do build).
 
@@ -19,20 +21,28 @@ import { fileURLToPath } from 'node:url';
 
 const RAIZ = fileURLToPath(new URL('..', import.meta.url));
 const DOMINIO = 'agroconia.com.br';
-const DIST = join(RAIZ, 'dist', 'frontend', 'browser');
-const APP = join(RAIZ, 'src', 'app');
+const SRC = join(RAIZ, 'src');
+const APP = join(SRC, 'app');
+const ENVIRONMENTS = join(SRC, 'environments');
 
 const falhas = [];
 
 // 1. O par do fileReplacements na configuração production.
 const angular = JSON.parse(readFileSync(join(RAIZ, 'angular.json'), 'utf8'));
-const projeto = Object.values(angular.projects)[0];
+const [nomeDoProjeto, projeto] = Object.entries(angular.projects)[0];
 const producao = projeto?.architect?.build?.configurations?.production ?? {};
 const trocaOEnvironment = (producao.fileReplacements ?? []).some(
   (f) =>
     f.replace === 'src/environments/environment.ts' &&
     f.with === 'src/environments/environment.prod.ts',
 );
+// O bundle fica no `outputPath` do próprio angular.json (padrão do Angular: `dist/<projeto>`), e o
+// builder põe os .js em `browser/`.
+const saida = projeto?.architect?.build?.options?.outputPath;
+const baseDaSaida =
+  typeof saida === 'string' ? saida : (saida?.base ?? join('dist', nomeDoProjeto));
+const DIST = join(RAIZ, baseDaSaida, 'browser');
+
 if (!trocaOEnvironment) {
   falhas.push(
     'angular.json: a configuração "production" do build não troca src/environments/environment.ts ' +
@@ -61,11 +71,13 @@ if (bundles.length === 0) {
   );
 }
 
-// 3. Ninguém escreve o domínio à mão no app.
-const fontes = arquivos(
-  APP,
-  (nome) => (nome.endsWith('.ts') || nome.endsWith('.html')) && !nome.endsWith('.spec.ts'),
-);
+// 3. Ninguém escreve o domínio à mão num fonte que vai para o bundle.
+const fontes = [
+  ...arquivos(SRC, (nome) => nome.endsWith('.ts') && !nome.endsWith('.spec.ts')).filter(
+    (arquivo) => !arquivo.startsWith(ENVIRONMENTS),
+  ),
+  ...arquivos(APP, (nome) => nome.endsWith('.html')),
+];
 for (const arquivo of fontes) {
   if (readFileSync(arquivo, 'utf8').includes(DOMINIO)) {
     falhas.push(

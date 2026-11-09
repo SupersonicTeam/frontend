@@ -67,11 +67,18 @@ export function urlDoHost(
   dominioBase: string,
   { protocolo, porta }: EsquemaDoHost,
 ): string {
-  const host = rotulo
+  // O rótulo vai para a autoridade da URL, e pode vir de resposta (o `slugAtual` do redirecionamento):
+  // só um rótulo DNS de verdade entra. `evil.com#` montaria `https://evil.com#.{base}`, um
+  // redirecionamento aberto. Qualquer outra coisa cai no host principal, que é seguro.
+  const valido = rotulo !== null && ROTULO_DNS.test(rotulo.toLowerCase());
+  const host = valido
     ? `${rotulo.toLowerCase()}.${normalizarHost(dominioBase)}`
     : hostPrincipal(dominioBase);
   return `${protocolo}//${host}${porta ? `:${porta}` : ''}`;
 }
+
+/** Um rótulo DNS: letras, dígitos e hífen, sem hífen nas pontas, até 63 caracteres. */
+const ROTULO_DNS = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /** Minúsculas, sem espaços nas pontas e sem o ponto final de um FQDN (`www.{base}.`). */
 function normalizarHost(host: string): string {

@@ -56,6 +56,15 @@ describe('host-escritorio — a regra do host', () => {
     expect(hostPrincipal('localhost')).toBe('localhost');
   });
 
+  it('urlDoHost só aceita rótulo DNS: o resto vira o principal, nunca outro host', () => {
+    for (const rotulo of ['evil.com#', 'evil.com/x?', 'a@b', '', '-x', 'x'.repeat(64)]) {
+      expect(urlDoHost(rotulo, PROD, { protocolo: 'https:' }), rotulo).toBe(`https://www.${PROD}`);
+    }
+    expect(urlDoHost('Rural-Oeste2', PROD, { protocolo: 'https:' })).toBe(
+      `https://rural-oeste2.${PROD}`,
+    );
+  });
+
   it('urlDoHost monta a URL com o protocolo e a porta de agora, sem barra no fim', () => {
     expect(urlDoHost('ruraloeste', PROD, { protocolo: 'https:', porta: '' })).toBe(
       `https://ruraloeste.${PROD}`,
@@ -88,6 +97,9 @@ describe('host-escritorio — os environments', () => {
 });
 
 describe('host-escritorio — os tokens', () => {
+  // Um teste mexe no endereço do jsdom; ele volta para `/` mesmo se uma asserção falhar no meio.
+  afterEach(() => history.replaceState(null, '', '/'));
+
   it('por padrão leem a página e o environment (o de dev, nos specs)', () => {
     TestBed.configureTestingModule({});
     expect(TestBed.inject(HOST_ATUAL)).toBe(document.location.hostname);
@@ -106,7 +118,6 @@ describe('host-escritorio — os tokens', () => {
     expect(local.caminho).toBe('/login');
     expect(local.busca).toBe('?returnUrl=%2Fequipe');
     expect(local.fragmento).toBe('#x');
-    history.replaceState(null, '', '/');
   });
 
   it('os specs trocam qualquer um por um falso', () => {
