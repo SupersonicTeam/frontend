@@ -1640,6 +1640,39 @@ describe('DocumentosPage', () => {
       expect(texto).toContain('Nada foi enviado');
       expect(texto).not.toContain('/api/');
       expect(texto).not.toContain('0d1f');
+      // Voltou a COM_INCONSISTENCIAS: a fila de "Ajustar" e pedida de novo.
+      httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush(pagina([])));
+    });
+
+    it('se a nota não volta depois do 409, ao menos a lista vem do servidor', () => {
+      const fixture = comNotas([nota('n1', '2026-11-01', { status: 'XML_GERADO' })]);
+      const cmp = fixture.componentInstance;
+
+      cmp.enviarSefaz(cmp.notas()[0]!);
+      httpMock
+        .expectOne('/notas/n1/enviar-sefaz')
+        .flush(
+          { errors: [{ code: 'XML_REGRA_FISCAL_DESATUALIZADA', message: 'x' }] },
+          { status: 409, statusText: 'Conflict' },
+        );
+      httpMock.expectOne('/notas/n1').flush('erro', { status: 500, statusText: 'erro' });
+
+      const recargas = httpMock.match((r) => r.url === '/notas');
+      expect(recargas.length).toBeGreaterThan(0);
+      recargas.forEach((r) =>
+        r.flush(pagina([nota('n1', '2026-11-01', { status: 'COM_INCONSISTENCIAS' })])),
+      );
+      flushPendencias();
+    });
+
+    it('a pergunta "há escritório?" continua sem situacao: ativos e suspensos', () => {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush(pagina([]));
+      const vinculos = httpMock.expectOne((r) => r.url === '/vinculos');
+      expect(vinculos.request.params.has('situacao')).toBe(false);
+      vinculos.flush([]);
+      flushPendencias();
     });
   });
 });

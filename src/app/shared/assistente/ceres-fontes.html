@@ -9,6 +9,9 @@
     <p class="flex items-center gap-1.5 text-apoio font-semibold text-foreground">
       @if (grupo.origem === 'oficial') {
         <svg lucideLandmark [size]="14" aria-hidden="true" />
+      } @else if (grupo.origem === 'neutra') {
+        <!-- Nao e o icone de "os seus dados": a origem nao e conhecida (#166). -->
+        <svg lucideSearch [size]="14" aria-hidden="true" />
       } @else {
         <svg lucideDatabase [size]="14" aria-hidden="true" />
       }

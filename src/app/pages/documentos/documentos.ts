@@ -1293,6 +1293,8 @@ export class DocumentosPage implements OnInit {
         if (this.previewNota()?.id === atual.id && this.podeVerValidacoes(atual)) {
           this.verValidacoes(atual);
         }
+        // Voltou a COM_INCONSISTENCIAS: entra na fila de "Ajustar", como depois de salvar.
+        this.carregarFilaDeAjustes();
       },
       // Sem a nota nova, ao menos a lista vem do servidor.
       error: () => this.recarregarAposMudanca(),
