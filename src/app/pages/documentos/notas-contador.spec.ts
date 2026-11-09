@@ -258,6 +258,33 @@ describe('NotasContador', () => {
     expect(texto).not.toContain('Tentar de novo');
   });
 
+  it('na compra importada, a lista mostra o fornecedor, não o próprio cliente (#172)', () => {
+    const fixture = abrir();
+    resumo().flush(RESUMO_ZERADO);
+    lista().flush(
+      [
+        {
+          ...nota('n9', 'AUTORIZADA', 'p1'),
+          destinatarioNome: 'Ana Produtora',
+          origem: 'IMPORTADA',
+          emitenteNome: 'Posto Rodoviario Chapadao Ltda',
+        },
+        { ...nota('n8', 'AUTORIZADA', 'p1'), origem: 'PROPRIA', emitenteNome: null },
+      ],
+      { headers: { 'X-Total-Count': '2' } },
+    );
+    fixture.detectChanges();
+
+    const itens = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('li')).map(
+      (li) => (li.textContent ?? '').replace(/\s+/g, ' '),
+    );
+    expect(itens[0]).toContain('Posto Rodoviario Chapadao Ltda · compra');
+    // O nome do cliente aparece so no link dele, nao como contraparte da compra.
+    expect(itens[0]).not.toContain('Ana Produtora ·');
+    expect(itens[1]).toContain('Cooperativa');
+    expect(itens[1]).not.toContain('compra');
+  });
+
   it('busca curta não sai: o servidor recusaria com 400', () => {
     const cmp = abrir().componentInstance;
     responder();

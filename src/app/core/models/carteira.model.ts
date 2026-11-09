@@ -7,6 +7,7 @@
  */
 
 import type { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
+import type { OrigemNota } from '@models/nota-fiscal.model';
 
 /** Situação do vínculo entre o produtor e o escritório. */
 export type SituacaoVinculo = 'ATIVO' | 'SUSPENSO' | 'ENCERRADO';
@@ -137,6 +138,13 @@ export interface NotaCarteira {
   naturezaOperacao?: string | null;
   status: StatusNotaFiscal;
   tipoDocumento?: 'NFE' | 'NFA' | null;
+  /**
+   * `PROPRIA` ou `IMPORTADA` (backend#451). Na compra importada o cliente é o destinatário, e a
+   * contraparte é `emitenteNome`. O documento do emitente **não** vem na lista (minimização de dado
+   * pessoal); está no detalhe da nota, nas rotas por cliente.
+   */
+  origem?: OrigemNota | null;
+  emitenteNome?: string | null;
   dataEmissao?: string | null;
   destinatarioNome?: string | null;
   valorTotalProdutos?: number | null;

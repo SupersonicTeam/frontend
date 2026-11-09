@@ -134,7 +134,12 @@
                   </a>
                 }
                 <p class="text-apoio text-muted-foreground">
-                  {{ nota.destinatarioNome || 'Sem destinatário' }} · {{ data(nota.dataEmissao) }}
+                  <!-- Na compra importada, o fornecedor; o destinatario e o proprio cliente (#172). -->
+                  {{ contraparteDaNota(nota) || 'Sem destinatário' }}
+                  @if (ehCompraImportada(nota)) {
+                    · compra
+                  }
+                  · {{ data(nota.dataEmissao) }}
                   @if (nota.naturezaOperacao) {
                     · {{ nota.naturezaOperacao }}
                   }
