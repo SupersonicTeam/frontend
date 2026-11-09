@@ -1129,7 +1129,6 @@ export class DocumentosPage implements OnInit {
       nota?.status === 'PENDENTE_SEFAZ'
     );
   }
-  /** Cancelamento só de nota AUTORIZADA. */
   /**
    * Só a nota própria autorizada se cancela. A compra importada é do fornecedor que a emitiu: o
    * backend responde 409 `CANCELAMENTO_COMPRA_IMPORTADA` (backend#418), e o botão nem aparece.

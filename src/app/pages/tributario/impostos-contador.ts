@@ -18,7 +18,7 @@ import {
   type StatusNotaFiltro,
 } from '@services/contador/data-access/carteira.service';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
-import type { NotaFiscal } from '@models/nota-fiscal.model';
+import { contraparteDaNota, type NotaFiscal } from '@models/nota-fiscal.model';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
 import { statusNotaLabel } from '@core/enums/status-nota-fiscal.enum';
@@ -134,6 +134,9 @@ const FORA_DA_APURACAO: readonly StatusNotaFiltro[] = [
   templateUrl: './impostos-contador.html',
 })
 export class ImpostosContador {
+  /** Na compra importada, o fornecedor; o destinatário é o próprio cliente (#170). */
+  protected readonly contraparteDaNota = contraparteDaNota;
+
   private readonly carteiraApi = inject(CarteiraApi);
   private readonly toast = inject(ToastService);
 
