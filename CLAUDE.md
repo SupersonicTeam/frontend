@@ -222,7 +222,7 @@ Fora de escopo da #93, mas **já no contrato**: `/auth/cadastro`, `/auth/cadastr
 ## Models (`core/models/*.model.ts`, via `@models/...`)
 
 Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `ProdutorContador`),
-`nota-fiscal.model.ts` (`NotaFiscal`, `ItemNotaFiscal`), `rascunho-nota.model.ts` (`RascunhoNota`,
+`nota-fiscal.model.ts` (`NotaFiscal`, `ItemNotaFiscal`; desde a #170 `origem` `PROPRIA`/`IMPORTADA` e o emitente da compra, backend#409, com `ehCompraImportada()` e `contraparteDaNota()` — na compra o produtor é o **destinatário**, a lista mostra o fornecedor e o modal não oferece "Cancelar"), `rascunho-nota.model.ts` (`RascunhoNota`,
 `ItemRascunhoNota`), `solicitacao-contador.model.ts` (`SolicitacaoContador`, `DocumentoContador`),
 `assistente-mensagem.model.ts` (`AssistenteMensagem` — texto, rota, citações, fontes e `falha`),
 `vencimento-fiscal.model.ts`, `notificacao.model.ts`, `fluxo-caixa.model.ts`,

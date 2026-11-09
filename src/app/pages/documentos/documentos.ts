@@ -34,7 +34,14 @@ import {
 } from '@services/notas/data-access/notas.service';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
-import { AvisoNota, CancelamentoNota, NotaFiscal, TipoDocumento } from '@models/nota-fiscal.model';
+import {
+  AvisoNota,
+  CancelamentoNota,
+  NotaFiscal,
+  TipoDocumento,
+  contraparteDaNota,
+  ehCompraImportada,
+} from '@models/nota-fiscal.model';
 import {
   type Pendencia,
   STATUS_PENDENCIA_LABEL,
@@ -1123,9 +1130,16 @@ export class DocumentosPage implements OnInit {
     );
   }
   /** Cancelamento só de nota AUTORIZADA. */
+  /**
+   * Só a nota própria autorizada se cancela. A compra importada é do fornecedor que a emitiu: o
+   * backend responde 409 `CANCELAMENTO_COMPRA_IMPORTADA` (backend#418), e o botão nem aparece.
+   */
   podeCancelar(nota?: NotaFiscal | null): boolean {
-    return nota?.status === 'AUTORIZADA';
+    return nota?.status === 'AUTORIZADA' && !ehCompraImportada(nota);
   }
+
+  protected readonly ehCompraImportada = ehCompraImportada;
+  protected readonly contraparteDaNota = contraparteDaNota;
   /** Histórico de inconsistências relevante em COM_INCONSISTENCIAS/REJEITADA. */
   podeVerValidacoes(nota?: NotaFiscal | null): boolean {
     return nota?.status === 'COM_INCONSISTENCIAS' || nota?.status === 'REJEITADA';
@@ -1234,6 +1248,15 @@ export class DocumentosPage implements OnInit {
       error: (err: HttpErrorResponse) => {
         this.cancelando.set(false);
         const env = err?.error as ApiErrorEnvelope | undefined;
+        // Rede de segurança (backend#418): o botão não aparece na compra, mas uma nota que virou
+        // importada depois de a tela carregar ainda pode chegar aqui.
+        if (env?.errors?.[0]?.code === 'CANCELAMENTO_COMPRA_IMPORTADA') {
+          this.cancelarAlvo.set(null);
+          this.toastService.error(
+            'Esta nota é uma compra: quem cancela é o fornecedor que a emitiu.',
+          );
+          return;
+        }
         this.toastService.error(env?.message ?? 'Não foi possível cancelar a nota.');
       },
     });

@@ -5,23 +5,33 @@
        medidos no navegador -- abaixo do minimo que o proprio design system exige e do que a banca
        cobrou. A coluna cresce de w-16 para w-20 junto, senao "Em revisao" quebra em duas linhas. -->
   <div class="rounded-xl border border-border bg-muted/20 p-4">
-    <div class="flex items-start">
-      @for (step of STEPPER_STEPS; track step; let i = $index; let last = $last) {
-        <div class="flex flex-col items-center gap-1 shrink-0 w-20">
-          <div
-            class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-apoio font-semibold {{
-              stepperClasse(stepperEstado(nota().status, i))
-            }}"
-          >
-            {{ i + 1 }}
+    @if (importada()) {
+      <!-- Compra importada (#170): rascunho, revisao e aprovacao nunca aconteceram aqui. A nota
+           ja chegou emitida pelo fornecedor, e o stepper diria o contrario. -->
+      <p class="text-center text-apoio text-muted-foreground">
+        Nota de entrada: emitida pelo fornecedor e importada do XML.
+      </p>
+    } @else {
+      <div class="flex items-start">
+        @for (step of STEPPER_STEPS; track step; let i = $index; let last = $last) {
+          <div class="flex flex-col items-center gap-1 shrink-0 w-20">
+            <div
+              class="w-8 h-8 rounded-full border-2 flex items-center justify-center text-apoio font-semibold {{
+                stepperClasse(stepperEstado(nota().status, i))
+              }}"
+            >
+              {{ i + 1 }}
+            </div>
+            <span class="text-apoio text-muted-foreground text-center leading-tight">{{
+              step
+            }}</span>
           </div>
-          <span class="text-apoio text-muted-foreground text-center leading-tight">{{ step }}</span>
-        </div>
-        @if (!last) {
-          <div class="flex-1 h-0.5 bg-border mt-4"></div>
+          @if (!last) {
+            <div class="flex-1 h-0.5 bg-border mt-4"></div>
+          }
         }
-      }
-    </div>
+      </div>
+    }
     <p class="text-center mt-3">
       <span class="text-apoio px-2.5 py-1 rounded-full {{ statusBadge(nota().status) }}">{{
         statusLabel(nota().status)

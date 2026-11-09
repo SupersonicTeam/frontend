@@ -383,13 +383,17 @@
                       <span class="flex w-full items-start justify-between gap-2">
                         <span class="text-apoio text-muted-foreground">
                           Nº {{ nota.numero }} · {{ formatDate(nota.dataEmissao) }}
+                          @if (ehCompraImportada(nota)) {
+                            · compra
+                          }
                         </span>
                         <ui-badge-status [status]="nota.status" />
                       </span>
                       <span
                         class="block w-full truncate font-heading text-valor font-semibold text-foreground"
                       >
-                        {{ nota.destinatarioNome }}
+                        <!-- Na compra, o fornecedor; o destinatario e o proprio produtor (#170). -->
+                        {{ contraparteDaNota(nota) }}
                       </span>
                       <span class="font-heading text-lg font-semibold tabular-nums text-foreground">
                         {{ formatCurrency(nota.valorTotalNota) }}

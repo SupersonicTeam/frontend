@@ -155,8 +155,8 @@ describe('NotaPreview — itens', () => {
  * para toda nota: a do Carlos não tinha o nome dele.
  */
 describe('NotaPreview — emitente', () => {
-  function emitente(
-    destinatarioNome: string,
+  function montar(
+    nota: Partial<NotaFiscal>,
     nomeDaSessao = 'Carlos Eduardo Rossi',
     produtor = true,
   ) {
@@ -174,35 +174,54 @@ describe('NotaPreview — emitente', () => {
       id: 'n1',
       numero: 1,
       naturezaOperacao: 'Venda',
-      status: 'RASCUNHO',
+      status: 'AUTORIZADA',
       dataEmissao: '2026-10-01',
-      destinatarioNome,
+      destinatarioNome: 'Graneleira Vale do Teles Pires Ltda',
       destinatarioCpfCnpj: '12345678000195',
       itens: [],
+      ...nota,
     } satisfies NotaFiscal);
     f.detectChanges();
-    return f.componentInstance.emitente();
+    return f;
   }
+  const emitente = (nota: Partial<NotaFiscal>, sessao?: string, produtor?: boolean) =>
+    montar(nota, sessao, produtor).componentInstance.emitente();
 
   it('na nota própria, o emitente é o produtor logado', () => {
-    expect(emitente('Graneleira Vale do Teles Pires Ltda')).toEqual({
+    expect(emitente({ origem: 'PROPRIA' })).toEqual({
       nome: 'Carlos Eduardo Rossi',
       detalhe: 'Emissor da NF-e',
     });
   });
 
-  it('na compra importada o produtor é o destinatário: não repete o nome dele como emitente', () => {
-    expect(emitente('CARLOS EDUARDO ROSSI ').nome).toBe('Fornecedor');
+  it('na compra importada, o emitente é o fornecedor que a nota traz (backend#409)', () => {
+    expect(
+      emitente({
+        origem: 'IMPORTADA',
+        destinatarioNome: 'Carlos Eduardo Rossi',
+        emitenteNome: 'Posto Rodoviario Chapadao Ltda',
+        emitenteCpfCnpj: '11222333000181',
+      }),
+    ).toEqual({ nome: 'Posto Rodoviario Chapadao Ltda', detalhe: '11.222.333/0001-81' });
+  });
+
+  it('o nome do destinatário igual ao do produtor não faz da nota uma compra', () => {
+    // A #165 adivinhava pelo nome; agora so a `origem` decide.
+    expect(emitente({ origem: 'PROPRIA', destinatarioNome: 'Carlos Eduardo Rossi' }).nome).toBe(
+      'Carlos Eduardo Rossi',
+    );
+  });
+
+  it('na compra, o stepper de emissão dá lugar a "nota de entrada"', () => {
+    const el = montar({ origem: 'IMPORTADA', emitenteNome: 'Posto' }).nativeElement as HTMLElement;
+    expect(el.textContent).toContain('Nota de entrada: emitida pelo fornecedor');
+    expect(el.textContent).not.toContain('Em revisão');
   });
 
   it('na sessão do contador, o nome dele não vira emitente da nota do cliente', () => {
-    expect(emitente('Cooperativa', 'Patricia Moreira Lopes', false)).toEqual({
+    expect(emitente({ origem: 'PROPRIA' }, 'Patricia Moreira Lopes', false)).toEqual({
       nome: 'Produtor rural',
       detalhe: 'Emissor da NF-e',
     });
-  });
-
-  it('sem nome na sessão, não confunde nota nenhuma com compra', () => {
-    expect(emitente('', '')).toEqual({ nome: 'Produtor rural', detalhe: 'Emissor da NF-e' });
   });
 });

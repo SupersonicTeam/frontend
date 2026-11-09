@@ -73,6 +73,15 @@ export interface NotaFiscal {
   naturezaOperacao: string;
   status: StatusNotaFiscal;
   tipoDocumento?: TipoDocumento;
+  /**
+   * `PROPRIA` (o produtor emitiu) ou `IMPORTADA` (compra: XML de um fornecedor), backend#409. Na
+   * importada o produtor é o **destinatário**, e quem emitiu vem em `emitenteNome`/`emitenteCpfCnpj`.
+   */
+  origem?: OrigemNota | null;
+  /** Só na `IMPORTADA`; `null` na própria, cujo emitente é o produtor logado. */
+  emitenteNome?: string | null;
+  /** Só dígitos; só na `IMPORTADA`. */
+  emitenteCpfCnpj?: string | null;
   dataEmissao: string;
   dataSaida?: string | null;
   produtorId?: string;
@@ -92,6 +101,25 @@ export interface NotaFiscal {
   avisos?: AvisoNota[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+/** De onde a nota veio (backend#409): os mesmos valores do dashboard. */
+export type OrigemNota = 'PROPRIA' | 'IMPORTADA';
+
+/** A nota é uma compra importada (o produtor é o destinatário, não o emitente)? */
+export function ehCompraImportada(nota?: Pick<NotaFiscal, 'origem'> | null): boolean {
+  return nota?.origem === 'IMPORTADA';
+}
+
+/**
+ * Com quem a nota foi feita, do ponto de vista do produtor: na compra importada, o fornecedor que
+ * emitiu; na própria, o destinatário. A lista mostrava o destinatário sempre, e a compra aparecia
+ * com o nome do próprio produtor (roteiro da demo, 06/11).
+ */
+export function contraparteDaNota(
+  nota: Pick<NotaFiscal, 'origem' | 'emitenteNome' | 'destinatarioNome'>,
+): string {
+  return ehCompraImportada(nota) ? nota.emitenteNome || 'Fornecedor' : nota.destinatarioNome;
 }
 
 /**
