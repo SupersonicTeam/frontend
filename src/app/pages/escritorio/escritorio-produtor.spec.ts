@@ -248,16 +248,60 @@ describe('EscritorioProdutor', () => {
       req.flush([]);
     });
 
-    it('lista quem já atendeu com o período, sem dizer quem encerrou', () => {
-      const f = abrir([], [vinculo('ATIVO'), encerrado]);
+    it('lista quem já atendeu com o período; sem registro, não afirma quem encerrou', () => {
+      const f = abrir([], [vinculo('ATIVO'), { ...encerrado, encerradoPor: null }]);
 
       expect(texto(f)).toContain('Escritórios que já atenderam você');
       expect(texto(f)).toContain('Escritório Antigo');
       expect(texto(f)).toContain('de 10/01/2025 a 20/03/2026');
-      // Pode ter sido o escritório quem encerrou (backend#402): a tela não afirma que foi você.
+      // `null` é "não registrado" (backend#402): a tela não afirma que foi você.
+      expect(texto(f)).toContain('Encerramento não registrado');
+      expect(texto(f)).not.toContain('Encerrado por você');
       expect(texto(f)).not.toContain('Você encerrou');
       // O encerrado não vira cartão de quem atende agora.
       expect(f.componentInstance.vinculosAtuais().map((v) => v.id)).toEqual(['v1']);
+    });
+
+    it('diz quem encerrou e mostra o motivo, quando o backend registrou (#173)', () => {
+      const f = abrir(
+        [],
+        [
+          {
+            ...encerrado,
+            encerradoPor: 'ESCRITORIO',
+            motivoEncerramento: 'Fim do contrato de prestação de serviços',
+          },
+          { ...encerrado, id: 'v2', escritorio: 'Outro Escritório', encerradoPor: 'PRODUTOR' },
+        ],
+      );
+
+      expect(texto(f)).toContain('Encerrado pelo escritório');
+      expect(texto(f)).toContain('Fim do contrato de prestação de serviços');
+      expect(texto(f)).toContain('Encerrado por você');
+    });
+
+    it('encerrar manda o motivo, quando há; em branco, vai sem corpo', () => {
+      const cmp = abrir([], [vinculo('ATIVO')]).componentInstance;
+
+      cmp.pedirEncerramento(cmp.vinculos()[0]!);
+      cmp.motivo.set('  Mudei de escritório  ');
+      cmp.encerrar();
+      const comMotivo = httpMock.expectOne('/vinculos/v1/encerrar');
+      expect(comMotivo.request.body).toEqual({ motivo: 'Mudei de escritório' });
+      comMotivo.flush(null);
+      httpMock.expectOne('/convites').flush([]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([vinculo('ATIVO')]);
+      httpMock.match((r) => r.url === '/pendencias').forEach((r) => r.flush([]));
+
+      cmp.pedirEncerramento(cmp.vinculos()[0]!);
+      expect(cmp.motivo()).toBe('');
+      cmp.motivo.set('   ');
+      cmp.encerrar();
+      const semMotivo = httpMock.expectOne('/vinculos/v1/encerrar');
+      expect(semMotivo.request.body).toBeNull();
+      semMotivo.flush(null);
+      httpMock.expectOne('/convites').flush([]);
+      httpMock.expectOne((r) => r.url === '/vinculos').flush([]);
     });
 
     it('só com histórico, ainda explica que nenhum escritório atende agora', () => {
