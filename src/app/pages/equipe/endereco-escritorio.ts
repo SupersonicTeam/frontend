@@ -30,6 +30,13 @@ const DATA_E_HORA = new Intl.DateTimeFormat('pt-BR', {
   timeZone: 'America/Sao_Paulo',
 });
 
+/** "09/12/2026, 11:30", ou `null` se o instante não for legível (sem derrubar a tela). */
+function formatarInstante(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const data = new Date(iso);
+  return Number.isNaN(data.getTime()) ? null : DATA_E_HORA.format(data);
+}
+
 /** Por que o valor digitado não serve, antes de ir ao servidor. `null` = serve (pelo formato). */
 export function erroDoFormatoDoSlug(slug: string): string | null {
   if (!slug) return null;
@@ -62,7 +69,7 @@ export function erroDoFormatoDoSlug(slug: string): string | null {
   standalone: true,
   imports: [LucideGlobe, UiButton, UiModal],
   template: `
-    @if (noAr()) {
+    @if (noAr) {
       <section
         class="flex flex-col gap-2 border-t border-border pt-4"
         aria-labelledby="titulo-endereco"
@@ -119,7 +126,7 @@ export function erroDoFormatoDoSlug(slug: string): string | null {
                   [value]="valor()"
                   (input)="digitar($any($event.target).value)"
                 />
-                <span class="text-apoio text-muted-foreground">.{{ base() }}</span>
+                <span class="text-apoio text-muted-foreground">.{{ base }}</span>
               </div>
               <p id="slug-ajuda" class="text-apoio" [class.text-perigo-ink]="!!erroDoCampo()">
                 @if (erroDoCampo(); as erro) {
@@ -197,8 +204,8 @@ export class EnderecoEscritorio {
   /** O escritório como o servidor devolveu depois de salvar ou remover. */
   readonly mudou = output<Escritorio>();
 
-  protected readonly noAr = signal(inject(ENDERECO_PROPRIO_NO_AR)).asReadonly();
-  protected readonly base = signal(inject(DOMINIO_BASE)).asReadonly();
+  protected readonly noAr = inject(ENDERECO_PROPRIO_NO_AR);
+  protected readonly base = inject(DOMINIO_BASE);
 
   readonly valor = signal('');
   readonly ciente = signal(false);
@@ -220,11 +227,18 @@ export class EnderecoEscritorio {
   readonly hostAtual = computed(() => (this.urlAtual() ?? '').replace(/^[a-z]+:\/\//, ''));
   readonly exemplo = computed(() => this.url('seu-escritorio').replace(/^[a-z]+:\/\//, ''));
 
-  /** "Nova troca a partir de ...", enquanto os 30 dias da última alteração não passam. */
+  /**
+   * "Nova troca a partir de ...", enquanto os 30 dias da última alteração não passam. O escritório
+   * fica em cache a sessão inteira, então a data é comparada com agora: passada, o campo libera.
+   */
   readonly bloqueadoAte = computed(() => {
     const quando = this.escritorio().enderecoAlteravelEm;
-    return quando ? DATA_E_HORA.format(new Date(quando)) : null;
+    if (!quando || new Date(quando).getTime() <= Date.now()) return null;
+    return formatarInstante(quando);
   });
+
+  /** O slug atual; o campo só volta a ele quando **ele** muda, não a cada recarga do escritório. */
+  private readonly slugAtual = computed(() => this.escritorio().slug ?? '');
 
   readonly erroDoFormato = computed(() => erroDoFormatoDoSlug(this.valor()));
   readonly erroDoCampo = computed(() => this.erroDoServidor() ?? this.erroDoFormato());
@@ -248,9 +262,11 @@ export class EnderecoEscritorio {
   );
 
   constructor() {
-    // O campo começa com o endereço atual (e volta a ele quando o servidor devolve outro).
+    // O campo começa com o endereço atual e volta a ele quando o servidor devolve **outro**. Ler o
+    // `escritorio()` inteiro aqui apagava o que o administrador digitava sempre que a tela recarregava
+    // o escritório por outro motivo (troca de função de um membro, por exemplo).
     effect(() => {
-      this.valor.set(this.escritorio().slug ?? '');
+      this.valor.set(this.slugAtual());
       this.ciente.set(false);
       this.erroDoServidor.set(null);
     });
@@ -276,8 +292,11 @@ export class EnderecoEscritorio {
       error: (erro: HttpErrorResponse) => {
         this.salvando.set(false);
         const noCampo = this.erroNoCampo(erro);
-        if (noCampo) this.erroDoServidor.set(noCampo);
-        else this.toast.error(this.mensagem(erro));
+        if (noCampo) {
+          this.erroDoServidor.set(noCampo);
+          // Recusado: a ciência volta a ser pedida, para não reenviar o mesmo valor por engano.
+          this.ciente.set(false);
+        } else this.toast.error(this.mensagem(erro));
       },
     });
   }
@@ -296,9 +315,12 @@ export class EnderecoEscritorio {
             this.mudou.emit(escritorio);
           },
           error: () => {
+            // O endereço saiu (204); só a releitura falhou. A tela não pode continuar mostrando o
+            // endereço antigo como se valesse.
             this.removendo.set(false);
             this.confirmandoRemocao.set(false);
-            this.toast.success('Endereço removido. Recarregue a página para ver a situação nova.');
+            this.toast.success('Endereço removido.');
+            this.mudou.emit({ ...this.escritorio(), slug: null, enderecoHost: null });
           },
         });
       },
@@ -310,7 +332,7 @@ export class EnderecoEscritorio {
   }
 
   private url(slug: string): string {
-    return urlDoHost(slug, this.base(), {
+    return urlDoHost(slug, this.base, {
       protocolo: this.localizacao.protocolo,
       porta: this.localizacao.porta,
     });
@@ -326,10 +348,12 @@ export class EnderecoEscritorio {
       case 'SLUG_INDISPONIVEL':
         // Sem dizer por quê: reservado, em uso e em carência recebem a mesma resposta.
         return 'Este endereço não está disponível. Escolha outro.';
-      case 'ENDERECO_TROCA_RECENTE':
-        return falha.valorEsperado
-          ? `O endereço só pode ser trocado a partir de ${DATA_E_HORA.format(new Date(falha.valorEsperado))}.`
+      case 'ENDERECO_TROCA_RECENTE': {
+        const quando = formatarInstante(falha.valorEsperado);
+        return quando
+          ? `O endereço só pode ser trocado a partir de ${quando}.`
           : 'O endereço foi alterado há pouco e ainda não pode ser trocado.';
+      }
       case 'ENDERECO_EXIGE_CNPJ':
         return 'Cadastre o CNPJ do escritório antes de escolher o endereço.';
       default:

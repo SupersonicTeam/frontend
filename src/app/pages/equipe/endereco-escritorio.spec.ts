@@ -235,4 +235,45 @@ describe('EnderecoEscritorio', () => {
     const { fixture } = montar(escritorio());
     expect(texto(fixture)).not.toContain('Remover endereço');
   });
+
+  it('recarregar o escritório sem mudar o endereço não apaga o que foi digitado', () => {
+    const { fixture, cmp } = montar(escritorio());
+    cmp.digitar('ruraloeste');
+    cmp.ciente.set(true);
+
+    // A aba recarrega o escritório por outro motivo (troca de função de um membro).
+    fixture.componentRef.setInput('escritorio', escritorio({ membros: 4 }));
+    fixture.detectChanges();
+
+    expect(cmp.valor()).toBe('ruraloeste');
+    expect(cmp.ciente()).toBe(true);
+  });
+
+  it('data de liberação já passada não trava o campo (escritório em cache)', () => {
+    const { cmp } = montar(
+      escritorio({ slug: 'ruraloeste', enderecoAlteravelEm: '2020-01-01T00:00:00Z' }),
+    );
+    expect(cmp.bloqueadoAte()).toBeNull();
+  });
+
+  it('instante ilegível não derruba a tela', () => {
+    const { fixture, cmp } = montar(escritorio({ enderecoAlteravelEm: 'amanhã' }));
+    expect(cmp.bloqueadoAte()).toBeNull();
+    expect(texto(fixture)).toContain('Endereço do escritório');
+  });
+
+  it('recusado pelo servidor, a ciência volta a ser pedida', () => {
+    const { cmp } = salvarComErro('SLUG_INDISPONIVEL', 409);
+    expect(cmp.ciente()).toBe(false);
+    expect(cmp.podeSalvar()).toBe(false);
+  });
+
+  it('removido mas sem conseguir reler, a tela deixa de mostrar o endereço antigo', () => {
+    const { cmp, emitidos } = montar(escritorio({ slug: 'ruraloeste' }));
+    cmp.remover();
+    httpMock.expectOne('/escritorio/endereco').flush(null, { status: 204, statusText: 'x' });
+    httpMock.expectOne('/escritorio').flush('erro', { status: 500, statusText: 'x' });
+
+    expect(emitidos.map((e) => e.slug)).toEqual([null]);
+  });
 });
