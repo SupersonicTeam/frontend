@@ -286,11 +286,12 @@ const PEDIDOS_NA_ABA = 3;
         id="motivo-encerramento"
         rows="3"
         [attr.maxlength]="motivoMaximo"
+        aria-describedby="aviso-motivo-produtor"
         class="w-full rounded-controle border border-border bg-card px-3 py-2 text-apoio text-foreground"
         [value]="motivo()"
         (input)="motivo.set($any($event.target).value)"
       ></textarea>
-      <p class="mt-1 text-apoio text-muted-foreground">
+      <p id="aviso-motivo-produtor" class="mt-1 text-apoio text-muted-foreground">
         O escritório vê o motivo. Até {{ motivoMaximo }} caracteres.
       </p>
 
@@ -329,8 +330,8 @@ export class EscritorioProdutor implements OnInit {
   readonly motivo = signal('');
   protected readonly motivoMaximo = MOTIVO_ENCERRAMENTO_MAXIMO;
   /**
-   * O vínculo que a pessoa acabou de encerrar aqui. É o único caso em que a tela sabe quem encerrou
-   * (foi ela), então é o único que diz "Você encerrou"; no histórico ele aparece sem autor.
+   * O vínculo que a pessoa acabou de encerrar aqui: o aviso logo depois, com a data. No histórico
+   * ele aparece também, como "Encerrado por você" (`encerradoPor` do backend, #173).
    */
   readonly encerradoAgora = signal<{ escritorio: string; quando: string } | null>(null);
 
@@ -432,11 +433,15 @@ export class EscritorioProdutor implements OnInit {
     });
   }
 
-  /** Quem encerrou, sem supor: `null` é "não registrado", não "foi você" (#173, backend#402). */
+  /**
+   * Quem encerrou, sem supor (#173, backend#402): `null` é "não registrado", nunca "foi você". Um
+   * valor que a tela ainda não conhece foi registrado, só não sabemos dizer por quem: fica neutro.
+   */
   quemEncerrou(vinculo: VinculoDoProdutor): string {
     if (vinculo.encerradoPor === 'PRODUTOR') return 'Encerrado por você';
     if (vinculo.encerradoPor === 'ESCRITORIO') return 'Encerrado pelo escritório';
-    return 'Encerramento não registrado';
+    if (vinculo.encerradoPor == null) return 'Encerramento não registrado';
+    return 'Encerrado';
   }
 
   data(iso: string): string {

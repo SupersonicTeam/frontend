@@ -25,7 +25,7 @@ export interface VinculoDoProdutor {
    * Quem encerrou (backend#402). **`null` é "não registrado"** — o vínculo foi encerrado antes de o
    * backend guardar isso —, nunca "foi o produtor".
    */
-  encerradoPor?: 'PRODUTOR' | 'ESCRITORIO' | null;
+  encerradoPor?: 'PRODUTOR' | 'ESCRITORIO' | (string & {}) | null;
   /** O motivo escrito por quem encerrou, se houver. O do escritório aparece para o produtor. */
   motivoEncerramento?: string | null;
 }

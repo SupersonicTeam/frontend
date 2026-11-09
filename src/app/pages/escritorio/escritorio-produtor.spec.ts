@@ -1,3 +1,4 @@
+import type { VinculoDoProdutor } from '@services/vinculos/data-access/vinculos.service';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -278,6 +279,16 @@ describe('EscritorioProdutor', () => {
       expect(texto(f)).toContain('Encerrado pelo escritório');
       expect(texto(f)).toContain('Fim do contrato de prestação de serviços');
       expect(texto(f)).toContain('Encerrado por você');
+    });
+
+    it('quem encerrou com valor novo do backend fica neutro, não "não registrado"', () => {
+      const cmp = abrir([], []).componentInstance;
+      expect(cmp.quemEncerrou({ ...encerrado, encerradoPor: 'SISTEMA' } as VinculoDoProdutor)).toBe(
+        'Encerrado',
+      );
+      expect(cmp.quemEncerrou({ ...encerrado, encerradoPor: undefined } as VinculoDoProdutor)).toBe(
+        'Encerramento não registrado',
+      );
     });
 
     it('encerrar manda o motivo, quando há; em branco, vai sem corpo', () => {
