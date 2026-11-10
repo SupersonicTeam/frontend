@@ -144,6 +144,18 @@ describe('SeletorCliente', () => {
     );
   });
 
+  it('em Notas (#164) a opcao vazia e "Toda a carteira", e nao "Escolha um cliente"', () => {
+    const { fixture } = montar();
+    fixture.componentRef.setInput('todaCarteira', true);
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores')
+      .flush([cliente('p1', 'Ana'), cliente('p2', 'Bruno')]);
+    fixture.detectChanges();
+
+    const vazia = (fixture.nativeElement as HTMLElement).querySelector('option[value=""]');
+    expect(vazia?.textContent?.trim()).toBe('Toda a carteira');
+  });
+
   it('carteira fora do ar mostra o erro com "tentar de novo", e nao avisa cliente nenhum', () => {
     const { fixture, emitidos } = montar();
     httpMock

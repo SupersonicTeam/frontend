@@ -1,34 +1,43 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
-import {
-  HttpTestingController,
-  provideHttpClientTesting,
-  type TestRequest,
-} from '@angular/common/http/testing';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { NotasContador } from './notas-contador';
-import type { ProdutorCarteira } from '@models/carteira.model';
+import type { NotaCarteira, ProdutorCarteira, ResumoNotasCarteira } from '@models/carteira.model';
 
 const cliente = (id: string, nomeCompleto: string) =>
   ({ id, nomeCompleto, vinculoId: `v-${id}`, situacaoVinculo: 'ATIVO' }) as ProdutorCarteira;
 
-const nota = (id: string, status: string, numero = 1) => ({
-  id,
-  numero,
-  serie: 1,
-  status,
-  dataEmissao: '2026-10-10T03:00:00Z',
-  destinatarioNome: 'Cooperativa',
-  valorTotalNota: 1000,
-  itens: [],
-});
+const nota = (id: string, status: string, produtorId = 'p1', numero = 1) =>
+  ({
+    id,
+    produtorId,
+    produtorNome: produtorId === 'p1' ? 'Ana Produtora' : 'Bruno',
+    numero,
+    serie: 1,
+    status,
+    dataEmissao: '2026-10-10T03:00:00Z',
+    destinatarioNome: 'Cooperativa',
+    valorTotalNota: 1000,
+  }) as NotaCarteira;
+
+const RESUMO_ZERADO: ResumoNotasCarteira = {
+  revisao: 0,
+  travadas: 0,
+  rascunhos: 0,
+  devolvidas: 0,
+  autorizadas: 0,
+  canceladas: 0,
+  todas: 0,
+};
 
 /**
- * `/documentos` para o contador (issue #136).
+ * `/documentos` para o contador (#136, #164).
  *
  * A tela antiga chamava `/api/notas`, `/api/vinculos` e `/api/pendencias`, que respondem 403 ao
- * escritório. O que estes testes guardam: só rota do escritório, sempre com o cliente no caminho,
- * nenhuma chamada sem cliente escolhido, e as caixas da triagem como filtro de status.
+ * escritório; depois passou a exigir um cliente antes de mostrar qualquer nota. Desde a #164 ela
+ * abre na carteira inteira (`GET /api/contador/notas`, backend#341), conta as caixas pelo
+ * `/resumo` e manda o `produtorId` **da nota** às rotas por cliente.
  */
 describe('NotasContador', () => {
   let httpMock: HttpTestingController;
@@ -43,7 +52,7 @@ describe('NotasContador', () => {
 
   afterEach(() => httpMock.verify());
 
-  /** Abre a tela com uma carteira de dois clientes — nenhum escolhido de saída. */
+  /** Abre a tela com uma carteira de dois clientes — nenhum escolhido: a carteira inteira. */
   function abrir() {
     const fixture = TestBed.createComponent(NotasContador);
     fixture.detectChanges();
@@ -54,113 +63,103 @@ describe('NotasContador', () => {
     return fixture;
   }
 
-  const daLista = (r: TestRequest) => r.request.params.get('size') === '20';
-  const contagens = () =>
-    httpMock.match(
-      (r) => r.url === '/contador/produtores/p1/notas' && r.params.get('size') === '1',
-    );
+  const lista = () => httpMock.expectOne((r) => r.url === '/contador/notas');
+  const resumo = () => httpMock.expectOne((r) => r.url === '/contador/notas/resumo');
 
-  it('sem cliente escolhido nao pede nota nenhuma e orienta a escolher', () => {
+  /** Responde a lista e o resumo que cada troca de cliente pede. */
+  function responder(notas: NotaCarteira[] = [], contagem: Partial<ResumoNotasCarteira> = {}) {
+    resumo().flush({ ...RESUMO_ZERADO, ...contagem });
+    lista().flush(notas, { headers: { 'X-Total-Count': String(notas.length) } });
+  }
+
+  it('sem cliente escolhido abre a carteira inteira, em "Precisam de revisão"', () => {
     const fixture = abrir();
 
-    httpMock.expectNone((r) => r.url.includes('/notas'));
-    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
-      'Escolha um cliente para ver as notas',
+    const contagem = resumo();
+    expect(contagem.request.params.has('produtorId')).toBe(false);
+    contagem.flush({ ...RESUMO_ZERADO, revisao: 2, todas: 9 });
+    const req = lista();
+    expect(req.request.params.has('produtorId')).toBe(false);
+    expect(req.request.params.getAll('status')).toEqual(['AGUARDANDO_APROVACAO']);
+    expect(req.request.params.get('sort')).toBe('dataEmissao,desc');
+    req.flush(
+      [nota('n1', 'AGUARDANDO_APROVACAO', 'p1'), nota('n2', 'AGUARDANDO_APROVACAO', 'p2')],
+      {
+        headers: { 'X-Total-Count': '2' },
+      },
     );
+    fixture.detectChanges();
+
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).not.toContain('Escolha um cliente');
+    expect(texto).toContain('toda a carteira');
+    // De quem e a nota, quando a lista mistura clientes.
+    expect(texto).toContain('Ana Produtora');
+    expect(texto).toContain('Bruno');
+    expect(fixture.componentInstance.contagens()['revisao']).toBe(2);
   });
 
-  it('com cliente, so rotas do escritorio: nada de /notas, /vinculos ou /pendencias', () => {
+  it('com cliente, a mesma rota com produtorId; nada de /notas, /vinculos ou /pendencias', () => {
     const fixture = abrir();
+    responder();
     fixture.componentInstance.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
 
-    const todas = httpMock.match(() => true);
-    expect(todas.length).toBeGreaterThan(0);
-    for (const req of todas) {
-      expect(req.request.url.startsWith('/contador/produtores/p1/')).toBe(true);
+    const pedidos = httpMock.match(() => true);
+    expect(pedidos.map((r) => r.request.url).sort()).toEqual([
+      '/contador/notas',
+      '/contador/notas/resumo',
+    ]);
+    for (const req of pedidos) {
+      expect(req.request.params.get('produtorId')).toBe('p1');
     }
-    todas.forEach((r) => r.flush([]));
+    pedidos.forEach((r) =>
+      r.request.url.endsWith('/resumo') ? r.flush(RESUMO_ZERADO) : r.flush([]),
+    );
   });
 
-  it('abre em "Precisam de revisao": a lista pede AGUARDANDO_APROVACAO ao servidor', () => {
-    const fixture = abrir();
-    fixture.componentInstance.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
-    contagens().forEach((r) => r.flush([]));
-
-    const lista = httpMock.match((r) => r.url === '/contador/produtores/p1/notas');
-    expect(lista.length).toBe(1);
-    expect(daLista(lista[0]!)).toBe(true);
-    expect(lista[0]!.request.params.getAll('status')).toEqual(['AGUARDANDO_APROVACAO']);
-    expect(lista[0]!.request.params.get('sort')).toBe('dataEmissao,desc');
-    lista[0]!.flush([nota('n1', 'AGUARDANDO_APROVACAO')], {
-      headers: { 'X-Total-Count': '1' },
-    });
-
-    expect(fixture.componentInstance.notas().map((n) => n.id)).toEqual(['n1']);
-  });
-
-  it('cada caixa conta pelo X-Total-Count, e "Travadas" junta inconsistencia e rejeicao', () => {
+  it('as caixas contam pelo resumo, numa consulta só', () => {
     const fixture = abrir();
     const cmp = fixture.componentInstance;
-    cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
+    responder([], { travadas: 4, revisao: 1, todas: 30 });
 
-    const pedidos = contagens();
-    expect(pedidos.length).toBe(cmp.caixas.length);
-    const travadas = pedidos.find(
-      (r) => r.request.params.getAll('status')?.join() === 'COM_INCONSISTENCIAS,REJEITADA',
-    );
-    expect(travadas).toBeTruthy();
-    for (const r of pedidos) {
-      r.flush([], { headers: { 'X-Total-Count': r === travadas ? '4' : '0' } });
-    }
-    httpMock.match((r) => r.url === '/contador/produtores/p1/notas').forEach((r) => r.flush([]));
-
+    httpMock.expectNone((r) => r.url === '/contador/notas/resumo');
     expect(cmp.contagens()['travadas']).toBe(4);
-    expect(cmp.contagens()['revisao']).toBe(0);
+    expect(cmp.contagens()['revisao']).toBe(1);
+    expect(cmp.contagens()['todas']).toBe(30);
   });
 
   it('trocar de caixa troca o filtro de status, sem recontar as caixas', () => {
-    const fixture = abrir();
-    const cmp = fixture.componentInstance;
-    cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
-    contagens().forEach((r) => r.flush([]));
-    httpMock.match((r) => r.url === '/contador/produtores/p1/notas').forEach((r) => r.flush([]));
+    const cmp = abrir().componentInstance;
+    responder();
 
     cmp.trocarCaixa('travadas');
 
-    const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas');
+    httpMock.expectNone((r) => r.url === '/contador/notas/resumo');
+    const req = lista();
     expect(req.request.params.getAll('status')).toEqual(['COM_INCONSISTENCIAS', 'REJEITADA']);
     req.flush([]);
   });
 
-  it('aprovar vai na rota do escritorio e troca a nota pela que voltou', () => {
-    const fixture = abrir();
-    const cmp = fixture.componentInstance;
-    cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
-    contagens().forEach((r) => r.flush([]));
-    httpMock
-      .expectOne((r) => r.url === '/contador/produtores/p1/notas')
-      .flush([nota('n1', 'AGUARDANDO_APROVACAO')], { headers: { 'X-Total-Count': '1' } });
+  it('com a carteira inteira, aprovar vai para o cliente DA NOTA e troca só o status', () => {
+    const cmp = abrir().componentInstance;
+    responder([nota('n1', 'AGUARDANDO_APROVACAO', 'p2')]);
 
     cmp.aprovar(cmp.notas()[0]!);
-    const req = httpMock.expectOne('/contador/produtores/p1/notas/n1/aprovar');
+    const req = httpMock.expectOne('/contador/produtores/p2/notas/n1/aprovar');
     expect(req.request.method).toBe('POST');
-    req.flush(nota('n1', 'APROVADA'));
+    req.flush({ id: 'n1', status: 'APROVADA', itens: [] });
     expect(cmp.notas()[0]!.status).toBe('APROVADA');
+    // O resumo da carteira continua: o nome do cliente nao some com a nota completa.
+    expect(cmp.notas()[0]!.produtorNome).toBe('Bruno');
 
-    // A caixa recarrega: aprovada, a nota saiu de "Precisam de revisao" no servidor.
-    contagens().forEach((r) => r.flush([]));
-    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush([]);
+    // A caixa recarrega em silencio: aprovada, a nota saiu de "Precisam de revisao" no servidor.
+    responder();
     expect(cmp.notas()).toEqual([]);
   });
 
-  it('devolver exige motivo de 5 a 500 e o manda no corpo', () => {
-    const fixture = abrir();
-    const cmp = fixture.componentInstance;
-    cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
-    contagens().forEach((r) => r.flush([]));
-    httpMock
-      .expectOne((r) => r.url === '/contador/produtores/p1/notas')
-      .flush([nota('n1', 'AGUARDANDO_APROVACAO')], { headers: { 'X-Total-Count': '1' } });
+  it('devolver exige motivo de 5 a 500 e vai para o cliente da nota', () => {
+    const cmp = abrir().componentInstance;
+    responder([nota('n1', 'AGUARDANDO_APROVACAO', 'p2')]);
 
     cmp.abrirDevolucao(cmp.notas()[0]!);
     cmp.motivo.set('cfop');
@@ -169,44 +168,111 @@ describe('NotasContador', () => {
 
     cmp.motivo.set('Falta o CFOP no item 2.');
     cmp.confirmarDevolucao();
-    const req = httpMock.expectOne('/contador/produtores/p1/notas/n1/devolver');
+    const req = httpMock.expectOne('/contador/produtores/p2/notas/n1/devolver');
     expect(req.request.body).toEqual({ motivo: 'Falta o CFOP no item 2.' });
-    req.flush(nota('n1', 'DEVOLVIDA'));
-    contagens().forEach((r) => r.flush([]));
-    httpMock.match((r) => r.url === '/contador/produtores/p1/notas').forEach((r) => r.flush([]));
+    req.flush({ id: 'n1', status: 'DEVOLVIDA', itens: [] });
+    responder();
 
     expect(cmp.devolvendo()).toBeNull();
   });
 
-  it('resposta de um cliente antigo nao entra na tela do novo', () => {
-    const fixture = abrir();
-    const cmp = fixture.componentInstance;
-    cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
-    contagens().forEach((r) => r.flush([]));
-    const atrasada = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas');
+  it('o que o fisco apontou vem da rota do cliente da nota', () => {
+    const cmp = abrir().componentInstance;
+    responder([nota('n1', 'COM_INCONSISTENCIAS', 'p2')]);
+
+    cmp.alternarNota(cmp.notas()[0]!);
+
+    httpMock.expectOne('/contador/produtores/p2/notas/n1/validacoes').flush([]);
+  });
+
+  it('resposta de um recorte antigo não entra na tela do novo', () => {
+    const cmp = abrir().componentInstance;
+    resumo().flush(RESUMO_ZERADO);
+    const atrasada = lista();
 
     cmp.aoTrocarCliente(cliente('p2', 'Bruno'));
-    atrasada.flush([nota('de-p1', 'AGUARDANDO_APROVACAO')], { headers: { 'X-Total-Count': '1' } });
-    httpMock.match((r) => r.url === '/contador/produtores/p2/notas').forEach((r) => r.flush([]));
+    atrasada.flush([nota('de-todos', 'AGUARDANDO_APROVACAO', 'p1')], {
+      headers: { 'X-Total-Count': '1' },
+    });
+    responder();
 
     expect(cmp.notas().map((n) => n.id)).toEqual([]);
   });
 
-  it('busca curta nao sai: o servidor recusaria com 400', () => {
-    const fixture = abrir();
-    const cmp = fixture.componentInstance;
+  it('voltar para "Toda a carteira" tira o produtorId do pedido', () => {
+    const cmp = abrir().componentInstance;
+    responder();
     cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
-    contagens().forEach((r) => r.flush([]));
-    httpMock.match((r) => r.url === '/contador/produtores/p1/notas').forEach((r) => r.flush([]));
+    responder();
+
+    cmp.aoTrocarCliente(null);
+
+    expect(resumo().request.params.has('produtorId')).toBe(false);
+    httpMock
+      .match((r) => r.url === '/contador/notas/resumo')
+      .forEach((r) => r.flush(RESUMO_ZERADO));
+    const req = lista();
+    expect(req.request.params.has('produtorId')).toBe(false);
+    req.flush([]);
+  });
+
+  it('"Mostrar mais" pede a página seguinte do mesmo recorte: cliente, caixa e busca', () => {
+    const cmp = abrir().componentInstance;
+    responder();
+    cmp.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
+    resumo().flush(RESUMO_ZERADO);
+    lista().flush([nota('n1', 'AGUARDANDO_APROVACAO')], { headers: { 'X-Total-Count': '25' } });
+
+    cmp.mostrarMais();
+
+    const req = lista();
+    expect(req.request.params.get('page')).toBe('1');
+    expect(req.request.params.get('produtorId')).toBe('p1');
+    expect(req.request.params.getAll('status')).toEqual(['AGUARDANDO_APROVACAO']);
+    req.flush([nota('n2', 'AGUARDANDO_APROVACAO')], { headers: { 'X-Total-Count': '25' } });
+    expect(cmp.notas().map((n) => n.id)).toEqual(['n1', 'n2']);
+  });
+
+  it('a caixa "Todas" não manda status nenhum', () => {
+    const cmp = abrir().componentInstance;
+    responder();
+
+    cmp.trocarCaixa('todas');
+
+    const req = lista();
+    expect(req.request.params.has('status')).toBe(false);
+    req.flush([]);
+  });
+
+  it('404 de um cliente que saiu da carteira não oferece "tentar de novo"', () => {
+    const fixture = abrir();
+    responder();
+    fixture.componentInstance.aoTrocarCliente(cliente('p1', 'Ana Produtora'));
+    resumo().flush(RESUMO_ZERADO);
+    lista().flush({}, { status: 404, statusText: 'Not Found' });
+    fixture.detectChanges();
+
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(fixture.componentInstance.erro()).toBe('fora-da-carteira');
+    expect(texto).toContain('não está mais ativo na carteira');
+    expect(texto).not.toContain('Tentar de novo');
+  });
+
+  it('busca curta não sai: o servidor recusaria com 400', () => {
+    const cmp = abrir().componentInstance;
+    responder();
 
     cmp.busca.set('ab');
     cmp.buscar();
-    httpMock.expectNone((r) => r.url.includes('/notas'));
+    httpMock.expectNone((r) => r.url.startsWith('/contador/notas'));
 
     cmp.busca.set('Cooperativa');
     cmp.buscar();
-    const pedidos = httpMock.match((r) => r.url === '/contador/produtores/p1/notas');
+    const pedidos = httpMock.match((r) => r.url.startsWith('/contador/notas'));
+    expect(pedidos).toHaveLength(2);
     expect(pedidos.every((r) => r.request.params.get('busca') === 'Cooperativa')).toBe(true);
-    pedidos.forEach((r) => r.flush([]));
+    pedidos.forEach((r) =>
+      r.request.url.endsWith('/resumo') ? r.flush(RESUMO_ZERADO) : r.flush([]),
+    );
   });
 });

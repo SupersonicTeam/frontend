@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject, output, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, input, output, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { LucideRefreshCw, LucideUsers } from '@lucide/angular';
@@ -62,12 +62,14 @@ import type { ProdutorCarteira } from '@models/carteira.model';
         <span>Cliente</span>
         <select
           class="tap-target min-w-56 max-w-full rounded-controle border bg-card px-3 text-apoio text-foreground"
-          [class.border-border]="!!selecionado()"
-          [class.border-primary]="!selecionado()"
+          [class.border-border]="!!selecionado() || todaCarteira()"
+          [class.border-primary]="!selecionado() && !todaCarteira()"
           [value]="selecionado() ?? ''"
           (change)="escolher($any($event.target).value)"
         >
-          <option value="" [selected]="!selecionado()">Escolha um cliente</option>
+          <option value="" [selected]="!selecionado()">
+            {{ todaCarteira() ? 'Toda a carteira' : 'Escolha um cliente' }}
+          </option>
           @for (c of clientes(); track c.id) {
             <option [value]="c.id" [selected]="c.id === selecionado()">{{ c.nomeCompleto }}</option>
           }
@@ -82,6 +84,13 @@ export class SeletorCliente implements OnInit {
   private readonly router = inject(Router);
   private readonly rota = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+
+  /**
+   * Em Notas (#164) "nenhum cliente" é uma escolha, não uma falta: a tela mostra a carteira
+   * inteira. A opção vazia passa a dizer "Toda a carteira" e o seletor não pede atenção com a borda.
+   * Fechamento e Prazos continuam pedindo um cliente: a apuração e as guias são de um produtor.
+   */
+  readonly todaCarteira = input(false);
 
   /** O cliente escolhido, ou `null` quando não há. Só dispara depois de a carteira responder. */
   readonly clienteChange = output<ProdutorCarteira | null>();

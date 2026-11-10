@@ -8,14 +8,13 @@ import {
   LucideFileText,
   LucideRefreshCw,
   LucideSearch,
-  LucideUsers,
 } from '@lucide/angular';
 import {
   CarteiraApi,
   type StatusNotaFiltro,
 } from '@services/contador/data-access/carteira.service';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
-import type { ProdutorCarteira } from '@models/carteira.model';
+import type { NotaCarteira, ProdutorCarteira, ResumoNotasCarteira } from '@models/carteira.model';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
 import { ToastService } from '@core/services/toast.service';
 import { filenameDeContentDisposition, salvarBlob } from '@core/utils/download';
@@ -29,9 +28,10 @@ import { UiSkeleton } from '@shared/ui/ui-skeleton';
 
 /** Uma caixa da triagem: um recorte de trabalho que vira filtro de `status` no servidor. */
 export interface CaixaTriagem {
-  chave: string;
+  /** É também a chave do `/contador/notas/resumo` que conta a caixa. */
+  chave: keyof ResumoNotasCarteira;
   rotulo: string;
-  /** Vazio = todas as notas do cliente. */
+  /** Vazio = todas as notas do recorte (a carteira inteira ou o cliente escolhido). */
   status: StatusNotaFiltro[];
 }
 
@@ -39,8 +39,8 @@ export interface CaixaTriagem {
  * As caixas da triagem, na ordem do trabalho do contador.
  *
  * Eram recortes feitos **em memória** sobre as 100 notas que `/api/notas` devolvia — e essa rota
- * responde 403 para o contador (#136). Agora cada caixa é o filtro `status` de
- * `/api/contador/produtores/{id}/notas`, e a contagem vem do `X-Total-Count`, não de uma página.
+ * responde 403 para o contador (#136). Cada caixa é o filtro `status` de `/api/contador/notas`
+ * (backend#341), e a contagem de todas vem do `/resumo`, numa consulta só.
  *
  * "Precisam de revisão" espera **o escritório** (a nota que o produtor mandou aprovar, backend#178);
  * "Travadas pelo fisco" espera **o produtor** corrigir. São pilhas de donos diferentes, e por isso
@@ -67,7 +67,16 @@ const POR_PAGINA = 20;
 const BUSCA_MINIMA = 3;
 
 /**
- * `/documentos` na visão do **contador**: as notas de **um cliente** da carteira (issue #136).
+ * `/documentos` na visão do **contador**: as notas da carteira (#136, #164).
+ *
+ * ## A carteira inteira ou um cliente (#164)
+ *
+ * Até a #164 a tela exigia escolher um cliente antes de mostrar qualquer nota: o escritório com
+ * 40 clientes abria sete caixas vazias e tinha de procurar cliente por cliente quem mandou nota
+ * para revisão. Com a backend#341, `GET /api/contador/notas` devolve as notas de **todos** os
+ * clientes ativos, e o seletor ganhou "Toda a carteira" (o `null`). Escolher um cliente é o mesmo
+ * pedido com `produtorId`. Cada nota traz o `produtorId` dela, e é ele que vai às rotas por
+ * cliente (validações, prévia, aprovar, devolver) — com a carteira inteira não há "o" cliente.
  *
  * ## Por que não é a tela do produtor
  *
@@ -90,7 +99,6 @@ const BUSCA_MINIMA = 3;
     LucideFileText,
     LucideRefreshCw,
     LucideSearch,
-    LucideUsers,
     RouterLink,
     SeletorCliente,
     UiBadgeStatus,
@@ -109,24 +117,29 @@ export class NotasContador {
   readonly caixas = CAIXAS_TRIAGEM;
   protected readonly rotuloDoCampo = rotuloDoCampo;
 
-  /** `undefined` enquanto a carteira não respondeu; `null` = nenhum cliente escolhido. */
+  /** `undefined` enquanto a carteira não respondeu; `null` = toda a carteira (#164). */
   readonly cliente = signal<ProdutorCarteira | null | undefined>(undefined);
+  readonly todaCarteira = computed(() => this.cliente() === null);
   /**
    * A caixa aberta. Abre em "Precisam de revisão" (o que espera o escritório), a menos que o
    * endereço peça outra (`?caixa=`): o Fechamento manda para cá as notas que ficaram fora da
    * apuração, e elas não estão na pilha de revisão.
    */
-  readonly caixa = signal<string>(this.caixaPedida());
+  readonly caixa = signal<CaixaTriagem['chave']>(this.caixaPedida());
   readonly busca = signal('');
   /** A busca que está valendo — a do campo só vale ao enviar, para não pedir a cada tecla. */
   readonly buscaAplicada = signal('');
 
-  readonly notas = signal<NotaFiscal[]>([]);
+  readonly notas = signal<NotaCarteira[]>([]);
   readonly total = signal(0);
   readonly pagina = signal(0);
   readonly carregando = signal(false);
   readonly carregandoMais = signal(false);
-  readonly erro = signal(false);
+  /**
+   * A falha da lista: `'fora-da-carteira'` é o 404 de um cliente que deixou de ser ativo depois que
+   * a tela abriu (tentar de novo não adianta); `'falha'` é o resto.
+   */
+  readonly erro = signal<false | 'falha' | 'fora-da-carteira'>(false);
   /** Quantas notas há em cada caixa. `null` = ainda não sabe (ou não conseguiu saber). */
   readonly contagens = signal<Record<string, number | null>>({});
 
@@ -145,9 +158,9 @@ export class NotasContador {
   /** O mesmo, para as contagens: uma rodada nova invalida as respostas da anterior. */
   private vezDaContagem = 0;
 
-  private caixaPedida(): string {
+  private caixaPedida(): CaixaTriagem['chave'] {
     const pedida = this.rota.snapshot.queryParamMap.get('caixa');
-    return CAIXAS_TRIAGEM.some((c) => c.chave === pedida) ? pedida! : 'revisao';
+    return CAIXAS_TRIAGEM.find((c) => c.chave === pedida)?.chave ?? 'revisao';
   }
 
   aoTrocarCliente(cliente: ProdutorCarteira | null): void {
@@ -160,18 +173,12 @@ export class NotasContador {
     this.notas.set([]);
     this.total.set(0);
     this.contagens.set({});
-    if (!cliente) {
-      this.vez++;
-      this.vezDaContagem++;
-      this.carregando.set(false);
-      this.erro.set(false);
-      return;
-    }
+    // Sem cliente não é mais "nada a mostrar": é a carteira inteira (#164).
     this.contar();
     this.recarregar();
   }
 
-  trocarCaixa(chave: string): void {
+  trocarCaixa(chave: CaixaTriagem['chave']): void {
     if (this.caixa() === chave) return;
     this.caixa.set(chave);
     this.fecharNota();
@@ -195,14 +202,13 @@ export class NotasContador {
    * sem o esqueleto no meio, e uma falha deixa a lista que já estava na tela.
    */
   recarregar(silencioso = false): void {
-    const produtorId = this.cliente()?.id;
-    if (!produtorId) return;
+    if (this.cliente() === undefined) return;
     const vez = ++this.vez;
     if (!silencioso) {
       this.carregando.set(true);
       this.erro.set(false);
     }
-    this.pedirPagina(produtorId, 0).subscribe({
+    this.pedirPagina(0).subscribe({
       next: ({ itens, total }) => {
         if (vez !== this.vez) return;
         this.notas.set(itens);
@@ -210,23 +216,22 @@ export class NotasContador {
         this.pagina.set(0);
         this.carregando.set(false);
       },
-      error: () => {
+      error: (falha: HttpErrorResponse) => {
         if (vez !== this.vez || silencioso) return;
         this.notas.set([]);
         this.total.set(0);
-        this.erro.set(true);
+        this.erro.set(falha.status === 404 && this.cliente() ? 'fora-da-carteira' : 'falha');
         this.carregando.set(false);
       },
     });
   }
 
   mostrarMais(): void {
-    const produtorId = this.cliente()?.id;
-    if (!produtorId || this.carregandoMais() || !this.temMais()) return;
+    if (this.cliente() === undefined || this.carregandoMais() || !this.temMais()) return;
     const vez = this.vez;
     const proxima = this.pagina() + 1;
     this.carregandoMais.set(true);
-    this.pedirPagina(produtorId, proxima).subscribe({
+    this.pedirPagina(proxima).subscribe({
       next: ({ itens, total }) => {
         this.carregandoMais.set(false);
         if (vez !== this.vez) return;
@@ -241,10 +246,11 @@ export class NotasContador {
     });
   }
 
-  private pedirPagina(produtorId: string, pagina: number) {
+  private pedirPagina(pagina: number) {
     const caixa = this.caixas.find((c) => c.chave === this.caixa()) ?? this.caixas[0];
-    return this.carteiraApi.paginaDeNotasDoCliente(produtorId, {
+    return this.carteiraApi.notasDaCarteira({
       status: caixa.status,
+      produtorId: this.cliente()?.id,
       busca: this.buscaAplicada() || undefined,
       page: pagina,
       size: POR_PAGINA,
@@ -253,32 +259,27 @@ export class NotasContador {
   }
 
   /**
-   * A contagem de cada caixa — uma consulta de uma nota só por caixa, lendo o `X-Total-Count`.
+   * A contagem de cada caixa, do `/contador/notas/resumo` (backend#341): uma consulta só, com a
+   * busca e o cliente da lista. Eram sete consultas de uma nota cada, lendo o `X-Total-Count`.
    *
    * Conta sobre a busca, não sobre a caixa escolhida: no instante em que o contador clicasse numa
-   * caixa, as outras não podem zerar, senão a triagem deixa de servir para triar. Falha de uma
-   * contagem some só com aquele número; a lista não depende dele.
+   * caixa, as outras não podem zerar, senão a triagem deixa de servir para triar. Se o resumo
+   * falhar, as caixas ficam sem número; a lista não depende dele.
    */
   private contar(limpar = true): void {
-    const produtorId = this.cliente()?.id;
-    if (!produtorId) return;
-    const busca = this.buscaAplicada() || undefined;
+    if (this.cliente() === undefined) return;
     const vez = ++this.vezDaContagem;
     // Depois de aprovar, os números de antes continuam na tela até os novos chegarem: zerar faria
     // as sete caixas piscarem a cada nota.
     if (limpar) this.contagens.set({});
-    for (const caixa of this.caixas) {
-      this.carteiraApi
-        .paginaDeNotasDoCliente(produtorId, { status: caixa.status, busca, page: 0, size: 1 })
-        .subscribe({
-          next: ({ total }) => {
-            if (vez === this.vezDaContagem) {
-              this.contagens.update((c) => ({ ...c, [caixa.chave]: total }));
-            }
-          },
-          error: () => undefined,
-        });
-    }
+    this.carteiraApi
+      .resumoDasNotas({ busca: this.buscaAplicada() || undefined, produtorId: this.cliente()?.id })
+      .subscribe({
+        next: (resumo) => {
+          if (vez === this.vezDaContagem) this.contagens.set({ ...resumo });
+        },
+        error: () => undefined,
+      });
   }
 
   // ── O que o fisco apontou ──
@@ -288,13 +289,11 @@ export class NotasContador {
   readonly carregandoValidacoes = signal(false);
 
   /** Só nota travada tem o que mostrar: as outras nunca passaram pelo validador com erro. */
-  temValidacoes(nota: NotaFiscal): boolean {
+  temValidacoes(nota: NotaCarteira): boolean {
     return nota.status === 'COM_INCONSISTENCIAS' || nota.status === 'REJEITADA';
   }
 
-  alternarNota(nota: NotaFiscal): void {
-    const produtorId = this.cliente()?.id;
-    if (!produtorId) return;
+  alternarNota(nota: NotaCarteira): void {
     if (this.notaAberta() === nota.id) {
       this.fecharNota();
       return;
@@ -302,7 +301,7 @@ export class NotasContador {
     this.notaAberta.set(nota.id);
     this.validacoes.set([]);
     this.carregandoValidacoes.set(true);
-    this.carteiraApi.validacoesDaNota(produtorId, nota.id).subscribe({
+    this.carteiraApi.validacoesDaNota(nota.produtorId, nota.id).subscribe({
       next: (lista) => {
         if (this.notaAberta() !== nota.id) return;
         this.validacoes.set(apenasUltimaChecagem(lista));
@@ -324,25 +323,23 @@ export class NotasContador {
 
   readonly executando = signal<string | null>(null);
   /** A nota que está sendo devolvida — o motivo é obrigatório e é o que o produtor vai ler. */
-  readonly devolvendo = signal<NotaFiscal | null>(null);
+  readonly devolvendo = signal<NotaCarteira | null>(null);
   readonly motivo = signal('');
   readonly motivoValido = computed(() => {
     const tamanho = this.motivo().trim().length;
     return tamanho >= 5 && tamanho <= 500;
   });
 
-  esperaOEscritorio(nota: NotaFiscal): boolean {
+  esperaOEscritorio(nota: NotaCarteira): boolean {
     return nota.status === 'AGUARDANDO_APROVACAO';
   }
 
   /** Aprovar destrava a emissão: até aqui `gerar-xml` responde 409 `APROVACAO_EXIGIDA` a ele. */
-  aprovar(nota: NotaFiscal): void {
-    const produtorId = this.cliente()?.id;
-    if (!produtorId) return;
-    this.executarNaNota(nota, () => this.carteiraApi.aprovarNota(produtorId, nota.id));
+  aprovar(nota: NotaCarteira): void {
+    this.executarNaNota(nota, () => this.carteiraApi.aprovarNota(nota.produtorId, nota.id));
   }
 
-  abrirDevolucao(nota: NotaFiscal): void {
+  abrirDevolucao(nota: NotaCarteira): void {
     this.devolvendo.set(nota);
     this.motivo.set('');
   }
@@ -355,27 +352,32 @@ export class NotasContador {
 
   confirmarDevolucao(): void {
     const nota = this.devolvendo();
-    const produtorId = this.cliente()?.id;
-    if (!nota || !produtorId || !this.motivoValido()) return;
+    if (!nota || !this.motivoValido()) return;
     const motivo = this.motivo().trim();
-    this.executarNaNota(nota, () => this.carteiraApi.devolverNota(produtorId, nota.id, motivo));
+    this.executarNaNota(nota, () =>
+      this.carteiraApi.devolverNota(nota.produtorId, nota.id, motivo),
+    );
   }
 
   /**
-   * Troca a nota pela versão que o servidor devolveu, recarrega a caixa e reconta.
+   * Troca o status da nota pelo que o servidor devolveu, recarrega a caixa e reconta. A resposta
+   * é a nota completa da rota do cliente; a lista guarda o resumo da carteira, então só o status
+   * é copiado.
    *
    * Recarregar não é zelo: aprovada ou devolvida, a nota sai de "Precisam de revisão" **no
    * servidor**, e a página seguinte (paginação por deslocamento) pularia a nota que subiu para o
    * lugar dela. A troca imediata mostra o resultado enquanto a lista nova não chega.
    */
-  private executarNaNota(nota: NotaFiscal, chamada: () => Observable<NotaFiscal>): void {
+  private executarNaNota(nota: NotaCarteira, chamada: () => Observable<NotaFiscal>): void {
     this.executando.set(nota.id);
     chamada().subscribe({
       next: (atualizada) => {
         this.executando.set(null);
         this.devolvendo.set(null);
         this.motivo.set('');
-        this.notas.update((lista) => lista.map((n) => (n.id === atualizada.id ? atualizada : n)));
+        this.notas.update((lista) =>
+          lista.map((n) => (n.id === atualizada.id ? { ...n, status: atualizada.status } : n)),
+        );
         this.toast.success(
           atualizada.status === 'DEVOLVIDA'
             ? `Nota ${atualizada.numero} devolvida ao produtor.`
@@ -399,10 +401,8 @@ export class NotasContador {
   }
 
   /** A DANFE do rascunho, com marca d'água, para conferir antes de aprovar. */
-  verPreviaDanfe(nota: NotaFiscal): void {
-    const produtorId = this.cliente()?.id;
-    if (!produtorId) return;
-    this.carteiraApi.previewDanfe(produtorId, nota.id).subscribe({
+  verPreviaDanfe(nota: NotaCarteira): void {
+    this.carteiraApi.previewDanfe(nota.produtorId, nota.id).subscribe({
       next: (resposta) => {
         const nome = filenameDeContentDisposition(
           resposta.headers.get('Content-Disposition'),

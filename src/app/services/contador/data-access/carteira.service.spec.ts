@@ -429,22 +429,57 @@ describe('CarteiraApi', () => {
       comPeriodo.flush({});
     });
 
-    it('a pagina de notas repete o status e le o total do X-Total-Count', () => {
+    it('as notas da carteira repetem o status, levam os filtros e leem o X-Total-Count', () => {
       let total = -1;
       service
-        .paginaDeNotasDoCliente('p1', {
+        .notasDaCarteira({
           status: ['COM_INCONSISTENCIAS', 'REJEITADA'],
+          busca: 'soja',
           page: 0,
-          size: 1,
+          size: 20,
+          sort: 'dataEmissao,desc',
         })
         .subscribe((p) => (total = p.total));
 
-      const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas');
+      const req = httpMock.expectOne((r) => r.url === '/contador/notas');
       expect(req.request.params.getAll('status')).toEqual(['COM_INCONSISTENCIAS', 'REJEITADA']);
-      expect(req.request.params.get('size')).toBe('1');
-      req.flush([{ id: 'n1' }], { headers: { 'X-Total-Count': '12' } });
+      expect(req.request.params.get('busca')).toBe('soja');
+      expect(req.request.params.get('size')).toBe('20');
+      // Sem cliente: a carteira inteira, nenhum produtorId vazio no endereco.
+      expect(req.request.params.has('produtorId')).toBe(false);
+      req.flush([{ id: 'n1', produtorId: 'p1' }], { headers: { 'X-Total-Count': '12' } });
 
       expect(total).toBe(12);
+    });
+
+    it('um cliente so: a mesma rota, com produtorId', () => {
+      service.notasDaCarteira({ produtorId: 'p1' }).subscribe();
+      const req = httpMock.expectOne((r) => r.url === '/contador/notas');
+      expect(req.request.params.get('produtorId')).toBe('p1');
+      req.flush([]);
+    });
+
+    it('o resumo conta as caixas numa consulta so, sem status', () => {
+      let todas = -1;
+      service
+        .resumoDasNotas({ busca: 'soja', produtorId: 'p1' })
+        .subscribe((r) => (todas = r.todas));
+
+      const req = httpMock.expectOne((r) => r.url === '/contador/notas/resumo');
+      expect(req.request.params.get('busca')).toBe('soja');
+      expect(req.request.params.get('produtorId')).toBe('p1');
+      expect(req.request.params.has('status')).toBe(false);
+      req.flush({
+        revisao: 1,
+        travadas: 2,
+        rascunhos: 0,
+        devolvidas: 1,
+        autorizadas: 40,
+        canceladas: 1,
+        todas: 47,
+      });
+
+      expect(todas).toBe(47);
     });
 
     it('uma nota do cliente pelo id', () => {

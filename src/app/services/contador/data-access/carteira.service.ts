@@ -1,7 +1,13 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, type HttpResponse } from '@angular/common/http';
 import { Observable, map, of, switchMap } from 'rxjs';
-import type { FiltroCarteira, PaginaCarteira, ProdutorCarteira } from '@models/carteira.model';
+import type {
+  FiltroCarteira,
+  NotaCarteira,
+  PaginaCarteira,
+  ProdutorCarteira,
+  ResumoNotasCarteira,
+} from '@models/carteira.model';
 import type { Pendencia, StatusPendencia, TipoDocumentoPendencia } from '@models/pendencia.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { RevisaoNota } from '@services/notas/data-access/notas.service';
@@ -28,6 +34,29 @@ export interface NovoPedidoDocumento {
   /** `AAAA-MM-DD`. */
   dataLimite?: string;
   observacoes?: string;
+}
+
+/**
+ * Filtros de `GET /api/contador/notas` e do `/resumo` (backend#341): as notas da carteira inteira,
+ * ou de um cliente com `produtorId`. Só clientes com vínculo ATIVO entram; `produtorId` fora da
+ * carteira ativa responde 404.
+ */
+export interface FiltroNotasCarteira {
+  /** Repetível (OU). O `/resumo` aceita e ignora: ele já separa por caixa. */
+  status?: StatusNotaFiltro[];
+  tipoDocumento?: 'NFE' | 'NFA';
+  /** `AAAA-MM-DD`, inclusivos. */
+  emitidaDe?: string;
+  emitidaAte?: string;
+  /** De 3 a 100 caracteres: número, destinatário, natureza, produto e CPF/CNPJ do destinatário. */
+  busca?: string;
+  produtorId?: string;
+  /** `eu`, `nenhum` ou o id de um membro. */
+  responsavel?: string;
+  page?: number;
+  size?: number;
+  /** `dataEmissao`, `numero`, `status`, `valorTotal` ou `createdAt`, com `,asc`/`,desc`. */
+  sort?: string;
 }
 
 /** Filtros de `GET /api/contador/produtores/{produtorId}/notas` (os mesmos de `/api/notas`). */
@@ -107,9 +136,9 @@ export interface SituacaoDoVinculo {
   fim: string | null;
 }
 
-/** Uma página das notas de um cliente: o total vem do header `X-Total-Count`, não do corpo. */
-export interface PaginaNotasCliente {
-  itens: NotaFiscal[];
+/** Uma página das notas da carteira (ou de um cliente): o total vem do `X-Total-Count`. */
+export interface PaginaNotasCarteira {
+  itens: NotaCarteira[];
   total: number;
 }
 
@@ -288,21 +317,28 @@ export class CarteiraApi {
   }
 
   /**
-   * As notas do cliente **com o total**, para paginar.
-   *
-   * A lista é array + `X-Total-Count`, como a carteira — não o `Page<T>` de `/api/notas`. Sem o
-   * header, o total cai para o tamanho do que veio (ver `listar`).
+   * `GET /api/contador/notas` — as notas da **carteira inteira** (backend#341), ou de um cliente
+   * com `produtorId`. Array + `X-Total-Count`, como a carteira; sem `sort`, mais recente primeiro.
+   * O item é um resumo (`NotaCarteira`), sem `itens`.
    */
-  paginaDeNotasDoCliente(
-    produtorId: string,
-    filtro: FiltroNotasCliente = {},
-  ): Observable<PaginaNotasCliente> {
+  notasDaCarteira(filtro: FiltroNotasCarteira = {}): Observable<PaginaNotasCarteira> {
     return this.http
-      .get<NotaFiscal[]>(`/contador/produtores/${produtorId}/notas`, {
-        params: this.paramsDasNotas(filtro),
+      .get<NotaCarteira[]>('/contador/notas', {
+        params: this.paramsDaCarteiraDeNotas(filtro),
         observe: 'response',
       })
       .pipe(map((resposta) => CarteiraApi.comTotal(resposta)));
+  }
+
+  /**
+   * `GET /api/contador/notas/resumo` — a contagem de cada caixa da triagem numa consulta só, com os
+   * mesmos filtros da lista (o `status` não vai: a contagem já separa por caixa). Substitui as sete
+   * consultas de uma nota só que liam o `X-Total-Count` de cada caixa.
+   */
+  resumoDasNotas(filtro: Omit<FiltroNotasCarteira, 'status' | 'page' | 'size' | 'sort'> = {}) {
+    return this.http.get<ResumoNotasCarteira>('/contador/notas/resumo', {
+      params: this.paramsDaCarteiraDeNotas(filtro),
+    });
   }
 
   /** `GET /api/contador/produtores/{produtorId}/notas/{notaId}` — uma nota do cliente. */
@@ -607,11 +643,7 @@ export class CarteiraApi {
 
   /** Os filtros de notas, com `status` repetido (o backend aceita mais de um por consulta). */
   private paramsDasNotas(filtro: FiltroNotasCliente): HttpParams {
-    let params = new HttpParams();
-    for (const status of filtro.status ?? []) {
-      params = params.append('status', status);
-    }
-    return this.anexar(params, {
+    return this.anexar(this.statusRepetido(filtro.status), {
       de: filtro.de,
       ate: filtro.ate,
       busca: filtro.busca,
@@ -619,6 +651,25 @@ export class CarteiraApi {
       size: filtro.size,
       sort: filtro.sort,
     });
+  }
+
+  private paramsDaCarteiraDeNotas(filtro: FiltroNotasCarteira): HttpParams {
+    return this.anexar(this.statusRepetido(filtro.status), {
+      tipoDocumento: filtro.tipoDocumento,
+      emitidaDe: filtro.emitidaDe,
+      emitidaAte: filtro.emitidaAte,
+      busca: filtro.busca,
+      produtorId: filtro.produtorId,
+      responsavel: filtro.responsavel,
+      page: filtro.page,
+      size: filtro.size,
+      sort: filtro.sort,
+    });
+  }
+
+  /** `status` repetido (o servidor lê como OU), nunca juntado por vírgula. */
+  private statusRepetido(status: readonly StatusNotaFiltro[] = []): HttpParams {
+    return status.reduce((params, s) => params.append('status', s), new HttpParams());
   }
 
   /** Monta os parâmetros da carteira, com `etiqueta` repetido em vez de juntado por vírgula. */
