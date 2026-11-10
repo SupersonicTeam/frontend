@@ -116,7 +116,7 @@
             >
               <span class="text-foreground">
                 <span class="font-medium">Nota {{ nota.numero }}</span>
-                · {{ nota.destinatarioNome }}
+                · {{ contraparteDaNota(nota) }}
                 <span class="text-muted-foreground">· {{ formatDate(nota.dataEmissao) }}</span>
               </span>
               <span class="font-medium text-aviso-ink">{{ rotuloStatusNota(nota.status) }}</span>

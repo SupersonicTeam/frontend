@@ -4,6 +4,7 @@ import { LucideExternalLink, LucideFileText, LucideTriangleAlert, LucideX } from
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { AssistenteConversa } from './assistente-conversa';
 import { AssistenteStore } from './assistente.store';
+import { contraparteDaNota, ehCompraImportada } from '@models/nota-fiscal.model';
 import { CeresAvatar } from './ceres-avatar';
 
 /**
@@ -39,6 +40,9 @@ import { CeresAvatar } from './ceres-avatar';
   templateUrl: './assistente-drawer.html',
 })
 export class AssistenteDrawer {
+  protected readonly ehCompraImportada = ehCompraImportada;
+  protected readonly contraparteDaNota = contraparteDaNota;
+
   protected readonly store = inject(AssistenteStore);
 
   private readonly painel = viewChild<ElementRef<HTMLElement>>('painel');

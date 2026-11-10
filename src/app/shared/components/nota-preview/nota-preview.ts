@@ -1,6 +1,6 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { SessaoService } from '@core/services/sessao.service';
-import { ItemNotaFiscal, NotaFiscal } from '@models/nota-fiscal.model';
+import { ItemNotaFiscal, NotaFiscal, ehCompraImportada } from '@models/nota-fiscal.model';
 import {
   StatusNotaFiscal,
   statusNotaLabel,
@@ -24,28 +24,30 @@ export class NotaPreview {
 
   private readonly sessao = inject(SessaoService);
 
+  /** Compra importada (backend#409): o produtor é o destinatário, e o emitente é o fornecedor. */
+  readonly importada = computed(() => ehCompraImportada(this.nota()));
+
   /**
    * Quem emitiu a nota. O quadro dizia "Produtor rural / Emissor da NF-e" para toda nota, cravado
    * no template — na demonstração, a nota do Carlos não tinha o nome dele (roteiro de 06/11).
    *
-   * A prévia só aparece nas telas do produtor (painel e Minhas notas), então o emitente da nota
-   * própria é quem está logado. A nota de **compra** importada é o contrário: o produtor é o
-   * destinatário e o emitente é o fornecedor, que a `/api/notas` não devolve (pedido ao backend).
-   * Quando o destinatário é o próprio produtor, a prévia diz que a nota é de entrada em vez de
-   * pôr o nome dele nos dois quadros.
+   * Na compra importada o emitente vem da própria nota (`emitenteNome`, backend#409). Na própria,
+   * é o produtor: a prévia só aparece nas telas dele (painel e Minhas notas), então é quem está
+   * logado. A #165 adivinhava a compra comparando o nome do destinatário com o da sessão; com a
+   * `origem` no contrato, a aproximação saiu.
    */
   readonly emitente = computed(() => {
+    const nota = this.nota();
+    if (this.importada()) {
+      return {
+        nome: nota.emitenteNome || 'Fornecedor',
+        detalhe: this.formatCpfCnpj(nota.emitenteCpfCnpj) || 'Nota de entrada, importada do XML',
+      };
+    }
     // Fora da sessão do produtor quem está logado não é o emitente: volta ao rótulo genérico.
     if (!this.sessao.ehProdutor()) return { nome: 'Produtor rural', detalhe: 'Emissor da NF-e' };
-    const eu = NotaPreview.normalizar(this.sessao.nome());
-    const entrada = !!eu && NotaPreview.normalizar(this.nota().destinatarioNome) === eu;
-    if (entrada) return { nome: 'Fornecedor', detalhe: 'Nota de entrada, importada do XML' };
     return { nome: this.sessao.nome() || 'Produtor rural', detalhe: 'Emissor da NF-e' };
   });
-
-  private static normalizar(nome?: string | null): string {
-    return (nome ?? '').normalize('NFD').replace(/\p{M}/gu, '').trim().toLocaleLowerCase('pt-BR');
-  }
 
   /**
    * As etapas do contrato (#111): **rascunho → em revisão → aprovada → emitida**.

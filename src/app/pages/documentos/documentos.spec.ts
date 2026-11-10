@@ -1675,4 +1675,49 @@ describe('DocumentosPage', () => {
       flushPendencias();
     });
   });
+  /** Origem e emitente da nota (#170, backend#409 e #418). */
+  describe('compra importada', () => {
+    const compra = () =>
+      nota('n42', '2026-11-05', {
+        origem: 'IMPORTADA',
+        destinatarioNome: 'Carlos Eduardo Rossi',
+        emitenteNome: 'Posto Rodoviario Chapadao Ltda',
+        emitenteCpfCnpj: '11222333000181',
+        naturezaOperacao: 'VENDA DE MERCADORIA ADQUIRIDA DE TERCEIROS',
+      });
+
+    it('a lista mostra o fornecedor, não o próprio produtor, e diz que é compra', () => {
+      const fixture = comNotas([compra()]);
+      const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+      expect(texto).toContain('Posto Rodoviario Chapadao Ltda');
+      expect(texto).not.toContain('Carlos Eduardo Rossi');
+      expect(texto).toContain('· compra');
+    });
+
+    it('a compra autorizada não oferece "Cancelar"; a própria, sim', () => {
+      const cmp = comNotas([compra()]).componentInstance;
+      expect(cmp.podeCancelar(cmp.notas()[0])).toBe(false);
+      expect(cmp.podeCancelar({ ...cmp.notas()[0]!, origem: 'PROPRIA' })).toBe(true);
+    });
+
+    it('o 409 CANCELAMENTO_COMPRA_IMPORTADA vira frase da tela e fecha o pedido', () => {
+      const cmp = comNotas([nota('n1', '2026-11-05')]).componentInstance;
+      const erro = vi.spyOn(TestBed.inject(ToastService), 'error');
+      cmp.pedirCancelamento(cmp.notas()[0]!);
+      cmp.motivoCancel.set('Venda desfeita antes da entrega da carga');
+
+      cmp.confirmarCancelamento();
+      httpMock
+        .expectOne('/notas/n1/cancelar')
+        .flush(
+          { errors: [{ code: 'CANCELAMENTO_COMPRA_IMPORTADA', message: 'x' }] },
+          { status: 409, statusText: 'Conflict' },
+        );
+
+      expect(erro).toHaveBeenCalledWith(
+        'Esta nota é uma compra: quem cancela é o fornecedor que a emitiu.',
+      );
+      expect(cmp.cancelarAlvo()).toBeNull();
+    });
+  });
 });

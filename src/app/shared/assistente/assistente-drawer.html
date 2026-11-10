@@ -70,9 +70,12 @@
 
           <dl class="flex flex-col gap-2">
             <div class="flex justify-between gap-2">
-              <dt class="text-apoio text-muted-foreground">Destinatário</dt>
+              <!-- Na compra importada o produtor e o destinatario: o que interessa e o fornecedor (#170). -->
+              <dt class="text-apoio text-muted-foreground">
+                {{ ehCompraImportada(nota) ? 'Fornecedor' : 'Destinatário' }}
+              </dt>
               <dd class="text-right text-apoio font-medium text-foreground">
-                {{ nota.destinatarioNome }}
+                {{ contraparteDaNota(nota) }}
               </dd>
             </div>
             <div class="flex justify-between gap-2">
