@@ -13,6 +13,7 @@ import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { RevisaoNota } from '@services/notas/data-access/notas.service';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { statusDaGuia } from '@core/utils/guias';
+import { corpoDoEncerramento } from '@core/utils/encerramento-vinculo';
 import type { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
 import type { Apuracao, CreditoSaldo, RelatorioConformidade } from '@models/tributario.model';
@@ -305,8 +306,14 @@ export class CarteiraApi {
    * volta** — atender de novo exige convite novo. Transição fora da ordem → 409
    * `VINCULO_SITUACAO_INVALIDA`.
    */
-  mudarVinculo(produtorId: string, acao: AcaoVinculo): Observable<SituacaoDoVinculo> {
-    return this.http.post<SituacaoDoVinculo>(`/contador/produtores/${produtorId}/${acao}`, null);
+  mudarVinculo(
+    produtorId: string,
+    acao: AcaoVinculo,
+    motivo?: string,
+  ): Observable<SituacaoDoVinculo> {
+    // Só o encerrar leva motivo (backend#402), e ele aparece para o produtor.
+    const corpo = acao === 'encerrar' ? corpoDoEncerramento(motivo) : null;
+    return this.http.post<SituacaoDoVinculo>(`/contador/produtores/${produtorId}/${acao}`, corpo);
   }
 
   /** `GET /api/contador/produtores/{produtorId}/notas` — as notas do cliente, só leitura. */

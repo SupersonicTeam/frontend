@@ -61,6 +61,29 @@ describe('VinculoCliente', () => {
     expect(emitidos.map((s) => s.situacao)).toEqual(['SUSPENSO']);
   });
 
+  it('encerrar leva o motivo e avisa que o cliente o vê (#173)', () => {
+    const { fixture } = abrir('ATIVO');
+    const cmp = fixture.componentInstance;
+    cmp.pedirEncerramento();
+    fixture.detectChanges();
+    expect(document.body.textContent).toContain('O cliente vê este motivo');
+
+    cmp.motivo.set('Cliente pediu para encerrar');
+    cmp.executar('encerrar');
+    const req = httpMock.expectOne('/contador/produtores/p1/encerrar');
+    expect(req.request.body).toEqual({ motivo: 'Cliente pediu para encerrar' });
+    req.flush({ produtorId: 'p1', situacao: 'ENCERRADO', inicio: 'x', fim: 'y' });
+  });
+
+  it('suspender não leva motivo, mesmo com texto no campo', () => {
+    const { fixture } = abrir('ATIVO');
+    fixture.componentInstance.motivo.set('qualquer coisa');
+    fixture.componentInstance.executar('suspender');
+    const req = httpMock.expectOne('/contador/produtores/p1/suspender');
+    expect(req.request.body).toBeNull();
+    req.flush({ produtorId: 'p1', situacao: 'SUSPENSO', inicio: 'x', fim: null });
+  });
+
   it('409 diz que a situacao mudou, sem emitir nada', () => {
     const erro = vi.spyOn(TestBed.inject(ToastService), 'error');
     const { fixture, emitidos } = abrir('ATIVO');

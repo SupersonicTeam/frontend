@@ -18,6 +18,7 @@ import type { Pendencia } from '@models/pendencia.model';
 import { ToastService } from '@core/services/toast.service';
 import { NotificacoesService } from '@core/services/notificacoes.service';
 import { formatarData } from '@core/utils/periodo';
+import { MOTIVO_ENCERRAMENTO_MAXIMO } from '@core/utils/encerramento-vinculo';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiModal } from '@shared/ui/ui-modal';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
@@ -35,9 +36,9 @@ const PEDIDOS_NA_ABA = 3;
  * vez de afirmar que nenhum escritório atende a pessoa.
  *
  * **Histórico (#166, backend#353):** a aba pede também os vínculos `ENCERRADO` e os lista abaixo,
- * com o período. Ela **não diz quem encerrou**: o backend ainda não informa isso (backend#402), e o
- * vínculo pode ter sido encerrado pelo escritório. "Você encerrou" só aparece no aviso do
- * encerramento feito nesta tela, agora há pouco (`encerradoAgora`).
+ * com o período, quem encerrou e o motivo (#173, backend#402). `encerradoPor` nulo quer dizer **não
+ * registrado** (encerrado antes de o backend guardar isso), e a tela diz exatamente isso, em vez de
+ * supor que foi o produtor.
  *
  * Erros das chamadas passam pelo toast global do `apiInterceptor`, que já mostra a mensagem do
  * servidor.
@@ -149,7 +150,7 @@ const PEDIDOS_NA_ABA = 3;
                   }
                 </dl>
               </div>
-              <ui-button variant="ghost" (click)="encerrando.set(v)">Encerrar vínculo</ui-button>
+              <ui-button variant="ghost" (click)="pedirEncerramento(v)">Encerrar vínculo</ui-button>
             </div>
 
             @if (v.situacao === 'SUSPENSO') {
@@ -237,8 +238,7 @@ const PEDIDOS_NA_ABA = 3;
         }
 
         @if (historico().length) {
-          <!-- Quem ja atendeu (#166). Sem dizer quem encerrou: o backend ainda nao informa
-               (backend#402), e pode ter sido o escritorio. -->
+          <!-- Quem ja atendeu (#166), quem encerrou e por que (#173). -->
           <section class="rounded-card border border-border bg-card p-5 shadow-suave">
             <h2 class="flex items-center gap-2 font-heading text-lg font-semibold text-foreground">
               <svg lucideHistory [size]="18" class="text-primary" aria-hidden="true" />
@@ -246,11 +246,19 @@ const PEDIDOS_NA_ABA = 3;
             </h2>
             <ul class="mt-2 divide-y divide-border">
               @for (v of historico(); track v.id) {
-                <li class="flex flex-wrap items-baseline justify-between gap-2 py-2 text-apoio">
-                  <span class="font-medium text-foreground">{{ v.escritorio }}</span>
-                  <span class="text-muted-foreground">
-                    de {{ data(v.inicio) }} a {{ v.fim ? data(v.fim) : '—' }}
-                  </span>
+                <li class="py-2 text-apoio">
+                  <div class="flex flex-wrap items-baseline justify-between gap-2">
+                    <span class="font-medium text-foreground">{{ v.escritorio }}</span>
+                    <span class="text-muted-foreground">
+                      de {{ data(v.inicio) }} a {{ v.fim ? data(v.fim) : '—' }}
+                    </span>
+                  </div>
+                  <p class="text-muted-foreground">
+                    {{ quemEncerrou(v) }}
+                    @if (v.motivoEncerramento) {
+                      — “{{ v.motivoEncerramento }}”
+                    }
+                  </p>
                 </li>
               }
             </ul>
@@ -271,6 +279,22 @@ const PEDIDOS_NA_ABA = 3;
       [travado]="encerrandoAgora()"
       (fechar)="encerrando.set(null)"
     >
+      <label for="motivo-encerramento" class="mb-1.5 block text-apoio font-medium text-foreground">
+        Motivo <span class="font-normal text-muted-foreground">(opcional)</span>
+      </label>
+      <textarea
+        id="motivo-encerramento"
+        rows="3"
+        [attr.maxlength]="motivoMaximo"
+        aria-describedby="aviso-motivo-produtor"
+        class="w-full rounded-controle border border-border bg-card px-3 py-2 text-apoio text-foreground"
+        [value]="motivo()"
+        (input)="motivo.set($any($event.target).value)"
+      ></textarea>
+      <p id="aviso-motivo-produtor" class="mt-1 text-apoio text-muted-foreground">
+        O escritório vê o motivo. Até {{ motivoMaximo }} caracteres.
+      </p>
+
       <div rodape class="flex flex-wrap justify-end gap-2">
         <ui-button variant="ghost" [disabled]="encerrandoAgora()" (click)="encerrando.set(null)">
           Cancelar
@@ -302,9 +326,12 @@ export class EscritorioProdutor implements OnInit {
   readonly respondendo = signal<string | null>(null);
   readonly encerrando = signal<VinculoDoProdutor | null>(null);
   readonly encerrandoAgora = signal(false);
+  /** O motivo opcional do encerramento (#173); o escritório o vê. */
+  readonly motivo = signal('');
+  protected readonly motivoMaximo = MOTIVO_ENCERRAMENTO_MAXIMO;
   /**
-   * O vínculo que a pessoa acabou de encerrar aqui. É o único caso em que a tela sabe quem encerrou
-   * (foi ela), então é o único que diz "Você encerrou"; no histórico ele aparece sem autor.
+   * O vínculo que a pessoa acabou de encerrar aqui: o aviso logo depois, com a data. No histórico
+   * ele aparece também, como "Encerrado por você" (`encerradoPor` do backend, #173).
    */
   readonly encerradoAgora = signal<{ escritorio: string; quando: string } | null>(null);
 
@@ -382,11 +409,16 @@ export class EscritorioProdutor implements OnInit {
     });
   }
 
+  pedirEncerramento(vinculo: VinculoDoProdutor): void {
+    this.motivo.set('');
+    this.encerrando.set(vinculo);
+  }
+
   encerrar(): void {
     const vinculo = this.encerrando();
     if (!vinculo || this.encerrandoAgora()) return;
     this.encerrandoAgora.set(true);
-    this.api.encerrar(vinculo.id).subscribe({
+    this.api.encerrar(vinculo.id, this.motivo()).subscribe({
       next: () => {
         this.encerrandoAgora.set(false);
         this.encerrando.set(null);
@@ -399,6 +431,17 @@ export class EscritorioProdutor implements OnInit {
       },
       error: () => this.encerrandoAgora.set(false),
     });
+  }
+
+  /**
+   * Quem encerrou, sem supor (#173, backend#402): `null` é "não registrado", nunca "foi você". Um
+   * valor que a tela ainda não conhece foi registrado, só não sabemos dizer por quem: fica neutro.
+   */
+  quemEncerrou(vinculo: VinculoDoProdutor): string {
+    if (vinculo.encerradoPor === 'PRODUTOR') return 'Encerrado por você';
+    if (vinculo.encerradoPor === 'ESCRITORIO') return 'Encerrado pelo escritório';
+    if (vinculo.encerradoPor == null) return 'Encerramento não registrado';
+    return 'Encerrado';
   }
 
   data(iso: string): string {

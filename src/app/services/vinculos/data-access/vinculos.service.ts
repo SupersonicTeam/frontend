@@ -3,6 +3,7 @@ import type { Observable } from 'rxjs';
 import { HttpClient } from '@angular/common/http';
 import { ApiService } from '@core/services/api.service';
 import { skipErrorNotify } from '@core/interceptors/error-notify.context';
+import { corpoDoEncerramento } from '@core/utils/encerramento-vinculo';
 
 /** Situação de um vínculo, como `GET /api/vinculos?situacao=` aceita (backend#353). */
 export type SituacaoVinculoProdutor = 'ATIVO' | 'SUSPENSO' | 'ENCERRADO';
@@ -20,6 +21,13 @@ export interface VinculoDoProdutor {
   inicio: string;
   /** Preenchido só no encerrado. */
   fim: string | null;
+  /**
+   * Quem encerrou (backend#402). **`null` é "não registrado"** — o vínculo foi encerrado antes de o
+   * backend guardar isso —, nunca "foi o produtor".
+   */
+  encerradoPor?: 'PRODUTOR' | 'ESCRITORIO' | (string & {}) | null;
+  /** O motivo escrito por quem encerrou, se houver. O do escritório aparece para o produtor. */
+  motivoEncerramento?: string | null;
 }
 
 /**
@@ -84,8 +92,14 @@ export class VinculosApi {
     return this.api.post<ConviteRecebido>(`/convites/${id}/recusar`);
   }
 
-  /** `POST /api/vinculos/{id}/encerrar` — o produtor corta o acesso do escritório na hora. */
-  encerrar(id: string): Observable<VinculoDoProdutor> {
-    return this.api.post<VinculoDoProdutor>(`/vinculos/${id}/encerrar`);
+  /**
+   * `POST /api/vinculos/{id}/encerrar` — o produtor corta o acesso do escritório na hora. O motivo é
+   * opcional (até 500 caracteres) e o escritório o vê.
+   */
+  encerrar(id: string, motivo?: string): Observable<VinculoDoProdutor> {
+    return this.api.post<VinculoDoProdutor>(
+      `/vinculos/${id}/encerrar`,
+      corpoDoEncerramento(motivo),
+    );
   }
 }

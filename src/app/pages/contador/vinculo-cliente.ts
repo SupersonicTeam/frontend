@@ -10,6 +10,7 @@ import { EscritorioApi } from '@services/escritorio/data-access/escritorio.servi
 import type { ProdutorCarteira } from '@models/carteira.model';
 import { ToastService } from '@core/services/toast.service';
 import { falhaDaApi } from '@core/utils/erro-api';
+import { MOTIVO_ENCERRAMENTO_MAXIMO } from '@core/utils/encerramento-vinculo';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiModal } from '@shared/ui/ui-modal';
 
@@ -54,7 +55,7 @@ const SUCESSO: Record<AcaoVinculo, string> = {
           </ui-button>
         }
         @if (cliente().situacaoVinculo !== 'ENCERRADO') {
-          <ui-button variant="perigo" [disabled]="!!executando()" (click)="confirmando.set(true)">
+          <ui-button variant="perigo" [disabled]="!!executando()" (click)="pedirEncerramento()">
             <svg lucideLink2Off [size]="14" /> Encerrar vínculo
           </ui-button>
         }
@@ -69,6 +70,26 @@ const SUCESSO: Record<AcaoVinculo, string> = {
       [travado]="!!executando()"
       (fechar)="confirmando.set(false)"
     >
+      <label
+        for="motivo-encerramento-cliente"
+        class="mb-1.5 block text-apoio font-medium text-foreground"
+      >
+        Motivo <span class="font-normal text-muted-foreground">(opcional)</span>
+      </label>
+      <textarea
+        id="motivo-encerramento-cliente"
+        rows="3"
+        [attr.maxlength]="motivoMaximo"
+        aria-describedby="aviso-motivo-cliente"
+        class="w-full rounded-controle border border-border bg-card px-3 py-2 text-apoio text-foreground"
+        [value]="motivo()"
+        (input)="motivo.set($any($event.target).value)"
+      ></textarea>
+      <!-- O motivo do escritorio aparece para o produtor (#173): o aviso fica colado no campo. -->
+      <p id="aviso-motivo-cliente" class="mt-1 text-apoio font-medium text-aviso-ink">
+        O cliente vê este motivo na aba Meu escritório. Até {{ motivoMaximo }} caracteres.
+      </p>
+
       <div rodape class="flex flex-wrap justify-end gap-2">
         <ui-button variant="ghost" [disabled]="!!executando()" (click)="confirmando.set(false)">
           Cancelar
@@ -96,6 +117,14 @@ export class VinculoCliente implements OnInit {
   readonly administrador = signal(false);
   readonly executando = signal<AcaoVinculo | null>(null);
   readonly confirmando = signal(false);
+  /** O motivo opcional do encerramento (#173). Aparece para o produtor. */
+  readonly motivo = signal('');
+  protected readonly motivoMaximo = MOTIVO_ENCERRAMENTO_MAXIMO;
+
+  pedirEncerramento(): void {
+    this.motivo.set('');
+    this.confirmando.set(true);
+  }
 
   ngOnInit(): void {
     this.escritorioApi.ehAdministrador().subscribe((sim) => this.administrador.set(sim));
@@ -104,7 +133,8 @@ export class VinculoCliente implements OnInit {
   executar(acao: AcaoVinculo): void {
     if (this.executando()) return;
     this.executando.set(acao);
-    this.carteiraApi.mudarVinculo(this.cliente().id, acao).subscribe({
+    const motivo = acao === 'encerrar' ? this.motivo() : undefined;
+    this.carteiraApi.mudarVinculo(this.cliente().id, acao, motivo).subscribe({
       next: (situacao) => {
         this.executando.set(null);
         this.confirmando.set(false);
