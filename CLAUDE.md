@@ -38,6 +38,15 @@ imposto, contador, rascunho).
 | Testes unitários (Vitest) | `npm test` |
 | Scaffold de componente | `npx ng generate component pages/<nome>` |
 
+## Environments e o build de produção (#175)
+
+`environment.ts` (dev) e `environment.prod.ts` têm `apiUrl`, `dominioBase` (`localhost` /
+`agroconia.com.br`) e `enderecoProprioNoAr` (`true` em dev, `false` em produção até o DNS curinga).
+**A configuração `production` do `angular.json` tem o `fileReplacements`** — sem ele o build de
+produção empacotava o `environment.ts` (só não fazia diferença porque os dois eram iguais). A CI roda
+`node scripts/conferir-build-producao.mjs` depois do build: falha sem o par, sem o domínio no bundle ou
+com o domínio escrito à mão num fonte de `src/app/`.
+
 ## Backend / API
 
 - `environment.apiUrl = '/api'` (`src/environments/environment.ts`).
@@ -298,6 +307,7 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `campo-cpf-cnpj.ts` | `criarCampoCpfCnpj()` — o estado de um campo de CPF/CNPJ digitado (#156), usado no `/cadastro`, no `/equipe/convite` e no destinatário da NF-e: `valor`, `erro`, `digitar(evento)` no `(input)`, `sair()` no `(blur)`, `conferir()` no envio e `recusadoPeloServidor()` no 400. **Sair do campo vazio não conta como tocado** — contava, e a frase vermelha voltava a cada tecla quando a pessoa voltava para digitar (achado do review). |
 | `recarga-apos-deploy.ts` | Aba aberta antes de um deploy (#162). Cada tela é um `chunk-<hash>.js`, o CD publica a cada merge e o deploy apaga os arquivos antigos: a aba velha pedia um chunk que dava 404 e o clique (ex.: "Criar conta") não fazia nada. `recarregarSeChunkFaltou()` roda no `withNavigationErrorHandler` do `app.config`: se o erro é de módulo dinâmico que não carregou, recarrega **no destino**. **Uma vez até a próxima navegação que der certo**: a marca fica no `sessionStorage` e sai no `NavigationEnd` (uma janela de tempo no lugar dela voltava a entrar em laço em rede lenta). **Offline não recarrega** — o navegador dá a mesma frase quando o sinal cai, e recarregar trocaria o app pela página de erro. O ambiente (storage, rede, navegação) vem do token `AMBIENTE_DE_RECARGA`, que os testes trocam por um falso. Junto, o `nginx.conf` manda o `index.html` com `no-cache`, e o `ThemeService` nasce num `provideAppInitializer` — antes só no dashboard e em Configurações, e o login recarregado abria claro para quem escolheu escuro. |
 | `encerramento-vinculo.ts` | `corpoDoEncerramento(motivo)` e `MOTIVO_ENCERRAMENTO_MAXIMO` (500), #173: o corpo opcional `{ motivo }` dos dois `POST .../encerrar` (produtor e escritório). Motivo em branco não vai, e o encerramento funciona como antes. |
+| `host-escritorio.ts` | A regra do host (#175, compartilhada com a landing da #174), a mesma do backend (backend#464): `rotuloDeEscritorio`/`ehHostDeEscritorio` (um rótulo antes de `.` + base, diferente de `www`; o resto é o principal), `hostPrincipal` e `urlDoHost` — **toda URL de outro host sai dele**, a partir de um rótulo, nunca de host vindo de resposta. Tokens `HOST_ATUAL`, `DOMINIO_BASE`, `ENDERECO_PROPRIO_NO_AR` e `LOCALIZACAO_ATUAL` (no molde do `AMBIENTE_DE_RECARGA`): **ninguém lê `environment.dominioBase` nem `enderecoProprioNoAr` direto**. O domínio de produção não pode ser escrito à mão em `src/app/` (nem em comentário): o `scripts/conferir-build-producao.mjs` reprova na CI. |
 | `download.ts` | Salvar blob (DANFE, XML, prévia). **A prévia vem do servidor**, não é montada aqui: `GET /notas/{id}/danfe-preview` devolve a DANFE do rascunho (o `nota-pdf.ts`, que desenhava uma aproximação com `jspdf`, foi apagado e a dependência saiu junto). Quem decide se o documento fiscal já existe é `temArquivosFiscais(status)`, no enum: é pergunta de **estado**, não de permissão — e as duas rotas nunca servem a mesma nota (a oficial dá 409 em rascunho, a prévia dá 409 em nota emitida). |
 
 ## Assistente — a Ceres (`shared/assistente/`, issue #76)
