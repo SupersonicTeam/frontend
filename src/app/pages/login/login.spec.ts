@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -5,6 +6,7 @@ import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angul
 import { vi } from 'vitest';
 import { SessaoService } from '@core/services/sessao.service';
 import { LoginPage } from './login';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
 
 /**
  * A tela de entrada (issue #93).
@@ -221,5 +223,101 @@ describe('LoginPage', () => {
 
     expect(senha?.getAttribute('type')).toBe('password');
     expect(senha?.getAttribute('autocomplete')).toBe('current-password');
+  });
+
+  /** O endereço do escritório (#175): a marca, o slug no corpo e a dica fixa do 401. */
+  describe('no endereço do escritório', () => {
+    async function montarNoEscritorio() {
+      const fixture = await montar();
+      const host = TestBed.inject(EscritorioDoHostService);
+      host.rotulo.set('ruraloeste');
+      host.escritorio.set({ slug: 'ruraloeste', nome: 'Contabilidade Rural Oeste' });
+      host.modo.set('escritorio');
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    const texto = (f: { nativeElement: unknown }) =>
+      ((f.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+
+    it('mostra a marca do escritório e tira o "Criar conta"', async () => {
+      const f = await montarNoEscritorio();
+      expect(texto(f)).toContain('Entrar em Contabilidade Rural Oeste');
+      expect(texto(f)).toContain('com');
+      expect(f.componentInstance.monograma()).toBe('CR');
+      expect(texto(f)).not.toContain('Criar conta');
+      expect(texto(f)).toContain('Produtor? Entre por');
+      expect(texto(f)).toContain('Acesso da equipe do escritório.');
+    });
+
+    it('o corpo do login leva o escritorio', async () => {
+      const f = await montarNoEscritorio();
+      f.componentInstance.email.set('patricia@exemplo.com');
+      f.componentInstance.senha.set('senha-de-teste');
+      f.componentInstance.entrar();
+      const req = httpMock.expectOne('/auth/login');
+      expect(req.request.body.escritorio).toBe('ruraloeste');
+      req.flush(login);
+      httpMock.match((r) => r.url === '/auth/me').forEach((r) => r.flush({}));
+    });
+
+    it('401: a mensagem do servidor e a dica fixa para entrar por www', async () => {
+      const f = await montarNoEscritorio();
+      f.componentInstance.email.set('carlos@exemplo.com');
+      f.componentInstance.senha.set('senha-de-teste');
+      f.componentInstance.entrar();
+      httpMock
+        .expectOne('/auth/login')
+        .flush(
+          { errors: [{ code: 'CREDENCIAIS_INVALIDAS', message: 'E-mail ou senha incorretos.' }] },
+          { status: 401, statusText: 'Unauthorized' },
+        );
+      f.detectChanges();
+
+      expect(texto(f)).toContain('E-mail ou senha incorretos.');
+      expect(texto(f)).toContain('Se você é produtor ou de outro escritório, entre por localhost');
+    });
+
+    it('429: sem a dica', async () => {
+      const f = await montarNoEscritorio();
+      f.componentInstance.email.set('a@b.c');
+      f.componentInstance.senha.set('x');
+      f.componentInstance.entrar();
+      httpMock
+        .expectOne('/auth/login')
+        .flush({ message: 'Muitas tentativas.' }, { status: 429, statusText: 'x' });
+      f.detectChanges();
+      expect(texto(f)).not.toContain('Se você é produtor');
+    });
+  });
+
+  it('no host principal, a tela de sempre: sem a dica no 401 e sem escritorio no corpo', async () => {
+    const f = await montar();
+    f.componentInstance.email.set('a@b.c');
+    f.componentInstance.senha.set('x');
+    f.componentInstance.entrar();
+    const req = httpMock.expectOne('/auth/login');
+    expect(Object.keys(req.request.body)).toEqual(['email', 'senha']);
+    req.flush(
+      { errors: [{ code: 'CREDENCIAIS_INVALIDAS', message: 'E-mail ou senha incorretos.' }] },
+      { status: 401, statusText: 'Unauthorized' },
+    );
+    f.detectChanges();
+    expect((f.nativeElement as HTMLElement).textContent).not.toContain('Se você é produtor');
+    expect((f.nativeElement as HTMLElement).textContent).toContain('Criar conta');
+  });
+
+  it('o aviso deixado por quem encerrou a sessão aparece acima do formulário', async () => {
+    const estado = vi
+      .spyOn(Location.prototype, 'getState')
+      .mockReturnValue({ aviso: 'Este endereço não é mais o do seu escritório.' });
+    try {
+      const f = await montar();
+      expect(
+        (f.nativeElement as HTMLElement).querySelector('[role="status"]')?.textContent,
+      ).toContain('Este endereço não é mais o do seu escritório.');
+    } finally {
+      estado.mockRestore();
+    }
   });
 });

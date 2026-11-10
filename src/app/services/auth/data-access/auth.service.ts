@@ -102,18 +102,21 @@ export class AuthApi {
    * segunda chamada. Se ela falhar, a sessão continua de pé sem o nome (a topbar cai no rótulo do
    * papel) em vez de recusar um login que deu certo.
    */
-  entrar(email: string, senha: string): Observable<Sessao> {
-    return this.http
-      .post<LoginResponse>('/auth/login', { email: email.trim(), senha }, { withCredentials: true })
-      .pipe(
-        map((r) => this.aoAutenticar(r)),
-        switchMap((sessao) =>
-          this.buscarMe().pipe(
-            map(() => this.sessaoService.sessao() ?? sessao),
-            catchError(() => of(sessao)),
-          ),
+  entrar(email: string, senha: string, escritorio?: string): Observable<Sessao> {
+    // No endereço do escritório (#175) o corpo leva o slug; no principal continua exatamente
+    // `{ email, senha }`, sem a chave (nem `undefined`): o backend recusa `escritorio` vindo de www.
+    const corpo = escritorio
+      ? { email: email.trim(), senha, escritorio }
+      : { email: email.trim(), senha };
+    return this.http.post<LoginResponse>('/auth/login', corpo, { withCredentials: true }).pipe(
+      map((r) => this.aoAutenticar(r)),
+      switchMap((sessao) =>
+        this.buscarMe().pipe(
+          map(() => this.sessaoService.sessao() ?? sessao),
+          catchError(() => of(sessao)),
         ),
-      );
+      ),
+    );
   }
 
   /**

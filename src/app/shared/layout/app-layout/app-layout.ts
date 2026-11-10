@@ -24,6 +24,18 @@ import {
 import { NotificacoesService } from '@core/services/notificacoes.service';
 import { SessaoService } from '@core/services/sessao.service';
 import { EncerramentoService } from '@core/services/encerramento.service';
+import { HttpErrorResponse } from '@angular/common/http';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
+import { EscritorioApi } from '@services/escritorio/data-access/escritorio.service';
+import { MENSAGEM_SEM_ESCRITORIO, ehSemEscritorio } from '@core/interceptors/api.interceptor';
+import {
+  DOMINIO_BASE,
+  ENDERECO_PROPRIO_NO_AR,
+  LOCALIZACAO_ATUAL,
+  avisoDeOutroEndereco,
+  semProtocolo,
+  urlDoHost,
+} from '@core/utils/host-escritorio';
 import { AssistenteDrawer } from '@shared/assistente/assistente-drawer';
 import { AssistenteLauncher } from '@shared/assistente/assistente-launcher';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
@@ -105,6 +117,19 @@ export class AppLayout implements OnInit {
   readonly sessao = inject(SessaoService);
   private readonly encerramento = inject(EncerramentoService);
   private readonly authApi = inject(AuthApi);
+  private readonly host = inject(EscritorioDoHostService);
+  private readonly escritorioApi = inject(EscritorioApi);
+  private readonly enderecoNoAr = inject(ENDERECO_PROPRIO_NO_AR);
+  private readonly base = inject(DOMINIO_BASE);
+  private readonly localizacao = inject(LOCALIZACAO_ATUAL);
+
+  /** No endereço do escritório (#175), o nome dele ao lado da logo. */
+  readonly nomeDoEscritorioDoHost = computed(() =>
+    this.host.modo() === 'escritorio' ? (this.host.escritorio()?.nome ?? null) : null,
+  );
+  /** Em www, o aviso de que o escritório tem endereço próprio (#175), até ser dispensado. */
+  readonly avisoEndereco = signal<{ slug: string; url: string; host: string } | null>(null);
+
   /** Só para o `@defer` da gaveta: ela carrega no primeiro `aberto()` (#143). */
   protected readonly assistente = inject(AssistenteStore);
 
@@ -151,6 +176,79 @@ export class AppLayout implements OnInit {
     // Agora os dois papeis leem o mesmo `/auth/me`, e `carregar()` so vai a rede se o nome ainda
     // nao estiver na sessao -- o que, depois do login, nao acontece.
     this.authApi.carregar().subscribe({ error: () => undefined });
+
+    this.conferirEnderecoDoEscritorio();
+  }
+
+  /**
+   * O endereço do escritório e quem está nele (#175, seção 6).
+   *
+   * - **No subdomínio:** o membro que mudou de escritório (ou cujo administrador trocou ou removeu o
+   *   endereço) sai com um aviso que diz o endereço certo. `SEM_ESCRITORIO` também sai. Erro de
+   *   rede não derruba a sessão: instabilidade não é motivo para deslogar ninguém.
+   * - **Em www, com o endereço no ar:** o contador cujo escritório tem endereço vê uma faixa com o
+   *   link, até dispensar. Com a chave desligada não há chamada nenhuma.
+   */
+  private conferirEnderecoDoEscritorio(): void {
+    if (!this.sessao.ehContador()) return;
+    const rotulo = this.host.modo() === 'escritorio' ? this.host.rotulo() : null;
+    if (!rotulo && !this.enderecoNoAr) return;
+
+    this.escritorioApi.meuEscritorio().subscribe({
+      next: (escritorio) => {
+        const slug = escritorio.slug ?? null;
+        if (rotulo) {
+          if (slug !== rotulo) {
+            this.encerramento.encerrar(
+              'pedido',
+              avisoDeOutroEndereco(escritorio.nome, semProtocolo(this.url(slug))),
+            );
+          }
+          return;
+        }
+        if (slug && !AppLayout.dispensado(slug)) {
+          const url = this.url(slug);
+          this.avisoEndereco.set({ slug, url, host: semProtocolo(url) });
+        }
+      },
+      error: (erro: unknown) => {
+        if (rotulo && erro instanceof HttpErrorResponse && ehSemEscritorio(erro)) {
+          this.encerramento.encerrar(
+            'pedido',
+            `${MENSAGEM_SEM_ESCRITORIO} Entre por ${semProtocolo(this.url(null))}.`,
+          );
+        }
+      },
+    });
+  }
+
+  dispensarAvisoEndereco(): void {
+    const aviso = this.avisoEndereco();
+    if (!aviso) return;
+    // Com o slug na chave: um endereço novo aparece de novo.
+    try {
+      localStorage.setItem(`${AppLayout.CHAVE_AVISO_ENDERECO}${aviso.slug}`, '1');
+    } catch {
+      // Navegação privada pode recusar o storage: o aviso só some até a próxima carga.
+    }
+    this.avisoEndereco.set(null);
+  }
+
+  private static readonly CHAVE_AVISO_ENDERECO = 'agrocontabil.aviso-endereco-dispensado:';
+
+  private static dispensado(slug: string): boolean {
+    try {
+      return localStorage.getItem(`${AppLayout.CHAVE_AVISO_ENDERECO}${slug}`) === '1';
+    } catch {
+      return false;
+    }
+  }
+
+  private url(slug: string | null): string {
+    return urlDoHost(slug, this.base, {
+      protocolo: this.localizacao.protocolo,
+      porta: this.localizacao.porta,
+    });
   }
 
   /**

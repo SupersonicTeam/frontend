@@ -1,4 +1,11 @@
+import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
+import { AvisoWwwPage } from '@pages/aviso-www/aviso-www';
 import { produtorGuard } from '@core/guards/produtor.guard';
 import { contadorGuard } from '@core/guards/contador.guard';
 
@@ -104,5 +111,27 @@ describe('links do app (#112)', () => {
     const rota = routes.find((r) => r.path === 'politica-dados');
     expect(rota).toBeTruthy();
     expect(rota?.canActivate ?? []).toEqual([]);
+  });
+});
+
+/** No endereço do escritório (#175), cadastro e convite mostram o aviso de www. */
+describe('rotas no modo escritório', () => {
+  async function abrir(caminho: string, modo: 'principal' | 'escritorio') {
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+    });
+    TestBed.inject(EscritorioDoHostService).modo.set(modo);
+    const harness = await RouterTestingHarness.create();
+    return harness.navigateByUrl(caminho);
+  }
+
+  it.each(['/cadastro', '/equipe/convite'])('%s no subdomínio carrega o aviso', async (caminho) => {
+    expect(await abrir(caminho, 'escritorio')).toBeInstanceOf(AvisoWwwPage);
+  });
+
+  it('no host principal, /cadastro é o cadastro de sempre', async () => {
+    const pagina = await abrir('/cadastro', 'principal');
+    expect(pagina).not.toBeInstanceOf(AvisoWwwPage);
+    expect(pagina?.constructor.name).toContain('CadastroPage');
   });
 });

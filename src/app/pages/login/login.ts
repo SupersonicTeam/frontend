@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -6,6 +7,8 @@ import { LucideLoaderCircle, LucideLogIn } from '@lucide/angular';
 import { SessaoService } from '@core/services/sessao.service';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
+import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-escritorio';
 
 /**
  * Entrar no app (issue #93).
@@ -17,6 +20,13 @@ import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
  *
  * O papel não é mais escolhido: ele vem no token. Quem entra com conta de contador vê as telas do
  * contador porque o servidor disse que é um contador, não porque clicou no cartão do contador.
+ *
+ * ## No endereço do escritório (#175)
+ *
+ * Com o host resolvido como escritório, a tela leva a marca dele ("Entrar em {nome}", o monograma
+ * e a assinatura "com AgroConIA"), o corpo do login leva o `escritorio` e some o "Criar conta". No
+ * 401 aparece uma dica **fixa** para produtor e membro de outro escritório entrarem por www: é o
+ * mesmo texto para qualquer credencial, então não revela nada. O nome entra só por interpolação.
  */
 @Component({
   selector: 'app-login',
@@ -29,6 +39,39 @@ export class LoginPage {
   private readonly sessao = inject(SessaoService);
   private readonly router = inject(Router);
   private readonly rota = inject(ActivatedRoute);
+  private readonly host = inject(EscritorioDoHostService);
+  private readonly localizacao = inject(LOCALIZACAO_ATUAL);
+  private readonly base = inject(DOMINIO_BASE);
+
+  /** O escritório do endereço, no modo escritório; `null` no host principal. */
+  readonly escritorio = computed(() =>
+    this.host.modo() === 'escritorio' ? this.host.escritorio() : null,
+  );
+  /** "CR" de "Contabilidade Rural Oeste": o monograma (o contrato não tem logo do escritório). */
+  readonly monograma = computed(() => {
+    const palavras = (this.escritorio()?.nome ?? '')
+      .split(/\s+/)
+      .filter((p) => p.length > 2 || /^[A-ZÀ-Ú]/.test(p));
+    return palavras
+      .slice(0, 2)
+      .map((p) => p.charAt(0).toUpperCase())
+      .join('');
+  });
+  /** O endereço principal, montado pelo `urlDoHost`, para a dica e o link do produtor. */
+  readonly www = computed(() =>
+    urlDoHost(null, this.base, {
+      protocolo: this.localizacao.protocolo,
+      porta: this.localizacao.porta,
+    }),
+  );
+  readonly hostWww = computed(() => this.www().replace(/^[a-z]+:\/\//, ''));
+  /** O último erro foi um 401: no modo escritório, a dica para entrar por www aparece. */
+  readonly foi401 = signal(false);
+  /**
+   * Uma frase deixada por quem encerrou a sessão (`EncerramentoService.encerrar(_, aviso)`), no
+   * `state` da navegação: "Este endereço não é mais o do seu escritório...".
+   */
+  readonly aviso = signal<string | null>(LoginPage.avisoDoEstado(inject(Location).getState()));
 
   readonly email = signal('');
   readonly senha = signal('');
@@ -44,8 +87,9 @@ export class LoginPage {
 
     this.enviando.set(true);
     this.erro.set(null);
+    this.foi401.set(false);
 
-    this.auth.entrar(this.email(), this.senha()).subscribe({
+    this.auth.entrar(this.email(), this.senha(), this.escritorio()?.slug).subscribe({
       next: () => {
         this.enviando.set(false);
         void this.router.navigateByUrl(this.destino());
@@ -53,6 +97,7 @@ export class LoginPage {
       error: (falha: unknown) => {
         this.enviando.set(false);
         this.erro.set(LoginPage.mensagemDaFalha(falha));
+        this.foi401.set((falha as HttpErrorResponse)?.status === 401);
       },
     });
   }
@@ -84,6 +129,11 @@ export class LoginPage {
    * aviso de bloqueio por tentativas, então ela é usada como está; o `switch` existe para separar
    * o que é credencial do que é servidor fora do ar, que não é culpa de quem digitou.
    */
+  private static avisoDoEstado(estado: unknown): string | null {
+    const aviso = (estado as { aviso?: unknown } | null)?.aviso;
+    return typeof aviso === 'string' && aviso.trim() ? aviso : null;
+  }
+
   private static mensagemDaFalha(falha: unknown): string {
     const erro = falha as HttpErrorResponse;
     if (erro?.status === 0) {

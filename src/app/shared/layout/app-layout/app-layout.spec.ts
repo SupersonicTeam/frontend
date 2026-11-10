@@ -3,10 +3,14 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { SessaoService } from '@core/services/sessao.service';
+import { EncerramentoService } from '@core/services/encerramento.service';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
+import { vi } from 'vitest';
 import { entrarComo } from '@core/services/sessao.testing';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import { AssistenteStore } from '@shared/assistente/assistente.store';
 import { AppLayout } from './app-layout';
+import { ENDERECO_PROPRIO_NO_AR } from '@core/utils/host-escritorio';
 
 /**
  * O shell precisa dizer **quem** está olhando.
@@ -20,8 +24,7 @@ describe('AppLayout', () => {
   let httpMock: HttpTestingController;
   let sessao: SessaoService;
 
-  beforeEach(async () => {
-    localStorage.clear();
+  async function configurar(enderecoNoAr = false) {
     await TestBed.configureTestingModule({
       imports: [AppLayout],
       providers: [
@@ -31,10 +34,18 @@ describe('AppLayout', () => {
         // promessa sem dono reprova a RODADA inteira no Vitest — os testes passam e o CI fica
         // vermelho mesmo assim. Uma rota que case basta.
         provideRouter([{ path: 'login', children: [] }]),
+        // O endereço próprio (#175) desligado, como em produção até o DNS: sem isso o environment
+        // de dev (ligado) faria todo teste de contador pedir `GET /escritorio`.
+        { provide: ENDERECO_PROPRIO_NO_AR, useValue: enderecoNoAr },
       ],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
     sessao = TestBed.inject(SessaoService);
+  }
+
+  beforeEach(async () => {
+    localStorage.clear();
+    await configurar();
   });
 
   afterEach(() => {
@@ -300,6 +311,111 @@ describe('AppLayout', () => {
       expect(hrefs).toEqual(['/contador', '/documentos', '/tributario', '/calendario', '/equipe']);
       expect(nav?.textContent).toContain('Notas do produtor');
       expect(nav?.textContent).not.toContain('Minhas notas');
+    });
+  });
+  /** O endereço do escritório e quem está nele (#175, seção 6). */
+  describe('endereço do escritório', () => {
+    const escritorio = (slug: string | null) => ({
+      id: 'e1',
+      nome: 'Contabilidade Rural Oeste',
+      cnpj: '48315276000195',
+      minhaFuncao: 'CONTADOR',
+      membros: 3,
+      slug,
+    });
+
+    function noSubdominio() {
+      const host = TestBed.inject(EscritorioDoHostService);
+      host.rotulo.set('ruraloeste');
+      host.escritorio.set({ slug: 'ruraloeste', nome: 'Contabilidade Rural Oeste' });
+      host.modo.set('escritorio');
+      return vi
+        .spyOn(TestBed.inject(EncerramentoService), 'encerrar')
+        .mockImplementation(() => undefined);
+    }
+
+    it('no subdomínio, o nome do escritório aparece ao lado da logo', () => {
+      noSubdominio();
+      entrarComo('CONTADOR');
+      const fixture = montar('Patricia');
+      httpMock.expectOne('/escritorio').flush(escritorio('ruraloeste'));
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('header')?.textContent).toContain(
+        'Contabilidade Rural Oeste',
+      );
+    });
+
+    it('membro cujo escritório não é mais o do endereço sai com o aviso do endereço certo', () => {
+      const encerrar = noSubdominio();
+      entrarComo('CONTADOR');
+      montar('Patricia');
+      httpMock.expectOne('/escritorio').flush({ ...escritorio('outro'), nome: 'Escritório Novo' });
+
+      expect(encerrar).toHaveBeenCalledWith(
+        'pedido',
+        expect.stringMatching(
+          /^Este endereço não é mais o do seu escritório \(Escritório Novo\)\. Entre por outro\.localhost(:\d+)?\.$/,
+        ),
+      );
+    });
+
+    it('SEM_ESCRITORIO no subdomínio sai com o aviso e o caminho para www', () => {
+      const encerrar = noSubdominio();
+      entrarComo('CONTADOR');
+      montar('Patricia');
+      httpMock
+        .expectOne('/escritorio')
+        .flush(
+          { errors: [{ code: 'ACESSO_NEGADO', rejectedValue: 'SEM_ESCRITORIO', message: 'x' }] },
+          { status: 403, statusText: 'Forbidden' },
+        );
+
+      expect(encerrar).toHaveBeenCalledWith(
+        'pedido',
+        expect.stringContaining('Entre por localhost'),
+      );
+    });
+
+    it('erro de rede no subdomínio não derruba a sessão', () => {
+      const encerrar = noSubdominio();
+      entrarComo('CONTADOR');
+      montar('Patricia');
+      httpMock.expectOne('/escritorio').flush('x', { status: 500, statusText: 'erro' });
+
+      expect(encerrar).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('aviso do endereço próprio em www', () => {
+    it('com a chave ligada e endereço no escritório, mostra a faixa; Dispensar esconde', async () => {
+      TestBed.resetTestingModule();
+      await configurar(true);
+      entrarComo('CONTADOR');
+      const fixture = montar('Patricia');
+      httpMock.expectOne('/escritorio').flush({
+        id: 'e1',
+        nome: 'X',
+        cnpj: null,
+        minhaFuncao: 'CONTADOR',
+        membros: 1,
+        slug: 'ruraloeste',
+      });
+      fixture.detectChanges();
+
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.textContent).toContain('O seu escritório tem endereço próprio:');
+      expect(el.querySelector('a[href^="http://ruraloeste.localhost"]')).toBeTruthy();
+
+      fixture.componentInstance.dispensarAvisoEndereco();
+      fixture.detectChanges();
+      expect(el.textContent).not.toContain('O seu escritório tem endereço próprio:');
+    });
+
+    it('com a chave desligada, nenhuma chamada a /escritorio e nenhum aviso', () => {
+      entrarComo('CONTADOR');
+      const fixture = montar('Patricia');
+      httpMock.expectNone('/escritorio');
+      expect((fixture.nativeElement as HTMLElement).textContent).not.toContain('endereço próprio');
     });
   });
 });
