@@ -17,6 +17,11 @@ export interface FalhaDaApi {
   podeTentarDeNovo: boolean;
   /** Segundos do `Retry-After`, quando o servidor pediu espera. */
   esperarSegundos?: number;
+  /**
+   * O `errors[0].expectedValue`, quando veio. Ex.: no 409 `ENDERECO_TROCA_RECENTE` (#175), o
+   * instante em que a troca do endereço fica liberada.
+   */
+  valorEsperado?: string;
 }
 
 /** Frase por status, usada só quando o servidor não mandou mensagem própria. */
@@ -80,5 +85,6 @@ export function falhaDaApi(err: HttpErrorResponse): FalhaDaApi {
     mensagem,
     podeTentarDeNovo: vaiAdiantarRepetir(err.status),
     esperarSegundos,
+    valorEsperado: primeiro?.expectedValue,
   };
 }

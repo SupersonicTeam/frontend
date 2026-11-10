@@ -123,4 +123,20 @@ describe('EquipeEscritorio', () => {
     cmp.excluirEtiqueta(cmp.etiquetas()[0]!);
     expect(httpMock.expectOne('/contador/etiquetas/e1').request.method).toBe('DELETE');
   });
+
+  it('apagar o CNPJ com endereço próprio explica que o endereço sai antes (#175)', () => {
+    const erro = vi.spyOn(TestBed.inject(ToastService), 'error');
+    const cmp = abrir('ADMINISTRADOR').componentInstance;
+    cmp.abrirEdicao();
+    cmp.cnpj.set('');
+    cmp.salvar();
+    httpMock
+      .expectOne('/escritorio')
+      .flush(
+        { errors: [{ code: 'ENDERECO_EXIGE_CNPJ', message: 'x' }] },
+        { status: 422, statusText: 'Unprocessable' },
+      );
+
+    expect(erro).toHaveBeenCalledWith('Remova o endereço do escritório antes de apagar o CNPJ.');
+  });
 });

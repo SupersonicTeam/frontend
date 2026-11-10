@@ -70,4 +70,30 @@ describe('EscritorioApi', () => {
     api.ehAdministrador().subscribe();
     httpMock.expectOne('/escritorio').flush({ minhaFuncao: 'CONTADOR' });
   });
+
+  it('definir o endereço manda a ciência e guarda o escritório devolvido (#175)', () => {
+    api.definirEndereco('ruraloeste').subscribe();
+    const req = httpMock.expectOne('/escritorio/endereco');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual({ slug: 'ruraloeste', cienteExposicaoPublica: true });
+    req.flush({ minhaFuncao: 'ADMINISTRADOR', slug: 'ruraloeste' });
+
+    let slug: string | null | undefined;
+    api.meuEscritorio().subscribe((e) => (slug = e.slug));
+    httpMock.expectNone('/escritorio');
+    expect(slug).toBe('ruraloeste');
+  });
+
+  it('remover o endereço esquece o escritório: o enderecoAlteravelEm muda', () => {
+    api.ehAdministrador().subscribe();
+    httpMock.expectOne('/escritorio').flush({ minhaFuncao: 'ADMINISTRADOR', slug: 'ruraloeste' });
+
+    api.removerEndereco().subscribe();
+    const req = httpMock.expectOne('/escritorio/endereco');
+    expect(req.request.method).toBe('DELETE');
+    req.flush(null, { status: 204, statusText: 'No Content' });
+
+    api.meuEscritorio().subscribe();
+    httpMock.expectOne('/escritorio').flush({ minhaFuncao: 'ADMINISTRADOR', slug: null });
+  });
 });
