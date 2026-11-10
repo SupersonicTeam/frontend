@@ -1,7 +1,7 @@
 import {
   FUNCOES_CERES,
   descreverFonte,
-  ehFonteOficial,
+  origemDaFonte,
   paragrafosDoTexto,
   rotuloFonte,
   rotuloRota,
@@ -55,12 +55,30 @@ describe('ceres — rótulos das consultas', () => {
   });
 });
 
-describe('ceres — tabela oficial do IBS/CBS', () => {
-  const tabela = { funcao: 'consultarTratamentoProduto', parametros: { produtoOuNcm: 'feijao' } };
-  const resumo = { funcao: 'resumoDoProdutor', parametros: {} };
+describe('ceres — origem do dado (backend#342)', () => {
+  const tabela = {
+    funcao: 'consultarTratamentoProduto',
+    parametros: { produtoOuNcm: 'feijao' },
+    origem: 'TABELA_OFICIAL',
+  };
+  const resumo = { funcao: 'resumoDoProdutor', parametros: {}, origem: 'PRODUTOR' };
 
-  it('só a tabela oficial não é dado do produtor', () => {
-    expect(FUNCOES_CERES.filter(ehFonteOficial)).toEqual(['consultarTratamentoProduto']);
+  it('quem decide é a origem que o servidor manda, não o nome da função', () => {
+    expect(origemDaFonte(tabela)).toBe('oficial');
+    expect(origemDaFonte(resumo)).toBe('produtor');
+    // Uma função nova do backend sai com o selo certo sem deploy do Angular.
+    expect(origemDaFonte({ funcao: 'funcaoNova', parametros: {}, origem: 'TABELA_OFICIAL' })).toBe(
+      'oficial',
+    );
+  });
+
+  it('origem desconhecida ou ausente é neutra, nunca "das suas notas"', () => {
+    const estranha = { funcao: 'listarNotas', parametros: {}, origem: 'OUTRA_COISA' };
+    const semOrigem = { funcao: 'listarNotas', parametros: {} };
+    expect(origemDaFonte(estranha)).toBe('neutra');
+    expect(origemDaFonte(semOrigem)).toBe('neutra');
+    expect(rotuloRota('DADOS', [estranha])).toBe('do AgroConIA');
+    expect(rotuloRota('DADOS', [tabela, semOrigem])).toBe('do AgroConIA');
   });
 
   it('DADOS só com a tabela oficial não é resposta "das suas notas"', () => {

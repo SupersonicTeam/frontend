@@ -4,6 +4,9 @@ import { HttpClient } from '@angular/common/http';
 import { ApiService } from '@core/services/api.service';
 import { skipErrorNotify } from '@core/interceptors/error-notify.context';
 
+/** Situação de um vínculo, como `GET /api/vinculos?situacao=` aceita (backend#353). */
+export type SituacaoVinculoProdutor = 'ATIVO' | 'SUSPENSO' | 'ENCERRADO';
+
 /** O escritório que atende este produtor, visto do lado dele (backend#177). */
 export interface VinculoDoProdutor {
   id: string;
@@ -13,8 +16,9 @@ export interface VinculoDoProdutor {
   /** Membro responsável pelo cliente. */
   responsavel: string | null;
   crc: string | null;
-  situacao: 'ATIVO' | 'SUSPENSO' | 'ENCERRADO';
+  situacao: SituacaoVinculoProdutor;
   inicio: string;
+  /** Preenchido só no encerrado. */
   fim: string | null;
 }
 
@@ -46,12 +50,18 @@ export class VinculosApi {
   private readonly http = inject(HttpClient);
 
   /**
-   * `GET /api/vinculos` — os vínculos do produtor. **Os encerrados não vêm**: medido em 05/11 na API
-   * local, depois de encerrar a lista volta `[]`, embora o contador ainda veja o cliente como
-   * `ENCERRADO`. Por isso a aba Meu escritório não tem histórico.
+   * `GET /api/vinculos` — os vínculos do produtor.
+   *
+   * Sem `situacoes`, `ATIVO` e `SUSPENSO`, como sempre foi (quem só quer saber se há escritório
+   * atendendo, como a tela de notas, chama assim). Com `ENCERRADO` (backend#353) vem também o
+   * histórico, com `fim` preenchido: primeiro os sem `fim`, depois os encerrados, do mais recente ao
+   * mais antigo. O parâmetro vai repetido.
    */
-  listar(): Observable<VinculoDoProdutor[]> {
-    return this.api.get<VinculoDoProdutor[]>('/vinculos');
+  listar(situacoes: readonly SituacaoVinculoProdutor[] = []): Observable<VinculoDoProdutor[]> {
+    return this.api.get<VinculoDoProdutor[]>(
+      '/vinculos',
+      situacoes.length ? { situacao: situacoes } : undefined,
+    );
   }
 
   /**

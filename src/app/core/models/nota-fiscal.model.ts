@@ -85,8 +85,24 @@ export interface NotaFiscal {
   valorTotalIbs?: number | null;
   valorTotalCbs?: number | null;
   itens: ItemNotaFiscal[];
+  /**
+   * Avisos de quem salvou (backend#389): só `POST` e `PUT /api/notas` os preenchem, e a nota **foi
+   * salva** mesmo com eles. Nas demais respostas a lista vem vazia (ou não vem).
+   */
+  avisos?: AvisoNota[];
   createdAt?: string;
   updatedAt?: string;
+}
+
+/**
+ * Um aviso ao salvar a nota (backend#389). Não é erro: a nota foi gravada. O único `codigo` hoje é
+ * `CCLASSTRIB_NAO_ADMITIDO` (o cClassTrib do item não é admitido para aquele NCM).
+ */
+export interface AvisoNota {
+  codigo: string;
+  numeroItem?: number | null;
+  campo?: string | null;
+  mensagem: string;
 }
 
 /** Resposta de `POST /api/notas/{id}/cancelar` — espelha `CancelamentoResponse` do backend. */

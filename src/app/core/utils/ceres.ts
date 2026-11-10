@@ -55,14 +55,20 @@ const ROTULO_FONTE: Record<FuncaoCeres, string> = {
 };
 
 /**
- * Consultas que **não** leem dado do produtor. A tabela oficial de classificação
- * tributária (IT 2025.002) vale para qualquer venda do produto: a tela não pode
- * dizer que ela foi "calculada a partir das suas notas".
+ * De onde veio o dado de uma consulta, pelo campo `origem` do backend (backend#342).
+ *
+ * Antes a tela decidia pelo nome da função (`FONTES_OFICIAIS`, #132): função nova do backend saía
+ * como "das suas notas" até alguém mexer na lista. Agora quem diz é o servidor. A tabela oficial
+ * de classificação tributária (IT 2025.002) vale para qualquer venda do produto, e a tela não pode
+ * dizer que ela foi "calculada a partir das suas notas". Valor desconhecido (ou ausente) vira
+ * `neutra`: **nunca** "das suas notas", que afirmaria algo que não sabemos.
  */
-const FONTES_OFICIAIS: ReadonlySet<string> = new Set<FuncaoCeres>(['consultarTratamentoProduto']);
+export type OrigemDaFonte = 'produtor' | 'oficial' | 'neutra';
 
-export function ehFonteOficial(funcao: string): boolean {
-  return FONTES_OFICIAIS.has(funcao);
+export function origemDaFonte(fonte: CeresFonteDado): OrigemDaFonte {
+  if (fonte.origem === 'PRODUTOR') return 'produtor';
+  if (fonte.origem === 'TABELA_OFICIAL') return 'oficial';
+  return 'neutra';
 }
 
 /** Parâmetros que essas consultas aceitam. */
@@ -96,9 +102,15 @@ const ROTULO_PARAMETRO_POR_FUNCAO: Record<string, Record<string, string> | undef
  * houve consulta: o selo de dados some, em vez de afirmar uma origem que não existe.
  */
 export function rotuloRota(rota: RotaCeres, fontes: readonly CeresFonteDado[]): string | null {
-  const consultou = fontes.length > 0;
-  const soTabelaOficial = consultou && fontes.every((f) => ehFonteOficial(f.funcao));
-  const dados = !consultou ? null : soTabelaOficial ? 'da tabela oficial' : 'das suas notas';
+  const origens = fontes.map(origemDaFonte);
+  const dados =
+    origens.length === 0
+      ? null
+      : origens.includes('produtor')
+        ? 'das suas notas'
+        : origens.every((o) => o === 'oficial')
+          ? 'da tabela oficial'
+          : 'do AgroConIA';
   switch (rota) {
     case 'DADOS':
       return dados;

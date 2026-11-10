@@ -31,7 +31,7 @@ const resposta = (over: Partial<CeresResposta> = {}): CeresResposta => ({
   resposta: 'A guia de FUNRURAL vence em 20/10/2026 e tem valor de R$ 1.840,55.',
   rota: 'DADOS',
   citacoes: [],
-  fontesDados: [{ funcao: 'proximosVencimentos', parametros: { dias: '30' } }],
+  fontesDados: [{ funcao: 'proximosVencimentos', parametros: { dias: '30' }, origem: 'PRODUTOR' }],
   modoFallback: false,
   atalhos: [],
   ...over,
@@ -398,7 +398,7 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
       .flush(
         resposta({
           resposta: texto,
-          fontesDados: [{ funcao: 'resumoDoProdutor', parametros: {} }],
+          fontesDados: [{ funcao: 'resumoDoProdutor', parametros: {}, origem: 'PRODUTOR' }],
         }),
       );
 
