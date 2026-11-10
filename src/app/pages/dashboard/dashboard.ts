@@ -608,8 +608,13 @@ export class DashboardPage implements OnInit {
       next: (pagina) => {
         this.totalDeNotas.set(pagina.totalElements ?? pagina.content.length);
         this.notasComProblema.set(
+          // A DEVOLVIDA tambem espera o produtor: o escritorio devolveu para ele corrigir. Ficava
+          // fora, e o painel falava de prazo com uma nota devolvida na mesa dele (demo, 06/11).
           pagina.content.filter(
-            (n) => n.status === 'COM_INCONSISTENCIAS' || n.status === 'REJEITADA',
+            (n) =>
+              n.status === 'COM_INCONSISTENCIAS' ||
+              n.status === 'REJEITADA' ||
+              n.status === 'DEVOLVIDA',
           ),
         );
         this.carregarMotivoDaPendencia();
@@ -627,6 +632,18 @@ export class DashboardPage implements OnInit {
   /** Vencimento mais proximo ainda em aberto, para o assistente antecipar o prazo. */
   readonly proximoVencimento = computed(() => this.alertas()[0] ?? null);
 
+  /**
+   * "Funrural (recolhimento) vence em 20 de nov." — pelo título, que é o nome do prazo; a descrição
+   * é a explicação longa. E sem ponto duplo: o mês abreviado já termina em ponto, e a frase saía
+   * "vence em 20 de nov.." (achado do roteiro da demo, 06/11).
+   */
+  readonly fraseDoVencimento = computed(() => {
+    const venc = this.proximoVencimento();
+    if (!venc) return '';
+    const frase = `${venc.titulo || venc.descricao || 'Um prazo'} vence em ${this.formatDate(venc.dataVencimento)}`;
+    return frase.endsWith('.') ? frase : `${frase}.`;
+  });
+
   /** Ha algo que o assistente precise dizer? Evita renderizar bloco vazio. */
   readonly temInsight = computed(
     () => this.notasComProblema().length > 0 || this.proximoVencimento() !== null,
@@ -641,6 +658,18 @@ export class DashboardPage implements OnInit {
     const nota = this.notasComProblema()[0];
     if (!nota) {
       this.motivoPendencia.set(null);
+      return;
+    }
+    // Na devolvida, o motivo e o do escritorio, e mora no historico da revisao (como em Minhas
+    // notas); nas outras, e o que a validacao fiscal apontou.
+    if (nota.status === 'DEVOLVIDA') {
+      this.notasApi.revisoes(nota.id).subscribe({
+        next: (historico) =>
+          this.motivoPendencia.set(
+            historico.find((r) => r.acao === 'DEVOLVIDA' && r.motivo)?.motivo ?? null,
+          ),
+        error: () => this.motivoPendencia.set(null),
+      });
       return;
     }
     this.notasApi.listarValidacoes(nota.id).subscribe({

@@ -50,24 +50,38 @@
           A nota <strong>{{ notasComProblema()[0].numero }}</strong
           >, para {{ notasComProblema()[0].destinatarioNome }}, não pode ser emitida como está.
           @if (motivoPendencia()) {
-            <br />O que o fisco aponta: <em>{{ motivoPendencia() }}</em>
+            <br />{{
+              notasComProblema()[0].status === 'DEVOLVIDA'
+                ? 'O que o escritório pediu:'
+                : 'O que o fisco aponta:'
+            }}
+            <em>{{ motivoPendencia() }}</em>
           }
         </p>
-      } @else if (proximoVencimento(); as venc) {
-        <p>{{ venc.descricao }} vence em {{ formatDate(venc.dataVencimento) }}.</p>
+      } @else if (proximoVencimento()) {
+        <p>{{ fraseDoVencimento() }}</p>
       }
 
       <div acoes>
-        <!-- Leva direto a nota com pendencia, nao a lista: o modal abre ja com o
-             que o fisco apontou. Sem o `nota`, quem chegava tinha que cacar a nota
-             certa entre as 12 da pagina. -->
-        <a
-          routerLink="/documentos"
-          [queryParams]="notasComProblema().length ? { nota: notasComProblema()[0].id } : {}"
-          class="tap-target inline-flex items-center gap-2 rounded-controle bg-assistente px-4 text-apoio font-medium text-assistente-foreground transition-colors hover:bg-assistente/90"
-        >
-          Corrigir agora
-        </a>
+        <!-- Nota com problema: leva direto a ela, nao a lista -- o modal abre ja com o que o
+             fisco apontou. Prazo: leva aos Prazos. "Corrigir agora" num prazo mandava para as
+             notas, onde nao havia nada para corrigir. -->
+        @if (notasComProblema().length) {
+          <a
+            routerLink="/documentos"
+            [queryParams]="{ nota: notasComProblema()[0].id }"
+            class="tap-target inline-flex items-center gap-2 rounded-controle bg-assistente px-4 text-apoio font-medium text-assistente-foreground transition-colors hover:bg-assistente/90"
+          >
+            Corrigir agora
+          </a>
+        } @else {
+          <a
+            routerLink="/calendario"
+            class="tap-target inline-flex items-center gap-2 rounded-controle bg-assistente px-4 text-apoio font-medium text-assistente-foreground transition-colors hover:bg-assistente/90"
+          >
+            Ver os prazos
+          </a>
+        }
       </div>
     </ui-insight>
   }

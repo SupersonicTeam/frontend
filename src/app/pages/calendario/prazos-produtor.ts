@@ -293,8 +293,23 @@ export class PrazosProdutor implements OnInit {
           : this.diasAte(v.dataVencimento) < 0
             ? 'Vencia em'
             : 'Vence em';
-    const referencia = v.descricao ? `, ${v.descricao.toLowerCase()}` : '';
-    return `${verbo} ${quando}${referencia}.`;
+    const descricao = PrazosProdutor.descricaoNoMeioDaFrase(v.descricao, v.tipo !== 'solicitacao');
+    const referencia = descricao ? `, ${descricao}` : '';
+    const frase = `${verbo} ${quando}${referencia}`;
+    return /[.?!]$/.test(frase) ? frase : `${frase}.`;
+  }
+
+  /**
+   * A descrição entra depois da vírgula. O `toLowerCase()` inteiro fazia "IBS/CBS" virar "ibs/cbs"
+   * e "DITR", "ditr"; agora só a primeira letra desce, e só no texto do catálogo de obrigações
+   * (`minuscula`), que começa com palavra comum. O pedido de documento é escrito pelo escritório e
+   * pode começar com nome próprio ("Banco do Brasil: extrato"), então fica como veio. O ponto final
+   * sai, porque a frase põe o seu ("...no último dia.." era o resultado); "?" e "!" ficam.
+   */
+  private static descricaoNoMeioDaFrase(descricao: string | undefined, minuscula: boolean): string {
+    const texto = (descricao ?? '').trim().replace(/\.+$/, '');
+    if (!texto || !minuscula || /^\p{Lu}{2,}/u.test(texto)) return texto;
+    return texto.charAt(0).toLocaleLowerCase('pt-BR') + texto.slice(1);
   }
 
   /** "20 de outubro". Sem o ano, que na janela de seis meses so faz ruido. */

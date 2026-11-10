@@ -113,9 +113,12 @@ export class SeletorCliente implements OnInit {
       next: (pagina) => {
         this.clientes.set(pagina.itens);
         this.carregando.set(false);
-        const pedido = this.rota.snapshot.queryParamMap.get('cliente') ?? this.foco.produtorId();
+        // Cada fonte vale só se estiver na carteira, e a que falha passa a vez à seguinte: um
+        // `?cliente=` velho (cliente encerrado, link salvo) não pode apagar o cliente em foco.
+        const naCarteira = (id: string | null) => pagina.itens.find((c) => c.id === id);
         const escolhido =
-          pagina.itens.find((c) => c.id === pedido) ??
+          naCarteira(this.rota.snapshot.queryParamMap.get('cliente')) ??
+          naCarteira(this.foco.produtorId()) ??
           (pagina.itens.length === 1 ? pagina.itens[0] : null);
         this.aplicar(escolhido ?? null);
       },

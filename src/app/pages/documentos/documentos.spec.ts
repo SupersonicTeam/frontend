@@ -162,12 +162,17 @@ describe('DocumentosPage', () => {
     valor.responder([]);
   });
 
-  it('"Esperando você" vai como status repetido: inconsistência, rejeitada e rascunho (#116)', () => {
+  it('"Esperando você" vai como status repetido: inconsistência, rejeitada, devolvida e rascunho', () => {
     const cmp = comNotas([nota('n1', '2026-09-10')]).componentInstance;
 
     cmp.trocarSituacao('esperando');
     const carga = proximaCarga();
-    expect(carga.params.getAll('status')).toEqual(['COM_INCONSISTENCIAS', 'REJEITADA', 'RASCUNHO']);
+    expect(carga.params.getAll('status')).toEqual([
+      'COM_INCONSISTENCIAS',
+      'REJEITADA',
+      'DEVOLVIDA',
+      'RASCUNHO',
+    ]);
     carga.responder([]);
   });
 
@@ -1365,6 +1370,19 @@ describe('DocumentosPage', () => {
       nota('n4', '2026-08-01T00:00:00Z', { status: 'RASCUNHO', valorTotalNota: 777 }),
     ];
 
+    it('nota devolvida pelo escritório conta como esperando o produtor, e a frase diz qual é', () => {
+      const cmp = comNotas([
+        ...carteira(),
+        nota('n5', '2026-09-13T00:00:00Z', { status: 'DEVOLVIDA', valorTotalNota: 300 }),
+      ]).componentInstance;
+      httpMock.match((r) => r.url.endsWith('/revisoes')).forEach((r) => r.flush([]));
+
+      expect(cmp.resumoDoPeriodo().esperando).toBe(3);
+      expect(cmp.detalheDoQueEspera()).toBe(
+        '1 com inconsistência, 1 devolvida pelo escritório e 1 em rascunho',
+      );
+    });
+
     it('só nota autorizada entra no faturamento — rascunho e inconsistência não são documento', () => {
       const cmp = comNotas(carteira()).componentInstance;
 
@@ -1376,7 +1394,7 @@ describe('DocumentosPage', () => {
       expect(cmp.resumoDoPeriodo().rascunhos).toBe(1);
     });
 
-    it('"ver essas notas" pede ao servidor as três situações que dependem do produtor', () => {
+    it('"ver essas notas" pede ao servidor as situações que dependem do produtor', () => {
       const fixture = comNotas(carteira());
       const cmp = fixture.componentInstance;
 
@@ -1385,6 +1403,7 @@ describe('DocumentosPage', () => {
       expect(carga.params.getAll('status')).toEqual([
         'COM_INCONSISTENCIAS',
         'REJEITADA',
+        'DEVOLVIDA',
         'RASCUNHO',
       ]);
       carga.responder(carteira().filter((n) => n.status !== 'AUTORIZADA'));
@@ -1430,7 +1449,7 @@ describe('DocumentosPage', () => {
       // ligada, a lista nao serve de base: o resumo pede a sua propria carga, sem `status`.
       cmp.trocarPeriodo('2026-08');
       const [lista, resumo] = httpMock.match((r) => r.url === '/notas');
-      expect(lista.request.params.getAll('status')).toHaveLength(3);
+      expect(lista.request.params.getAll('status')).toHaveLength(4);
       expect(resumo.request.params.has('status')).toBe(false);
       expect(resumo.request.params.get('emitidaDe')).toBe('2026-08-01');
       lista.flush(pagina([carteira()[3]]));

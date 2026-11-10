@@ -14,7 +14,7 @@ import {
   type EtiquetaEscritorio,
 } from '@services/contador/data-access/carteira.service';
 import { falhaDaApi } from '@core/utils/erro-api';
-import { soDigitos } from '@core/utils/mascaras';
+import { formatarCpfCnpj, soDigitos } from '@core/utils/mascaras';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiModal } from '@shared/ui/ui-modal';
 
@@ -55,6 +55,9 @@ export class EquipeEscritorio implements OnInit {
   readonly erro = signal(false);
 
   readonly administrador = computed(() => this.escritorio()?.minhaFuncao === 'ADMINISTRADOR');
+
+  /** O CNPJ como se lê (o servidor devolve só os dígitos), igual ao da carteira (#156). */
+  readonly formatarCpfCnpj = formatarCpfCnpj;
 
   // Edição dos dados
   readonly editando = signal(false);

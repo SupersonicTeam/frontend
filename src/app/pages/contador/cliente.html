@@ -324,7 +324,12 @@
               </li>
             }
           </ul>
-          <ui-button variant="ghost" routerLink="/calendario" class="mt-3 inline-block">
+          <ui-button
+            variant="ghost"
+            routerLink="/calendario"
+            [queryParams]="{ cliente: produtorId }"
+            class="mt-3 inline-block"
+          >
             Cobrar em Prazos
           </ui-button>
         </section>

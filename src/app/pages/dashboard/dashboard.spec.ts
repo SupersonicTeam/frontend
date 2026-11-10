@@ -1,7 +1,8 @@
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { of } from 'rxjs';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { RouterLink, provideRouter } from '@angular/router';
+import { By } from '@angular/platform-browser';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { DashboardPage } from './dashboard';
@@ -164,6 +165,61 @@ describe('DashboardPage', () => {
     expect(fixture.componentInstance.notasComProblema().length).toBe(1);
     expect(fixture.componentInstance.temInsight()).toBe(true);
     expect(fixture.componentInstance.motivoPendencia()).toBe('Endereço obrigatório');
+  });
+
+  it('nota devolvida pelo escritório também chama o produtor, com o motivo da devolução', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    fixture.detectChanges();
+    httpMock.expectOne((r) => r.url === '/dashboard').flush(buildResponse());
+    flushNotasComPendencia([
+      {
+        id: 'dev-1',
+        numero: 3221,
+        status: 'DEVOLVIDA',
+        destinatarioNome: 'Terminal Exportador de Graos Litoral Ltda',
+      } as NotaFiscal,
+    ]);
+    httpMock
+      .expectOne((r) => r.url === '/notas/dev-1/revisoes')
+      .flush([{ acao: 'DEVOLVIDA', motivo: 'Peso divergente do romaneio' }]);
+    httpMock.expectNone((r) => r.url.includes('/validacoes'));
+    flushVencimentos();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.notasComProblema().map((n) => n.id)).toEqual(['dev-1']);
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(texto).toContain('O que o escritório pediu:');
+    expect(texto).toContain('Peso divergente do romaneio');
+    expect(texto).toContain('Corrigir agora');
+  });
+
+  it('prazo no assistente: frase pelo título, sem ponto duplo, e o botão leva aos Prazos', () => {
+    const fixture = TestBed.createComponent(DashboardPage);
+    fixture.detectChanges();
+    flushDashboard();
+    flushVencimentos();
+    fixture.componentInstance.alertas.set([
+      {
+        id: 'funrural:2026-11-20',
+        titulo: 'Funrural (recolhimento)',
+        descricao: 'Contribuição do produtor rural sobre a comercialização.',
+        dataVencimento: '2026-11-20',
+        tipo: 'obrigacao',
+        status: null,
+      },
+    ]);
+    fixture.detectChanges();
+
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(fixture.componentInstance.fraseDoVencimento()).toMatch(
+      /^Funrural \(recolhimento\) vence em 20 de nov\.?$/,
+    );
+    expect(texto).not.toContain('..');
+    expect(texto).not.toContain('Corrigir agora');
+    const link = fixture.debugElement
+      .queryAll(By.directive(RouterLink))
+      .find((de) => (de.nativeElement as HTMLElement).textContent?.includes('Ver os prazos'));
+    expect(link?.injector.get(RouterLink).urlTree?.toString()).toBe('/calendario');
   });
 
   it('DASH-01/02: ngOnInit chama GET /api/dashboard uma vez e expõe o nome do produtor', () => {

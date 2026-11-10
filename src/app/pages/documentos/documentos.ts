@@ -135,8 +135,20 @@ const UFS = [
 /** Quanto a busca espera depois da última tecla antes de ir ao servidor (#116). */
 const DEBOUNCE_BUSCA_MS = 300;
 
-/** "Esperando você": o que ainda depende do produtor, como `status` repetido (#116). */
-const ESPERANDO_O_PRODUTOR: readonly string[] = ['COM_INCONSISTENCIAS', 'REJEITADA', 'RASCUNHO'];
+/**
+ * "Esperando você": o que ainda depende do produtor, como `status` repetido (#116). A `DEVOLVIDA`
+ * entrou depois: o escritório devolveu para ele corrigir, e ela ficava fora da conta (achado do
+ * roteiro da demo, 06/11 — "1 nota espera por você" com uma devolvida na lista).
+ */
+const ESPERANDO_O_PRODUTOR: readonly string[] = [
+  'COM_INCONSISTENCIAS',
+  'REJEITADA',
+  'DEVOLVIDA',
+  'RASCUNHO',
+];
+
+/** "a, b e c": a conjunção do português, do próprio navegador. */
+const LISTA_COM_E = new Intl.ListFormat('pt-BR', { type: 'conjunction' });
 
 const MESES_PT = [
   'Janeiro',
@@ -416,13 +428,32 @@ export class DocumentosPage implements OnInit {
     const autorizadas = base.filter((n) => n.status === 'AUTORIZADA');
     const comInconsistencia = base.filter((n) => this.podeVerValidacoes(n)).length;
     const rascunhos = base.filter((n) => n.status === 'RASCUNHO').length;
+    const devolvidas = base.filter((n) => n.status === 'DEVOLVIDA').length;
     return {
       faturado: autorizadas.reduce((soma, n) => soma + (n.valorTotalNota ?? 0), 0),
       autorizadas: autorizadas.length,
       comInconsistencia,
       rascunhos,
-      esperando: comInconsistencia + rascunhos,
+      devolvidas,
+      esperando: comInconsistencia + rascunhos + devolvidas,
     };
+  });
+
+  /**
+   * "1 com inconsistência, 1 devolvida pelo escritório e 2 em rascunho": o que compõe o número de
+   * "esperam por você", com "e" só antes do último (`Intl.ListFormat`). Com três tipos, o `@if`
+   * por par do template não dava mais conta da conjunção.
+   */
+  readonly detalheDoQueEspera = computed(() => {
+    const r = this.resumoDoPeriodo();
+    const partes = [
+      r.comInconsistencia ? `${r.comInconsistencia} com inconsistência` : '',
+      r.devolvidas
+        ? `${r.devolvidas} ${r.devolvidas === 1 ? 'devolvida' : 'devolvidas'} pelo escritório`
+        : '',
+      r.rascunhos ? `${r.rascunhos} em rascunho` : '',
+    ].filter(Boolean);
+    return LISTA_COM_E.format(partes);
   });
 
   /**

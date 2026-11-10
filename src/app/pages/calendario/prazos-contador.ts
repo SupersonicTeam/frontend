@@ -1,4 +1,4 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import {
   LucideCheck,
   LucideFileText,
@@ -7,6 +7,7 @@ import {
   LucideMessageSquare,
   LucideLoaderCircle,
   LucideTriangleAlert,
+  LucideUsers,
 } from '@lucide/angular';
 import { HttpErrorResponse } from '@angular/common/http';
 import { falhaDaApi, type FalhaDaApi } from '@core/utils/erro-api';
@@ -19,8 +20,8 @@ import {
 } from '@services/notificacao/data-access/notificacao.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
 import { ContadorApi } from '@services/contador/data-access/contador.service';
-import { CarteiraApi } from '@services/contador/data-access/carteira.service';
 import type { ProdutorCarteira } from '@models/carteira.model';
+import { SeletorCliente } from '@shared/contador/seletor-cliente';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
 import { UiModal } from '@shared/ui/ui-modal';
@@ -68,14 +69,15 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
     LucideMessageSquare,
     LucideLoaderCircle,
     LucideTriangleAlert,
+    LucideUsers,
+    SeletorCliente,
   ],
   templateUrl: './prazos-contador.html',
 })
-export class PrazosContador implements OnInit {
+export class PrazosContador {
   private readonly contadorApi = inject(ContadorApi);
   private readonly toast = inject(ToastService);
 
-  private readonly carteiraApi = inject(CarteiraApi);
   private readonly notificacaoApi = inject(NotificacaoApi);
 
   /**
@@ -90,14 +92,13 @@ export class PrazosContador implements OnInit {
    * Nao precisou esperar o JWT da #93: desde a #95 a carteira devolve os ids de verdade. O que o
    * JWT resolve e o lado do PRODUTOR, onde o id proprio ainda vem de constante.
    */
-  readonly clientes = signal<ProdutorCarteira[]>([]);
+  readonly cliente = signal<ProdutorCarteira | null | undefined>(undefined);
   readonly clienteId = signal<string | null>(null);
 
-  readonly clienteAtual = computed(
-    () => this.clientes().find((c) => c.id === this.clienteId()) ?? null,
-  );
+  readonly clienteAtual = computed(() => this.cliente() ?? null);
 
-  readonly carregando = signal(false);
+  /** Começa carregando: até o seletor responder, não se sabe de quem são as guias. */
+  readonly carregando = signal(true);
   readonly guias = signal<GuiaFiscal[]>([]);
   readonly situacao = signal<Situacao>('todas');
 
@@ -238,26 +239,20 @@ export class PrazosContador implements OnInit {
     return '';
   });
 
-  ngOnInit(): void {
-    this.carteiraApi.listar().subscribe({
-      next: (pagina) => {
-        this.clientes.set(pagina.itens);
-        // Abre no primeiro da carteira; antes abria sempre no produtor semente, fosse ele cliente
-        // deste escritorio ou nao.
-        this.clienteId.set(pagina.itens[0]?.id ?? null);
-        this.carregar();
-      },
-      error: (err: HttpErrorResponse) => {
-        this.erro.set(falhaDaApi(err));
-        this.carregando.set(false);
-      },
-    });
-  }
-
-  /** Troca o cliente e recarrega — a lista e do cliente, nao da tela. */
-  trocarCliente(id: string): void {
-    if (this.clienteId() === id) return;
-    this.clienteId.set(id);
+  /**
+   * O cliente vem do `<app-seletor-cliente>`, como em Notas e no Fechamento (#136): do endereço
+   * (`?cliente=`, que o "Cobrar em Prazos" da ficha manda), senão do cliente em foco, senão do
+   * único da carteira. Esta tela tinha um seletor próprio que abria sempre no **primeiro** cliente:
+   * da ficha do Carlos, com guia vencida, o botão caía em outro dizendo "Nada para cobrar agora"
+   * (roteiro da demo, 06/11). Com mais de um cliente e nenhum escolhido, a tela pede a escolha em
+   * vez de adivinhar.
+   */
+  aoTrocarCliente(cliente: ProdutorCarteira | null): void {
+    const atual = this.cliente();
+    if (atual !== undefined && (atual?.id ?? null) === (cliente?.id ?? null)) return;
+    this.cliente.set(cliente);
+    this.clienteId.set(cliente?.id ?? null);
+    this.guias.set([]);
     this.carregar();
   }
 
