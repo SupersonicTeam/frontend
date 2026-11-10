@@ -1,6 +1,7 @@
 import { DOCUMENT } from '@angular/common';
 import { Injectable, Injector, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import type { Subscription } from 'rxjs';
 import { skipErrorNotify } from '@core/interceptors/error-notify.context';
 import {
   DOMINIO_BASE,
@@ -96,6 +97,12 @@ export class EscritorioDoHostService {
       }
       return;
     }
+    // Um 200 fora do contrato (corpo vazio de um proxy, campo de outro tipo) não pode lançar daqui
+    // para baixo: o inicializador rejeitaria e o app não montaria.
+    if (!EscritorioDoHostService.respostaValida(resposta)) {
+      this.modo.set('indisponivel');
+      return;
+    }
 
     if (resposta.slugAtual) {
       const novo = resposta.slugAtual.toLowerCase();
@@ -139,7 +146,13 @@ export class EscritorioDoHostService {
   private perguntar(rotulo: string): Promise<RespostaPublica> {
     const http = this.injector.get(HttpClient);
     return new Promise<RespostaPublica>((resolve, reject) => {
-      const assinatura = http
+      // O limite nasce antes da assinatura: uma resposta síncrona já encontra o `limite` declarado.
+      let assinatura: Subscription | undefined = undefined;
+      const limite = setTimeout(() => {
+        assinatura?.unsubscribe();
+        reject(new Error('tempo esgotado'));
+      }, TEMPO_LIMITE_MS);
+      assinatura = http
         .get<RespostaPublica>(`/publico/escritorios/${encodeURIComponent(rotulo)}`, {
           context: skipErrorNotify(),
         })
@@ -153,11 +166,16 @@ export class EscritorioDoHostService {
             reject(erro);
           },
         });
-      const limite = setTimeout(() => {
-        assinatura.unsubscribe();
-        reject(new Error('tempo esgotado'));
-      }, TEMPO_LIMITE_MS);
     });
+  }
+
+  private static respostaValida(corpo: unknown): corpo is RespostaPublica {
+    const r = corpo as Partial<RespostaPublica> | null;
+    return (
+      typeof r?.nome === 'string' &&
+      r.nome.trim() !== '' &&
+      (r.slugAtual === undefined || r.slugAtual === null || typeof r.slugAtual === 'string')
+    );
   }
 
   /**

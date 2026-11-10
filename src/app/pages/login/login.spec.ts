@@ -240,6 +240,15 @@ describe('LoginPage', () => {
     const texto = (f: { nativeElement: unknown }) =>
       ((f.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
 
+    it('monograma de nome só com palavras curtas em minúscula: a primeira letra', async () => {
+      const f = await montarNoEscritorio();
+      TestBed.inject(EscritorioDoHostService).escritorio.set({
+        slug: 'ruraloeste',
+        nome: 'agro 3r',
+      });
+      expect(f.componentInstance.monograma()).toBe('A');
+    });
+
     it('mostra a marca do escritório e tira o "Criar conta"', async () => {
       const f = await montarNoEscritorio();
       expect(texto(f)).toContain('Entrar em Contabilidade Rural Oeste');
@@ -316,6 +325,27 @@ describe('LoginPage', () => {
       expect(
         (f.nativeElement as HTMLElement).querySelector('[role="status"]')?.textContent,
       ).toContain('Este endereço não é mais o do seu escritório.');
+    } finally {
+      estado.mockRestore();
+    }
+  });
+
+  it('o aviso sai na nova tentativa: fica só o resultado dela', async () => {
+    const estado = vi
+      .spyOn(Location.prototype, 'getState')
+      .mockReturnValue({ aviso: 'Este endereço não é mais o do seu escritório.' });
+    try {
+      const f = await montar();
+      f.componentInstance.email.set('a@b.c');
+      f.componentInstance.senha.set('x');
+      f.componentInstance.entrar();
+      expect(f.componentInstance.aviso()).toBeNull();
+      httpMock
+        .expectOne('/auth/login')
+        .flush(
+          { errors: [{ code: 'CREDENCIAIS_INVALIDAS', message: 'E-mail ou senha incorretos.' }] },
+          { status: 401, statusText: 'Unauthorized' },
+        );
     } finally {
       estado.mockRestore();
     }

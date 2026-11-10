@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
@@ -18,6 +19,14 @@ import { EnderecoDoHost } from '@shared/layout/endereco-do-host';
         <app-endereco-do-host
           [variante]="host.modo() === 'nao-encontrado' ? 'nao-encontrado' : 'indisponivel'"
         />
+      } @error {
+        <!-- O chunk acima não baixou: quase sempre a mesma rede que derrubou o endereço. -->
+        <main class="flex min-h-screen items-center justify-center p-4 text-center">
+          <p role="alert">
+            Não foi possível abrir este endereço.
+            <button type="button" class="underline" (click)="recarregar()">Recarregar</button>
+          </p>
+        </main>
       }
     } @else {
       <router-outlet />
@@ -27,4 +36,9 @@ import { EnderecoDoHost } from '@shared/layout/endereco-do-host';
 })
 export class App {
   protected readonly host = inject(EscritorioDoHostService);
+  private readonly documento = inject(DOCUMENT);
+
+  protected recarregar(): void {
+    this.documento.defaultView?.location.reload();
+  }
 }

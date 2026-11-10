@@ -1,6 +1,11 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
-import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-escritorio';
+import {
+  DOMINIO_BASE,
+  LOCALIZACAO_ATUAL,
+  semProtocolo,
+  urlDoHost,
+} from '@core/utils/host-escritorio';
 
 /**
  * No endereço do escritório (#175), `/cadastro` e `/equipe/convite` são de www: o cadastro de
@@ -18,10 +23,10 @@ import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-esc
       <div
         class="w-full max-w-md space-y-4 rounded-card border border-border bg-card p-6 text-center shadow-suave"
       >
-        <h1 class="font-heading text-xl font-semibold text-foreground">{{ titulo() }}</h1>
+        <h1 class="font-heading text-xl font-semibold text-foreground">{{ titulo }}</h1>
         <p class="text-apoio text-muted-foreground">
-          {{ frase() }}
-          <a [href]="destino()" class="font-medium text-primary underline">{{ hostWww() }}</a
+          {{ frase }}
+          <a [href]="destino" class="font-medium text-primary underline">{{ hostWww }}</a
           >.
         </p>
       </div>
@@ -30,32 +35,19 @@ import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-esc
 })
 export class AvisoWwwPage {
   private readonly localizacao = inject(LOCALIZACAO_ATUAL);
-  private readonly base = inject(DOMINIO_BASE);
-  /** `cadastro` ou `convite`, do `data` da rota. */
-  private readonly qual = (inject(ActivatedRoute).snapshot.data['aviso'] as string) ?? 'cadastro';
+  /** `cadastro` ou `convite`, do `data` da rota. Fixo enquanto a página existe: nada a observar. */
+  private readonly convite = inject(ActivatedRoute).snapshot.data['aviso'] === 'convite';
+  private readonly www = urlDoHost(null, inject(DOMINIO_BASE), this.localizacao);
 
-  private readonly www = computed(() =>
-    urlDoHost(null, this.base, {
-      protocolo: this.localizacao.protocolo,
-      porta: this.localizacao.porta,
-    }),
-  );
-  readonly hostWww = computed(() => this.www().replace(/^[a-z]+:\/\//, ''));
-
-  readonly titulo = computed(() =>
-    this.qual === 'convite'
-      ? 'O convite abre em outro endereço'
-      : 'O cadastro é feito em outro endereço',
-  );
-  readonly frase = computed(() =>
-    this.qual === 'convite'
-      ? 'O convite de equipe se aceita no endereço principal. Abra por'
-      : 'O cadastro de produtor e de escritório é feito em',
-  );
+  readonly hostWww = semProtocolo(this.www);
+  readonly titulo = this.convite
+    ? 'O convite abre em outro endereço'
+    : 'O cadastro é feito em outro endereço';
+  readonly frase = this.convite
+    ? 'O convite de equipe se aceita no endereço principal. Abra por'
+    : 'O cadastro de produtor e de escritório é feito em';
   /** O mesmo caminho em www; no convite, com o fragmento (o `#token=`). */
-  readonly destino = computed(() =>
-    this.qual === 'convite'
-      ? `${this.www()}/equipe/convite${this.localizacao.fragmento}`
-      : `${this.www()}/cadastro`,
-  );
+  readonly destino = this.convite
+    ? `${this.www}/equipe/convite${this.localizacao.fragmento}`
+    : `${this.www}/cadastro`;
 }

@@ -24,8 +24,8 @@
 <body>
   <!-- Esqueleto (#175): fica na tela ate o host estar resolvido, e cobre o caso em que o proprio
        JavaScript nao carrega. Nasce ESCONDIDO: sem o aval do Murillo para mostrar em www, o script
-       abaixo so o liga fora de www e de localhost (em producao, o subdominio do escritorio). Mesmo
-       ligado, so aparece depois de 400 ms; em carga normal o Angular o substitui antes. CSS inline,
+       abaixo so o liga num subdominio de escritorio: `*.localhost` ou host de 4+ rotulos que nao seja
+       IP nem www (o dominio nao e escrito aqui). Mesmo ligado, so aparece depois de 400 ms; em carga normal o Angular o substitui antes. CSS inline,
        com as cores do sistema: o tema salvo so e aplicado depois do bootstrap, e o Tailwind nao gera
        classe usada so aqui. -->
   <style>
@@ -55,7 +55,8 @@
   <script>
     (function () {
       var h = location.hostname.toLowerCase();
-      if (h !== 'localhost' && h.indexOf('www.') !== 0) document.documentElement.className += ' esqueleto-ligado';
+      var subdominio = /\.localhost$/.test(h) || (h.split('.').length >= 4 && !/^[\d.]+$/.test(h));
+      if (subdominio && h.indexOf('www.') !== 0) document.documentElement.className += ' esqueleto-ligado';
     })();
   </script>
   <app-root>

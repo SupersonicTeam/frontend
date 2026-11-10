@@ -8,7 +8,12 @@ import { SessaoService } from '@core/services/sessao.service';
 import { AuthApi } from '@services/auth/data-access/auth.service';
 import { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
-import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-escritorio';
+import {
+  DOMINIO_BASE,
+  LOCALIZACAO_ATUAL,
+  semProtocolo,
+  urlDoHost,
+} from '@core/utils/host-escritorio';
 
 /**
  * Entrar no app (issue #93).
@@ -40,8 +45,6 @@ export class LoginPage {
   private readonly router = inject(Router);
   private readonly rota = inject(ActivatedRoute);
   private readonly host = inject(EscritorioDoHostService);
-  private readonly localizacao = inject(LOCALIZACAO_ATUAL);
-  private readonly base = inject(DOMINIO_BASE);
 
   /** O escritório do endereço, no modo escritório; `null` no host principal. */
   readonly escritorio = computed(() =>
@@ -52,19 +55,16 @@ export class LoginPage {
     const palavras = (this.escritorio()?.nome ?? '')
       .split(/\s+/)
       .filter((p) => p.length > 2 || /^[A-ZÀ-Ú]/.test(p));
-    return palavras
+    const iniciais = palavras
       .slice(0, 2)
       .map((p) => p.charAt(0).toUpperCase())
       .join('');
+    // Nome só de palavras curtas em minúscula: a primeira letra dele, para o círculo não ficar vazio.
+    return iniciais || (this.escritorio()?.nome.trim().charAt(0).toUpperCase() ?? '');
   });
   /** O endereço principal, montado pelo `urlDoHost`, para a dica e o link do produtor. */
-  readonly www = computed(() =>
-    urlDoHost(null, this.base, {
-      protocolo: this.localizacao.protocolo,
-      porta: this.localizacao.porta,
-    }),
-  );
-  readonly hostWww = computed(() => this.www().replace(/^[a-z]+:\/\//, ''));
+  readonly www = urlDoHost(null, inject(DOMINIO_BASE), inject(LOCALIZACAO_ATUAL));
+  readonly hostWww = semProtocolo(this.www);
   /** O último erro foi um 401: no modo escritório, a dica para entrar por www aparece. */
   readonly foi401 = signal(false);
   /**
@@ -88,6 +88,8 @@ export class LoginPage {
     this.enviando.set(true);
     this.erro.set(null);
     this.foi401.set(false);
+    // O aviso de quem encerrou a sessão já foi lido: na nova tentativa, só o resultado dela.
+    this.aviso.set(null);
 
     this.auth.entrar(this.email(), this.senha(), this.escritorio()?.slug).subscribe({
       next: () => {
@@ -120,6 +122,11 @@ export class LoginPage {
     return this.sessao.homeDoPerfil();
   }
 
+  private static avisoDoEstado(estado: unknown): string | null {
+    const aviso = (estado as { aviso?: unknown } | null)?.aviso;
+    return typeof aviso === 'string' && aviso.trim() ? aviso : null;
+  }
+
   /**
    * O que a tela diz quando o login não passa.
    *
@@ -129,11 +136,6 @@ export class LoginPage {
    * aviso de bloqueio por tentativas, então ela é usada como está; o `switch` existe para separar
    * o que é credencial do que é servidor fora do ar, que não é culpa de quem digitou.
    */
-  private static avisoDoEstado(estado: unknown): string | null {
-    const aviso = (estado as { aviso?: unknown } | null)?.aviso;
-    return typeof aviso === 'string' && aviso.trim() ? aviso : null;
-  }
-
   private static mensagemDaFalha(falha: unknown): string {
     const erro = falha as HttpErrorResponse;
     if (erro?.status === 0) {

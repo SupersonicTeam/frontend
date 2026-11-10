@@ -1,6 +1,6 @@
 <div class="min-h-screen flex items-center justify-center p-4 bg-background">
   <div class="w-full max-w-md space-y-6">
-    @if (escritorio(); as e) {
+    @if (escritorio()) {
       <!-- A marca do escritório (#175): monograma, o nome e a assinatura do produto, sempre. -->
       <div class="flex flex-col items-center gap-3 text-center">
         <span
@@ -83,7 +83,7 @@
             <!-- Fixa, igual para qualquer 401: não revela se a conta existe nem de quem é. -->
             <span class="mt-1 block">
               Se você é produtor ou de outro escritório, entre por
-              <a [href]="www()" class="font-medium underline">{{ hostWww() }}</a
+              <a [href]="www" class="font-medium underline">{{ hostWww }}</a
               >.
             </span>
           }
@@ -145,7 +145,7 @@
         @if (escritorio()) {
           <span class="text-muted-foreground">
             Produtor? Entre por
-            <a [href]="www()" class="font-medium text-primary hover:underline">{{ hostWww() }}</a>
+            <a [href]="www" class="font-medium text-primary hover:underline">{{ hostWww }}</a>
           </span>
         } @else {
           <span class="text-muted-foreground">
