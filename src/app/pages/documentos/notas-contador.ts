@@ -13,7 +13,7 @@ import {
   CarteiraApi,
   type StatusNotaFiltro,
 } from '@services/contador/data-access/carteira.service';
-import type { NotaFiscal } from '@models/nota-fiscal.model';
+import { contraparteDaNota, ehCompraImportada, type NotaFiscal } from '@models/nota-fiscal.model';
 import type { NotaCarteira, ProdutorCarteira, ResumoNotasCarteira } from '@models/carteira.model';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
 import { ToastService } from '@core/services/toast.service';
@@ -116,6 +116,8 @@ export class NotasContador {
 
   readonly caixas = CAIXAS_TRIAGEM;
   protected readonly rotuloDoCampo = rotuloDoCampo;
+  protected readonly contraparteDaNota = contraparteDaNota;
+  protected readonly ehCompraImportada = ehCompraImportada;
 
   /** `undefined` enquanto a carteira não respondeu; `null` = toda a carteira (#164). */
   readonly cliente = signal<ProdutorCarteira | null | undefined>(undefined);

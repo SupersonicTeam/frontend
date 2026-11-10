@@ -116,10 +116,14 @@ export function ehCompraImportada(nota?: Pick<NotaFiscal, 'origem'> | null): boo
  * emitiu; na própria, o destinatário. A lista mostrava o destinatário sempre, e a compra aparecia
  * com o nome do próprio produtor (roteiro da demo, 06/11).
  */
-export function contraparteDaNota(
-  nota: Pick<NotaFiscal, 'origem' | 'emitenteNome' | 'destinatarioNome'>,
-): string {
-  return ehCompraImportada(nota) ? nota.emitenteNome || 'Fornecedor' : nota.destinatarioNome;
+export function contraparteDaNota(nota: {
+  origem?: OrigemNota | null;
+  emitenteNome?: string | null;
+  destinatarioNome?: string | null;
+}): string {
+  return ehCompraImportada(nota)
+    ? nota.emitenteNome || 'Fornecedor'
+    : (nota.destinatarioNome ?? '');
 }
 
 /**
