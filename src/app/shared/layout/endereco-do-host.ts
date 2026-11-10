@@ -1,14 +1,19 @@
 import { DOCUMENT } from '@angular/common';
-import { Component, computed, inject, input } from '@angular/core';
+import { Component, inject, input } from '@angular/core';
 import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
-import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-escritorio';
+import {
+  DOMINIO_BASE,
+  LOCALIZACAO_ATUAL,
+  semProtocolo,
+  urlDoHost,
+} from '@core/utils/host-escritorio';
 
 /**
  * A tela de um endereço de escritório que não abriu (#175): "não encontrado" ou "indisponível".
  *
  * Não é a `NaoEncontradaPage` (`**`), que é de **caminho**: esta é de **host**, e aparece no lugar
- * do app inteiro, sem nada do shell (não há sessão a supor). Entra no bundle inicial, então fica
- * pequena: texto, a logo e o link para www.
+ * do app inteiro, sem nada do shell (não há sessão a supor). Carrega por `@defer` no `App`, fora do
+ * bundle inicial (só quem cai num endereço que não abriu baixa): texto, a logo e o link para www.
  */
 @Component({
   selector: 'app-endereco-do-host',
@@ -40,7 +45,7 @@ import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-esc
           <p class="text-apoio text-muted-foreground">
             Este endereço não é de nenhum escritório na AgroConIA. Confira com o seu escritório ou
             entre por
-            <a [href]="www()" class="font-medium text-primary underline">{{ hostWww() }}</a
+            <a [href]="www" class="font-medium text-primary underline">{{ hostWww }}</a
             >.
           </p>
         } @else {
@@ -64,7 +69,7 @@ import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-esc
             </button>
             <p class="text-apoio text-muted-foreground">
               Ou entre por
-              <a [href]="www()" class="font-medium text-primary underline">{{ hostWww() }}</a
+              <a [href]="www" class="font-medium text-primary underline">{{ hostWww }}</a
               >.
             </p>
           </div>
@@ -75,21 +80,14 @@ import { DOMINIO_BASE, LOCALIZACAO_ATUAL, urlDoHost } from '@core/utils/host-esc
 })
 export class EnderecoDoHost {
   private readonly documento = inject(DOCUMENT);
-  private readonly localizacao = inject(LOCALIZACAO_ATUAL);
-  private readonly base = inject(DOMINIO_BASE);
   private readonly host = inject(EscritorioDoHostService);
 
   readonly variante = input.required<'nao-encontrado' | 'indisponivel'>();
 
   readonly esperar = this.host.esperarSegundos;
   /** O endereço principal, montado como qualquer outro host (nunca escrito à mão). */
-  readonly www = computed(() =>
-    urlDoHost(null, this.base, {
-      protocolo: this.localizacao.protocolo,
-      porta: this.localizacao.porta,
-    }),
-  );
-  readonly hostWww = computed(() => this.www().replace(/^[a-z]+:\/\//, ''));
+  readonly www = urlDoHost(null, inject(DOMINIO_BASE), inject(LOCALIZACAO_ATUAL));
+  readonly hostWww = semProtocolo(this.www);
 
   tentarDeNovo(): void {
     this.documento.defaultView?.location.reload();

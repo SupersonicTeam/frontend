@@ -73,6 +73,27 @@ describe('AuthApi', () => {
      * navegador não o manda nem o guarda numa chamada entre origens — e aí **não há renovação**,
      * só login de 15 minutos.
      */
+
+    it('no host principal o corpo é exatamente { email, senha }, sem a chave escritorio (#175)', () => {
+      service.entrar('a@b.c', 'senha').subscribe();
+      const req = httpMock.expectOne('/auth/login');
+      expect(Object.keys(req.request.body)).toEqual(['email', 'senha']);
+      req.flush(login);
+      httpMock.expectOne('/auth/me').flush(me);
+    });
+
+    it('no endereço do escritório o corpo leva o slug', () => {
+      service.entrar('a@b.c', 'senha', 'ruraloeste').subscribe();
+      const req = httpMock.expectOne('/auth/login');
+      expect(req.request.body).toStrictEqual({
+        email: 'a@b.c',
+        senha: 'senha',
+        escritorio: 'ruraloeste',
+      });
+      req.flush(login);
+      httpMock.expectOne('/auth/me').flush(me);
+    });
+
     it('pede credenciais: o refresh vem por cookie HttpOnly', () => {
       service.entrar('a@b.c', 'senha').subscribe();
 

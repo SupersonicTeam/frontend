@@ -62,6 +62,18 @@ sessão). O `authInterceptor` trata `/publico/` e `/api/publico/` como públicos
 caminho**. O `index.html` tem um esqueleto (escondido em www e `localhost` até o aval do Murillo) e
 `<meta name="referrer" content="no-referrer">`.
 
+**No modo escritório (PR C):** o `/login` leva a marca do escritório (monograma, "Entrar em {nome}",
+"com AgroConIA"), manda `escritorio` no corpo e, no 401, mostra uma dica **fixa** para entrar por www
+(igual para qualquer credencial, então não revela nada); "Criar conta" vira "Produtor? Entre por www".
+`/cadastro` e `/equipe/convite` caem em `pages/aviso-www/` por um `canMatch`
+(`noEnderecoDoEscritorio`), que leva ao mesmo caminho em www (o convite com o `#token=`). O
+`AppLayout` mostra o nome do escritório na topbar e, ao abrir, confere o `meuEscritorio()`: no
+subdomínio, slug diferente do host ou 403 `SEM_ESCRITORIO` encerra a sessão com um aviso que diz o
+endereço certo (`EncerramentoService.encerrar(motivo, aviso)` leva o aviso no `state` do `/login`);
+erro de rede não desloga. Em www, com a chave ligada, o contador cujo escritório tem endereço vê uma
+faixa dispensável (localStorage `agrocontabil.aviso-endereco-dispensado:{slug}`). Trocar ou remover o
+endereço estando no próprio subdomínio também encerra a sessão.
+
 **Desenvolvimento local:** `http://ruraloeste.localhost:4300` (o navegador resolve `*.localhost`).
 O `proxy.conf.json` tem `xfwd: true`, e o backend `dev` lê o `X-Forwarded-Host`. O slug local se
 define na aba Equipe.

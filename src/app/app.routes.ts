@@ -1,8 +1,15 @@
+import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
 import { AppLayout } from '@shared/layout/app-layout/app-layout';
 import { sessaoGuard } from '@core/guards/sessao.guard';
 import { produtorGuard } from '@core/guards/produtor.guard';
 import { contadorGuard } from '@core/guards/contador.guard';
+
+/** O app abriu num endereço de escritório já resolvido (#175)? */
+function noEnderecoDoEscritorio(): boolean {
+  return inject(EscritorioDoHostService).modo() === 'escritorio';
+}
 
 export const routes: Routes = [
   // A tela de entrada fica FORA do `AppLayout`: o shell tem sidebar, sino de notificacoes e a
@@ -16,6 +23,14 @@ export const routes: Routes = [
   // As outras tres portas da conta (#131), publicas pela mesma razao que o `/login`: quem chega
   // aqui ainda **nao tem** sessao, e guarda-las mandaria ao login quem veio justamente porque nao
   // consegue entrar. Com o basic auth do Caddy fora do ar, sao elas a entrada de quem nao tem conta.
+  // No endereço do escritório (#175) o cadastro e o convite são de www: a página de aviso entra
+  // pelo `canMatch`, e o chunk do cadastro nem baixa no subdomínio.
+  {
+    path: 'cadastro',
+    canMatch: [noEnderecoDoEscritorio],
+    data: { aviso: 'cadastro' },
+    loadComponent: () => import('@pages/aviso-www/aviso-www').then((m) => m.AvisoWwwPage),
+  },
   {
     path: 'cadastro',
     loadComponent: () => import('@pages/cadastro/cadastro').then((m) => m.CadastroPage),
@@ -36,6 +51,12 @@ export const routes: Routes = [
     path: 'politica-dados',
     loadComponent: () =>
       import('@pages/politica-dados/politica-dados').then((m) => m.PoliticaDadosPage),
+  },
+  {
+    path: 'equipe/convite',
+    canMatch: [noEnderecoDoEscritorio],
+    data: { aviso: 'convite' },
+    loadComponent: () => import('@pages/aviso-www/aviso-www').then((m) => m.AvisoWwwPage),
   },
   {
     // Convite de equipe (#148): publica pela mesma razao do `/cadastro` -- quem chega pode ainda

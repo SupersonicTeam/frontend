@@ -80,6 +80,20 @@ export function urlDoHost(
 /** Um rótulo DNS: letras, dígitos e hífen, sem hífen nas pontas, até 63 caracteres. */
 const ROTULO_DNS = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
+/**
+ * A frase do logout de quem está no endereço de um escritório que não é mais o seu (#175): entrou
+ * noutra equipe, ou o administrador trocou ou removeu o endereço. `host` é o endereço certo, sem
+ * protocolo (www quando o escritório dele não tem endereço).
+ */
+export function avisoDeOutroEndereco(nomeDoEscritorio: string, host: string): string {
+  return `Este endereço não é mais o do seu escritório (${nomeDoEscritorio}). Entre por ${host}.`;
+}
+
+/** O host de uma URL do `urlDoHost`, sem o protocolo, para o texto de um link. */
+export function semProtocolo(url: string): string {
+  return url.replace(/^[a-z]+:\/\//, '');
+}
+
 /** Minúsculas, sem espaços nas pontas e sem o ponto final de um FQDN (`www.{base}.`). */
 function normalizarHost(host: string): string {
   return host.trim().toLowerCase().replace(/\.+$/, '');

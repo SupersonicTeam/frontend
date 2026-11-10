@@ -154,6 +154,19 @@ describe('EscritorioDoHostService', () => {
     expect(svc.modo()).toBe('indisponivel');
   });
 
+  it.each([
+    ['corpo vazio', null],
+    ['sem nome', { slug: 'ruraloeste', slugAtual: null }],
+    ['slugAtual de outro tipo', { slug: 'ruraloeste', nome: 'X', slugAtual: 123 }],
+  ])('200 fora do contrato (%s): indisponível, sem rejeitar', async (_caso, corpo) => {
+    const svc = montar(`ruraloeste.${PROD}`);
+    const promessa = svc.resolver();
+    httpMock.expectOne(URL_PUBLICA).flush(corpo);
+    await expect(promessa).resolves.toBeUndefined();
+    expect(svc.modo()).toBe('indisponivel');
+    expect(substituir).not.toHaveBeenCalled();
+  });
+
   it('8 s sem resposta: indisponível', async () => {
     vi.useFakeTimers();
     try {

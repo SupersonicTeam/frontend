@@ -66,7 +66,11 @@ export class EncerramentoService {
    * qualquer forma. A ordem importa num ponto — o `POST /auth/logout` precisa sair **antes** de o
    * token ser descartado, porque é o cookie desta sessão que ele revoga.
    */
-  encerrar(motivo: MotivoDaSaida = 'pedido'): void {
+  /**
+   * Encerra a sessão. `aviso` é uma frase para o `/login` mostrar (#175): o toast some em 4 s e só
+   * existe dentro do shell, então o texto vai no `state` da navegação e a `LoginPage` o lê.
+   */
+  encerrar(motivo: MotivoDaSaida = 'pedido', aviso?: string): void {
     this.authApi.sair().subscribe();
 
     this.dashboardApi.limpar();
@@ -88,6 +92,6 @@ export class EncerramentoService {
       this.toast.error('Sua sessão expirou. Entre de novo para continuar.');
     }
 
-    void this.router.navigateByUrl('/login');
+    void this.router.navigateByUrl('/login', aviso ? { state: { aviso } } : undefined);
   }
 }

@@ -6,11 +6,15 @@ import {
   type Escritorio,
 } from '@services/escritorio/data-access/escritorio.service';
 import { ToastService } from '@core/services/toast.service';
+import { EncerramentoService } from '@core/services/encerramento.service';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
 import { falhaDaApi } from '@core/utils/erro-api';
 import {
   DOMINIO_BASE,
   ENDERECO_PROPRIO_NO_AR,
   LOCALIZACAO_ATUAL,
+  avisoDeOutroEndereco,
+  semProtocolo,
   urlDoHost,
 } from '@core/utils/host-escritorio';
 import { UiButton } from '@shared/ui/ui-button';
@@ -61,8 +65,8 @@ export function erroDoFormatoDoSlug(slug: string): string | null {
  * permanente nos registros de certificados (Certificate Transparency), e a pessoa precisa saber
  * disso **para aquele endereço**. É ela que manda o `cienteExposicaoPublica: true`.
  *
- * Falta aqui (PR C): estando no próprio subdomínio, trocar ou remover o endereço muda o host do
- * escritório, e a sessão deveria sair com o aviso do endereço novo (seção 6 da #175).
+ * Estando no próprio subdomínio, trocar ou remover o endereço muda o host do escritório: depois do
+ * 200 ou do 204, a sessão sai com o aviso do endereço novo (ou www), como no `AppLayout` (seção 6).
  */
 @Component({
   selector: 'app-endereco-escritorio',
@@ -199,6 +203,8 @@ export class EnderecoEscritorio {
   private readonly api = inject(EscritorioApi);
   private readonly toast = inject(ToastService);
   private readonly localizacao = inject(LOCALIZACAO_ATUAL);
+  private readonly host = inject(EscritorioDoHostService);
+  private readonly encerramento = inject(EncerramentoService);
 
   readonly escritorio = input.required<Escritorio>();
   /** O escritório como o servidor devolveu depois de salvar ou remover. */
@@ -286,8 +292,9 @@ export class EnderecoEscritorio {
     this.api.definirEndereco(slug).subscribe({
       next: (escritorio) => {
         this.salvando.set(false);
-        this.toast.success(`Endereço salvo: ${this.url(slug).replace(/^[a-z]+:\/\//, '')}.`);
+        this.toast.success(`Endereço salvo: ${semProtocolo(this.url(slug))}.`);
         this.mudou.emit(escritorio);
+        this.sairSeOHostMudou(escritorio);
       },
       error: (erro: HttpErrorResponse) => {
         this.salvando.set(false);
@@ -313,6 +320,7 @@ export class EnderecoEscritorio {
             this.confirmandoRemocao.set(false);
             this.toast.success('Endereço removido.');
             this.mudou.emit(escritorio);
+            this.sairSeOHostMudou(escritorio);
           },
           error: () => {
             // O endereço saiu (204); só a releitura falhou. A tela não pode continuar mostrando o
@@ -320,7 +328,9 @@ export class EnderecoEscritorio {
             this.removendo.set(false);
             this.confirmandoRemocao.set(false);
             this.toast.success('Endereço removido.');
-            this.mudou.emit({ ...this.escritorio(), slug: null, enderecoHost: null });
+            const semEndereco = { ...this.escritorio(), slug: null, enderecoHost: null };
+            this.mudou.emit(semEndereco);
+            this.sairSeOHostMudou(semEndereco);
           },
         });
       },
@@ -329,6 +339,22 @@ export class EnderecoEscritorio {
         this.toast.error(this.mensagem(erro));
       },
     });
+  }
+
+  /** No subdomínio, um endereço que deixou de ser o deste host encerra a sessão com o aviso. */
+  private sairSeOHostMudou(escritorio: Escritorio): void {
+    const rotulo = this.host.modo() === 'escritorio' ? this.host.rotulo() : null;
+    if (!rotulo || escritorio.slug === rotulo) return;
+    const destino = escritorio.slug
+      ? this.url(escritorio.slug)
+      : urlDoHost(null, this.base, {
+          protocolo: this.localizacao.protocolo,
+          porta: this.localizacao.porta,
+        });
+    this.encerramento.encerrar(
+      'pedido',
+      avisoDeOutroEndereco(escritorio.nome, semProtocolo(destino)),
+    );
   }
 
   private url(slug: string): string {

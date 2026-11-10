@@ -3,6 +3,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { vi } from 'vitest';
 import { ToastService } from '@core/services/toast.service';
+import { EncerramentoService } from '@core/services/encerramento.service';
+import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
 import {
   DOMINIO_BASE,
   ENDERECO_PROPRIO_NO_AR,
@@ -275,5 +277,34 @@ describe('EnderecoEscritorio', () => {
     httpMock.expectOne('/escritorio').flush('erro', { status: 500, statusText: 'x' });
 
     expect(emitidos.map((e) => e.slug)).toEqual([null]);
+  });
+
+  it('no próprio subdomínio, remover o endereço encerra a sessão com o aviso (#175)', () => {
+    const { cmp } = montar(escritorio({ slug: 'ruraloeste' }));
+    const host = TestBed.inject(EscritorioDoHostService);
+    host.rotulo.set('ruraloeste');
+    host.modo.set('escritorio');
+    const encerrar = vi
+      .spyOn(TestBed.inject(EncerramentoService), 'encerrar')
+      .mockImplementation(() => undefined);
+
+    cmp.remover();
+    httpMock.expectOne('/escritorio/endereco').flush(null, { status: 204, statusText: 'x' });
+    httpMock.expectOne('/escritorio').flush(escritorio({ slug: null }));
+
+    expect(encerrar).toHaveBeenCalledWith(
+      'pedido',
+      `Este endereço não é mais o do seu escritório (Contabilidade Rural Oeste). Entre por www.${PROD}.`,
+    );
+  });
+
+  it('em www, salvar o endereço não encerra nada', () => {
+    const { cmp } = montar(escritorio());
+    const encerrar = vi.spyOn(TestBed.inject(EncerramentoService), 'encerrar');
+    cmp.digitar('ruraloeste');
+    cmp.ciente.set(true);
+    cmp.salvar();
+    httpMock.expectOne('/escritorio/endereco').flush(escritorio({ slug: 'ruraloeste' }));
+    expect(encerrar).not.toHaveBeenCalled();
   });
 });

@@ -4,6 +4,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { vi } from 'vitest';
 import { EncerramentoService } from './encerramento.service';
+import { EscritorioDoHostService } from './escritorio-do-host.service';
 import { SessaoService } from './sessao.service';
 import { NotificacoesService } from './notificacoes.service';
 import { ToastService } from './toast.service';
@@ -200,5 +201,30 @@ describe('EncerramentoService', () => {
 
     expect(sessao.logado()).toBe(false);
     expect(navegouPara).toEqual(['/login']);
+  });
+
+  it('o aviso vai ao /login no state da navegação (#175)', async () => {
+    entrarComo('CONTADOR', 'Patricia');
+    const navegar = TestBed.inject(Router).navigateByUrl as unknown as ReturnType<typeof vi.fn>;
+
+    encerramento.encerrar('pedido', 'Este endereço não é mais o do seu escritório.');
+    httpMock.match((r) => r.url === '/auth/logout').forEach((r) => r.flush(null));
+
+    expect(navegar).toHaveBeenLastCalledWith('/login', {
+      state: { aviso: 'Este endereço não é mais o do seu escritório.' },
+    });
+  });
+
+  it('não mexe no escritório do endereço: o /login do subdomínio continua com a marca', () => {
+    const host = TestBed.inject(EscritorioDoHostService);
+    host.modo.set('escritorio');
+    host.escritorio.set({ slug: 'ruraloeste', nome: 'Contabilidade Rural Oeste' });
+    entrarComo('CONTADOR', 'Patricia');
+
+    encerramento.encerrar();
+    httpMock.match((r) => r.url === '/auth/logout').forEach((r) => r.flush(null));
+
+    expect(host.modo()).toBe('escritorio');
+    expect(host.escritorio()?.nome).toBe('Contabilidade Rural Oeste');
   });
 });

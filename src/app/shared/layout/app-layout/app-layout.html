@@ -46,6 +46,13 @@
         class="hidden h-9 w-auto max-w-[min(60vw,15rem)] object-contain dark:block"
       />
     </a>
+    @if (nomeDoEscritorioDoHost(); as nome) {
+      <!-- No endereço do escritório (#175): de quem é este acesso, ao lado da logo. -->
+      <span
+        class="ml-2 min-w-0 truncate border-l border-border pl-3 text-apoio font-medium text-topbar-foreground"
+        >{{ nome }}</span
+      >
+    }
 
     <div class="ml-auto flex items-center gap-2">
       <!-- Notificações -->
@@ -337,6 +344,25 @@
       tabindex="-1"
       class="flex-1 overflow-y-auto overflow-x-hidden p-3 pb-24 sm:p-4 sm:pb-24 lg:p-6 lg:pb-8 flex flex-col"
     >
+      @if (avisoEndereco(); as aviso) {
+        <!-- Em www, o endereço próprio do escritório (#175), discreto e dispensável. -->
+        <div
+          role="status"
+          class="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-controle border border-info-borda bg-info-soft px-3 py-2 text-apoio text-info-ink"
+        >
+          <span>
+            O seu escritório tem endereço próprio:
+            <a [href]="aviso.url" class="font-medium underline">{{ aviso.host }}</a>
+          </span>
+          <button
+            type="button"
+            class="tap-target rounded-controle px-3 font-medium hover:bg-info/10"
+            (click)="dispensarAvisoEndereco()"
+          >
+            Dispensar
+          </button>
+        </div>
+      }
       <router-outlet />
     </main>
   </div>
