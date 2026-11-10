@@ -1,8 +1,8 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import type { Notificacao } from '@models/notificacao.model';
 import { SessaoService } from './sessao.service';
 import { AlertasApi, type AlertaTributario } from '@services/alertas/data-access/alertas.service';
-import { CarteiraApi } from '@services/contador/data-access/carteira.service';
 import { VinculosApi, type ConviteRecebido } from '@services/vinculos/data-access/vinculos.service';
 import { catchError, forkJoin, of } from 'rxjs';
 import { formatarData } from '@core/utils/periodo';
@@ -32,7 +32,12 @@ const CHAVE_LIDAS = 'agrocontabil.notificacoes-lidas';
 export class NotificacoesService {
   private readonly sessao = inject(SessaoService);
   private readonly alertasApi = inject(AlertasApi);
-  private readonly carteiraApi = inject(CarteiraApi);
+  /**
+   * A carteira vem pelo `HttpClient` direto, e não pela `CarteiraApi`: este service está no bundle
+   * inicial (o sino mora na topbar), e a `CarteiraApi` inteira só para um `GET` pesava ~5 kB num
+   * orçamento de 500 kB (#175). É a mesma rota e a mesma resposta de `CarteiraApi.listar()`.
+   */
+  private readonly http = inject(HttpClient);
   private readonly vinculosApi = inject(VinculosApi);
 
   private readonly itens = signal<Notificacao[]>([]);
@@ -65,8 +70,8 @@ export class NotificacoesService {
    */
   carregar(): void {
     if (this.sessao.ehContador()) {
-      this.carteiraApi.listar().subscribe({
-        next: (pagina) => this.itens.set(pagina.itens.flatMap((c) => this.doCliente(c))),
+      this.http.get<ProdutorCarteira[]>('/contador/produtores').subscribe({
+        next: (clientes) => this.itens.set((clientes ?? []).flatMap((c) => this.doCliente(c))),
         error: () => this.itens.set([]),
       });
       return;

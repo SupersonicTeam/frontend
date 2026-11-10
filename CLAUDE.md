@@ -47,6 +47,25 @@ produção empacotava o `environment.ts` (só não fazia diferença porque os do
 `node scripts/conferir-build-producao.mjs` depois do build: falha sem o par, sem o domínio no bundle ou
 com o domínio escrito à mão num fonte de `src/app/`.
 
+## Modo escritório: `{slug}.{base}` (#175)
+
+O escritório com endereço próprio atende em `{slug}.agroconia.com.br`; o resto continua em www. A
+regra do host mora em `core/utils/host-escritorio.ts` (ver Utilitários). O
+`EscritorioDoHostService` (`core/services/escritorio-do-host.service.ts`) resolve o host **uma vez**,
+num `provideAppInitializer`: no principal termina sem requisição; num subdomínio chama
+`GET /publico/escritorios/{slug}` (público, 8 s de limite) e marca `modo()` = `escritorio` (título e
+`noindex`), `nao-encontrado` (404 **com** `ENDERECO_NAO_ENCONTRADO`) ou `indisponivel` (todo o resto,
+nunca o modo principal); com `slugAtual`, troca de host por `location.replace` e não resolve. Nunca
+rejeita. O `App` mostra `shared/layout/endereco-do-host.ts` nos dois modos de falha.
+**O `EscritorioDoHostService` fica fora da lista do `EncerramentoService`** (dado do host, não da
+sessão). O `authInterceptor` trata `/publico/` e `/api/publico/` como públicos **pelo início do
+caminho**. O `index.html` tem um esqueleto (escondido em www e `localhost` até o aval do Murillo) e
+`<meta name="referrer" content="no-referrer">`.
+
+**Desenvolvimento local:** `http://ruraloeste.localhost:4300` (o navegador resolve `*.localhost`).
+O `proxy.conf.json` tem `xfwd: true`, e o backend `dev` lê o `X-Forwarded-Host`. O slug local se
+define na aba Equipe.
+
 ## Backend / API
 
 - `environment.apiUrl = '/api'` (`src/environments/environment.ts`).

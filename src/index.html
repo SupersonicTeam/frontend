@@ -5,6 +5,9 @@
   <title>AgroConIA</title>
   <base href="/">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- #175: o subdominio do escritorio nao vai no Referer a terceiros (Google Fonts). O slug pode ser
+       dado pessoal. Em www nada muda: o Caddy ja manda Referrer-Policy: no-referrer. -->
+  <meta name="referrer" content="no-referrer">
   <!-- SVG primeiro (nitido em qualquer densidade); o .ico fica de reserva para
        navegador antigo que nao aceita favicon vetorial.
 
@@ -19,6 +22,54 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap">
 </head>
 <body>
-  <app-root></app-root>
+  <!-- Esqueleto (#175): fica na tela ate o host estar resolvido, e cobre o caso em que o proprio
+       JavaScript nao carrega. Nasce ESCONDIDO: sem o aval do Murillo para mostrar em www, o script
+       abaixo so o liga fora de www e de localhost (em producao, o subdominio do escritorio). Mesmo
+       ligado, so aparece depois de 400 ms; em carga normal o Angular o substitui antes. CSS inline,
+       com as cores do sistema: o tema salvo so e aplicado depois do bootstrap, e o Tailwind nao gera
+       classe usada so aqui. -->
+  <style>
+    .esqueleto { display: none; }
+    .esqueleto-ligado .esqueleto {
+      display: flex; min-height: 100vh; flex-direction: column; align-items: center;
+      justify-content: center; gap: 1rem; padding: 1rem; text-align: center;
+      font-family: system-ui, sans-serif; background: #f7f5f0; color: #1f2a22;
+      opacity: 0; animation: esqueleto-aparece 0.2s ease-out 0.4s forwards;
+    }
+    .esqueleto img { height: 48px; width: auto; }
+    .esqueleto p { margin: 0; font-size: 1rem; }
+    .esqueleto a { color: #2d6a45; }
+    .esqueleto-demora { display: none; color: #4b5a50; }
+    .esqueleto-demora small { display: block; margin-top: 0.25rem; font-size: 0.875rem; }
+    .esqueleto-ligado .esqueleto-demora { display: block; opacity: 0; animation: esqueleto-aparece 0.2s ease-out 10s forwards; }
+    @keyframes esqueleto-aparece { to { opacity: 1; } }
+    @media (prefers-color-scheme: dark) {
+      .esqueleto-ligado .esqueleto { background: #141a16; color: #e8ede9; }
+      .esqueleto a { color: #7fc89a; }
+      .esqueleto-demora { color: #a9b5ad; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .esqueleto-ligado .esqueleto, .esqueleto-ligado .esqueleto-demora { animation-duration: 0s; }
+    }
+  </style>
+  <script>
+    (function () {
+      var h = location.hostname.toLowerCase();
+      if (h !== 'localhost' && h.indexOf('www.') !== 0) document.documentElement.className += ' esqueleto-ligado';
+    })();
+  </script>
+  <app-root>
+    <div class="esqueleto">
+      <picture>
+        <source srcset="agroconia-horizontal-negativo.svg" media="(prefers-color-scheme: dark)">
+        <img src="agroconia-horizontal.svg" alt="AgroConIA" width="200" height="48">
+      </picture>
+      <p role="status">Carregando…</p>
+      <p class="esqueleto-demora">
+        Está demorando? Recarregue a página.
+        <small>Se não abrir, entre por <a href="https://www.agroconia.com.br">www.agroconia.com.br</a></small>
+      </p>
+    </div>
+  </app-root>
 </body>
 </html>
