@@ -127,7 +127,8 @@ Imports sempre via alias (sem `../../`): `@core/*` · `@services/*` · `@pages/*
 
 ## Rotas (`app.routes.ts`)
 
-Tudo sob `AppLayout` e atrás do `sessaoGuard`, lazy via `loadComponent`. `''` → redirect `dashboard`;
+Tudo sob `AppLayout` e atrás do `sessaoGuard`, lazy via `loadComponent`. `''` → redirect `dashboard` (para quem tem sessão:
+sem sessão, no www, o `/` é a **landing**, ver a seção dela);
 `**` → página de não encontrada.
 
 **`/login` é a exceção: fora do `AppLayout` e sem guard** (#93). O mesmo vale para `/cadastro`, `/esqueci-senha`, `/redefinir-senha` (#131) e **`/politica-dados`** (#137, `pages/politica-dados/`: a política de tratamento vinda de `GET /politica-dados`, linkada no cadastro, no login e em Configurações) e **`/equipe/convite`** (#148, `pages/equipe-convite/`): o convite de equipe chega com o token no fragmento (`#token=`); contador logado entra na equipe, quem não tem conta cria a de contador ali, e o token atravessa o login no `sessionStorage` da aba (o `returnUrl` é query e vazaria o token). O shell tem sidebar, sino e a gaveta da
@@ -367,7 +368,10 @@ diferenciais, Ceres, pronto hoje, planos, perguntas, chamada final e rodapé. **
   ouvintes). As âncoras `href="#x"` rolam por código: numa rota que não é a raiz, o navegador iria para `/#x`.
 - **`landing-dados.ts`**: planos e perguntas, desenhados pelo template. **Sem preços**: são proposta do Murillo; cada plano mostra
   "Valor de lançamento em definição" e um "Tenho interesse" por e-mail. Textos com "(Murillo)" seguem pendentes (CNPJ, encarregado).
-- Hoje ela abre em `/previa-landing` (só fora de produção). Ir para `/` em produção é o PR 9.
+- **Rota `/`** (`visitanteNoPrincipal`, em `app.routes.ts`): a landing é de quem chega **sem sessão** ao endereço **principal**
+  (www). Com sessão, o `canMatch` recusa e o `/` cai no shell (painel). Num endereço de escritório, em qualquer modo, o `/` segue
+  do escritório. A rota vem **antes** do shell, com `pathMatch: 'full'`. Fora de produção ela também abre em `/previa-landing`
+  (útil logado).
 
 ## Jornada do milho em 3D (`pages/landing/jornada/`, #174 PR J)
 
