@@ -32,8 +32,7 @@ export function rotasDaPrevia(): Routes {
     {
       path: 'previa-landing',
       title: 'Prévia da landing | AgroConIA',
-      loadComponent: () =>
-        import('@pages/landing/previa-landing').then((m) => m.PreviaLandingPage),
+      loadComponent: () => import('@pages/landing/landing').then((m) => m.LandingPage),
     },
   ];
 }

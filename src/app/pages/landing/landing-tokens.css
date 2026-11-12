@@ -1,0 +1,80 @@
+/* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
+   landing; tema escuro pela classe .dark do ThemeService; movimento reduzido pela classe
+   .movimento-reduzido do PreferenciaMovimentoService. */
+
+/* Layout: faixas de largura total alternando fundo, conteúdo em coluna de 72rem; grade 6/6 no hero,
+   5/7 e 7/5 nas seções de público. Cores e fontes do app (styles.css) + a marca do logo. */
+.lp {
+  --bg: hsl(40 25% 97%);
+  --surface2: hsl(140 16% 96%);
+  --card: hsl(0 0% 100%);
+  --fg: hsl(142 30% 12%);
+  --muted: hsl(142 10% 38%);
+  --border: hsl(142 15% 88%);
+  --primary: hsl(142 44% 32%);
+  --on-primary: hsl(80 30% 97%);
+  --lima: #d8f07a;
+  --lima-ink: #13261a;
+  --teal: #2e8b57;
+  --profunda: #1b4630;
+  --on-profunda: #eaf3e4;
+  --on-profunda-2: #c4d8c6;
+  --assist: hsl(262 52% 52%);
+  --assist-soft: hsl(262 60% 96%);
+  --assist-ink: hsl(262 45% 36%);
+  --assist-borda: hsl(262 38% 87%);
+  --aviso-soft: hsl(40 84% 94%);
+  --aviso-ink: hsl(30 66% 29%);
+  --aviso-borda: hsl(39 60% 83%);
+  --sucesso-soft: hsl(152 44% 94%);
+  --sucesso-ink: hsl(152 58% 24%);
+  --sucesso-borda: hsl(152 36% 84%);
+  --info-soft: hsl(210 70% 95%);
+  --info-ink: hsl(210 62% 31%);
+  --info-borda: hsl(210 54% 85%);
+  --perigo-soft: hsl(0 72% 96%);
+  --perigo-ink: hsl(0 58% 35%);
+  --perigo-borda: hsl(0 52% 87%);
+  --previa-bg: hsl(142 30% 12%);
+  --previa-fg: hsl(80 20% 92%);
+  --sombra: 0 1px 2px hsl(142 30% 12% / 0.06), 0 8px 24px hsl(142 30% 12% / 0.08);
+  --sombra-alta: 0 2px 6px hsl(142 30% 12% / 0.08), 0 24px 48px hsl(142 30% 12% / 0.16);
+  --font-display: 'Sora', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --raio: 14px;
+  --raio-ctl: 10px;
+}
+.dark .lp {
+  --bg: hsl(150 18% 9%);
+  --surface2: hsl(150 16% 12%);
+  --card: hsl(150 16% 13%);
+  --fg: hsl(80 12% 90%);
+  --muted: hsl(80 6% 64%);
+  --border: hsl(150 10% 22%);
+  --primary: hsl(142 50% 58%);
+  --on-primary: hsl(150 30% 10%);
+  --profunda: hsl(150 16% 14%);
+  --on-profunda: hsl(80 12% 92%);
+  --on-profunda-2: hsl(80 6% 70%);
+  --assist: hsl(262 68% 72%);
+  --assist-soft: hsl(262 32% 18%);
+  --assist-ink: hsl(262 70% 84%);
+  --assist-borda: hsl(262 26% 32%);
+  --aviso-soft: hsl(36 32% 16%);
+  --aviso-ink: hsl(38 78% 76%);
+  --aviso-borda: hsl(37 26% 30%);
+  --sucesso-soft: hsl(152 30% 15%);
+  --sucesso-ink: hsl(152 52% 74%);
+  --sucesso-borda: hsl(152 24% 28%);
+  --info-soft: hsl(210 34% 17%);
+  --info-ink: hsl(210 72% 80%);
+  --info-borda: hsl(210 28% 31%);
+  --perigo-soft: hsl(0 30% 17%);
+  --perigo-ink: hsl(0 72% 80%);
+  --perigo-borda: hsl(0 26% 32%);
+  --previa-bg: hsl(80 20% 88%);
+  --previa-fg: hsl(142 30% 12%);
+  --sombra: 0 1px 2px #0006, 0 8px 24px #0005;
+  --sombra-alta: 0 2px 6px #0007, 0 24px 48px #0008;
+  color-scheme: dark;
+}

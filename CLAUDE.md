@@ -351,13 +351,29 @@ A CI (`scripts/conferir-build-producao.mjs`) reprova se o Motion aparecer num `.
 `transformPerspective`, conferido nos dois sentidos com uma sonda) e se o `public/licencas-terceiros.txt` não citar a versão instalada — ao
 trocar a versão, releia a licença, atualize o arquivo e confira que o marcador continua no chunk.
 
+## Landing (`pages/landing/landing.ts`, #174)
+
+A landing completa: cabeçalho, hero, a jornada 3D, "O que muda", calendário da reforma, produtor, escritório, como funciona,
+diferenciais, Ceres, pronto hoje, planos, perguntas, chamada final e rodapé. **Markup e CSS vêm da prévia estática da especificação**
+(`rascunhos/previa-landing/previa-landing.html`, fora do git), que continua sendo a referência de texto e de layout.
+
+- **CSS da página, não do app**: tokens próprios escopados em `.lp` (a raiz do template), tema escuro por `.dark .lp` (o `ThemeService`),
+  movimento reduzido por `.movimento-reduzido`. `ViewEncapsulation.None`, para o CSS da prévia valer como está. Os seletores de elemento
+  são `:where(.lp) h1`, `:where(.lp) a`…: com `.lp a` a regra ganhava do `.btn-primario` e o botão perdia o texto. O CSS está dividido
+  por seção (`landing-*.css`) porque o orçamento é **por arquivo** (aviso em 4 kB).
+- **`landing-interacoes.ts`**: o `<script>` da prévia em TypeScript, preso à raiz e desfeito no destroy (um `AbortSignal` para todos os
+  ouvintes). As âncoras `href="#x"` rolam por código: numa rota que não é a raiz, o navegador iria para `/#x`.
+- **`landing-dados.ts`**: planos e perguntas, desenhados pelo template. **Sem preços**: são proposta do Murillo; cada plano mostra
+  "Valor de lançamento em definição" e um "Tenho interesse" por e-mail. Textos com "(Murillo)" seguem pendentes (CNPJ, encarregado).
+- Hoje ela abre em `/previa-landing` (só fora de produção). Ir para `/` em produção é o PR 9.
+
 ## Jornada do milho em 3D (`pages/landing/jornada/`, #174 PR J)
 
 Seção da landing que troca de quadro conforme a rolagem, nos dois sentidos: sequências de imagens renderizadas no Blender (repo
 `Animation-Agroconia`), **fora do bundle**, descritas por um `manifesto.json` (a fonte da verdade: etapas, câmeras `16x9`/`9x18`, AVIF/WebP,
 quadros parados, `alt`). Não é vídeo nem 3D em tempo real.
 
-- **Rota `/previa-landing`** (`pages/landing/previa-landing.ts`): fora do `AppLayout`, sem guard, e **só fora de produção** — pela constante
+- **Rota `/previa-landing`** (carrega `pages/landing/landing.ts`, a landing completa): fora do `AppLayout`, sem guard, e **só fora de produção** — pela constante
   de compilação `PREVIA_LANDING` (`define` no `angular.json`), não por chave do `environment` (o objeto não é eliminado e a rota ia para o
   bundle). A CI reprova se `previa-landing` aparecer no carregamento inicial. O PR 9 troca a prévia pela landing em `/`.
 - **Quadros**: `environment.baseJornada` (`/jornada/v0.1/`), lido só pelo token `BASE_JORNADA`. Em dev, o `proxy.conf.json` leva `/jornada`

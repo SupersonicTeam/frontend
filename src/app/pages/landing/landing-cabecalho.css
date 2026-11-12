@@ -1,0 +1,155 @@
+/* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
+   landing; tema escuro pela classe .dark do ThemeService; movimento reduzido pela classe
+   .movimento-reduzido do PreferenciaMovimentoService. */
+
+/* 3.1 Cabeçalho */
+header.topo {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid transparent;
+  transition:
+    box-shadow 0.2s,
+    border-color 0.2s;
+}
+header.topo.rolou {
+  box-shadow: var(--sombra);
+  border-bottom-color: var(--border);
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top, 0px);
+  z-index: 30;
+  background: var(--bg);
+}
+header.topo .miolo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 64px;
+}
+.logo img {
+  display: block;
+  height: 34px;
+  width: auto;
+}
+.logo .neg {
+  display: none;
+}
+.dark .lp .logo .pos {
+  display: none;
+}
+.dark .lp .logo .neg {
+  display: block;
+}
+nav.secoes {
+  display: flex;
+  gap: 0.25rem;
+  margin-left: 1rem;
+}
+nav.secoes a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.92rem;
+  font-weight: 500;
+  padding: 0.5rem 0.6rem;
+  border-radius: 8px;
+}
+nav.secoes a:hover {
+  color: var(--fg);
+  background: var(--surface2);
+}
+.topo-acoes {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.entrar {
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration: none;
+  padding: 0 0.6rem;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+.menu-btn {
+  display: none;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--raio-ctl);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--fg);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
+.menu-painel {
+  display: none;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.menu-painel a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--fg);
+  text-decoration: none;
+  font-weight: 500;
+}
+.menu-painel .miolo {
+  padding-block: 0.5rem 1rem;
+  display: grid;
+  gap: 0.25rem;
+}
+.pular {
+  position: absolute;
+  left: -9999px;
+}
+.pular:focus {
+  left: 1rem;
+  top: 0.5rem;
+  z-index: 50;
+  background: var(--card);
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  box-shadow: var(--sombra);
+}
+@media (max-width: 900px) {
+  nav.secoes {
+    display: none;
+  }
+  .menu-btn {
+    display: inline-flex;
+  }
+  .menu-painel.aberto {
+    display: block;
+  }
+  .cta-topo .longo {
+    display: none;
+  }
+}
+@media (min-width: 901px) {
+  .cta-topo .curto {
+    display: none;
+  }
+}
+@media (max-width: 399px) {
+  .cta-topo {
+    display: none;
+  }
+  .logo img {
+    height: 28px;
+  }
+}
+@media (max-height: 500px) {
+  header.topo {
+    position: static;
+  }
+}

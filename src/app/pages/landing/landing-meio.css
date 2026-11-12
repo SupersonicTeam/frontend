@@ -1,0 +1,228 @@
+/* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
+   landing; tema escuro pela classe .dark do ThemeService; movimento reduzido pela classe
+   .movimento-reduzido do PreferenciaMovimentoService. */
+/* 3.8 Passos */
+.passos {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+  counter-reset: passo;
+}
+.passos li {
+  counter-increment: passo;
+  display: grid;
+  gap: 0.4rem;
+  align-content: start;
+}
+.passos li::before {
+  content: counter(passo);
+  font-family: var(--font-display);
+  font-weight: 700;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--lima);
+  color: var(--lima-ink);
+}
+.passos span {
+  color: var(--muted);
+}
+.stepper {
+  margin-top: 2.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--raio);
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
+}
+.estagios {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.estagios .seta {
+  color: var(--muted);
+}
+.devolvida {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* 3.9 Diferenciais */
+.dif .card p {
+  color: var(--muted);
+}
+details.dados {
+  margin-top: 1.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--raio);
+}
+details.dados summary,
+.faq summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  padding: 0.75rem 1.25rem;
+  font-weight: 600;
+  list-style: none;
+}
+details.dados summary::-webkit-details-marker,
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+.chev {
+  transition: transform 0.2s;
+}
+details[open] > summary .chev {
+  transform: rotate(180deg);
+}
+details.dados ul {
+  margin: 0;
+  padding: 0 1.25rem 1.25rem 2.5rem;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+}
+
+/* 3.10 Ceres */
+.ceres {
+  background: var(--assist-soft);
+}
+.ceres .sobre {
+  color: var(--assist-ink);
+}
+.ceres-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+  gap: clamp(2rem, 4vw, 4rem);
+  align-items: start;
+}
+.ceres .beneficios .icone {
+  color: var(--assist);
+}
+.exemplos {
+  list-style: none;
+  margin: 1.25rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  color: var(--assist-ink);
+  font-weight: 500;
+}
+.chat {
+  background: var(--card);
+  border: 1px solid var(--assist-borda);
+  border-radius: var(--raio);
+  box-shadow: 0 8px 28px hsl(262 52% 52% / 0.18);
+  padding: 1.25rem;
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+.balao-eu {
+  justify-self: end;
+  max-width: 85%;
+  background: var(--primary);
+  color: var(--on-primary);
+  padding: 0.65rem 0.9rem;
+  border-radius: 14px 14px 4px 14px;
+}
+.resposta-ceres {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.75rem;
+  transition: opacity 0.24s;
+}
+.resposta-ceres img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+.balao-ceres {
+  background: var(--assist-soft);
+  border: 1px solid var(--assist-borda);
+  padding: 0.75rem 0.9rem;
+  border-radius: 14px 14px 14px 4px;
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.citacoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.citacoes a {
+  text-decoration: none;
+}
+.pontos {
+  display: none;
+  gap: 0.3rem;
+  align-items: center;
+  color: var(--assist-ink);
+  font-size: 0.9rem;
+}
+.pontos i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--assist);
+  animation: pisca 0.66s ease-in-out infinite alternate;
+}
+.pontos i:nth-child(2) {
+  animation-delay: 0.22s;
+}
+.pontos i:nth-child(3) {
+  animation-delay: 0.44s;
+}
+@keyframes pisca {
+  from {
+    opacity: 0.25;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.chat.esperando .pontos {
+  display: flex;
+}
+.chat.esperando .resposta-ceres {
+  opacity: 0;
+}
+.limite {
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: var(--assist-ink);
+}
+
+/* 3.11 Pronto hoje */
+.status-grade {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.status-col ul {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.4rem;
+}
