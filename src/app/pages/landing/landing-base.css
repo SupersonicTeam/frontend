@@ -159,18 +159,6 @@ html {
   user-select: all;
 }
 
-/* 3.0 Faixa de demonstração */
-.demo {
-  background: var(--aviso-soft);
-  color: var(--aviso-ink);
-  border-bottom: 1px solid var(--aviso-borda);
-  font-size: 0.9rem;
-}
-.demo .miolo {
-  padding-block: 0.55rem;
-  text-align: center;
-}
-
 /* Lugar da jornada 3D enquanto o @defer não chega: a página não pula. */
 .jornada-reserva {
   min-height: 60vh;
