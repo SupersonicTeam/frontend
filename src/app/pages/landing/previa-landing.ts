@@ -4,9 +4,9 @@ import { JornadaMilho } from './jornada/jornada-milho';
 /**
  * A prévia da landing (#174): por onde as seções são revisadas **antes** de a landing ir para `/`.
  *
- * Só existe com `environment.previaLanding` ligado, ou seja, fora de produção. Hoje hospeda a
- * jornada do milho em 3D; os PRs 4 a 8 acrescentam o cabeçalho, o hero e as outras seções aqui, e
- * o PR 9 troca esta rota pela landing de verdade.
+ * Só existe fora de produção (a constante de compilação `PREVIA_LANDING`, ver `app.routes.ts`).
+ * Hoje hospeda a jornada do milho em 3D; os PRs 4 a 8 acrescentam o cabeçalho, o hero e as outras
+ * seções aqui, e o PR 9 troca esta rota pela landing de verdade.
  *
  * O texto acima e abaixo da seção não é o da landing — está aqui para a jornada ser revisada do
  * jeito que o visitante a encontra: rolando, com conteúdo antes e depois.
