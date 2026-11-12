@@ -115,7 +115,6 @@
   --shadow-assistente:
     0 2px 4px var(--sombra-fraca), 0 10px 28px -14px var(--sombra-assistente-cor);
 
-
   /* --- Cores de série de gráfico (#90) -------------------------------------------
      IBS e CBS são **identidade**, não estado: são as duas metades do mesmo imposto.
      A faixa dos seis meses pintava tudo de `perigo`, e seis barras vermelhas leem como
@@ -129,6 +128,24 @@
      accent dá 2,91:1 contra o branco e reprovaria. */
   --color-serie-ibs: hsl(210 66% 45%);
   --color-serie-cbs: hsl(33 62% 44%);
+
+  /* --- Tokens de marca da landing publica (#174, item 4.1) ----------------------
+     Tirados da logo, para dar escala de marketing a pagina publica SEM trocar o
+     sistema do app: nenhuma tela existente usa estes tokens. Os valores sao os
+     hex da logo de proposito -- converter para HSL arredondaria a cor da marca.
+
+     Cada um tem par no `.dark` (ver o bloco la embaixo). Contraste **medido** aqui
+     (a tabela da issue da 10,9:1 para o lima, mas aquele numero e do lima ESCURO):
+       marca-profunda   branco                10,69:1  -- chamada final e selo
+       marca-lima       com `marca-lima-ink`   6,80:1 no claro, 10,84:1 no escuro
+       marca-teal       branco                 3,48:1 no claro, 2,61:1 no escuro
+                        -- REPROVA para texto normal: so decoracao ou texto >= 24px
+     O `accent` laranja continua de fora: branco sobre ele da 2,90:1 e ele nao tem
+     par no `.dark`. Enquanto o par nao existir, a landing nao o usa como fundo. */
+  --color-marca-profunda: #1b4630;
+  --color-marca-lima: #6cbf45;
+  --color-marca-lima-ink: hsl(142 30% 12%);
+  --color-marca-teal: #0e9c74;
 
   --radius-controle: 0.75rem;
   --radius-card: 1rem;
@@ -391,6 +408,16 @@ html {
   --color-bottomnav-foreground: hsl(140 8% 62%);
   --color-bottomnav-active: hsl(142 50% 58%);
 
+  /* Pares dos tokens de marca da landing (#174, item 4.1). O `marca-profunda` nao
+     tem cor propria no escuro: a faixa profunda vira `surface-2`, com borda
+     `primary/30`, porque um verde quase preto sobre fundo quase preto nao separa
+     nada. Aponta para o token do tema, que o `.dark` tambem redefine -- as
+     utilities de cor resolvem `var()` na renderizacao, nao no build. */
+  --color-marca-profunda: var(--color-surface-2);
+  --color-marca-lima: #b5e85c;
+  --color-marca-lima-ink: hsl(150 30% 12%);
+  --color-marca-teal: #2db585;
+
   --sombra-fraca: hsl(0 0% 0% / 0.4);
   --sombra-forte: hsl(0 0% 0% / 0.7);
   --sombra-media-cor: hsl(0 0% 0% / 0.5);
@@ -456,6 +483,14 @@ html {
   opacity: 0;
   pointer-events: none;
   transition: opacity 150ms ease;
+}
+
+/* Gradiente da marca (#174, item 4.1). Lugares permitidos, e so eles: o brilho do
+   hero, a borda do card recomendado, o fundo dos icones dos diferenciais e um
+   sublinhado de 2 a 3px numa palavra do H1. **Nunca atras de texto** -- o contraste
+   muda ao longo do gradiente e nao da para medir. */
+@utility bg-gradiente-marca {
+  background-image: linear-gradient(135deg, var(--color-marca-lima), var(--color-marca-teal));
 }
 
 /* --- Utilities de movimento (#90) ---------------------------------------------
@@ -530,18 +565,45 @@ html {
   outline-color: var(--color-sidebar-primary);
 }
 
-/* --- Movimento reduzido (#36) -------------------------------------------------
+/* --- Movimento reduzido (#36, estendido na #174 item 5.1) ---------------------
    O projeto tem 101 transicoes e animacoes e nenhum respeito a preferencia do
-   sistema. WCAG 2.3.3. */
+   sistema. WCAG 2.3.3.
+
+   Dois gatilhos, e o segundo e novo: a preferencia do sistema E a classe
+   `movimento-reduzido` no <html>, que o `PreferenciaMovimentoService` liga quando o
+   visitante aperta "Reduzir animacoes" (a landing precisa do botao proprio, criterio
+   AAA 2.3.3). As declaracoes ficam repetidas nos dois blocos de proposito: um
+   `@media` nao entra em lista de seletor, e nao existe "ou" entre midia e classe.
+   **Mexeu em um, mexa no outro.**
+
+   O `animation-delay: 0s` entrou junto: com `fill-mode: both`, o item que espera a
+   vez (entrada escalonada) fica INVISIVEL durante o atraso. Zerar a duracao sem
+   zerar o atraso trocava animacao por elemento sumido.
+
+   A linha `animation-timeline: auto` da especificacao nao entra: nenhuma animacao
+   daqui e ligada a rolagem por CSS (a sombra do cabecalho usa sentinela com
+   IntersectionObserver, e a jornada 3D e JS, que consulta o servico). */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+:root.movimento-reduzido,
+:root.movimento-reduzido *,
+:root.movimento-reduzido *::before,
+:root.movimento-reduzido *::after {
+  animation-duration: 0.01ms !important;
+  animation-delay: 0s !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
 }
 
 /* --- Densidade e cabecalho da moldura de tabela (#45) -------------------------

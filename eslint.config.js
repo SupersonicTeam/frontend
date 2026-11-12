@@ -19,7 +19,10 @@ module.exports = defineConfig([
         "error",
         {
           type: "attribute",
-          prefix: "app",
+          // Mesma divisão do `component-selector` abaixo: "app" para features, "ui" para
+          // o design system de shared/ui (o `a[uiLinkBotao]` da #174, item 4.4, que veste
+          // de botão o CTA de navegação sem aninhar <button> dentro de <a>).
+          prefix: ["app", "ui"],
           style: "camelCase",
         },
       ],
