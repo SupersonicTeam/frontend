@@ -459,6 +459,11 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
   continua verde (o erro é em 1 MB), mas o teto precisa de decisão antes dos PRs 4 e 5. Os tokens de marca
   e as utilities da landing moram no `styles.css` global, então eles **sempre** contam no inicial, mesmo com
   a página inteira em chunk lazy.
+  **O PR A não muda o inicial (501,50 kB). Com o PR J (jornada 3D): 504,35 kB / 126,83 kB gzip**, `+2,85 kB`,
+  e nada disso é o player (ele está no chunk adiado `jornada-milho`, 20,5 kB): ~0,93 kB são as utilities
+  Tailwind novas do template, que o Tailwind v4 põe no CSS global; ~0,99 kB é código do Angular que o chunk
+  da jornada passou a dividir com o inicial; e ~0,9 kB é o `main` partido em chunks comuns (o
+  `PreferenciaMovimentoService` e os helpers do esbuild saíram dele para serem compartilhados).
 - **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
   conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
   de fechar painel do `app-layout`, e só depois de `Esc` passar a fechar os painéis de verdade.
