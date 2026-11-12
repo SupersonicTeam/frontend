@@ -116,6 +116,13 @@ export const routes: Routes = [
         canActivate: [contadorGuard],
         loadComponent: () => import('@pages/equipe/equipe').then((m) => m.EquipePage),
       },
+      {
+        // Modelos e obrigacoes (#185): o que o escritorio cobra e pede dos clientes. O catalogo
+        // de obrigacoes morava em Configuracoes, entre o tema e a senha, e ninguem o achava.
+        path: 'catalogo',
+        canActivate: [contadorGuard],
+        loadComponent: () => import('@pages/catalogo/catalogo').then((m) => m.CatalogoPage),
+      },
 
       // ── Dos dois, com **telas diferentes** por papel. Não é o mesmo componente com textos
       // trocados: `/tributario` escolhe entre dois componentes próprios, porque produtor e contador

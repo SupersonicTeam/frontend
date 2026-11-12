@@ -354,13 +354,30 @@
               </span>
             }
           </h2>
-          <ui-button variant="ghost" (click)="pedindo.set(!pedindo())">
+          <ui-button variant="ghost" (click)="alternarPedido()">
             {{ pedindo() ? 'Fechar' : 'Pedir documento' }}
           </ui-button>
         </div>
 
         @if (pedindo()) {
           <div class="mt-3 space-y-3 rounded-controle border border-border bg-surface p-3">
+            <!-- Usar um modelo (#185): so preenche os campos abaixo. Quem envia continua sendo
+                 o contador, depois de ajustar. Sem modelo no escritorio, a linha nem aparece. -->
+            @if (modelos().length) {
+              <label class="block">
+                <span class="text-apoio font-medium text-foreground">Usar um modelo</span>
+                <select
+                  class="tap-target mt-1 w-full rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
+                  (change)="usarModelo($any($event.target).value)"
+                >
+                  <option value="">Escrever do zero</option>
+                  @for (m of modelos(); track m.id) {
+                    <option [value]="m.id">{{ m.titulo }}</option>
+                  }
+                </select>
+              </label>
+            }
+
             <label class="block">
               <span class="text-apoio font-medium text-foreground">O que você precisa</span>
               <input
@@ -393,6 +410,32 @@
                 }
               </div>
             </fieldset>
+
+            <!-- Detalhes e observacoes (#185): o servidor sempre aceitou os dois, mas o formulario
+                 nao os mostrava. Com o modelo preenchendo-os, o contador precisa ve-los para
+                 ajustar antes de enviar. -->
+            <label class="block">
+              <span class="text-apoio font-medium text-foreground">Detalhes (opcional)</span>
+              <textarea
+                rows="2"
+                maxlength="1000"
+                [value]="novaDescricao()"
+                (input)="novaDescricao.set($any($event.target).value)"
+                class="mt-1 w-full rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
+              ></textarea>
+            </label>
+            <label class="block">
+              <span class="text-apoio font-medium text-foreground">
+                Observações ao produtor (opcional)
+              </span>
+              <textarea
+                rows="2"
+                maxlength="1000"
+                [value]="novasObservacoes()"
+                (input)="novasObservacoes.set($any($event.target).value)"
+                class="mt-1 w-full rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
+              ></textarea>
+            </label>
 
             <div class="flex flex-wrap items-end gap-3">
               <label class="block">
