@@ -1,5 +1,5 @@
 /* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
-   landing; tema escuro pela classe .dark do ThemeService; movimento reduzido pela classe
+   landing, sempre escura (classe .dark na raiz); movimento reduzido pela classe
    .movimento-reduzido do PreferenciaMovimentoService. */
 
 /* Layout: faixas de largura total alternando fundo, conteúdo em coluna de 72rem; grade 6/6 no hero,
@@ -44,7 +44,7 @@
   --raio: 14px;
   --raio-ctl: 10px;
 }
-.dark .lp {
+.lp.dark {
   --bg: hsl(150 18% 9%);
   --surface2: hsl(150 16% 12%);
   --card: hsl(150 16% 13%);

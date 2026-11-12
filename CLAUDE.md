@@ -357,7 +357,9 @@ A landing completa: cabeçalho, hero, a jornada 3D, "O que muda", calendário da
 diferenciais, Ceres, pronto hoje, planos, perguntas, chamada final e rodapé. **Markup e CSS vêm da prévia estática da especificação**
 (`rascunhos/previa-landing/previa-landing.html`, fora do git), que continua sendo a referência de texto e de layout.
 
-- **CSS da página, não do app**: tokens próprios escopados em `.lp` (a raiz do template), tema escuro por `.dark .lp` (o `ThemeService`),
+- **CSS da página, não do app**: tokens próprios escopados em `.lp` (a raiz do template). **A landing é sempre escura** (pedido do Luiz, 12/11): a raiz é
+  `.lp.dark`, o que também escurece os tokens do Tailwind da jornada, e a jornada recebe `temaFixo="escuro"` (marca escura). Voltar a
+  seguir o `ThemeService` é tirar o `dark` da raiz e o `temaFixo`;
   movimento reduzido por `.movimento-reduzido`. `ViewEncapsulation.None`, para o CSS da prévia valer como está. Os seletores de elemento
   são `:where(.lp) h1`, `:where(.lp) a`…: com `.lp a` a regra ganhava do `.btn-primario` e o botão perdia o texto. O CSS está dividido
   por seção (`landing-*.css`) porque o orçamento é **por arquivo** (aviso em 4 kB).

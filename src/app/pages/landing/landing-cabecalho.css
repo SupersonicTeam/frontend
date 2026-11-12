@@ -1,5 +1,5 @@
 /* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
-   landing; tema escuro pela classe .dark do ThemeService; movimento reduzido pela classe
+   landing, sempre escura (classe .dark na raiz); movimento reduzido pela classe
    .movimento-reduzido do PreferenciaMovimentoService. */
 
 /* 3.1 Cabeçalho */
@@ -40,10 +40,10 @@ header.topo .miolo {
 .logo .neg {
   display: none;
 }
-.dark .lp .logo .pos {
+.lp.dark .logo .pos {
   display: none;
 }
-.dark .lp .logo .neg {
+.lp.dark .logo .neg {
   display: block;
 }
 nav.secoes {

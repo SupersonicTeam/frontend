@@ -1,4 +1,4 @@
-<div class="lp">
+<div class="lp dark">
   <svg width="0" height="0" style="position: absolute" aria-hidden="true">
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
     <symbol id="i-alerta" viewBox="0 0 24 24">
@@ -241,7 +241,7 @@
 
     <!-- Jornada do milho em 3D (PR J): o chunk dela e o do Motion só chegam perto da seção. -->
     @defer (on viewport; prefetch on idle) {
-      <app-jornada-milho />
+      <app-jornada-milho temaFixo="escuro" />
     } @placeholder {
       <div class="jornada-reserva" aria-hidden="true"></div>
     }
