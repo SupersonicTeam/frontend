@@ -11,7 +11,35 @@ function noEnderecoDoEscritorio(): boolean {
   return inject(EscritorioDoHostService).modo() === 'escritorio';
 }
 
+/**
+ * A prévia da landing (#174) existe? **Só fora de produção.**
+ *
+ * `PREVIA_LANDING` é uma constante de **compilação** (`define` no `angular.json`: `true` na
+ * configuração `development`, `false` na `production`). Tem de ser assim, e não uma chave do
+ * `environment`: o empacotador troca a constante pelo valor antes de eliminar código morto, então
+ * em produção a rota, a página e o texto do caminho **somem do bundle**. Com a chave no
+ * `environment` (a primeira versão), o `false` ficava dentro de um objeto, nada era eliminado, e a
+ * prévia ia para o ar escondida atrás de um `if`. A CI confere (`conferir-build-producao.mjs`).
+ *
+ * O `typeof` cobre onde o `define` não chega (os testes): lá a constante não existe, e a prévia
+ * fica desligada em vez de estourar um `ReferenceError`.
+ */
+declare const PREVIA_LANDING: boolean | undefined;
+
+/** As rotas da prévia. Exportada para o spec conferir a rota sem depender da constante. */
+export function rotasDaPrevia(): Routes {
+  return [
+    {
+      path: 'previa-landing',
+      title: 'Prévia da landing | AgroConIA',
+      loadComponent: () =>
+        import('@pages/landing/previa-landing').then((m) => m.PreviaLandingPage),
+    },
+  ];
+}
+
 export const routes: Routes = [
+  ...(typeof PREVIA_LANDING !== 'undefined' && PREVIA_LANDING ? rotasDaPrevia() : []),
   // A tela de entrada fica FORA do `AppLayout`: o shell tem sidebar, sino de notificacoes e a
   // gaveta da Ceres, todos pedindo dado de um usuario que ainda nao existe. Ela tambem e a unica
   // rota sem `sessaoGuard` -- se estivesse guardada, quem nao tem sessao seria mandado para o
