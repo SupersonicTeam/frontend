@@ -1139,18 +1139,22 @@
         <div>
           <h3>Empresa</h3>
           <p class="apoio">AgroConIA é um produto da GWNext.</p>
-          <p class="pendente">Razão social, CNPJ e endereço: pendente (Murillo)</p>
-          <p class="apoio">contato&#64;gwnext.com.br</p>
+          <p class="apoio">{{ empresa.razaoSocial }}</p>
+          <p class="apoio">
+            CNPJ {{ empresa.cnpj }}
+            @if (empresa.cnpjProvisorio) {
+              (provisório)
+            }
+          </p>
+          <p class="apoio">{{ empresa.endereco }}</p>
+          <p class="apoio">{{ empresa.contato }}</p>
         </div>
         <div>
           <h3>Legal</h3>
           <ul>
             <li><a routerLink="/politica-dados">Política de dados</a></li>
           </ul>
-          <p class="apoio">
-            Encarregado de dados: <span class="pendente">identidade pendente (Murillo)</span> ·
-            contato&#64;gwnext.com.br
-          </p>
+          <p class="apoio">Encarregado de dados: {{ empresa.contato }}</p>
         </div>
         <div>
           <h3>Acesso</h3>

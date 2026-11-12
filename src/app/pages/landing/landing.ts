@@ -8,6 +8,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { PreferenciaMovimentoService } from '@core/services/preferencia-movimento.service';
+import { DADOS_EMPRESA } from './dados-empresa';
 import { JornadaMilho } from './jornada/jornada-milho';
 import {
   PERGUNTAS,
@@ -54,6 +55,7 @@ export class LandingPage {
   protected readonly planosProdutor = PLANOS_PRODUTOR;
   protected readonly planosEscritorio = PLANOS_ESCRITORIO;
   protected readonly perguntas = PERGUNTAS;
+  protected readonly empresa = DADOS_EMPRESA;
   protected readonly mailtoDoPlano = mailtoDoPlano;
   protected readonly rotuloDoPlano = rotuloDoPlano;
   protected readonly ano = new Date().getFullYear();
