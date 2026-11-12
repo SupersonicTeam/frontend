@@ -78,6 +78,18 @@ function formatarInstante(iso: string | null | undefined): string | null {
               class="font-medium text-primary underline"
               >{{ hostAtual() }}</a>, com a marca do escritório no login.
           </p>
+          <!-- Reservado, mas fora do ar (backend#520): o endereco so e servido depois que a
+               GWNext confere o CNPJ. Sem este aviso o link acima parece quebrado -- ele da 404
+               e o login pelo subdominio responde 401 ate a verificacao. -->
+          @if (escritorio().escritorioVerificado === false) {
+            <p
+              role="note"
+              class="rounded-controle border border-aviso-borda bg-aviso-soft px-3 py-2 text-apoio text-aviso-ink"
+            >
+              Endereço reservado. Ele entra no ar depois que o AgroConIA verificar o CNPJ do
+              escritório.
+            </p>
+          }
         } @else {
           <p class="text-apoio text-muted-foreground">
             O escritório ainda não tem endereço próprio. Com ele, a equipe entra por

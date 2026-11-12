@@ -29,6 +29,43 @@
             (input)="cnpj.set($any($event.target).value)"
           />
         </label>
+        <!-- Trocar o CNPJ de um escritorio verificado tira a verificacao na hora (backend#520):
+             o endereco proprio sai do ar ate a conferencia do CNPJ novo. O servidor nao
+             pergunta, entao quem avisa e a tela, antes do botao. -->
+        @if (trocaDeCnpjTiraVerificacao()) {
+          <p
+            role="alert"
+            class="rounded-controle border border-aviso-borda bg-aviso-soft px-3 py-2 text-apoio text-aviso-ink"
+          >
+            Este escritório está com o CNPJ verificado. Ao salvar um CNPJ diferente, a verificação é
+            desfeita na hora e o endereço do escritório sai do ar até o AgroConIA conferir o novo.
+          </p>
+        }
+        <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+          Telefone do escritório
+          <input
+            type="tel"
+            inputmode="numeric"
+            placeholder="(45) 3333-0000"
+            class="tap-target rounded-controle border bg-background px-3 text-apoio font-normal"
+            [class.border-border]="!erroDoTelefoneEditado()"
+            [class.border-perigo]="erroDoTelefoneEditado()"
+            [value]="telefone()"
+            (input)="mascararTelefone($event, 'edicao')"
+          />
+          @if (erroDoTelefoneEditado(); as erroTel) {
+            <span class="font-normal text-perigo-ink">{{ erroTel }}</span>
+          }
+        </label>
+        <fieldset class="flex flex-col gap-2 rounded-controle border border-border p-3">
+          <legend class="px-1 text-apoio font-medium text-foreground">
+            Endereço do escritório
+          </legend>
+          <p class="text-apoio text-muted-foreground">
+            Preencha inteiro ou deixe em branco: o endereço salvo substitui o anterior.
+          </p>
+          <app-endereco-postal [(endereco)]="endereco" [erros]="errosDoEnderecoEditado()" />
+        </fieldset>
         <div class="flex flex-wrap gap-2">
           <ui-button type="submit" [disabled]="!dadosValidos()" [carregando]="salvando()">
             Salvar
@@ -46,6 +83,21 @@
             {{ e.cnpj ? 'CNPJ ' + formatarCpfCnpj(e.cnpj) + ' · ' : '' }}você é
             <span class="font-medium text-foreground">{{ rotuloDaFuncao(e.minhaFuncao) }}</span>
           </p>
+          <!-- Tipo, telefone e endereco (#186). Escritorio antigo vem sem os dois ultimos. -->
+          @if (e.tipo) {
+            <p class="text-muted-foreground">
+              {{ pessoal() ? 'Conta pessoal' : 'Conta empresarial' }}
+              @if (e.escritorioVerificado) {
+                · CNPJ verificado
+              }
+            </p>
+          }
+          @if (e.telefone) {
+            <p class="text-muted-foreground">Telefone {{ mascaraTelefone(e.telefone) }}</p>
+          }
+          @if (e.endereco; as end) {
+            <p class="text-muted-foreground">{{ enderecoPorExtenso(end) }}</p>
+          }
         </div>
         @if (administrador()) {
           <ui-button variant="ghost" (click)="abrirEdicao()">Editar dados</ui-button>
@@ -55,7 +107,25 @@
 
     <!-- O endereco proprio do escritorio (#175), logo abaixo dos dados. So aparece com o endereco
          no ar; o componente decide o que cada funcao ve. -->
-    <app-endereco-escritorio [escritorio]="e" (mudou)="escritorio.set($event)" />
+    @if (pessoal()) {
+      <!-- Escritorio pessoal (#186): um usuario so, sem convite de equipe nem endereco proprio
+           (o servidor responde 409 ESCRITORIO_PESSOAL aos dois). Em vez de mostrar dois
+           formularios que falham, a tela oferece o caminho. -->
+      <div class="flex flex-col gap-2 rounded-controle border border-border bg-surface p-4">
+        <h3 class="text-apoio font-semibold text-foreground">Conta pessoal</h3>
+        <p class="text-apoio text-muted-foreground">
+          O escritório pessoal é de um usuário só: não tem equipe nem endereço próprio. Com a conta
+          empresarial você convida a equipe e escolhe o endereço do escritório.
+        </p>
+        @if (administrador()) {
+          <div>
+            <ui-button (click)="abrirTornarEmpresarial()">Tornar empresarial</ui-button>
+          </div>
+        }
+      </div>
+    } @else {
+      <app-endereco-escritorio [escritorio]="e" (mudou)="escritorio.set($event)" />
+    }
 
     <!-- A equipe. Todo membro ve; so o administrador troca funcao e remove. -->
     <ul class="divide-y divide-border">
@@ -90,7 +160,7 @@
       }
     </ul>
 
-    @if (administrador()) {
+    @if (administrador() && !pessoal()) {
       <div class="flex flex-col gap-2 border-t border-border pt-4">
         <h3 class="text-apoio font-semibold text-foreground">Convidar para a equipe</h3>
         <form
@@ -181,3 +251,87 @@
     </ui-button>
   </div>
 </ui-modal>
+
+@if (tornando()) {
+  <ui-modal
+    [aberto]="true"
+    titulo="Tornar o escritório empresarial"
+    descricao="Com a conta empresarial o escritório pode ter equipe e endereço próprio. Não dá para voltar a pessoal depois."
+    tamanho="md"
+    [travado]="tornandoAgora()"
+    (fechar)="tornando.set(false)"
+  >
+    <div class="flex flex-col gap-3">
+      @if (empErroGeral()) {
+        <p
+          role="alert"
+          class="rounded-controle border border-perigo-borda bg-perigo-soft px-3 py-2 text-apoio text-perigo-ink"
+        >
+          {{ empErroGeral() }}
+        </p>
+      }
+      <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+        Nome do escritório
+        <input
+          class="tap-target rounded-controle border bg-background px-3 text-apoio font-normal"
+          maxlength="255"
+          [class.border-border]="!empErros()['nome']"
+          [class.border-perigo]="empErros()['nome']"
+          [value]="empNome()"
+          (input)="empNome.set($any($event.target).value)"
+        />
+        @if (empErros()['nome']; as erroNome) {
+          <span class="font-normal text-perigo-ink">{{ erroNome }}</span>
+        }
+      </label>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+          CNPJ
+          <input
+            class="tap-target rounded-controle border bg-background px-3 text-apoio font-normal"
+            inputmode="numeric"
+            placeholder="00.000.000/0000-00"
+            [class.border-border]="!empDocumento.erro()"
+            [class.border-perigo]="empDocumento.erro()"
+            [value]="empDocumento.valor()"
+            (input)="empDocumento.digitar($event)"
+            (blur)="empDocumento.sair()"
+          />
+          @if (empDocumento.erro(); as erroCnpj) {
+            <span class="font-normal text-perigo-ink">{{ erroCnpj }}</span>
+          }
+        </label>
+        <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
+          Telefone
+          <input
+            type="tel"
+            inputmode="numeric"
+            placeholder="(45) 3333-0000"
+            class="tap-target rounded-controle border bg-background px-3 text-apoio font-normal"
+            [class.border-border]="!empErros()['telefone']"
+            [class.border-perigo]="empErros()['telefone']"
+            [value]="empTelefone()"
+            (input)="mascararTelefone($event, 'empresarial')"
+          />
+          @if (empErros()['telefone']; as erroTel) {
+            <span class="font-normal text-perigo-ink">{{ erroTel }}</span>
+          }
+        </label>
+      </div>
+      <app-endereco-postal [(endereco)]="empEndereco" [erros]="empErrosDoEndereco()" />
+    </div>
+
+    <div rodape class="flex flex-wrap justify-end gap-2">
+      <ui-button variant="ghost" [disabled]="tornandoAgora()" (click)="tornando.set(false)">
+        Cancelar
+      </ui-button>
+      <ui-button
+        [disabled]="!podeTornar()"
+        [carregando]="tornandoAgora()"
+        (click)="tornarEmpresarial()"
+      >
+        Tornar empresarial
+      </ui-button>
+    </div>
+  </ui-modal>
+}

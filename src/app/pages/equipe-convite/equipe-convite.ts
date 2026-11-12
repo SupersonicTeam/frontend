@@ -6,9 +6,16 @@ import { EncerramentoService } from '@core/services/encerramento.service';
 import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import { ToastService } from '@core/services/toast.service';
 import { falhaDaApi } from '@core/utils/erro-api';
+import type { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import { criarCampoCpfCnpj } from '@core/utils/campo-cpf-cnpj';
 import { soDigitos } from '@core/utils/mascaras';
 import { AuthApi, ContaError } from '@services/auth/data-access/auth.service';
+
+/** A `message` do envelope seguida da `suggestion`, quando o servidor mandou uma. */
+function mensagemComSugestao(erro: HttpErrorResponse, mensagem: string): string {
+  const sugestao = (erro.error as ApiErrorEnvelope | null)?.errors?.[0]?.suggestion?.trim();
+  return sugestao && !mensagem.includes(sugestao) ? `${mensagem} ${sugestao}` : mensagem;
+}
 
 /** A frase do backend quando chega um CNPJ no documento de quem entra pelo convite (#186). */
 const SO_CPF_NO_CONVITE =
@@ -103,11 +110,11 @@ export class EquipeConvitePage {
           EquipeConvitePage.esquecerToken();
           return;
         }
-        this.erro.set(
-          falha.codigo === 'ESCRITORIO_ATUAL_EM_USO'
-            ? 'O seu escritório atual ainda tem clientes ou equipe. Para entrar nesta equipe, encerre os vínculos e remova a equipe de lá antes.'
-            : falha.mensagem,
-        );
+        // O 409 `ESCRITORIO_ATUAL_EM_USO` tem **dois** motivos desde a backend#524: o escritório
+        // atual tem clientes ou equipe, ou quem aceita é administrador de um empresarial (que não
+        // entra em outra equipe nem sozinho). A frase fixa daqui só valia para o primeiro e
+        // mandaria o administrador "encerrar os vínculos" à toa — quem sabe o motivo é o servidor.
+        this.erro.set(mensagemComSugestao(erro, falha.mensagem));
       },
     });
   }

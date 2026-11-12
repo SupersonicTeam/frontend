@@ -28,6 +28,13 @@ export interface VinculoDoProdutor {
   encerradoPor?: 'PRODUTOR' | 'ESCRITORIO' | (string & {}) | null;
   /** O motivo escrito por quem encerrou, se houver. O do escritório aparece para o produtor. */
   motivoEncerramento?: string | null;
+  /** A GWNext conferiu a titularidade do CNPJ deste escritório (backend#520). */
+  escritorioVerificado?: boolean;
+  /**
+   * O CNPJ do escritório, só dígitos — **só quando verificado**; `null` sem verificação e com o
+   * escritório apagado. É ele que diz quem atende: o nome é texto livre.
+   */
+  escritorioCnpj?: string | null;
 }
 
 /**
@@ -50,6 +57,14 @@ export interface ConviteRecebido {
   situacao: string;
   criadoEm: string;
   expiraEm: string;
+  /**
+   * A GWNext conferiu a titularidade do CNPJ de quem convida (backend#520). **O nome do
+   * escritório é texto livre**: um cadastro qualquer pode convidar o produtor usando o nome de
+   * outro escritório. Sem verificação, a tela avisa antes do botão de aceitar.
+   */
+  escritorioVerificado?: boolean;
+  /** Só dígitos, e só quando verificado. */
+  escritorioCnpj?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })

@@ -72,6 +72,41 @@ describe('EnderecoEscritorio', () => {
     expect(texto(fixture)).not.toContain('Endereço do escritório');
   });
 
+  /**
+   * O endereço fica **reservado**, mas só é servido depois que a GWNext confere o CNPJ
+   * (backend#520): até lá o link dá 404 e o login pelo subdomínio responde 401. Sem o aviso, a
+   * tela mostra um endereço que parece quebrado.
+   */
+  describe('endereço reservado, esperando a verificação do CNPJ (#186)', () => {
+    const RESERVADO = 'Endereço reservado';
+
+    it('com slug e CNPJ ainda não verificado, avisa que ele entra no ar depois', () => {
+      const { fixture } = montar(escritorio({ slug: 'ruraloeste', escritorioVerificado: false }));
+
+      expect(texto(fixture)).toContain(RESERVADO);
+      expect(texto(fixture)).toContain('depois que o AgroConIA verificar o CNPJ');
+    });
+
+    it('verificado, o aviso some', () => {
+      const { fixture } = montar(escritorio({ slug: 'ruraloeste', escritorioVerificado: true }));
+
+      expect(texto(fixture)).not.toContain(RESERVADO);
+    });
+
+    /** Backend antigo não manda o campo: sem saber, a tela não inventa que está fora do ar. */
+    it('sem o campo, não avisa', () => {
+      const { fixture } = montar(escritorio({ slug: 'ruraloeste' }));
+
+      expect(texto(fixture)).not.toContain(RESERVADO);
+    });
+
+    it('sem endereço escolhido não há o que reservar', () => {
+      const { fixture } = montar(escritorio({ escritorioVerificado: false }));
+
+      expect(texto(fixture)).not.toContain(RESERVADO);
+    });
+  });
+
   it('todo membro vê o endereço como link, montado a partir do slug', () => {
     const { fixture } = montar(
       escritorio({
