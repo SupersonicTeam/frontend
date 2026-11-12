@@ -44,6 +44,7 @@ import { ligarInteracoes } from './landing-interacoes';
     './landing-meio.css',
     './landing-planos.css',
     './landing-final.css',
+    './landing-responsivo.css',
   ],
   encapsulation: ViewEncapsulation.None,
 })
