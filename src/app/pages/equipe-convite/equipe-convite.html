@@ -45,9 +45,9 @@
         @if (sessao.ehContador()) {
           <p class="text-apoio text-muted-foreground">
             Você entrou como
-            <span class="font-medium text-foreground">{{ sessao.nome() || 'contador' }}</span
-            >. Aceitando, esta conta passa a fazer parte da equipe do escritório que convidou. O
-            e-mail da conta precisa ser o mesmo do convite.
+            <span class="font-medium text-foreground">{{ sessao.nome() || 'contador' }}</span>.
+            Aceitando, esta conta passa a fazer parte da equipe do escritório que convidou. O e-mail
+            da conta precisa ser o mesmo do convite.
           </p>
           <ui-button [carregando]="enviando()" [blocoCompleto]="true" (click)="aceitar()">
             Entrar na equipe
@@ -75,7 +75,7 @@
               />
             </label>
             <label class="flex flex-col gap-1 text-apoio font-medium text-foreground">
-              CPF ou CNPJ
+              Seu CPF
               <input
                 #campoDocumento
                 class="tap-target rounded-controle border bg-background px-3 text-apoio"
@@ -105,6 +105,21 @@
                 (input)="senha.set($any($event.target).value)"
               />
               <span class="font-normal text-muted-foreground">Pelo menos 10 caracteres.</span>
+            </label>
+            <!-- O mesmo aceite do /cadastro (#186): toda conta passa por ele. -->
+            <label class="flex items-start gap-2 text-apoio text-foreground">
+              <input
+                type="checkbox"
+                class="mt-1"
+                [checked]="aceiteTermos()"
+                (change)="aceiteTermos.set($any($event.target).checked)"
+              />
+              <span>
+                Li e aceito os Termos de uso e a
+                <a routerLink="/politica-dados" class="font-medium text-primary hover:underline"
+                  >Política de privacidade</a
+                >.
+              </span>
             </label>
             <ui-button
               type="submit"

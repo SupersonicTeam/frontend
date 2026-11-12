@@ -103,6 +103,7 @@ describe('EquipeConvitePage', () => {
     cmp.nome.set(' Ana Souza ');
     cmp.cpfCnpj.set('529.982.247-25');
     cmp.senha.set('uma-senha-longa');
+    cmp.aceiteTermos.set(true);
     cmp.cadastrar();
 
     const req = httpMock.expectOne('/auth/cadastro/equipe');
@@ -111,6 +112,7 @@ describe('EquipeConvitePage', () => {
       nomeCompleto: 'Ana Souza',
       cpfCnpj: '52998224725',
       senha: 'uma-senha-longa',
+      aceiteTermos: true,
     });
     req.flush(null, { status: 201, statusText: 'Created' });
     expect(navegou).toContain('/login');
@@ -121,6 +123,7 @@ describe('EquipeConvitePage', () => {
     cmp.nome.set('Ana Souza');
     cmp.cpfCnpj.set('123.456.789-00');
     cmp.senha.set('uma-senha-longa');
+    cmp.aceiteTermos.set(true);
     cmp.cadastrar();
 
     httpMock.expectNone('/auth/cadastro/equipe');

@@ -61,7 +61,14 @@
                 [checked]="papel() === opcao.valor"
                 (change)="papel.set($any(opcao.valor))"
               />
-              {{ opcao.rotulo }}
+              <!-- Com a conta empresarial, "Contador" vira "Escritorio" (#186). O texto novo
+                   entra num elemento novo, e a animacao de entrada roda sozinha; com movimento
+                   reduzido a regra global de `styles.css` zera a duracao e ele so aparece. -->
+              @if (opcao.valor === 'CONTADOR' && ehEmpresarial()) {
+                <span class="roleta">Escritório</span>
+              } @else {
+                <span class="roleta">{{ opcao.rotulo }}</span>
+              }
             </label>
           }
         </div>
@@ -84,8 +91,10 @@
       </div>
 
       <div>
+        <!-- O documento do contador é o **da pessoa** (#186): o CNPJ do escritório tem campo
+             próprio, lá embaixo. O backend recusa CNPJ aqui, e o rótulo diz isso antes. -->
         <label for="cad-doc" class="mb-1.5 block text-apoio font-medium text-foreground">
-          CPF ou CNPJ
+          {{ ehContador() ? 'Seu CPF' : 'CPF ou CNPJ' }}
         </label>
         <input
           #campoDocumento
@@ -156,6 +165,415 @@
           <p id="cad-senha-dica" class="mt-1.5 text-apoio text-muted-foreground">
             No mínimo 10 caracteres, e que não contenha o seu e-mail nem o seu CPF/CNPJ.
           </p>
+        }
+      </div>
+
+      @if (ehContador()) {
+        <div>
+          <label for="cad-crc" class="mb-1.5 block text-apoio font-medium text-foreground">
+            CRC <span class="font-normal text-muted-foreground">(opcional)</span>
+          </label>
+          <input
+            id="cad-crc"
+            name="crc"
+            type="text"
+            maxlength="20"
+            placeholder="PR-012345/O"
+            class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+            [class.border-border]="!erroEm('crc')"
+            [class.border-perigo]="erroEm('crc')"
+            [value]="crc()"
+            (input)="crc.set($any($event.target).value)"
+          />
+          @if (erroEm('crc'); as e) {
+            <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+          }
+        </div>
+
+        <!-- Pessoal x empresarial (#186). O pessoal e o que existia antes: o escritorio nasce
+             com o nome da pessoa e um membro so, e vira empresarial depois, pela aba Equipe. -->
+        <fieldset>
+          <legend class="mb-1.5 block text-apoio font-medium text-foreground">Tipo de conta</legend>
+          <div class="grid gap-2 sm:grid-cols-2">
+            @for (
+              opcao of [
+                { valor: 'PESSOAL', rotulo: 'Pessoal', ajuda: 'Só você, com o seu nome' },
+                {
+                  valor: 'EMPRESARIAL',
+                  rotulo: 'Empresarial',
+                  ajuda: 'Escritório com CNPJ e equipe',
+                },
+              ];
+              track opcao.valor
+            ) {
+              <label
+                class="flex cursor-pointer flex-col gap-0.5 rounded-controle border bg-background px-3 py-2 text-apoio"
+                [class.border-border]="tipoConta() !== opcao.valor"
+                [class.border-primary]="tipoConta() === opcao.valor"
+              >
+                <span class="flex items-center gap-2">
+                  <input
+                    type="radio"
+                    name="tipoConta"
+                    class="accent-primary"
+                    [value]="opcao.valor"
+                    [checked]="tipoConta() === opcao.valor"
+                    (change)="tipoConta.set($any(opcao.valor))"
+                  />
+                  <span [class.font-medium]="tipoConta() === opcao.valor">{{ opcao.rotulo }}</span>
+                </span>
+                <span class="pl-6 text-muted-foreground">{{ opcao.ajuda }}</span>
+              </label>
+            }
+          </div>
+          @if (erroEm('tipoConta'); as e) {
+            <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+          }
+        </fieldset>
+      }
+
+      @if (ehContador() && !ehEmpresarial()) {
+        <div>
+          <label for="cad-tel" class="mb-1.5 block text-apoio font-medium text-foreground">
+            Telefone <span class="font-normal text-muted-foreground">(opcional)</span>
+          </label>
+          <input
+            id="cad-tel"
+            name="telefone"
+            type="tel"
+            inputmode="numeric"
+            autocomplete="tel"
+            placeholder="(45) 99999-0000"
+            class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+            [class.border-border]="!erroDoTelefonePessoal() && !erroEm('telefone')"
+            [class.border-perigo]="erroDoTelefonePessoal() || erroEm('telefone')"
+            [value]="telefone()"
+            (input)="mascararTelefone($event, 'pessoa')"
+          />
+          @if (erroDoTelefonePessoal() ?? erroEm('telefone'); as e) {
+            <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+          }
+        </div>
+      }
+
+      @if (ehEmpresarial()) {
+        <fieldset class="space-y-4 rounded-card border border-border bg-surface p-4">
+          <legend class="px-1 text-apoio font-medium text-foreground">Dados do escritório</legend>
+
+          <div>
+            <label for="esc-nome" class="mb-1.5 block text-apoio font-medium text-foreground">
+              Nome do escritório
+            </label>
+            <input
+              id="esc-nome"
+              name="escNome"
+              type="text"
+              maxlength="255"
+              class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+              [class.border-border]="!erroEm('escritorio.nome')"
+              [class.border-perigo]="erroEm('escritorio.nome')"
+              [value]="escNome()"
+              (input)="escNome.set($any($event.target).value)"
+            />
+            @if (erroEm('escritorio.nome'); as e) {
+              <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+            }
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label for="esc-cnpj" class="mb-1.5 block text-apoio font-medium text-foreground">
+                CNPJ do escritório
+              </label>
+              <input
+                id="esc-cnpj"
+                name="escCnpj"
+                type="text"
+                inputmode="numeric"
+                placeholder="00.000.000/0000-00"
+                class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                [class.border-border]="!escDocumento.erro()"
+                [class.border-perigo]="escDocumento.erro()"
+                [value]="escDocumento.valor()"
+                (input)="escDocumento.digitar($event)"
+                (blur)="escDocumento.sair()"
+              />
+              @if (escDocumento.erro(); as e) {
+                <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+              }
+            </div>
+
+            <div>
+              <label for="esc-tel" class="mb-1.5 block text-apoio font-medium text-foreground">
+                Telefone do escritório
+              </label>
+              <input
+                id="esc-tel"
+                name="escTelefone"
+                type="tel"
+                inputmode="numeric"
+                placeholder="(45) 3333-0000"
+                class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                [class.border-border]="
+                  !erroDoTelefoneEscritorio() && !erroEm('escritorio.telefone')
+                "
+                [class.border-perigo]="erroDoTelefoneEscritorio() || erroEm('escritorio.telefone')"
+                [value]="escTelefone()"
+                (input)="mascararTelefone($event, 'escritorio')"
+              />
+              @if (erroDoTelefoneEscritorio() ?? erroEm('escritorio.telefone'); as e) {
+                <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+              }
+            </div>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label for="esc-cep" class="mb-1.5 block text-apoio font-medium text-foreground">
+                CEP
+              </label>
+              <input
+                id="esc-cep"
+                name="escCep"
+                type="text"
+                inputmode="numeric"
+                placeholder="85810-000"
+                class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                [class.border-border]="!erroEm('escritorio.endereco.cep')"
+                [class.border-perigo]="erroEm('escritorio.endereco.cep')"
+                [value]="escCep()"
+                (input)="mascararCep($event)"
+              />
+              @if (erroEm('escritorio.endereco.cep'); as e) {
+                <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+              }
+            </div>
+
+            <div>
+              <label for="esc-numero" class="mb-1.5 block text-apoio font-medium text-foreground">
+                Número
+              </label>
+              <input
+                id="esc-numero"
+                name="escNumero"
+                type="text"
+                maxlength="60"
+                class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                [class.border-border]="!erroEm('escritorio.endereco.numero')"
+                [class.border-perigo]="erroEm('escritorio.endereco.numero')"
+                [value]="escNumero()"
+                (input)="escNumero.set($any($event.target).value)"
+              />
+              @if (erroEm('escritorio.endereco.numero'); as e) {
+                <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+              }
+            </div>
+          </div>
+
+          <div>
+            <label for="esc-logradouro" class="mb-1.5 block text-apoio font-medium text-foreground">
+              Logradouro
+            </label>
+            <input
+              id="esc-logradouro"
+              name="escLogradouro"
+              type="text"
+              maxlength="60"
+              class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+              [class.border-border]="!erroEm('escritorio.endereco.logradouro')"
+              [class.border-perigo]="erroEm('escritorio.endereco.logradouro')"
+              [value]="escLogradouro()"
+              (input)="escLogradouro.set($any($event.target).value)"
+            />
+            @if (erroEm('escritorio.endereco.logradouro'); as e) {
+              <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+            }
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label
+                for="esc-complemento"
+                class="mb-1.5 block text-apoio font-medium text-foreground"
+              >
+                Complemento <span class="font-normal text-muted-foreground">(opcional)</span>
+              </label>
+              <input
+                id="esc-complemento"
+                name="escComplemento"
+                type="text"
+                maxlength="60"
+                class="tap-target w-full rounded-controle border border-border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                [value]="escComplemento()"
+                (input)="escComplemento.set($any($event.target).value)"
+              />
+            </div>
+
+            <div>
+              <label for="esc-bairro" class="mb-1.5 block text-apoio font-medium text-foreground">
+                Bairro
+              </label>
+              <input
+                id="esc-bairro"
+                name="escBairro"
+                type="text"
+                maxlength="60"
+                class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                [class.border-border]="!erroEm('escritorio.endereco.bairro')"
+                [class.border-perigo]="erroEm('escritorio.endereco.bairro')"
+                [value]="escBairro()"
+                (input)="escBairro.set($any($event.target).value)"
+              />
+              @if (erroEm('escritorio.endereco.bairro'); as e) {
+                <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+              }
+            </div>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-[1fr_6rem]">
+            <div>
+              <label
+                for="esc-municipio"
+                class="mb-1.5 block text-apoio font-medium text-foreground"
+              >
+                Município
+              </label>
+              <input
+                id="esc-municipio"
+                name="escMunicipio"
+                type="text"
+                maxlength="60"
+                class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                [class.border-border]="!erroEm('escritorio.endereco.municipio')"
+                [class.border-perigo]="erroEm('escritorio.endereco.municipio')"
+                [value]="escMunicipio()"
+                (input)="escMunicipio.set($any($event.target).value)"
+              />
+              @if (erroEm('escritorio.endereco.municipio'); as e) {
+                <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+              }
+            </div>
+
+            <div>
+              <label for="esc-uf" class="mb-1.5 block text-apoio font-medium text-foreground">
+                UF
+              </label>
+              <select
+                id="esc-uf"
+                name="escUf"
+                class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+                [class.border-border]="!erroEm('escritorio.endereco.uf')"
+                [class.border-perigo]="erroEm('escritorio.endereco.uf')"
+                [value]="escUf()"
+                (change)="escUf.set($any($event.target).value)"
+              >
+                <option value="">—</option>
+                @for (uf of ufs; track uf) {
+                  <option [value]="uf">{{ uf }}</option>
+                }
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label for="esc-ibge" class="mb-1.5 block text-apoio font-medium text-foreground">
+              Código do município no IBGE
+            </label>
+            <input
+              id="esc-ibge"
+              name="escIbge"
+              type="text"
+              inputmode="numeric"
+              maxlength="7"
+              placeholder="4104808"
+              aria-describedby="esc-ibge-ajuda"
+              class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+              [class.border-border]="!erroEm('escritorio.endereco.codigoMunicipioIbge')"
+              [class.border-perigo]="erroEm('escritorio.endereco.codigoMunicipioIbge')"
+              [value]="escIbge()"
+              (input)="escIbge.set($any($event.target).value)"
+            />
+            <p id="esc-ibge-ajuda" class="mt-1.5 text-apoio text-muted-foreground">
+              São 7 dígitos, do mesmo estado da UF acima. É o mesmo código que vai na nota fiscal.
+            </p>
+            @if (erroEm('escritorio.endereco.codigoMunicipioIbge'); as e) {
+              <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
+            }
+          </div>
+
+          <!-- O endereco proprio (#175). Aqui ele nasce junto com a conta e NAO conta para a
+               carencia de 30 dias: a aba Equipe ja pode troca-lo logo depois. -->
+          <div>
+            <label for="esc-slug" class="mb-1.5 block text-apoio font-medium text-foreground">
+              Endereço do escritório
+            </label>
+            <input
+              id="esc-slug"
+              name="escSlug"
+              type="text"
+              inputmode="url"
+              autocapitalize="off"
+              spellcheck="false"
+              maxlength="32"
+              placeholder="campoverde"
+              aria-describedby="esc-slug-ajuda"
+              class="tap-target w-full rounded-controle border bg-background px-3 text-valor focus:ring-2 focus:ring-primary/30 focus:outline-none"
+              [class.border-border]="!erroDoSlug() && !erroEm('escritorio.slug')"
+              [class.border-perigo]="erroDoSlug() || erroEm('escritorio.slug')"
+              [value]="escSlug()"
+              (input)="escSlug.set($any($event.target).value)"
+            />
+            <p id="esc-slug-ajuda" class="mt-1.5 text-apoio">
+              @if (erroDoSlug() ?? erroEm('escritorio.slug'); as e) {
+                <span class="text-perigo-ink">{{ e }}</span>
+              } @else if (previaDoEndereco(); as previa) {
+                <span class="text-muted-foreground">O endereço vai ser {{ previa }}</span>
+              } @else {
+                <span class="text-muted-foreground">
+                  É por onde a sua equipe e os seus clientes entram.
+                </span>
+              }
+            </p>
+          </div>
+
+          <label class="flex items-start gap-2 text-apoio text-foreground">
+            <input
+              type="checkbox"
+              class="mt-1"
+              name="escCiente"
+              [checked]="escCiente()"
+              (change)="escCiente.set($any($event.target).checked)"
+            />
+            <span>
+              O endereço fica público e permanente em registros de certificados da internet. Não use
+              o seu nome pessoal.
+            </span>
+          </label>
+          @if (erroEm('escritorio.cienteExposicaoPublica'); as e) {
+            <p class="text-apoio text-perigo-ink">{{ e }}</p>
+          }
+        </fieldset>
+      }
+
+      <!-- O aceite vale para toda conta (#186). O backend grava a data e a versao do texto. -->
+      <div>
+        <label class="flex items-start gap-2 text-apoio text-foreground">
+          <input
+            type="checkbox"
+            class="mt-1"
+            name="aceiteTermos"
+            [checked]="aceiteTermos()"
+            (change)="aceiteTermos.set($any($event.target).checked)"
+          />
+          <span>
+            Li e aceito os Termos de uso e a
+            <a routerLink="/politica-dados" class="font-medium text-primary hover:underline"
+              >Política de privacidade</a
+            >.
+          </span>
+        </label>
+        @if (erroEm('aceiteTermos'); as e) {
+          <p class="mt-1.5 text-apoio text-perigo-ink">{{ e }}</p>
         }
       </div>
 

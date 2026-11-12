@@ -62,6 +62,7 @@ import {
   statusNotaLabel,
   temArquivosFiscais,
 } from '@core/enums/status-nota-fiscal.enum';
+import { UFS } from '@core/utils/endereco';
 import { apenasUltimaChecagem, ehCampoDoProdutor, rotuloDoCampo } from '@core/utils/validacoes';
 import {
   salvarBlob,
@@ -108,36 +109,6 @@ const emptyItem = (): ItemForm => ({
   valorUnitario: '',
   valorTotal: '',
 });
-
-const UFS = [
-  'AC',
-  'AL',
-  'AM',
-  'AP',
-  'BA',
-  'CE',
-  'DF',
-  'ES',
-  'GO',
-  'MA',
-  'MG',
-  'MS',
-  'MT',
-  'PA',
-  'PB',
-  'PE',
-  'PI',
-  'PR',
-  'RJ',
-  'RN',
-  'RO',
-  'RR',
-  'RS',
-  'SC',
-  'SE',
-  'SP',
-  'TO',
-];
 
 /** Quanto a busca espera depois da última tecla antes de ir ao servidor (#116). */
 const DEBOUNCE_BUSCA_MS = 300;

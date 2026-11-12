@@ -12,7 +12,8 @@ import {
   type LocalizacaoAtual,
 } from '@core/utils/host-escritorio';
 import type { Escritorio } from '@services/escritorio/data-access/escritorio.service';
-import { EnderecoEscritorio, erroDoFormatoDoSlug } from './endereco-escritorio';
+import { erroDoFormatoDoSlug } from '@core/utils/endereco';
+import { EnderecoEscritorio } from './endereco-escritorio';
 
 const PROD = 'agroconia.com.br';
 
