@@ -21,6 +21,7 @@ import { routes } from './app.routes';
 import { authInterceptor } from '@core/interceptors/auth.interceptor';
 import { apiInterceptor } from '@core/interceptors/api.interceptor';
 import { ThemeService } from '@core/services/theme.service';
+import { PreferenciaMovimentoService } from '@core/services/preferencia-movimento.service';
 import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
 import {
   AMBIENTE_DE_RECARGA,
@@ -55,6 +56,10 @@ export const appConfig: ApplicationConfig = {
     // saía do app no escuro levava a classe `.dark` sobrando para o login da mesma aba.
     provideAppInitializer(() => {
       inject(ThemeService);
+      // Mesma razão do tema (#174, item 5.3): quem escolheu "Reduzir animações" não pode
+      // ver a primeira animação antes de o serviço nascer. Ele põe a classe
+      // `movimento-reduzido` no `<html>`, que o CSS global de `styles.css` observa.
+      inject(PreferenciaMovimentoService);
     }),
     provideAppInitializer(liberarRecargaAoNavegar),
     // O escritório do endereço (#175): no host principal termina na hora, sem requisição; num

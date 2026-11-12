@@ -209,6 +209,7 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `NotificacoesService` | Estado **local** de notificações da UI (signal). Não confundir com `NotificacaoApi`. |
 | `ToastService` | Toasts (auto-dismiss 4s), renderizados por `ToastContainer`. |
 | `ThemeService` | Tema claro/escuro. |
+| `PreferenciaMovimentoService` | **Pode animar?** (#174, itens 5.1 e 5.3). `reduzido()` é o **OU** entre `prefers-reduced-motion` do aparelho (acompanhado em tempo real) e a escolha do visitante no botão "Reduzir animações" (`localStorage` `agro-movimento`, só o lado "ligado" — desligar o botão **não** passa por cima da preferência do sistema). Põe a classe `movimento-reduzido` no `<html>`, que o CSS global observa, e nasce num `provideAppInitializer` junto do tema: esperando a primeira injeção, quem pediu menos movimento veria a animação de abertura. Fonte única — o `AnimacaoLandingService` (PR A) e o template leem este mesmo signal. |
 | `SessaoService` | **Quem está logado** (#93): token, validade, `usuarioId`, `papel` e `nome`, persistidos em `localStorage` (`agrocontabil.sessao`). `ehProdutor()`/`ehContador()`/`logado()`/`homeDoPerfil()`/`expirado()`. Substituiu o `PerfilService` (papel escolhido num storage editável), o `TokenService` (devolvia `null`) e o `IdentidadeService` (o `X-Usuario-Id`, com o UUID do contador cravado). **O que vem do storage é validado** — sessão meia-boca vira ausência de sessão. Ouve o evento `storage` para acompanhar a outra aba, e **separa renovação de troca de usuário**: mesma pessoa com token novo é adotada; outra pessoa (ou ninguém) **recarrega a página**, porque trocar o signal deixaria os caches `root` com o dado de quem estava aqui — ver a nota abaixo. |
 | `ClienteEmFocoService` | O cliente da carteira que o contador está atendendo, **entre telas** (#136). Só o id; quem valida contra a carteira é o `SeletorCliente`. |
 | `EncerramentoService` | **Sair** — um lugar só, porque há dois caminhos (botão Sair e renovação que falhou). Avisa o servidor (`POST /auth/logout`), **limpa os caches de sessão** (`DashboardApi`, `AssistenteStore`, `NotificacoesService`, `ClienteEmFocoService`, `EscritorioApi`, `AuthApi`) e vai ao `/login`. Os services são `root` e sobrevivem à troca de usuário: era assim que a topbar do contador exibia o nome do produtor da sessão anterior. **Service `root` novo que guarde resposta do servidor em signal entra nesta lista.** |
@@ -310,6 +311,24 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
     processador, então `import.meta.glob('/src/styles.css', {query:'?raw'})` devolve string vazia.
   - **Superfícies** `surface` e `surface-2` (neutros com viés verde), **sombras** `shadow-suave|media|alta|assistente`
     e **raios** `rounded-controle|card|destaque`.
+- **Tokens de marca da landing (#174, PR 3)** — tirados da logo, em hex de propósito (converter para HSL
+  arredondaria a cor da marca). **Nenhuma tela do app os usa**; são para a página pública:
+  - `marca-profunda` (#1B4630; no escuro aponta para `surface-2`, porque verde quase preto sobre fundo
+    quase preto não separa nada), `marca-lima`, `marca-lima-ink` (o texto que vai **sobre** o lima) e
+    `marca-teal`.
+  - Contrastes **medidos** (o script fica no histórico do PR; a tabela da issue dá 10,9:1 para o lima, mas
+    esse número é do lima **escuro**): `marca-profunda`/branco 10,69:1; `marca-lima`/`marca-lima-ink`
+    6,80:1 no claro e 10,84:1 no escuro; `marca-teal`/branco **3,48:1 no claro e 2,61:1 no escuro —
+    reprova para texto normal**, então é decoração ou texto ≥ 24px. O `accent` laranja continua de fora
+    (2,90:1 com branco e sem par no `.dark`).
+  - Utility `bg-gradiente-marca` (135°, lima → teal). Só no brilho do hero, na borda do card recomendado,
+    no fundo dos ícones dos diferenciais e num sublinhado do H1. **Nunca atrás de texto.**
+- **Movimento reduzido tem dois gatilhos** (#174, item 5.1): o `@media (prefers-reduced-motion: reduce)` e a
+  classe `.movimento-reduzido` no `<html>` (o `PreferenciaMovimentoService`). As declarações estão
+  **repetidas** nos dois blocos de `styles.css` porque um `@media` não entra em lista de seletor — mexeu em
+  um, mexa no outro. Entrou também `animation-delay: 0s`: com `fill-mode: both`, zerar só a duração deixava o
+  item que espera a vez (entrada escalonada) **invisível** em vez de imediato. A linha `animation-timeline`
+  da especificação **não** entra: nada aqui é ligado à rolagem por CSS.
 
 ## Primitivos de UI (`shared/ui/`, #45)
 
@@ -324,7 +343,15 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `<ui-empty-state>` | Estado vazio com saída (slot `[acao]`), no lugar de texto solto. |
 | `<ui-skeleton>` | Carregamento com a forma do conteúdo, no lugar de spinner. |
 | `<ui-table>` | Moldura de tabela: rolagem na moldura, cabeçalho fixo, densidade por contexto. |
-| `<ui-card>` / `<ui-button>` | Variantes `padrao/destaque/assistente/plano` e `primary/ghost/perigo/assistente/sutil`. O botão já garante 44×44 e rótulo ≥14px. |
+| `<ui-card>` / `<ui-button>` | Variantes `padrao/destaque/assistente/plano` e `primary/ghost/perigo/assistente/sutil/lima`. O botão já garante 44×44 e rótulo ≥14px. |
+| `<a uiLinkBotao>` | **CTA de navegação com cara de botão** (#174, item 4.4). Link é link: `<button>` dentro de `<a>` é HTML inválido e o leitor de tela anuncia dois controles. A diretiva só veste as classes; as estáticas do elemento continuam valendo. |
+
+**As classes do botão moram em `shared/ui/classes-botao.ts`** (`classesBotao(variante, tamanho, { blocoCompleto })`),
+compartilhadas por três formas: o `<ui-button>`, o `a[uiLinkBotao]` e o **`<button>` nativo** de quem tem
+`role`/`aria-pressed`/`aria-checked` próprios (abas, radiogroup) — o `UiButton` não repassa esses atributos ao
+botão interno. Antes era um `Record` dentro do `UiButton`, e o CTA que copiava a lista à mão saía com outro
+padding. A variante **`lima`** é só da faixa profunda da landing (`marca-lima` + `marca-lima-ink`).
+O `directive-selector` do ESLint aceita os prefixos `app` **e** `ui`, como o `component-selector` já aceitava.
 
 ## Utilitários compartilhados (`core/utils/`)
 
@@ -383,6 +410,13 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
   então o primeiro `abrir()`/`abrirSobreNota()` não se perde. Tem `@loading` (rede lenta) e `@error` (chunk
   que sumiu num deploy: oferece recarregar, porque o `@defer` não tenta de novo). Se apertar de novo, não
   corte a camada de IA.)
+  **Medido em 12/11 na `main`: 499,43 kB / 124,95 kB gzip. Com o PR 3 da landing (#174): 501,50 kB /
+  125,41 kB gzip** — `+2,07 kB` cru (`+0,46 kB` gzip), dos quais ~0,94 kB são CSS (os tokens nos dois temas,
+  as utilities da variante `lima` e o segundo bloco de movimento reduzido) e ~1 kB é o service, que vai no
+  inicial por nascer no `provideAppInitializer`. **Isso passa o aviso de 500 kB por 1,50 kB** — o build
+  continua verde (o erro é em 1 MB), mas o teto precisa de decisão antes dos PRs 4 e 5. Os tokens de marca
+  e as utilities da landing moram no `styles.css` global, então eles **sempre** contam no inicial, mesmo com
+  a página inteira em chunk lazy.
 - **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
   conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
   de fechar painel do `app-layout`, e só depois de `Esc` passar a fechar os painéis de verdade.
