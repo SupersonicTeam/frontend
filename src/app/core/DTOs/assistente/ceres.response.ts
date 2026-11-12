@@ -104,9 +104,22 @@ export type CeresEvento =
 export interface CeresUso {
   plano: string;
   habilitada: boolean;
+  /**
+   * Os três números do crédito. **Não vão à tela** desde a #184: o crédito virou 1 token, a cota
+   * semanal passou a 1.000.000 e uma pergunta custa uns 6.800 — números que não dizem nada ao
+   * produtor. Ficam no contrato porque a tela ainda precisa deles quando o backend é antigo e não
+   * manda o `percentualUsado`.
+   */
   creditosSemana: number;
   consumidos: number;
   restantes: number;
+  /**
+   * Quanto da semana já foi usado, inteiro de 0 a 100, calculado pelo backend (#184,
+   * backend#511): arredondado **para cima** (qualquer uso é ao menos 1%), no máximo 99 enquanto
+   * houver saldo, e 100 só quando acabou. É o único número de uso que a tela mostra. Ausente num
+   * backend antigo: a tela cai na conta com os créditos.
+   */
+  percentualUsado?: number;
   /** ISO com fuso. Quando a cota volta ao cheio. */
   renovaEm: string;
 }
