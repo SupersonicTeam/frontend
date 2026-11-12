@@ -330,6 +330,27 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
   item que espera a vez (entrada escalonada) **invisível** em vez de imediato. A linha `animation-timeline`
   da especificação **não** entra: nada aqui é ligado à rolagem por CSS.
 
+## Animação da landing (`shared/animacao/`, #174 PR A)
+
+A landing anima com o **Motion** (`motion@14.11.1`, MIT, versão **exata** no `package.json` — decisão do Murillo em 09/11, no lugar do GSAP).
+Nenhuma tela importa o pacote direto:
+
+- **`motion.lazy.ts`** é o **único** arquivo que importa `motion` (`animate`, `scroll`, `inView`). O `import()` dinâmico aponta para ele, e não
+  para o pacote, porque num `import('motion')` o empacotador guarda o módulo inteiro: o chunk caiu de **188 kB para 80,5 kB** (29,6 kB gzip).
+- **`CARREGAR_ANIMACAO`** (`carregar-animacao.ts`) é o token que faz esse `import()`. Os specs o trocam por um falso; trocar a fábrica por
+  `async () => null` deixa a landing inteira estática numa linha (o último corte da N5.2).
+- **`AnimacaoLandingService`**: `vaiAnimar()` (movimento liberado pelo `PreferenciaMovimentoService` **e** sem `saveData`) é o sinal único que o
+  template e o código leem; `carregar()` devolve `null` **sem baixar nada** quando ele é falso, e senão espera o `load` + um momento ocioso antes
+  do `import()`. Uma promessa por página; erro de import vira `null`. Quem chama trata `null` como "fique no estado final".
+- **`Cena`** (`cena.ts`) junta o que uma cena criou — os controles do `animate()` e as limpezas do `scroll()`/`inView()` — e desfaz tudo num
+  `concluir()`. É o `context().revert()` que o Motion não tem: usar no `DestroyRef` e quando "Reduzir animações" liga no meio da cena.
+- **`movimento.ts`**: durações (em segundos) e curvas, **os mesmos valores** dos tokens `--duracao-*`/`--ease-*` do `styles.css`.
+- **No zoneless, nunca escreva em signal dentro de callback de quadro** (`scroll()`, `onUpdate`): cada escrita agenda uma renderização.
+
+A CI (`scripts/conferir-build-producao.mjs`) reprova se o Motion aparecer num `.js` do **carregamento inicial** (marcador
+`transformPerspective`, conferido nos dois sentidos com uma sonda) e se o `public/licencas-terceiros.txt` não citar a versão instalada — ao
+trocar a versão, releia a licença, atualize o arquivo e confira que o marcador continua no chunk.
+
 ## Primitivos de UI (`shared/ui/`, #45)
 
 Antes de escrever markup novo, veja se um destes resolve:
