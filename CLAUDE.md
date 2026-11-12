@@ -351,6 +351,27 @@ A CI (`scripts/conferir-build-producao.mjs`) reprova se o Motion aparecer num `.
 `transformPerspective`, conferido nos dois sentidos com uma sonda) e se o `public/licencas-terceiros.txt` não citar a versão instalada — ao
 trocar a versão, releia a licença, atualize o arquivo e confira que o marcador continua no chunk.
 
+## Jornada do milho em 3D (`pages/landing/jornada/`, #174 PR J)
+
+Seção da landing que troca de quadro conforme a rolagem, nos dois sentidos: sequências de imagens renderizadas no Blender (repo
+`Animation-Agroconia`), **fora do bundle**, descritas por um `manifesto.json` (a fonte da verdade: etapas, câmeras `16x9`/`9x18`, AVIF/WebP,
+quadros parados, `alt`). Não é vídeo nem 3D em tempo real.
+
+- **Rota `/previa-landing`** (`pages/landing/previa-landing.ts`): fora do `AppLayout`, sem guard, e **só fora de produção** — pela constante
+  de compilação `PREVIA_LANDING` (`define` no `angular.json`), não por chave do `environment` (o objeto não é eliminado e a rota ia para o
+  bundle). A CI reprova se `previa-landing` aparecer no carregamento inicial. O PR 9 troca a prévia pela landing em `/`.
+- **Quadros**: `environment.baseJornada` (`/jornada/v0.1/`), lido só pelo token `BASE_JORNADA`. Em dev, o `proxy.conf.json` leva `/jornada`
+  à porta **8765** (`jornada-quadros` no `launch.json`, servindo `rascunhos/jornada/`, fora do git). O manifesto é lido com `fetch` cru
+  (não `ApiService`: levaria `Bearer` e toast a um host de estáticos); manifesto que falha ou não confere = **a seção não aparece**.
+- **`percurso.ts`** (rolagem → etapa, quadro, fusão de 8% e a nota) e **`manifesto-jornada.ts`** (leitura defensiva: caminho relativo sem
+  `..`, `etapasDoTema`, URLs) são funções puras, com spec. **`jornada.store.ts`** baixa por janela de etapa e mantém no máximo
+  `LIMITE_DE_QUADROS_ABERTOS` quadros decodificados.
+- **Modo estático** (`vaiAnimar()` falso): só o manifesto e os 9 quadros parados, em lista, **nenhuma sequência**; "Reduzir animações" no
+  meio da seção desmonta a cena e volta ao topo dela. A etapa **marca** tem `marca-claro`/`marca-escuro`, com o fundo da página em cada tema:
+  se o `--color-background` mudar, ela precisa de render novo. A nota fiscal é HTML por cima do último quadro da etapa `nota`.
+- No `@defer (on viewport)` com HMR ligado (o `ng serve` padrão), o Angular carrega o chunk na hora (NG0751); para ver o adiamento de
+  verdade, `ng serve --no-hmr`. Com o painel do navegador escondido, nem o `IntersectionObserver` nem o `requestAnimationFrame` rodam.
+
 ## Primitivos de UI (`shared/ui/`, #45)
 
 Antes de escrever markup novo, veja se um destes resolve:
@@ -438,6 +459,11 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
   continua verde (o erro é em 1 MB), mas o teto precisa de decisão antes dos PRs 4 e 5. Os tokens de marca
   e as utilities da landing moram no `styles.css` global, então eles **sempre** contam no inicial, mesmo com
   a página inteira em chunk lazy.
+  **O PR A não muda o inicial (501,50 kB). Com o PR J (jornada 3D): 504,35 kB / 126,83 kB gzip**, `+2,85 kB`,
+  e nada disso é o player (ele está no chunk adiado `jornada-milho`, 20,5 kB): ~0,93 kB são as utilities
+  Tailwind novas do template, que o Tailwind v4 põe no CSS global; ~0,99 kB é código do Angular que o chunk
+  da jornada passou a dividir com o inicial; e ~0,9 kB é o `main` partido em chunks comuns (o
+  `PreferenciaMovimentoService` e os helpers do esbuild saíram dele para serem compartilhados).
 - **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
   conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
   de fechar painel do `app-layout`, e só depois de `Esc` passar a fechar os painéis de verdade.

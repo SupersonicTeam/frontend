@@ -20,6 +20,8 @@
 //    não é a instalada. O aviso de licença precisa chegar ao site (MIT: "included in all copies"),
 //    e o `3rdpartylicenses.txt` do Angular fica fora da pasta `browser/`, a única que o Dockerfile
 //    copia. Trocar a versão no `package.json` sem reler a licença reprova aqui.
+// 6. (#174, PR J) a rota `/previa-landing` chegou ao carregamento inicial: a prévia da landing é
+//    só de desenvolvimento, desligada por uma constante de compilação (`define` PREVIA_LANDING).
 //
 // Node puro, sem dependência. Uso: `node scripts/conferir-build-producao.mjs` (depois do build).
 
@@ -115,6 +117,15 @@ if (existsSync(indexHtml)) {
       falhas.push(
         `${nome} está no carregamento inicial e contém "${achado}": a biblioteca de animação ` +
           'só pode entrar por import() dinâmico (CARREGAR_ANIMACAO).',
+      );
+    }
+    // 6. A prévia da landing (#174) não existe em produção. As rotas moram no carregamento
+    // inicial; se o caminho da prévia aparecer ali, o `define` PREVIA_LANDING do `angular.json`
+    // deixou de valer `false` na configuração `production`.
+    if (conteudo.includes('previa-landing')) {
+      falhas.push(
+        `${nome} registra a rota "previa-landing": a prévia da landing só existe fora de ` +
+          'produção (define PREVIA_LANDING no angular.json).',
       );
     }
   }
