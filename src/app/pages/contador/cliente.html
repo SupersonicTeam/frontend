@@ -235,6 +235,10 @@
                       <p class="text-apoio text-muted-foreground">
                         De 5 a 500 caracteres. Fica no histórico da nota e é o que ele lê.
                       </p>
+                      <!-- #183: este texto pode ir junto na conversa da Ceres. -->
+                      <p class="text-apoio text-muted-foreground">
+                        {{ avisoTextoDoEscritorio }}
+                      </p>
                       <div class="flex flex-wrap gap-2">
                         <ui-button
                           [disabled]="!motivoValido()"
@@ -372,6 +376,8 @@
                 class="tap-target mt-1 w-full rounded-controle border border-border bg-background px-3 py-2 text-apoio text-foreground"
               />
             </label>
+            <!-- #183: o título do pedido é lido pelo produtor e pode ir à Ceres. -->
+            <p class="text-apoio text-muted-foreground">{{ avisoTextoDoEscritorio }}</p>
 
             <fieldset>
               <legend class="text-apoio font-medium text-foreground">Tipos aceitos</legend>
@@ -529,6 +535,8 @@
                     <p class="text-apoio text-muted-foreground">
                       De 5 a 500 caracteres. Este texto é o que o produtor lê no pedido dele.
                     </p>
+                    <!-- #183: este texto pode ir junto na conversa da Ceres. -->
+                    <p class="text-apoio text-muted-foreground">{{ avisoTextoDoEscritorio }}</p>
                     <div class="flex flex-wrap gap-2">
                       <ui-button
                         [disabled]="!motivoValido()"

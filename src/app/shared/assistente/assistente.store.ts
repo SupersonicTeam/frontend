@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { SessaoService } from '@core/services/sessao.service';
-import { TAMANHO_MAXIMO_PERGUNTA, etapaDaRota } from '@core/utils/ceres';
+import { MAX_TURNOS_HISTORICO, TAMANHO_MAXIMO_PERGUNTA, etapaDaRota } from '@core/utils/ceres';
 import { apenasUltimaChecagem } from '@core/utils/validacoes';
 import type { CeresResposta, RotaCeres } from '@dtos/assistente/ceres.response';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
@@ -12,6 +12,7 @@ import {
   CeresApi,
   CeresCancelada,
   CeresError,
+  type ContextoConversa,
 } from '@services/assistente/data-access/ceres.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
@@ -21,6 +22,15 @@ const TENTATIVAS_POR_PERGUNTA = 2;
 
 /** Espera padrão quando o 503 `ASSISTENTE_OCUPADO` vem sem `Retry-After`. */
 const ESPERA_PADRAO_SEGUNDOS = 5;
+
+/**
+ * Quanto esperar, depois de cancelar, para recarregar a cota (#183).
+ *
+ * Cancelar passou a custar o que já foi gasto: o backend percebe o cancelamento só na
+ * chamada seguinte ao modelo, então pedir o uso na hora traria o número de antes. O valor
+ * que a barra mostra nesse meio-tempo é provisório, e a próxima resposta o acerta.
+ */
+const ESPERA_USO_APOS_CANCELAR_MS = 5000;
 
 /**
  * Estado único da conversa com a **Ceres**, a assistente fiscal (issue #76).
@@ -97,6 +107,8 @@ export class AssistenteStore {
 
   private controle: AbortController | null = null;
   private esperaDeVaga: ReturnType<typeof setTimeout> | null = null;
+  /** Recarga da cota agendada depois de um cancelamento (#183). */
+  private esperaDoUso: ReturnType<typeof setTimeout> | null = null;
 
   readonly limiteDeCaracteres = TAMANHO_MAXIMO_PERGUNTA;
 
@@ -253,6 +265,12 @@ export class AssistenteStore {
    */
   limpar(): void {
     this.cancelar(false);
+    // Uma recarga de cota agendada por um cancelamento anterior não pode disparar depois
+    // do logout: ela chamaria `/assistente/uso` sem sessão e encheria o signal de novo.
+    if (this.esperaDoUso !== null) {
+      clearTimeout(this.esperaDoUso);
+      this.esperaDoUso = null;
+    }
     this.mensagens.set([]);
     this.entrada.set('');
     this.aberto.set(false);
@@ -273,9 +291,36 @@ export class AssistenteStore {
     if (!pergunta || this.enviando() || !this.disponivel()) return;
     if (pergunta.length > TAMANHO_MAXIMO_PERGUNTA) return;
 
+    // O contexto sai **antes** de a pergunta nova entrar na lista: ela não faz parte do
+    // histórico, e calcular depois a arrastaria para dentro dele.
+    const contexto = this.contextoDaConversa();
+
     this.entrada.set('');
     this.mensagens.update((lista) => [...lista, { autor: 'produtor', texto: pergunta }]);
-    void this.perguntar(pergunta, TENTATIVAS_POR_PERGUNTA);
+    void this.perguntar(pergunta, TENTATIVAS_POR_PERGUNTA, contexto);
+  }
+
+  /**
+   * O que mandar ao backend sobre a conversa até aqui (#183).
+   *
+   * Duas regras que parecem uma só e não são:
+   *
+   * - no `historico` entram **apenas** as respostas que trouxeram `turno` — recusa,
+   *   conversa leve, modo fallback, falha e cancelamento não têm o que assinar;
+   * - o `ultimaRespostaSemTurno` olha a **última** mensagem da Ceres, com `turno` ou sem.
+   *   É o que impede um "tem certeza?" logo depois de uma recusa de refazer a consulta de
+   *   duas respostas atrás, como se a recusa não tivesse acontecido.
+   *
+   * Os `turno` vão por referência, sem cópia: a assinatura vale para os bytes exatos.
+   */
+  private contextoDaConversa(): ContextoConversa {
+    const daCeres = this.mensagens().filter((m) => m.autor === 'ceres');
+    const historico = daCeres
+      .flatMap((m) => (m.turno ? [m.turno] : []))
+      .slice(-MAX_TURNOS_HISTORICO);
+    const ultima = daCeres.at(-1);
+
+    return { historico, ultimaRespostaSemTurno: historico.length > 0 && !ultima?.turno };
   }
 
   /**
@@ -304,7 +349,20 @@ export class AssistenteStore {
         ...lista,
         { autor: 'ceres', texto: '', falha: 'CANCELADA' },
       ]);
+      // Cancelar passou a custar o que já foi gasto (#183). O backend só percebe o
+      // cancelamento na chamada seguinte ao modelo, então pedir a cota agora traria o
+      // número de antes. Só no cancelamento do botão: no `limpar()` do logout não há mais
+      // sessão para consultar, e o timer é desarmado lá.
+      this.agendarUso();
     }
+  }
+
+  private agendarUso(): void {
+    if (this.esperaDoUso !== null) clearTimeout(this.esperaDoUso);
+    this.esperaDoUso = setTimeout(() => {
+      this.esperaDoUso = null;
+      this.atualizarUso();
+    }, ESPERA_USO_APOS_CANCELAR_MS);
   }
 
   /**
@@ -312,7 +370,11 @@ export class AssistenteStore {
    * stream — é o que permite dizer *o que* a Ceres está fazendo antes de a
    * resposta chegar, que pode levar mais de um minuto. Sem isso, cai no síncrono.
    */
-  private async perguntar(pergunta: string, tentativasRestantes: number): Promise<void> {
+  private async perguntar(
+    pergunta: string,
+    tentativasRestantes: number,
+    contexto: ContextoConversa,
+  ): Promise<void> {
     const controle = new AbortController();
     this.controle = controle;
     this.enviando.set(true);
@@ -321,8 +383,8 @@ export class AssistenteStore {
 
     try {
       const resposta = this.ceres.suportaStream()
-        ? await this.emStream(pergunta, controle.signal)
-        : await firstValueFrom(this.ceres.perguntar(pergunta));
+        ? await this.emStream(pergunta, controle.signal, contexto)
+        : await firstValueFrom(this.ceres.perguntar(pergunta, contexto));
 
       this.mensagens.update((lista) => [
         ...lista,
@@ -334,6 +396,9 @@ export class AssistenteStore {
           fontesDados: resposta.fontesDados,
           modoFallback: resposta.modoFallback,
           atalhos: traduzirAtalhos(resposta.atalhos),
+          // Guardado como veio. Sem `turno` (backend sem continuidade, recusa, fallback),
+          // a mensagem fica sem o campo e nunca entra no histórico.
+          turno: resposta.turno ?? undefined,
         },
       ]);
       this.atualizarUso();
@@ -346,7 +411,7 @@ export class AssistenteStore {
         erro.codigo === 'ASSISTENTE_OCUPADO' &&
         tentativasRestantes > 1
       ) {
-        this.reenviarQuandoLiberar(pergunta, erro, tentativasRestantes - 1, controle);
+        this.reenviarQuandoLiberar(pergunta, erro, tentativasRestantes - 1, controle, contexto);
         return;
       }
 
@@ -367,7 +432,11 @@ export class AssistenteStore {
   }
 
   /** Consome o SSE e devolve a resposta final do evento `resposta`. */
-  private async emStream(pergunta: string, sinal: AbortSignal): Promise<CeresResposta> {
+  private async emStream(
+    pergunta: string,
+    sinal: AbortSignal,
+    contexto: ContextoConversa,
+  ): Promise<CeresResposta> {
     // Caixa em vez de variável solta: o TypeScript não acompanha atribuição feita
     // dentro do callback e estreitaria o tipo para `null` depois do `await`.
     const capturado: { resposta?: CeresResposta } = {};
@@ -379,6 +448,7 @@ export class AssistenteStore {
         else if (evento.evento === 'resposta') capturado.resposta = evento.dado;
       },
       sinal,
+      contexto,
     );
 
     if (!capturado.resposta) {
@@ -393,6 +463,7 @@ export class AssistenteStore {
     erro: CeresError,
     tentativasRestantes: number,
     controle: AbortController,
+    contexto: ContextoConversa,
   ): void {
     const segundos = erro.retryAfterSegundos ?? ESPERA_PADRAO_SEGUNDOS;
     this.aguardandoVaga.set(segundos);
@@ -400,7 +471,9 @@ export class AssistenteStore {
     this.esperaDeVaga = setTimeout(() => {
       this.esperaDeVaga = null;
       if (controle.signal.aborted) return;
-      void this.perguntar(pergunta, tentativasRestantes);
+      // O **mesmo** contexto: a conversa não andou entre o 503 e o reenvio, e recalcular
+      // aqui mudaria o histórico de uma pergunta que já saiu.
+      void this.perguntar(pergunta, tentativasRestantes, contexto);
     }, segundos * 1000);
   }
 

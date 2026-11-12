@@ -298,6 +298,20 @@
     <p class="text-apoio leading-relaxed text-muted-foreground">
       A Ceres é uma assistente informativa e não substitui a análise do seu contador.
     </p>
+
+    <!-- ── AVISO DE ENVIO AO PROVEDOR (#183) ──
+         Com a continuidade ligada, "tem certeza?" só funciona porque as últimas perguntas e
+         respostas vão junto — e elas levam valores, datas e os textos que o escritório
+         escreveu. Isso sai do Brasil, então a pessoa precisa saber **antes** de digitar, não
+         numa política que ninguém abre. Linha fixa, sem botão de dispensar: enquanto for
+         verdade, fica. Quem decide é o backend (`conversaVaiAoProvedor`); ausente é falso, e
+         nada aparece. -->
+    @if (store.uso()?.conversaVaiAoProvedor) {
+      <p class="text-apoio leading-relaxed text-muted-foreground">
+        Para entender a conversa, a Ceres envia suas últimas perguntas e respostas, com valores e
+        datas, a um provedor de IA fora do Brasil (Anthropic).
+      </p>
+    }
   </form>
 } @else {
   <p

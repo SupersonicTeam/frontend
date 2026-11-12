@@ -34,6 +34,7 @@ import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
 import { apenasUltimaChecagem, rotuloDoCampo } from '@core/utils/validacoes';
+import { AVISO_TEXTO_DO_ESCRITORIO } from '@core/utils/ceres';
 import { UiBadgeStatus } from '@shared/ui/ui-badge-status';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiEmptyState } from '@shared/ui/ui-empty-state';
@@ -379,6 +380,8 @@ export class ClientePage {
   readonly novosTipos = signal<TipoDocumentoPendencia[]>([]);
   readonly tiposPossiveis = TIPOS_DOCUMENTO;
   readonly rotuloDoTipo = TIPO_DOCUMENTO_LABEL;
+  /** A dica dos campos que o produtor lê e a Ceres pode levar ao provedor (#183). */
+  readonly avisoTextoDoEscritorio = AVISO_TEXTO_DO_ESCRITORIO;
 
   /** O servidor exige título e ao menos um tipo; o resto é opcional. */
   readonly podeCriarPedido = computed(
