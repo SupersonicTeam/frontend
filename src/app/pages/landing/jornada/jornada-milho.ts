@@ -6,6 +6,7 @@ import {
   computed,
   effect,
   inject,
+  input,
   signal,
   untracked,
   viewChild,
@@ -20,6 +21,7 @@ import {
   urlDoParado,
   type CameraJornada,
   type EtapaJornada,
+  type TemaJornada,
 } from './manifesto-jornada';
 import {
   encaixeCobrindo,
@@ -98,6 +100,13 @@ export class JornadaMilho {
 
   protected readonly descricao = DESCRICAO_DA_JORNADA;
 
+  /**
+   * Um tema fixo para a cena, quando a página não segue o do app (a landing é sempre escura).
+   * Sem ele, vale o do `ThemeService`. Decide qual versão da etapa da marca toca.
+   */
+  readonly temaFixo = input<TemaJornada | null>(null);
+  private readonly temaDaCena = computed(() => this.temaFixo() ?? this.tema.tema());
+
   /** A biblioteca não veio (rede, chunk que sumiu): a seção cai no modo estático. */
   private readonly semBiblioteca = signal(false);
   protected readonly camera = signal<CameraJornada>(escolherCamera(innerWidth, innerHeight));
@@ -105,7 +114,7 @@ export class JornadaMilho {
   /** As etapas do tema atual. A marca tem uma versão por tema, com o fundo da cor da página. */
   protected readonly etapas = computed<readonly EtapaJornada[]>(() => {
     const manifesto = this.store.estado() === 'pronta' ? this.store.manifesto : null;
-    return manifesto ? etapasDoTema(manifesto, this.tema.tema()) : [];
+    return manifesto ? etapasDoTema(manifesto, this.temaDaCena()) : [];
   });
 
   protected readonly animando = computed(
@@ -141,7 +150,7 @@ export class JornadaMilho {
     effect(() => {
       const etapas = this.etapas();
       const camera = this.camera();
-      const tema = this.tema.tema();
+      const tema = this.temaDaCena();
       if (!etapas.length || !this.animando()) return;
       untracked(() => {
         this.store.configurar(camera, tema);

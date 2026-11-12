@@ -1,6 +1,7 @@
 import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
 import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
+import { SessaoService } from '@core/services/sessao.service';
 import { AppLayout } from '@shared/layout/app-layout/app-layout';
 import { sessaoGuard } from '@core/guards/sessao.guard';
 import { produtorGuard } from '@core/guards/produtor.guard';
@@ -9,6 +10,15 @@ import { contadorGuard } from '@core/guards/contador.guard';
 /** O app abriu num endereço de escritório já resolvido (#175)? */
 function noEnderecoDoEscritorio(): boolean {
   return inject(EscritorioDoHostService).modo() === 'escritorio';
+}
+
+/**
+ * A landing (#174) é de quem chega **sem sessão** ao endereço **principal** (www). Com sessão, o `/`
+ * segue para o shell e o painel, como sempre foi. Num endereço de escritório (#175), em qualquer
+ * modo dele (inclusive o de erro), o `/` continua sendo do escritório: a landing é do www.
+ */
+export function visitanteNoPrincipal(): boolean {
+  return inject(EscritorioDoHostService).modo() === 'principal' && !inject(SessaoService).logado();
 }
 
 /**
@@ -32,8 +42,7 @@ export function rotasDaPrevia(): Routes {
     {
       path: 'previa-landing',
       title: 'Prévia da landing | AgroConIA',
-      loadComponent: () =>
-        import('@pages/landing/previa-landing').then((m) => m.PreviaLandingPage),
+      loadComponent: () => import('@pages/landing/landing').then((m) => m.LandingPage),
     },
   ];
 }
@@ -92,6 +101,16 @@ export const routes: Routes = [
     path: 'equipe/convite',
     loadComponent: () =>
       import('@pages/equipe-convite/equipe-convite').then((m) => m.EquipeConvitePage),
+  },
+  {
+    // A landing em `/` (#174, PR 9). Vem antes do shell: quando o `canMatch` recusa (há sessão, ou o
+    // endereço é de escritório), o `/` cai no shell abaixo, que leva ao painel ou ao login.
+    path: '',
+    pathMatch: 'full',
+    canMatch: [visitanteNoPrincipal],
+    // Sem `title`: o login e as outras telas públicas não definem o seu, e o da landing ficaria
+    // preso na aba depois do "Entrar". Vale o "AgroConIA" do index.html.
+    loadComponent: () => import('@pages/landing/landing').then((m) => m.LandingPage),
   },
   {
     path: '',
