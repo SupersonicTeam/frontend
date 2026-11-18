@@ -1,0 +1,120 @@
+<!-- Sem manifesto, sem seção: é ilustração, e a landing fica inteira sem ela. -->
+@if (store.estado() !== 'falhou') {
+  <section class="jornada bg-background" aria-labelledby="jornada-titulo">
+    <div class="page-container px-4 pt-16 pb-8 text-center sm:px-6">
+      <h2
+        id="jornada-titulo"
+        tabindex="-1"
+        class="font-heading text-3xl font-semibold text-foreground sm:text-4xl"
+      >
+        Do plantio à nota fiscal
+      </h2>
+      <p class="mx-auto mt-3 max-w-[40rem] text-valor text-muted-foreground">
+        A safra tem etapas, e cada uma deixa um registro. Acompanhe o caminho do milho até a nota.
+      </p>
+    </div>
+
+    @if (store.estado() === 'esperando') {
+      <!-- Altura reservada enquanto o manifesto não chega: a seção não empurra o que vem depois. -->
+      <div class="jornada-espera" aria-hidden="true"></div>
+    } @else if (animando()) {
+      <div #trilho class="jornada-trilho" [style.height.vh]="alturaDoTrilho()">
+        <div class="jornada-palco">
+          <canvas #tela class="jornada-tela" role="img" [attr.aria-label]="descricao"></canvas>
+          <span
+            class="absolute top-4 left-4 rounded-full bg-card/85 px-3 py-1 text-apoio text-muted-foreground shadow-suave"
+          >
+            Ilustração
+          </span>
+
+          <!-- A nota fiscal não é 3D: é HTML por cima do último quadro do carimbo. Assim ela
+               segue o tema e é lida pelo leitor de tela. O conteúdo já nasce inteiro no DOM;
+               nada aparece letra a letra. -->
+          <figure
+            #nota
+            class="jornada-nota rounded-card border border-border bg-card p-5 text-card-foreground shadow-alta"
+            [attr.data-fase]="fase()"
+          >
+            <div class="flex items-center justify-between gap-3 border-b border-border pb-3">
+              <strong class="font-heading text-valor">Nota Fiscal Eletrônica</strong>
+              @if (rotuloDaFase()) {
+                <span class="jornada-chip rounded-full px-3 py-1 text-apoio font-medium">
+                  {{ rotuloDaFase() }}
+                </span>
+              }
+            </div>
+            <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-apoio">
+              <div class="col-span-2">
+                <dt class="text-muted-foreground">Emitente</dt>
+                <dd class="font-medium">Produtor rural de exemplo</dd>
+              </div>
+              <div class="col-span-2">
+                <dt class="text-muted-foreground">Produto</dt>
+                <dd class="font-medium">Milho em grão, a granel</dd>
+              </div>
+              <div>
+                <dt class="text-muted-foreground">Quantidade</dt>
+                <dd class="font-medium">37.000 kg</dd>
+              </div>
+              <div>
+                <dt class="text-muted-foreground">IBS e CBS</dt>
+                <dd class="font-medium">Redução de 60%</dd>
+              </div>
+            </dl>
+            <div class="mt-3 h-1.5 overflow-hidden rounded-full bg-surface-2" aria-hidden="true">
+              <div #barra class="jornada-barra h-full rounded-full bg-primary"></div>
+            </div>
+            <figcaption class="mt-3 text-apoio text-muted-foreground">
+              Ilustração com dados fictícios. No ambiente de demonstração, a autorização é simulada.
+            </figcaption>
+          </figure>
+
+          <!-- Os nove textos estão sempre no DOM; só o da etapa da vez fica visível. -->
+          <ol class="jornada-legendas">
+            @for (etapa of etapas(); track etapa.id; let i = $index) {
+              <li
+                class="jornada-legenda rounded-card border border-border bg-card/90 px-5 py-3 text-center shadow-media"
+                [class.jornada-legenda-ativa]="i === etapaAtiva()"
+              >
+                <h3 class="font-heading text-valor font-semibold text-foreground">
+                  {{ texto(etapa).titulo }}
+                </h3>
+                @if (texto(etapa).frase) {
+                  <p class="text-apoio text-muted-foreground">{{ texto(etapa).frase }}</p>
+                }
+              </li>
+            }
+          </ol>
+        </div>
+      </div>
+    } @else {
+      <!-- Modo estático: nenhuma sequência é baixada. Um quadro parado por etapa, em fluxo
+           normal, com o mesmo texto do modo animado. -->
+      <ol class="page-container grid gap-6 px-4 pb-16 sm:grid-cols-2 sm:px-6 lg:grid-cols-3">
+        @for (etapa of etapas(); track etapa.id) {
+          <li>
+            <figure class="overflow-hidden rounded-card border border-border bg-card shadow-suave">
+              <img
+                class="block h-auto w-full"
+                [src]="parado(etapa)"
+                [alt]="etapa.alt"
+                [attr.width]="medidas().largura"
+                [attr.height]="medidas().altura"
+                loading="lazy"
+                decoding="async"
+              />
+              <figcaption class="px-5 py-4">
+                <h3 class="font-heading text-valor font-semibold text-foreground">
+                  {{ texto(etapa).titulo }}
+                </h3>
+                @if (texto(etapa).frase) {
+                  <p class="mt-1 text-apoio text-muted-foreground">{{ texto(etapa).frase }}</p>
+                }
+              </figcaption>
+            </figure>
+          </li>
+        }
+      </ol>
+    }
+  </section>
+}

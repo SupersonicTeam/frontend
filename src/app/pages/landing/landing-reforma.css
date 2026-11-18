@@ -1,0 +1,190 @@
+/* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
+   landing, sempre escura (classe .dark na raiz); movimento reduzido pela classe
+   .movimento-reduzido do PreferenciaMovimentoService. */
+
+/* 3.3 Fundamentos */
+.fundamentos {
+  border-block: 1px solid var(--border);
+  padding-block: 1.75rem;
+}
+.fundamentos .miolo {
+  display: grid;
+  gap: 0.75rem;
+}
+.fund-lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+.fund-lista a {
+  color: var(--fg);
+  font-weight: 600;
+  text-decoration-color: var(--border);
+  text-underline-offset: 4px;
+}
+.fund-lista a:hover {
+  text-decoration-color: var(--primary);
+}
+
+/* Cards */
+.grade-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--raio);
+  padding: 1.5rem;
+  display: grid;
+  gap: 0.65rem;
+  align-content: start;
+}
+.card .dor {
+  color: var(--muted);
+}
+.card .resposta {
+  font-weight: 500;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+.quadro-icone {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, var(--lima), var(--teal));
+  color: var(--lima-ink);
+}
+
+/* 3.5 Linha do tempo */
+.tempo-caixa {
+  position: relative;
+}
+.tempo {
+  list-style: none;
+  margin: 0;
+  padding: 2.5rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.tempo-trilho {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0.9rem;
+  height: 4px;
+  border-radius: 4px;
+  background: var(--border);
+}
+.tempo-cheio {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--teal), var(--lima));
+  transform-origin: left;
+  transform: scaleX(var(--progresso, 0.1));
+}
+.tempo-trilho.anima-linha .tempo-cheio {
+  animation: enche 0.9s ease-out both;
+}
+@keyframes enche {
+  from {
+    transform: scaleX(0);
+  }
+}
+.tempo li {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+}
+.tempo .ano {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  font-variant-numeric: tabular-nums;
+}
+.voce-aqui {
+  position: absolute;
+  top: -0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--lima-ink);
+  background: var(--lima);
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  transform: translateX(-10%);
+}
+.simulador {
+  margin-top: 3rem;
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: 2rem;
+  align-items: start;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--raio);
+  padding: 1.5rem;
+}
+.radios {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.radio {
+  min-height: 44px;
+  padding: 0 1rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  font: 500 0.92rem var(--font-body);
+  cursor: pointer;
+}
+.radio[aria-checked='true'] {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+.barra {
+  height: 2.5rem;
+  border-radius: var(--raio-ctl);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  position: relative;
+}
+.barra-cheia {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--teal), color-mix(in srgb, var(--teal) 60%, var(--lima)));
+  transform-origin: left;
+  transition: transform 0.4s ease-out;
+}
+.barra-texto {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+.resultado {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.15rem;
+  margin-top: 1rem;
+}
+.fontes {
+  margin-top: 2rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  display: grid;
+  gap: 0.25rem;
+}

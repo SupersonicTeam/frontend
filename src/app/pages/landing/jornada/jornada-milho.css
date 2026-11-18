@@ -1,0 +1,97 @@
+:host {
+  display: block;
+}
+
+/* Espaço reservado enquanto o manifesto não chega (CLS). */
+.jornada-espera {
+  min-height: 60vh;
+}
+
+/* O trilho é alto; o palco fica preso na tela enquanto a rolagem percorre o trilho. */
+.jornada-trilho {
+  position: relative;
+}
+
+.jornada-palco {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  /* A altura da tela SEM a barra de endereço do celular: com `vh`, o palco estoura por baixo. */
+  height: 100svh;
+  overflow: hidden;
+  background-color: var(--color-background);
+}
+
+/* O canvas ocupa o palco inteiro; quem corta a imagem para cobrir é o desenho (`encaixeCobrindo`).
+   Tamanho fixo pelo palco: trocar de quadro nunca mexe no layout. */
+.jornada-tela {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* A nota fiscal sobre o último quadro do carimbo. Nasce invisível; quem a mostra é o desenho. */
+.jornada-nota {
+  position: absolute;
+  top: 50%;
+  left: 6%;
+  width: min(24rem, 88%);
+  margin: 0;
+  opacity: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.jornada-chip {
+  background-color: var(--color-aviso-soft);
+  color: var(--color-aviso-ink);
+}
+.jornada-nota[data-fase='transmitindo'] .jornada-chip {
+  background-color: var(--color-info-soft);
+  color: var(--color-info-ink);
+}
+.jornada-nota[data-fase='autorizada'] .jornada-chip {
+  background-color: var(--color-sucesso-soft);
+  color: var(--color-sucesso-ink);
+}
+
+.jornada-barra {
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+/* As legendas dividem a mesma célula; a da vez aparece, as outras ficam no DOM para o leitor de
+   tela. Só `opacity`: `visibility: hidden` as tiraria da árvore de acessibilidade. */
+.jornada-legendas {
+  position: absolute;
+  right: 0;
+  bottom: 1.5rem;
+  left: 0;
+  display: grid;
+  justify-items: center;
+  margin: 0;
+  padding: 0 1rem;
+  list-style: none;
+  pointer-events: none;
+}
+
+.jornada-legenda {
+  grid-area: 1 / 1;
+  max-width: 40rem;
+  opacity: 0;
+  transition: opacity var(--duracao-entrada) var(--ease-entrada);
+}
+
+.jornada-legenda-ativa {
+  opacity: 1;
+}
+
+/* Em pé, a nota vai para baixo do centro, acima da legenda. */
+@media (orientation: portrait) {
+  .jornada-nota {
+    top: auto;
+    bottom: 9rem;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
