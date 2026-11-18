@@ -1,7 +1,8 @@
 import { Component, booleanAttribute, computed, input } from '@angular/core';
+import { classesBotao, type TamanhoBotao, type VarianteBotao } from './classes-botao';
 
-type Variante = 'primary' | 'ghost' | 'perigo' | 'assistente' | 'sutil';
-type Tamanho = 'md' | 'lg';
+type Variante = VarianteBotao;
+type Tamanho = TamanhoBotao;
 
 /**
  * Botão do design system (#45). O clique borbulha do `<button>` nativo.
@@ -46,26 +47,9 @@ export class UiButton {
   /** Ocupa toda a largura — o padrão em formulário no celular. */
   readonly blocoCompleto = input(false, { transform: booleanAttribute });
 
-  protected readonly classes = computed(() => {
-    const variantes: Record<Variante, string> = {
-      primary: 'bg-primary text-primary-foreground hover:bg-primary/90',
-      ghost: 'border border-border text-foreground hover:bg-muted',
-      perigo: 'bg-perigo text-white hover:bg-perigo/90',
-      assistente: 'bg-assistente text-assistente-foreground hover:bg-assistente/90',
-      sutil: 'text-muted-foreground hover:bg-muted hover:text-foreground',
-    };
-    return [
-      'tap-target inline-flex items-center justify-center gap-2 rounded-controle',
-      // O `active:scale` e o unico retorno de toque que existe no celular, onde nao ha
-      // hover nenhum: sem ele o produtor aperta e nao sabe se pegou (#90).
-      'text-apoio font-medium transition-[color,background-color,border-color,transform]',
-      '[transition-duration:var(--duracao-toque)] active:scale-[0.98]',
-      'disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
-      this.tamanho() === 'lg' ? 'px-6 py-3' : 'px-4 py-2',
-      this.blocoCompleto() ? 'w-full' : '',
-      variantes[this.variant()],
-    ]
-      .filter(Boolean)
-      .join(' ');
-  });
+  // As classes moram em `classesBotao` (#174, item 4.4), compartilhadas com o
+  // `a[uiLinkBotao]` e com os controles que precisam de `<button>` nativo.
+  protected readonly classes = computed(() =>
+    classesBotao(this.variant(), this.tamanho(), { blocoCompleto: this.blocoCompleto() }),
+  );
 }
