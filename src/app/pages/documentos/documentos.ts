@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { Subject, debounceTime } from 'rxjs';
+import { Subject, Subscription, debounceTime } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -309,6 +309,9 @@ export class DocumentosPage implements OnInit {
   formNotaId = signal<string | null>(null); // null = criar; id = editar (PUT)
   formNumero = signal('');
   formSerie = signal('1');
+  /** A pessoa já escreveu no número desta nota; a sugestão não o sobrescreve (#195). */
+  private numeroDigitado = false;
+  private sugestaoNumero?: Subscription;
   formTipoDoc = signal<TipoDocumento>('NFE');
   formNatureza = signal('');
   formData = signal('');
@@ -1379,6 +1382,8 @@ export class DocumentosPage implements OnInit {
   }
 
   private resetForm(): void {
+    this.sugestaoNumero?.unsubscribe();
+    this.numeroDigitado = false;
     this.formNotaId.set(null);
     this.formNumero.set('');
     this.formSerie.set('1');
@@ -1465,17 +1470,46 @@ export class DocumentosPage implements OnInit {
     this.sugerirProximoNumero();
   }
 
+  /** A pessoa digitou no número (#195): daí em diante a sugestão não toca mais no campo. */
+  digitarNumero(valor: string): void {
+    this.numeroDigitado = true;
+    this.sugestaoNumero?.unsubscribe();
+    this.formNumero.set(valor);
+  }
+
   /**
-   * Sugere o próximo número de nota (maior número já emitido pelo produtor + 1),
-   * continuando a sequência em vez de deixar o usuário adivinhar/repetir um número
-   * já usado — campo continua editável, é só um ponto de partida.
+   * Trocar a série pede a sugestão de novo (#195): a sequência é por série. Só enquanto o
+   * número ainda for o sugerido — o que a pessoa escreveu fica.
+   */
+  digitarSerie(valor: string): void {
+    this.formSerie.set(valor);
+    if (this.formNotaId() !== null || this.numeroDigitado) return;
+    this.formNumero.set('');
+    this.sugerirProximoNumero();
+  }
+
+  /**
+   * Sugere o próximo número de nota pelo `GET /notas/proximo-numero` da série do formulário
+   * (#195). Antes vinha do maior número de **todas** as notas, compras importadas inclusive: no
+   * seed da banca o Carlos vende a partir de 3184 e as compras passam de 40.000, e a tela sugeria
+   * a ele um número de fornecedor.
+   *
+   * A resposta chega depois de o modal abrir, então ela só preenche o campo se ninguém digitou
+   * nada nele nesse meio-tempo: a versão anterior sobrescrevia o número digitado. Falha ou série
+   * inválida deixam o campo vazio. O campo segue editável; o 409 do `POST` cobre o número repetido.
    */
   private sugerirProximoNumero(): void {
-    this.notasApi.listar({ size: 1, sort: 'numero,desc' }).subscribe({
-      next: (pagina) => {
-        if (this.formNotaId() !== null) return; // form já mudou p/ edição enquanto a chamada corria
-        const maiorNumero = pagina.content[0]?.numero ?? 0;
-        this.formNumero.set(String(maiorNumero + 1));
+    this.sugestaoNumero?.unsubscribe();
+    const serie = Number(this.formSerie());
+    if (!Number.isInteger(serie) || serie < 0 || serie > 999 || this.formSerie().trim() === '') {
+      return;
+    }
+    this.sugestaoNumero = this.notasApi.proximoNumero(serie).subscribe({
+      next: (sugestao) => {
+        // O form mudou para edição, ou a pessoa digitou, enquanto a chamada corria.
+        if (this.formNotaId() !== null || this.numeroDigitado) return;
+        if (sugestao.serie !== serie) return;
+        this.formNumero.set(String(sugestao.numero));
       },
       error: () => undefined, // sem sugestão automática — usuário preenche manualmente
     });
