@@ -91,27 +91,25 @@ describe('PendenciasApi', () => {
     let recebida: Pendencia | undefined;
     service.anexar('p9', arquivo).subscribe((p) => (recebida = p));
 
-    httpMock
-      .expectOne((r) => r.url === '/pendencias/p9/anexos')
-      .flush(
-        pendencia({
-          // Antivírus fora do ar: 201, anexo em verificação e a pendência **continua** PENDENTE.
-          status: 'PENDENTE',
-          quantidadeAnexos: 1,
-          anexos: [
-            {
-              id: 'a1',
-              nomeArquivo: 'a.pdf',
-              mime: 'application/pdf',
-              tamanho: 125,
-              sha256: 'abc',
-              situacao: 'EM_VERIFICACAO',
-              enviadoEm: '2026-10-28T15:56:13Z',
-            },
-          ],
-        }),
-        { status: 201, statusText: 'Created' },
-      );
+    httpMock.expectOne((r) => r.url === '/pendencias/p9/anexos').flush(
+      pendencia({
+        // Antivírus fora do ar: 201, anexo em verificação e a pendência **continua** PENDENTE.
+        status: 'PENDENTE',
+        quantidadeAnexos: 1,
+        anexos: [
+          {
+            id: 'a1',
+            nomeArquivo: 'a.pdf',
+            mime: 'application/pdf',
+            tamanho: 125,
+            sha256: 'abc',
+            situacao: 'EM_VERIFICACAO',
+            enviadoEm: '2026-10-28T15:56:13Z',
+          },
+        ],
+      }),
+      { status: 201, statusText: 'Created' },
+    );
 
     expect(recebida?.status).toBe('PENDENTE');
     expect(recebida?.anexos[0]?.situacao).toBe('EM_VERIFICACAO');
@@ -132,7 +130,10 @@ describe('PendenciasApi', () => {
 
     httpMock
       .expectOne((r) => r.url === '/pendencias/p9/anexos')
-      .flush({ errors: [{ code: 'ANEXO_INVALIDO' }] }, { status: 400, statusText: 'Bad Request' });
+      .flush(
+        { errors: [{ code: 'ANEXO_INVALIDO' }] },
+        { status: 400, statusText: 'Bad Request' },
+      );
 
     expect(status).toBe(400);
   });
