@@ -34,6 +34,9 @@
           },
           "configurations": {
             "production": {
+              "define": {
+                "PREVIA_LANDING": "false"
+              },
               "budgets": [
                 {
                   "type": "initial",
@@ -55,6 +58,9 @@
               ]
             },
             "development": {
+              "define": {
+                "PREVIA_LANDING": "true"
+              },
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true

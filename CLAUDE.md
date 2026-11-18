@@ -127,7 +127,8 @@ Imports sempre via alias (sem `../../`): `@core/*` · `@services/*` · `@pages/*
 
 ## Rotas (`app.routes.ts`)
 
-Tudo sob `AppLayout` e atrás do `sessaoGuard`, lazy via `loadComponent`. `''` → redirect `dashboard`;
+Tudo sob `AppLayout` e atrás do `sessaoGuard`, lazy via `loadComponent`. `''` → redirect `dashboard` (para quem tem sessão:
+sem sessão, no www, o `/` é a **landing**, ver a seção dela);
 `**` → página de não encontrada.
 
 **`/login` é a exceção: fora do `AppLayout` e sem guard** (#93). O mesmo vale para `/cadastro`, `/esqueci-senha`, `/redefinir-senha` (#131) e **`/politica-dados`** (#137, `pages/politica-dados/`: a política de tratamento vinda de `GET /politica-dados`, linkada no cadastro, no login e em Configurações) e **`/equipe/convite`** (#148, `pages/equipe-convite/`): o convite de equipe chega com o token no fragmento (`#token=`); contador logado entra na equipe, quem não tem conta cria a de contador ali, e o token atravessa o login no `sessionStorage` da aba (o `returnUrl` é query e vazaria o token). O shell tem sidebar, sino e a gaveta da
@@ -223,6 +224,7 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `NotificacoesService` | Estado **local** de notificações da UI (signal). Não confundir com `NotificacaoApi`. |
 | `ToastService` | Toasts (auto-dismiss 4s), renderizados por `ToastContainer`. |
 | `ThemeService` | Tema claro/escuro. |
+| `PreferenciaMovimentoService` | **Pode animar?** (#174, itens 5.1 e 5.3). `reduzido()` é o **OU** entre `prefers-reduced-motion` do aparelho (acompanhado em tempo real) e a escolha do visitante no botão "Reduzir animações" (`localStorage` `agro-movimento`, só o lado "ligado" — desligar o botão **não** passa por cima da preferência do sistema). Põe a classe `movimento-reduzido` no `<html>`, que o CSS global observa, e nasce num `provideAppInitializer` junto do tema: esperando a primeira injeção, quem pediu menos movimento veria a animação de abertura. Fonte única — o `AnimacaoLandingService` (PR A) e o template leem este mesmo signal. |
 | `SessaoService` | **Quem está logado** (#93): token, validade, `usuarioId`, `papel` e `nome`, persistidos em `localStorage` (`agrocontabil.sessao`). `ehProdutor()`/`ehContador()`/`logado()`/`homeDoPerfil()`/`expirado()`. Substituiu o `PerfilService` (papel escolhido num storage editável), o `TokenService` (devolvia `null`) e o `IdentidadeService` (o `X-Usuario-Id`, com o UUID do contador cravado). **O que vem do storage é validado** — sessão meia-boca vira ausência de sessão. Ouve o evento `storage` para acompanhar a outra aba, e **separa renovação de troca de usuário**: mesma pessoa com token novo é adotada; outra pessoa (ou ninguém) **recarrega a página**, porque trocar o signal deixaria os caches `root` com o dado de quem estava aqui — ver a nota abaixo. |
 | `ClienteEmFocoService` | O cliente da carteira que o contador está atendendo, **entre telas** (#136). Só o id; quem valida contra a carteira é o `SeletorCliente`. |
 | `EncerramentoService` | **Sair** — um lugar só, porque há dois caminhos (botão Sair e renovação que falhou). Avisa o servidor (`POST /auth/logout`), **limpa os caches de sessão** (`DashboardApi`, `AssistenteStore`, `NotificacoesService`, `ClienteEmFocoService`, `EscritorioApi`, `AuthApi`) e vai ao `/login`. Os services são `root` e sobrevivem à troca de usuário: era assim que a topbar do contador exibia o nome do produtor da sessão anterior. **Service `root` novo que guarde resposta do servidor em signal entra nesta lista.** |
@@ -324,6 +326,87 @@ Um arquivo por domínio: `produtor.model.ts` (`Produtor`, `ContatoProdutor`, `Pr
     processador, então `import.meta.glob('/src/styles.css', {query:'?raw'})` devolve string vazia.
   - **Superfícies** `surface` e `surface-2` (neutros com viés verde), **sombras** `shadow-suave|media|alta|assistente`
     e **raios** `rounded-controle|card|destaque`.
+- **Tokens de marca da landing (#174, PR 3)** — tirados da logo, em hex de propósito (converter para HSL
+  arredondaria a cor da marca). **Nenhuma tela do app os usa**; são para a página pública:
+  - `marca-profunda` (#1B4630; no escuro aponta para `surface-2`, porque verde quase preto sobre fundo
+    quase preto não separa nada), `marca-lima`, `marca-lima-ink` (o texto que vai **sobre** o lima) e
+    `marca-teal`.
+  - Contrastes **medidos** (o script fica no histórico do PR; a tabela da issue dá 10,9:1 para o lima, mas
+    esse número é do lima **escuro**): `marca-profunda`/branco 10,69:1; `marca-lima`/`marca-lima-ink`
+    6,80:1 no claro e 10,84:1 no escuro; `marca-teal`/branco **3,48:1 no claro e 2,61:1 no escuro —
+    reprova para texto normal**, então é decoração ou texto ≥ 24px. O `accent` laranja continua de fora
+    (2,90:1 com branco e sem par no `.dark`).
+  - Utility `bg-gradiente-marca` (135°, lima → teal). Só no brilho do hero, na borda do card recomendado,
+    no fundo dos ícones dos diferenciais e num sublinhado do H1. **Nunca atrás de texto.**
+- **Movimento reduzido tem dois gatilhos** (#174, item 5.1): o `@media (prefers-reduced-motion: reduce)` e a
+  classe `.movimento-reduzido` no `<html>` (o `PreferenciaMovimentoService`). As declarações estão
+  **repetidas** nos dois blocos de `styles.css` porque um `@media` não entra em lista de seletor — mexeu em
+  um, mexa no outro. Entrou também `animation-delay: 0s`: com `fill-mode: both`, zerar só a duração deixava o
+  item que espera a vez (entrada escalonada) **invisível** em vez de imediato. A linha `animation-timeline`
+  da especificação **não** entra: nada aqui é ligado à rolagem por CSS.
+
+## Animação da landing (`shared/animacao/`, #174 PR A)
+
+A landing anima com o **Motion** (`motion@14.11.1`, MIT, versão **exata** no `package.json` — decisão do Murillo em 09/11, no lugar do GSAP).
+Nenhuma tela importa o pacote direto:
+
+- **`motion.lazy.ts`** é o **único** arquivo que importa `motion` (`animate`, `scroll`, `inView`). O `import()` dinâmico aponta para ele, e não
+  para o pacote, porque num `import('motion')` o empacotador guarda o módulo inteiro: o chunk caiu de **188 kB para 80,5 kB** (29,6 kB gzip).
+- **`CARREGAR_ANIMACAO`** (`carregar-animacao.ts`) é o token que faz esse `import()`. Os specs o trocam por um falso; trocar a fábrica por
+  `async () => null` deixa a landing inteira estática numa linha (o último corte da N5.2).
+- **`AnimacaoLandingService`**: `vaiAnimar()` (movimento liberado pelo `PreferenciaMovimentoService` **e** sem `saveData`) é o sinal único que o
+  template e o código leem; `carregar()` devolve `null` **sem baixar nada** quando ele é falso, e senão espera o `load` + um momento ocioso antes
+  do `import()`. Uma promessa por página; erro de import vira `null`. Quem chama trata `null` como "fique no estado final".
+- **`Cena`** (`cena.ts`) junta o que uma cena criou — os controles do `animate()` e as limpezas do `scroll()`/`inView()` — e desfaz tudo num
+  `concluir()`. É o `context().revert()` que o Motion não tem: usar no `DestroyRef` e quando "Reduzir animações" liga no meio da cena.
+- **`movimento.ts`**: durações (em segundos) e curvas, **os mesmos valores** dos tokens `--duracao-*`/`--ease-*` do `styles.css`.
+- **No zoneless, nunca escreva em signal dentro de callback de quadro** (`scroll()`, `onUpdate`): cada escrita agenda uma renderização.
+
+A CI (`scripts/conferir-build-producao.mjs`) reprova se o Motion aparecer num `.js` do **carregamento inicial** (marcador
+`transformPerspective`, conferido nos dois sentidos com uma sonda) e se o `public/licencas-terceiros.txt` não citar a versão instalada — ao
+trocar a versão, releia a licença, atualize o arquivo e confira que o marcador continua no chunk.
+
+## Landing (`pages/landing/landing.ts`, #174)
+
+A landing completa: cabeçalho, hero, a jornada 3D, "O que muda", calendário da reforma, produtor, escritório, como funciona,
+diferenciais, Ceres, pronto hoje, planos, perguntas, chamada final e rodapé. **Markup e CSS vêm da prévia estática da especificação**
+(`rascunhos/previa-landing/previa-landing.html`, fora do git), que continua sendo a referência de texto e de layout.
+
+- **CSS da página, não do app**: tokens próprios escopados em `.lp` (a raiz do template). **A landing é sempre escura** (pedido do Luiz, 12/11): a raiz é
+  `.lp.dark`, o que também escurece os tokens do Tailwind da jornada, e a jornada recebe `temaFixo="escuro"` (marca escura). Voltar a
+  seguir o `ThemeService` é tirar o `dark` da raiz e o `temaFixo`;
+  movimento reduzido por `.movimento-reduzido`. `ViewEncapsulation.None`, para o CSS da prévia valer como está. Os seletores de elemento
+  são `:where(.lp) h1`, `:where(.lp) a`…: com `.lp a` a regra ganhava do `.btn-primario` e o botão perdia o texto. O CSS está dividido
+  por seção (`landing-*.css`) porque o orçamento é **por arquivo** (aviso em 4 kB).
+- **`landing-interacoes.ts`**: o `<script>` da prévia em TypeScript, preso à raiz e desfeito no destroy (um `AbortSignal` para todos os
+  ouvintes). As âncoras `href="#x"` rolam por código: numa rota que não é a raiz, o navegador iria para `/#x`.
+- **`landing-dados.ts`**: planos e perguntas, desenhados pelo template. **Sem preços**: são proposta do Murillo; cada plano mostra
+  "Valor de lançamento em definição" e um "Tenho interesse" por e-mail. Textos com "(Murillo)" seguem pendentes (CNPJ, encarregado).
+- **Rota `/`** (`visitanteNoPrincipal`, em `app.routes.ts`): a landing é de quem chega **sem sessão** ao endereço **principal**
+  (www). Com sessão, o `canMatch` recusa e o `/` cai no shell (painel). Num endereço de escritório, em qualquer modo, o `/` segue
+  do escritório. A rota vem **antes** do shell, com `pathMatch: 'full'`. Fora de produção ela também abre em `/previa-landing`
+  (útil logado).
+
+## Jornada do milho em 3D (`pages/landing/jornada/`, #174 PR J)
+
+Seção da landing que troca de quadro conforme a rolagem, nos dois sentidos: sequências de imagens renderizadas no Blender (repo
+`Animation-Agroconia`), **fora do bundle**, descritas por um `manifesto.json` (a fonte da verdade: etapas, câmeras `16x9`/`9x18`, AVIF/WebP,
+quadros parados, `alt`). Não é vídeo nem 3D em tempo real.
+
+- **Rota `/previa-landing`** (carrega `pages/landing/landing.ts`, a landing completa): fora do `AppLayout`, sem guard, e **só fora de produção** — pela constante
+  de compilação `PREVIA_LANDING` (`define` no `angular.json`), não por chave do `environment` (o objeto não é eliminado e a rota ia para o
+  bundle). A CI reprova se `previa-landing` aparecer no carregamento inicial. O PR 9 troca a prévia pela landing em `/`.
+- **Quadros**: `environment.baseJornada` (`/jornada/v0.1/`), lido só pelo token `BASE_JORNADA`. Em dev, o `proxy.conf.json` leva `/jornada`
+  à porta **8765** (`jornada-quadros` no `launch.json`, servindo `rascunhos/jornada/`, fora do git). O manifesto é lido com `fetch` cru
+  (não `ApiService`: levaria `Bearer` e toast a um host de estáticos); manifesto que falha ou não confere = **a seção não aparece**.
+- **`percurso.ts`** (rolagem → etapa, quadro, fusão de 8% e a nota) e **`manifesto-jornada.ts`** (leitura defensiva: caminho relativo sem
+  `..`, `etapasDoTema`, URLs) são funções puras, com spec. **`jornada.store.ts`** baixa por janela de etapa e mantém no máximo
+  `LIMITE_DE_QUADROS_ABERTOS` quadros decodificados.
+- **Modo estático** (`vaiAnimar()` falso): só o manifesto e os 9 quadros parados, em lista, **nenhuma sequência**; "Reduzir animações" no
+  meio da seção desmonta a cena e volta ao topo dela. A etapa **marca** tem `marca-claro`/`marca-escuro`, com o fundo da página em cada tema:
+  se o `--color-background` mudar, ela precisa de render novo. A nota fiscal é HTML por cima do último quadro da etapa `nota`.
+- No `@defer (on viewport)` com HMR ligado (o `ng serve` padrão), o Angular carrega o chunk na hora (NG0751); para ver o adiamento de
+  verdade, `ng serve --no-hmr`. Com o painel do navegador escondido, nem o `IntersectionObserver` nem o `requestAnimationFrame` rodam.
 
 ## Primitivos de UI (`shared/ui/`, #45)
 
@@ -338,7 +421,15 @@ Antes de escrever markup novo, veja se um destes resolve:
 | `<ui-empty-state>` | Estado vazio com saída (slot `[acao]`), no lugar de texto solto. |
 | `<ui-skeleton>` | Carregamento com a forma do conteúdo, no lugar de spinner. |
 | `<ui-table>` | Moldura de tabela: rolagem na moldura, cabeçalho fixo, densidade por contexto. |
-| `<ui-card>` / `<ui-button>` | Variantes `padrao/destaque/assistente/plano` e `primary/ghost/perigo/assistente/sutil`. O botão já garante 44×44 e rótulo ≥14px. |
+| `<ui-card>` / `<ui-button>` | Variantes `padrao/destaque/assistente/plano` e `primary/ghost/perigo/assistente/sutil/lima`. O botão já garante 44×44 e rótulo ≥14px. |
+| `<a uiLinkBotao>` | **CTA de navegação com cara de botão** (#174, item 4.4). Link é link: `<button>` dentro de `<a>` é HTML inválido e o leitor de tela anuncia dois controles. A diretiva só veste as classes; as estáticas do elemento continuam valendo. |
+
+**As classes do botão moram em `shared/ui/classes-botao.ts`** (`classesBotao(variante, tamanho, { blocoCompleto })`),
+compartilhadas por três formas: o `<ui-button>`, o `a[uiLinkBotao]` e o **`<button>` nativo** de quem tem
+`role`/`aria-pressed`/`aria-checked` próprios (abas, radiogroup) — o `UiButton` não repassa esses atributos ao
+botão interno. Antes era um `Record` dentro do `UiButton`, e o CTA que copiava a lista à mão saía com outro
+padding. A variante **`lima`** é só da faixa profunda da landing (`marca-lima` + `marca-lima-ink`).
+O `directive-selector` do ESLint aceita os prefixos `app` **e** `ui`, como o `component-selector` já aceitava.
 
 ## Utilitários compartilhados (`core/utils/`)
 
@@ -398,6 +489,18 @@ abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o crit�
   então o primeiro `abrir()`/`abrirSobreNota()` não se perde. Tem `@loading` (rede lenta) e `@error` (chunk
   que sumiu num deploy: oferece recarregar, porque o `@defer` não tenta de novo). Se apertar de novo, não
   corte a camada de IA.)
+  **Medido em 12/11 na `main`: 499,43 kB / 124,95 kB gzip. Com o PR 3 da landing (#174): 501,50 kB /
+  125,41 kB gzip** — `+2,07 kB` cru (`+0,46 kB` gzip), dos quais ~0,94 kB são CSS (os tokens nos dois temas,
+  as utilities da variante `lima` e o segundo bloco de movimento reduzido) e ~1 kB é o service, que vai no
+  inicial por nascer no `provideAppInitializer`. **Isso passa o aviso de 500 kB por 1,50 kB** — o build
+  continua verde (o erro é em 1 MB), mas o teto precisa de decisão antes dos PRs 4 e 5. Os tokens de marca
+  e as utilities da landing moram no `styles.css` global, então eles **sempre** contam no inicial, mesmo com
+  a página inteira em chunk lazy.
+  **O PR A não muda o inicial (501,50 kB). Com o PR J (jornada 3D): 504,35 kB / 126,83 kB gzip**, `+2,85 kB`,
+  e nada disso é o player (ele está no chunk adiado `jornada-milho`, 20,5 kB): ~0,93 kB são as utilities
+  Tailwind novas do template, que o Tailwind v4 põe no CSS global; ~0,99 kB é código do Angular que o chunk
+  da jornada passou a dividir com o inicial; e ~0,9 kB é o `main` partido em chunks comuns (o
+  `PreferenciaMovimentoService` e os helpers do esbuild saíram dele para serem compartilhados).
 - **Lint está em zero** (`All files pass linting`), vindo de 63 warnings. Se voltar a aparecer warning,
   conserte o que ele aponta em vez de suprimir — as duas únicas supressões do projeto estão nos fundos
   de fechar painel do `app-layout`, e só depois de `Esc` passar a fechar os painéis de verdade.
