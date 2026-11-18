@@ -19,7 +19,8 @@ import {
   type NotificacaoError,
 } from '@services/notificacao/data-access/notificacao.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
-import { ContadorApi } from '@services/contador/data-access/contador.service';
+import { CarteiraApi } from '@services/contador/data-access/carteira.service';
+import { GuiasApi } from '@services/guias/data-access/guias.service';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import { SeletorCliente } from '@shared/contador/seletor-cliente';
 import { UiButton } from '@shared/ui/ui-button';
@@ -75,7 +76,8 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
   templateUrl: './prazos-contador.html',
 })
 export class PrazosContador {
-  private readonly contadorApi = inject(ContadorApi);
+  private readonly carteiraApi = inject(CarteiraApi);
+  private readonly guiasApi = inject(GuiasApi);
   private readonly toast = inject(ToastService);
 
   private readonly notificacaoApi = inject(NotificacaoApi);
@@ -275,7 +277,7 @@ export class PrazosContador {
     this.carregando.set(true);
     this.erro.set(null);
     this.hoje.set(PrazosContador.hojeISO());
-    this.contadorApi.getGuias(cliente).subscribe({
+    this.carteiraApi.guiasDoCliente(cliente).subscribe({
       next: (lista) => {
         this.guias.set(lista);
         this.carregando.set(false);
@@ -301,9 +303,8 @@ export class PrazosContador {
     const cliente = this.clienteId();
     if (!this.formValido() || !cliente) return;
     this.salvando.set(true);
-    this.contadorApi
-      .anexarGuia({
-        produtorId: cliente,
+    this.carteiraApi
+      .lancarGuia(cliente, {
         tipoGuia: this.formTipo(),
         dataVencimento: this.formVencimento(),
         valor: Number(this.formValor()),
@@ -325,8 +326,14 @@ export class PrazosContador {
       });
   }
 
+  /**
+   * Dar baixa. **Pelo contrato a baixa é do produtor** (backend#273: `PATCH /api/guias/{id}/pagar`,
+   * contador recebe 403 `PAPEL_NAO_AUTORIZADO`), e já era assim na rota antiga. O botão segue aqui
+   * até o time decidir se ele sai desta tela e vai para a do produtor; a migração (#198) não
+   * muda o que ele faz.
+   */
   marcarPaga(guia: GuiaFiscal): void {
-    this.contadorApi.marcarGuiaPaga(guia.id).subscribe({
+    this.guiasApi.pagar(guia.id).subscribe({
       next: () => {
         this.toast.success(`Guia de ${guia.tipoGuia} marcada como paga.`);
         this.carregar();

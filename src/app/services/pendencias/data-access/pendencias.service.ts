@@ -6,8 +6,8 @@ import type { Pendencia, StatusPendencia } from '@models/pendencia.model';
 /**
  * Os pedidos de documento **do lado do produtor** (backend#180).
  *
- * As rotas não levam `produtorId`: o produtor é o autenticado. A família que o `ContadorApi` ainda
- * chama (`/contador/pendencias?produtorId=`) nunca existiu no backend — respondia 404 desde
+ * As rotas não levam `produtorId`: o produtor é o autenticado. A família que o antigo `ContadorApi`
+ * chamava (`/contador/pendencias?produtorId=`) nunca existiu no backend — respondia 404 desde
  * sempre, e era por isso que a seção "Solicitações do Contador" da tela de Documentos jamais
  * aparecia, mesmo quando havia pedido de verdade.
  *

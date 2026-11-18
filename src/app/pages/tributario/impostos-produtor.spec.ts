@@ -1,5 +1,3 @@
-import { of } from 'rxjs';
-import { AuthApi } from '@services/auth/data-access/auth.service';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { provideHttpClient } from '@angular/common/http';
@@ -51,37 +49,13 @@ function buildRelatorio(o: Partial<RelatorioConformidade> = {}): RelatorioConfor
   };
 }
 
-/**
- * Identidade de teste (issue #106).
- *
- * A tela resolve o id do produtor em `GET /auth/me` em vez de carregar um UUID cravado. Estes
- * testes sao sobre o que a tela FAZ com o id, nao sobre como ela o obtem -- isso tem spec propria
- * em `AuthApi`. Entao aqui ele e dependencia injetada, e o `httpMock` fica so com as rotas que
- * cada teste realmente examina.
- */
-const SESSAO = {
-  usuarioId: 'produtor-de-teste',
-  papel: 'PRODUTOR' as const,
-  nome: 'João da Silva Produtor',
-};
-const authFalso = {
-  carregar: () => of(SESSAO),
-  sessao: () => SESSAO,
-  limpar: () => undefined,
-};
-
 describe('ImpostosProdutor', () => {
   let httpMock: HttpTestingController;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [ImpostosProdutor],
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter([]),
-        { provide: AuthApi, useValue: authFalso },
-      ],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
     httpMock = TestBed.inject(HttpTestingController);
   });
@@ -138,7 +112,7 @@ describe('ImpostosProdutor', () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   }
   function flushGuias(lista: unknown[] = []) {
-    httpMock.match((r) => r.url === '/contador/guias').forEach((r) => r.flush(lista));
+    httpMock.match((r) => r.url === '/guias').forEach((r) => r.flush(lista));
   }
   /** `AAAA-MM` do mês corrente e do anterior, como a tela os calcula. */
   function periodoAtual() {

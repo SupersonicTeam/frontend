@@ -14,6 +14,9 @@ import type { ProdutorCarteira } from '@models/carteira.model';
  * Os testes de lançar guia e dar baixa vieram da tela de Acompanhamento, junto com a própria
  * funcionalidade — as guias eram mostradas inteiras nas duas telas.
  */
+/** As guias de um cliente da carteira: `/contador/produtores/{id}/guias` (#198). */
+const ehGuiasDoCliente = (url: string) => /^\/contador\/produtores\/[^/]+\/guias$/.test(url);
+
 describe('PrazosContador', () => {
   let httpMock: HttpTestingController;
 
@@ -81,7 +84,7 @@ describe('PrazosContador', () => {
     const fixture = TestBed.createComponent(PrazosContador);
     fixture.detectChanges();
     flushCarteira();
-    httpMock.expectOne((r) => r.url === '/contador/guias').flush(guias);
+    httpMock.expectOne((r) => ehGuiasDoCliente(r.url)).flush(guias);
     fixture.detectChanges();
     return fixture;
   }
@@ -163,12 +166,12 @@ describe('PrazosContador', () => {
     cmp.formValor.set('500');
     cmp.salvarGuia();
 
-    const req = httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'POST');
+    const req = httpMock.expectOne((r) => ehGuiasDoCliente(r.url) && r.method === 'POST');
     expect(req.request.body).toMatchObject({ tipoGuia: 'ICMS', valor: 500 });
     req.flush(guia({ id: 'nova' }));
 
     expect(cmp.showNovaGuia()).toBe(false);
-    httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'GET').flush([]);
+    httpMock.expectOne((r) => ehGuiasDoCliente(r.url) && r.method === 'GET').flush([]);
   });
 
   it('dar baixa chama PATCH e recarrega a lista', () => {
@@ -178,8 +181,8 @@ describe('PrazosContador', () => {
     const cmp = montar([guia({ id: 'g9' })]).componentInstance;
     cmp.marcarPaga(cmp.guias()[0]);
 
-    httpMock.expectOne((r) => r.url === '/contador/guias/g9/pagar').flush({});
-    httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'GET').flush([]);
+    httpMock.expectOne((r) => r.url === '/guias/g9/pagar').flush({});
+    httpMock.expectOne((r) => ehGuiasDoCliente(r.url) && r.method === 'GET').flush([]);
 
     expect(toasts[0]).toContain('ICMS');
   });
@@ -216,8 +219,8 @@ describe('PrazosContador', () => {
       fixture.detectChanges();
       flushCarteira();
 
-      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
-      expect(req.request.params.get('produtorId')).toBe('p-joao');
+      const req = httpMock.expectOne((r) => ehGuiasDoCliente(r.url));
+      expect(req.request.url).toBe('/contador/produtores/p-joao/guias');
       req.flush([]);
       expect(fixture.componentInstance.clienteAtual()?.nomeCompleto).toBe('João da Silva Produtor');
     });
@@ -232,8 +235,8 @@ describe('PrazosContador', () => {
       fixture.detectChanges();
       flushCarteira();
 
-      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
-      expect(req.request.params.get('produtorId')).toBe('p-maria');
+      const req = httpMock.expectOne((r) => ehGuiasDoCliente(r.url));
+      expect(req.request.url).toBe('/contador/produtores/p-maria/guias');
       req.flush([]);
     });
 
@@ -244,7 +247,7 @@ describe('PrazosContador', () => {
       flushCarteira();
       fixture.detectChanges();
 
-      httpMock.expectNone((r) => r.url === '/contador/guias');
+      httpMock.expectNone((r) => ehGuiasDoCliente(r.url));
       expect(fixture.componentInstance.cliente()).toBeNull();
       expect((fixture.nativeElement as HTMLElement).textContent).toContain(
         'Escolha um cliente para ver as guias',
@@ -257,8 +260,8 @@ describe('PrazosContador', () => {
 
       cmp.aoTrocarCliente(MARIA);
 
-      const req = httpMock.expectOne((r) => r.url === '/contador/guias');
-      expect(req.request.params.get('produtorId')).toBe('p-maria');
+      const req = httpMock.expectOne((r) => ehGuiasDoCliente(r.url));
+      expect(req.request.url).toBe('/contador/produtores/p-maria/guias');
       req.flush([]);
       expect(cmp.clienteAtual()?.nomeCompleto).toBe('Maria Agricultora');
     });
@@ -266,17 +269,19 @@ describe('PrazosContador', () => {
     it('a guia lancada nasce no cliente ESCOLHIDO, nao no primeiro', () => {
       const cmp = montar().componentInstance;
       cmp.aoTrocarCliente(MARIA);
-      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+      httpMock.expectOne((r) => ehGuiasDoCliente(r.url)).flush([]);
 
       cmp.formTipo.set('ICMS');
       cmp.formVencimento.set('2026-12-10');
       cmp.formValor.set('1200');
       cmp.salvarGuia();
 
-      const post = httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'POST');
-      expect(post.request.body.produtorId).toBe('p-maria');
+      const post = httpMock.expectOne((r) => ehGuiasDoCliente(r.url) && r.method === 'POST');
+      expect(post.request.url).toBe('/contador/produtores/p-maria/guias');
+      // O produtor vai no caminho; o corpo nao o leva mais (#198).
+      expect(post.request.body.produtorId).toBeUndefined();
       post.flush({});
-      httpMock.expectOne((r) => r.url === '/contador/guias' && r.method === 'GET').flush([]);
+      httpMock.expectOne((r) => ehGuiasDoCliente(r.url) && r.method === 'GET').flush([]);
     });
 
     it('carteira vazia nao inventa produtor: nao pergunta guia de ninguem', () => {
@@ -284,7 +289,7 @@ describe('PrazosContador', () => {
       fixture.detectChanges();
       flushCarteira([]);
 
-      httpMock.expectNone((r) => r.url === '/contador/guias');
+      httpMock.expectNone((r) => ehGuiasDoCliente(r.url));
       expect(fixture.componentInstance.guias()).toEqual([]);
     });
   });
@@ -294,7 +299,7 @@ describe('PrazosContador', () => {
     fixture.detectChanges();
     flushCarteira();
     httpMock
-      .expectOne((r) => r.url === '/contador/guias')
+      .expectOne((r) => ehGuiasDoCliente(r.url))
       .flush('erro', { status: 500, statusText: 'Server Error' });
     fixture.detectChanges();
 
@@ -320,7 +325,7 @@ describe('PrazosContador', () => {
       const cmp = abrir();
 
       httpMock
-        .expectOne((r) => r.url === '/contador/guias')
+        .expectOne((r) => ehGuiasDoCliente(r.url))
         .flush(
           { errors: [{ code: 'NAO_ENCONTRADO', message: 'Produtor nao encontrado.' }] },
           { status: 404, statusText: 'Not Found' },
@@ -334,7 +339,7 @@ describe('PrazosContador', () => {
       const cmp = abrir();
 
       httpMock
-        .expectOne((r) => r.url === '/contador/guias')
+        .expectOne((r) => ehGuiasDoCliente(r.url))
         .flush({ errors: [] }, { status: 404, statusText: 'Not Found' });
 
       expect(cmp.erro()?.podeTentarDeNovo).toBe(false);
@@ -344,7 +349,7 @@ describe('PrazosContador', () => {
       const cmp = abrir();
 
       httpMock
-        .expectOne((r) => r.url === '/contador/guias')
+        .expectOne((r) => ehGuiasDoCliente(r.url))
         .flush('falhou', { status: 500, statusText: 'Server Error' });
 
       expect(cmp.erro()?.podeTentarDeNovo).toBe(true);
@@ -353,12 +358,12 @@ describe('PrazosContador', () => {
     it('sucesso limpa o erro anterior', () => {
       const cmp = abrir();
       httpMock
-        .expectOne((r) => r.url === '/contador/guias')
+        .expectOne((r) => ehGuiasDoCliente(r.url))
         .flush('falhou', { status: 500, statusText: 'Server Error' });
       expect(cmp.erro()).not.toBeNull();
 
       cmp.carregar();
-      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+      httpMock.expectOne((r) => ehGuiasDoCliente(r.url)).flush([]);
 
       expect(cmp.erro()).toBeNull();
       expect(cmp.guias()).toEqual([]);

@@ -39,8 +39,11 @@ export interface GuiaFiscal {
   createdAt: string;
 }
 
-export interface CreateGuiaDto {
-  produtorId: string;
+/**
+ * Corpo do `POST` de guia nas rotas novas (#198, backend#273): **sem `produtorId`**. Na rota do
+ * produtor ele vem da identidade; na do contador, do caminho.
+ */
+export interface NovaGuiaDto {
   tipoGuia: TipoGuia;
   dataVencimento: string;
   valor: number;

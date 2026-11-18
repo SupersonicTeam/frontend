@@ -11,8 +11,8 @@ import type {
 import type { Pendencia, StatusPendencia, TipoDocumentoPendencia } from '@models/pendencia.model';
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import type { RevisaoNota } from '@services/notas/data-access/notas.service';
-import type { GuiaFiscal } from '@models/solicitacao-contador.model';
-import { statusDaGuia } from '@core/utils/guias';
+import type { GuiaFiscal, NovaGuiaDto } from '@models/solicitacao-contador.model';
+import { type GuiaFiscalResponse, paraGuia } from '@services/guias/data-access/guias.service';
 import { corpoDoEncerramento } from '@core/utils/encerramento-vinculo';
 import type { StatusNotaFiscal } from '@core/enums/status-nota-fiscal.enum';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
@@ -153,9 +153,10 @@ export interface PaginaNotasCarteira {
  * respondem 403 `PAPEL_NAO_AUTORIZADO` para quem é do escritório (issue #136). Cada uma tem aqui a
  * versão por cliente, com o **mesmo response**: só muda o caminho.
  *
- * Mora separado do `ContadorApi` de propósito. O `ContadorApi` nasceu antes de existir escopo de
- * contador no backend e carrega o jeito antigo — `?produtorId=` na query e `catchError(() => of([]))`
- * engolindo o 404 das rotas que não existiam. Aqui o padrão é o novo:
+ * Nasceu separado do `ContadorApi` de propósito: aquele era anterior ao escopo de contador no
+ * backend e carregava o jeito antigo — `?produtorId=` na query e `catchError(() => of([]))`
+ * engolindo o 404 das rotas que não existiam. Ele sumiu na #198, quando as guias, a última coisa
+ * que lhe restava, ganharam rota por cliente (aqui) e rota do produtor (`GuiasApi`). O padrão:
  *
  * - **produtor no path**, `/api/contador/produtores/{produtorId}/...`, como a #177 fixou;
  * - **nada de fallback silencioso**: o 404 (fora da carteira) e o 403 (papel errado) sobem para a
@@ -493,8 +494,8 @@ export class CarteiraApi {
   /**
    * `GET /api/contador/produtores/{produtorId}/pendencias` — os pedidos de documento (backend#180).
    *
-   * É a rota que substitui o `/api/contador/pendencias?produtorId=` que o `ContadorApi` ainda
-   * chama e que responde **404 desde sempre** — o cliente antigo foi escrito contra um contrato
+   * É a rota que substitui o `/api/contador/pendencias?produtorId=` que o antigo `ContadorApi`
+   * chamava e que responde **404 desde sempre** — o cliente antigo foi escrito contra um contrato
    * que nunca existiu.
    */
   pendenciasDoCliente(produtorId: string, status: StatusPendencia[] = []): Observable<Pendencia[]> {
@@ -508,29 +509,28 @@ export class CarteiraApi {
   }
 
   /**
-   * `GET /api/contador/guias?produtorId=` — as guias que o escritório lançou para o cliente.
+   * `GET /api/contador/produtores/{id}/guias` — as guias que o escritório lançou para o cliente
+   * (#198, backend#273). Até a #198 era `/api/contador/guias?produtorId=`, a única rota do
+   * contador com o produtor na query; agora segue o padrão do path, como as outras daqui. 404 para
+   * produtor fora da carteira ativa. Corpo é array, o total vai no `X-Total-Count`.
    *
-   * **É a única rota do contador aqui que leva o produtor na query, e não no path.** Ela é anterior
-   * à carteira (nasceu na #74, quando não havia escopo de contador nenhum) e o backend a manteve
-   * assim; a autorização, essa sim, já é a nova — o `ProdutorEmContextoResolver` responde 404 para
-   * produtor fora da carteira ativa.
-   *
-   * Lançar guia e dar baixa continuam morando em Prazos e cobrança: aqui é só leitura, para a
-   * triagem saber o que cobrar.
+   * Usada pela ficha do cliente (a triagem do que cobrar) e por Prazos e cobrança.
    */
   guiasDoCliente(produtorId: string): Observable<GuiaFiscal[]> {
     return this.http
-      .get<(Omit<GuiaFiscal, 'status'> & { status: string })[]>('/contador/guias', {
-        params: new HttpParams().set('produtorId', produtorId),
-      })
-      .pipe(
-        map((lista) =>
-          (lista ?? []).map((g) => ({
-            ...g,
-            status: statusDaGuia(g.status, g.dataVencimento),
-          })),
-        ),
-      );
+      .get<GuiaFiscalResponse[]>(`/contador/produtores/${produtorId}/guias`)
+      .pipe(map((lista) => (lista ?? []).map(paraGuia)));
+  }
+
+  /**
+   * `POST /api/contador/produtores/{id}/guias` — o escritório lança a guia para o cliente (#198).
+   * O produtor vai no caminho, não no corpo. O erro sobe com o motivo do servidor
+   * (`errors[0].message`), em vez de virar `null` (#107).
+   */
+  lancarGuia(produtorId: string, guia: NovaGuiaDto): Observable<GuiaFiscal> {
+    return this.http
+      .post<GuiaFiscalResponse>(`/contador/produtores/${produtorId}/guias`, guia)
+      .pipe(map(paraGuia));
   }
 
   /**
