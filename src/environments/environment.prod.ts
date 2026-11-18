@@ -8,4 +8,6 @@ export const environment = {
    * nenhum subdomínio. Ligar é esta linha, no dia da ativação.
    */
   enderecoProprioNoAr: false,
+  /** Os quadros da jornada 3D (#174), servidos fora do bundle. A versão vai no caminho. */
+  baseJornada: '/jornada/v0.1/',
 };
