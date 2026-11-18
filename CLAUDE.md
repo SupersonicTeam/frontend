@@ -451,6 +451,7 @@ O que o contrato da Ceres impõe e onde isso mora:
 | `AbortController` ao sair da tela | `store.cancelar(false)` no `ngOnDestroy` da `ChatPage`; botão "Cancelar" durante a espera |
 | Chat escondido para contador (403 `PAPEL_NAO_AUTORIZADO`) | `store.disponivel()` + `produtorGuard` na rota |
 | `resposta` é texto puro | `<app-ceres-texto>`: parágrafos (`\n\n`) e linhas `- ` como `<ul>`, tudo por interpolação; **nunca** `[innerHTML]` |
+| Explicação depois do número (#187, backend#268/#538): SSE `rota` → `resposta` → `explicacao` (opcional) → `fim`; no síncrono, campo `explicacao` **ausente** ou `null` = sem explicação | o store põe a resposta na conversa **ao receber o evento** e encerra o "pensando"; a leitura segue até o `fim` (`leituraPendente`) só para acrescentar o bloco "Entenda" abaixo do texto, com "Preparando a explicação…" enquanto isso. Erro depois da resposta não a apaga nem vira falha; a pergunta seguinte (ou o logout) fecha esse stream (`soltarExplicacao`). A explicação não entra no `turno`. Desligada por padrão no backend (`AI_EXPLICACAO_HABILITADA`): aí `resposta` e `fim` chegam juntos e nada muda na tela |
 
 Falha **não vira texto de assistente**: a mensagem carrega `falha` com o código do backend e a tela
 escolhe o que dizer (`tituloDaFalha`/`detalheDaFalha` em `assistente-conversa.ts`). "Modelo fora do ar"

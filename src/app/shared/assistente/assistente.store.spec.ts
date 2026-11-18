@@ -7,6 +7,7 @@ import type { CeresEvento, CeresResposta } from '@dtos/assistente/ceres.response
 import type { NotaFiscal } from '@models/nota-fiscal.model';
 import {
   CeresApi,
+  CeresCancelada,
   CeresError,
   type ContextoConversa,
 } from '@services/assistente/data-access/ceres.service';
@@ -139,6 +140,40 @@ describe('AssistenteStore — modo síncrono contra /api/assistente/chat', () =>
     req.flush(resposta());
 
     await vi.waitFor(() => expect(store.enviando()).toBe(false));
+  });
+
+  /** #187: no síncrono a explicação vem no próprio corpo; ausente e `null` são "sem explicação". */
+  it('no síncrono, a explicação vem junto e entra abaixo da resposta', async () => {
+    store.carregarContexto();
+    flushContexto();
+
+    store.enviar('Quanto eu pago?');
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush({ ...resposta(), explicacao: 'É o IBS menos os créditos.' });
+    await vi.waitFor(() => expect(store.enviando()).toBe(false));
+
+    expect(store.mensagens().at(-1)?.explicacao).toBe('É o IBS menos os créditos.');
+    expect(store.mensagens().at(-1)?.explicacaoPendente).toBeUndefined();
+  });
+
+  it('no síncrono, explicação ausente ou null não deixa nada a esperar', async () => {
+    store.carregarContexto();
+    flushContexto();
+
+    store.enviar('primeira');
+    httpMock.expectOne((r) => r.url === '/assistente/chat').flush(resposta());
+    await vi.waitFor(() => expect(store.enviando()).toBe(false));
+    store.enviar('segunda');
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush({ ...resposta(), explicacao: null });
+    await vi.waitFor(() => expect(store.enviando()).toBe(false));
+
+    for (const m of store.mensagens().filter((x) => x.autor === 'ceres')) {
+      expect(m.explicacao).toBeUndefined();
+      expect(m.explicacaoPendente).toBeUndefined();
+    }
   });
 
   it('traduz os atalhos do modo fallback em telas, e descarta código que não conhece', async () => {
@@ -796,5 +831,155 @@ describe('AssistenteStore — streaming e reenvio quando a Ceres está ocupada',
     await vi.waitFor(() => expect(store.mensagens().length).toBe(2));
 
     expect(store.mensagens()[1].falha).toBe('DESCONHECIDO');
+  });
+
+  /**
+   * A explicação depois do número (#187, backend#268): `rota` → `resposta` → `explicacao`
+   * (opcional) → `fim`. O número aparece na hora; a explicação, se vier, segundos depois.
+   */
+  describe('explicação depois do número (#187)', () => {
+    /** Um stream que para depois da `resposta` e só segue quando o teste mandar. */
+    function streamEmDuasPartes() {
+      const passos: {
+        aoEvento?: (evento: CeresEvento) => void;
+        seguir?: () => void;
+        falhar?: (erro: unknown) => void;
+        abortado: boolean;
+      } = { abortado: false };
+      vi.spyOn(fake, 'perguntarEmStream').mockImplementation(async (_p, aoEvento, sinal) => {
+        passos.aoEvento = aoEvento;
+        aoEvento({ evento: 'rota', dado: { rota: 'DADOS' } });
+        aoEvento({ evento: 'resposta', dado: resposta({ resposta: 'Você paga R$ 1.809,50.' }) });
+        await new Promise<void>((seguir, falhar) => {
+          passos.seguir = seguir;
+          passos.falhar = falhar;
+          sinal?.addEventListener('abort', () => {
+            passos.abortado = true;
+            falhar(new CeresCancelada());
+          });
+        });
+      });
+      return passos;
+    }
+
+    const daCeres = () => store.mensagens().filter((m) => m.autor === 'ceres');
+
+    it('mostra o número assim que a resposta chega e encerra o "pensando"', async () => {
+      streamEmDuasPartes();
+
+      store.enviar('Quanto eu pago este mês?');
+      await vi.waitFor(() => expect(daCeres().length).toBe(1));
+
+      expect(daCeres()[0]?.texto).toBe('Você paga R$ 1.809,50.');
+      expect(store.enviando()).toBe(false);
+      expect(store.etapa()).toBeNull();
+      expect(daCeres()[0]?.explicacaoPendente).toBe(true);
+    });
+
+    it('a explicação entra abaixo da resposta, sem mexer no texto', async () => {
+      const passos = streamEmDuasPartes();
+      store.enviar('Quanto eu pago este mês?');
+      await vi.waitFor(() => expect(daCeres().length).toBe(1));
+
+      passos.aoEvento?.({
+        evento: 'explicacao',
+        dado: { explicacao: 'É o IBS menos os créditos.' },
+      });
+      passos.aoEvento?.({ evento: 'fim', dado: {} });
+      passos.seguir?.();
+      await vi.waitFor(() => expect(daCeres()[0]?.explicacaoPendente).toBeUndefined());
+
+      expect(daCeres()).toHaveLength(1);
+      expect(daCeres()[0]?.texto).toBe('Você paga R$ 1.809,50.');
+      expect(daCeres()[0]?.explicacao).toBe('É o IBS menos os créditos.');
+    });
+
+    it('fim sem explicação não é erro: nada a fazer', async () => {
+      fake.desfechos = [resposta({ resposta: 'Pronto.' })];
+
+      store.enviar('pergunta');
+      await vi.waitFor(() => expect(daCeres().length).toBe(1));
+
+      expect(daCeres()[0]?.falha).toBeUndefined();
+      expect(daCeres()[0]?.explicacao).toBeUndefined();
+      expect(daCeres()[0]?.explicacaoPendente).toBeUndefined();
+    });
+
+    it('um erro depois da resposta não apaga a resposta nem vira falha', async () => {
+      const passos = streamEmDuasPartes();
+      store.enviar('Quanto eu pago este mês?');
+      await vi.waitFor(() => expect(daCeres().length).toBe(1));
+
+      passos.falhar?.(new CeresError('ASSISTENTE_TEMPO_ESGOTADO', 503, 'Demorou.'));
+      await vi.waitFor(() => expect(daCeres()[0]?.explicacaoPendente).toBeUndefined());
+
+      expect(daCeres()).toHaveLength(1);
+      expect(daCeres()[0]?.texto).toBe('Você paga R$ 1.809,50.');
+      expect(daCeres()[0]?.falha).toBeUndefined();
+      expect(store.enviando()).toBe(false);
+    });
+
+    it('a pergunta seguinte não espera a explicação: fecha aquele stream e segue', async () => {
+      const passos = streamEmDuasPartes();
+      store.enviar('Quanto eu pago este mês?');
+      await vi.waitFor(() => expect(daCeres().length).toBe(1));
+
+      expect(store.podeEnviar()).toBe(false); // campo vazio
+      store.entrada.set('e no mês passado?');
+      expect(store.podeEnviar()).toBe(true);
+      store.enviar();
+
+      expect(passos.abortado).toBe(true);
+      // A primeira resposta continua, sem "Pergunta cancelada" e sem esperar mais nada.
+      await vi.waitFor(() => expect(daCeres()[0]?.explicacaoPendente).toBeUndefined());
+      expect(daCeres()[0]?.texto).toBe('Você paga R$ 1.809,50.');
+      expect(store.mensagens().some((m) => m.falha === 'CANCELADA')).toBe(false);
+    });
+
+    it('uma explicação atrasada não cai na resposta da pergunta seguinte', async () => {
+      const passos = streamEmDuasPartes();
+      store.enviar('Quanto eu pago este mês?');
+      await vi.waitFor(() => expect(daCeres().length).toBe(1));
+      const primeiro = passos.aoEvento;
+
+      fake.desfechos = [resposta({ resposta: 'Em outubro, R$ 900,00.' })];
+      vi.mocked(fake.perguntarEmStream).mockRestore();
+      store.enviar('e no mês passado?');
+      await vi.waitFor(() => expect(daCeres().length).toBe(2));
+
+      primeiro?.({ evento: 'explicacao', dado: { explicacao: 'tarde demais' } });
+
+      expect(daCeres()[1]?.explicacao).toBeUndefined();
+    });
+
+    it('a explicação não entra no histórico: o turno volta como veio', async () => {
+      const turno = { pergunta: 'p1', resposta: 'r1', assinatura: 'v1.aaa' };
+      vi.spyOn(fake, 'perguntarEmStream').mockImplementation(async (_p, aoEvento) => {
+        aoEvento({ evento: 'resposta', dado: resposta({ turno }) });
+        aoEvento({ evento: 'explicacao', dado: { explicacao: 'Porque sim.' } });
+        aoEvento({ evento: 'fim', dado: {} });
+      });
+      store.enviar('existe nota errada?');
+      await vi.waitFor(() => expect(daCeres()[0]?.explicacao).toBe('Porque sim.'));
+
+      vi.mocked(fake.perguntarEmStream).mockRestore();
+      fake.desfechos = [resposta()];
+      store.enviar('tem certeza?');
+      await vi.waitFor(() => expect(daCeres().length).toBe(2));
+
+      expect(fake.contextosRecebidos.at(-1)?.historico).toEqual([turno]);
+      expect(fake.contextosRecebidos.at(-1)?.historico?.[0]).toBe(turno);
+    });
+
+    it('sair (logout) fecha o stream que esperava a explicação', async () => {
+      const passos = streamEmDuasPartes();
+      store.enviar('Quanto eu pago este mês?');
+      await vi.waitFor(() => expect(daCeres().length).toBe(1));
+
+      store.limpar();
+
+      expect(passos.abortado).toBe(true);
+      expect(store.mensagens()).toEqual([]);
+    });
   });
 });

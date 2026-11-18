@@ -126,19 +126,30 @@ export interface CeresResposta {
    * é depois da banca (#183, "fora desta issue").
    */
   perguntaInterpretada?: string | null;
+  /**
+   * A explicação curta do número, gerada pelo modelo e conferida no código (#187,
+   * backend#268/#538). **Só no síncrono**: no SSE ela chega num evento próprio, depois da
+   * `resposta`, e nunca dentro dela. Vem **ausente** quando não há (e não `null`); os dois
+   * querem dizer "sem explicação". Desligada por padrão no backend
+   * (`app.assistente.explicacao.enabled=false`).
+   */
+  explicacao?: string | null;
 }
 
 /**
  * Eventos do SSE, nesta ordem: `rota` (em segundos, para a tela trocar "pensando"
- * por "consultando suas notas"), `resposta` (já validada), `fim`. `erro` chega no
- * lugar dos dois últimos quando a falha acontece depois de o stream abrir.
+ * por "consultando suas notas"), `resposta` (já validada), `explicacao` (opcional, #187)
+ * e `fim`. `erro` chega no lugar dos últimos quando a falha acontece depois de o stream
+ * abrir — e, se vier depois da `resposta`, **não apaga** a resposta já mostrada.
  *
  * **Não há tokens parciais** e é de propósito: números e citações só saem depois
- * de conferidos.
+ * de conferidos. A `explicacao` também: o backend a descarta quando ela não confere com o
+ * número, e aí ela simplesmente não vem.
  */
 export type CeresEvento =
   | { evento: 'rota'; dado: { rota: RotaCeres } }
   | { evento: 'resposta'; dado: CeresResposta }
+  | { evento: 'explicacao'; dado: { explicacao: string } }
   | { evento: 'fim'; dado: Record<string, never> };
 
 /**
