@@ -119,11 +119,14 @@ describe('ContadorApi', () => {
 
     it('CTD-10c: a guia recem-criada volta com o status ja traduzido', () => {
       let criada: GuiaFiscal | null | undefined;
+      // **Terceira vez** que esta data apodrece (ver o CTD-10b): o `2026-11-10` passou em
+      // 11/11/2026 e a suite ficou vermelha sozinha. Este caso e sobre a TRADUCAO do status,
+      // e o atraso e derivado da data, entao vai para 2099 como os vizinhos.
       service
         .anexarGuia({
           produtorId: 'p1',
           tipoGuia: 'DARF',
-          dataVencimento: '2026-11-10',
+          dataVencimento: '2099-12-31',
           valor: 500,
         })
         .subscribe((res) => (criada = res));
@@ -134,7 +137,7 @@ describe('ContadorApi', () => {
           id: 'nova',
           produtorId: 'p1',
           tipoGuia: 'DARF',
-          dataVencimento: '2026-11-10',
+          dataVencimento: '2099-12-31',
           valor: 500,
           status: 'PENDENTE',
           createdAt: '2026-10-05T10:00:00Z',

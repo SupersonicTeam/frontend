@@ -1,0 +1,107 @@
+/* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
+   landing, sempre escura (classe .dark na raiz); movimento reduzido pela classe
+   .movimento-reduzido do PreferenciaMovimentoService. */
+
+/* 3.13 FAQ */
+.faq {
+  display: grid;
+  gap: 0.5rem;
+  max-width: 52rem;
+}
+.faq details {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--raio-ctl);
+}
+.faq details p {
+  padding: 0 1.25rem 1.1rem;
+  color: var(--muted);
+  max-width: 68ch;
+}
+
+/* 3.14 Chamada final */
+.final {
+  background: var(--profunda);
+  color: var(--on-profunda);
+}
+.lp.dark .final {
+  border-block: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+}
+.final .miolo {
+  display: grid;
+  gap: 1.25rem;
+  justify-items: start;
+  max-width: 52rem;
+  margin-inline: auto;
+}
+.final p {
+  color: var(--on-profunda-2);
+}
+.final .btn-lima {
+  background: var(--lima);
+  color: var(--lima-ink);
+}
+.final .btn-claro {
+  border-color: color-mix(in srgb, var(--on-profunda) 55%, transparent);
+  color: var(--on-profunda);
+  background: transparent;
+}
+.final :focus-visible {
+  outline-color: var(--lima);
+  outline-offset: 3px;
+}
+.final .email-linha,
+.final .email-linha code {
+  color: var(--on-profunda);
+}
+.final .btn-sutil {
+  color: var(--on-profunda-2);
+}
+
+/* 3.15 Rodapé */
+footer {
+  border-top: 1px solid var(--border);
+  padding-block: 3rem 2rem;
+  font-size: 0.9rem;
+}
+.rodape-grade {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 2rem;
+}
+.rodape-grade h3 {
+  font-size: 0.95rem;
+  margin-bottom: 0.6rem;
+}
+.rodape-grade ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+.rodape-grade a {
+  color: var(--muted);
+  text-decoration: none;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+.rodape-grade a:hover {
+  color: var(--fg);
+}
+.pendente {
+  color: var(--aviso-ink);
+  font-style: italic;
+}
+.linha-final {
+  margin-top: 2.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+}
