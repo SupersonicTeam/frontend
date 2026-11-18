@@ -115,7 +115,13 @@ export class CadastroPage {
   private readonly base = inject(DOMINIO_BASE);
   private readonly localizacao = inject(LOCALIZACAO_ATUAL);
 
-  /** `campoverde.agroconia.com.br`, montado pelo `urlDoHost` — nunca escrito à mão. */
+  /**
+   * O endereço da prévia (`campoverde.` + o domínio de produção), montado pelo `urlDoHost`.
+   *
+   * **O domínio não aparece aqui, nem em comentário**: o `conferir-build-producao.mjs` procura
+   * o texto dele em todo `.ts` que vai ao bundle (regra 3) e reprova a CI, porque um domínio
+   * escrito à mão faria a conferência do `environment.prod.ts` passar sem o `fileReplacements`.
+   */
   readonly previaDoEndereco = computed(() => {
     const slug = this.slugNormalizado();
     if (!slug || erroDoFormatoDoSlug(slug)) return null;
