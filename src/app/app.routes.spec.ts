@@ -3,8 +3,12 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { routes } from './app.routes';
-import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
+import { routes, visitanteNoPrincipal } from './app.routes';
+import {
+  EscritorioDoHostService,
+  type ModoDoHost,
+} from '@core/services/escritorio-do-host.service';
+import { SessaoService } from '@core/services/sessao.service';
 import { AvisoWwwPage } from '@pages/aviso-www/aviso-www';
 import { produtorGuard } from '@core/guards/produtor.guard';
 import { contadorGuard } from '@core/guards/contador.guard';
@@ -22,7 +26,7 @@ import { contadorGuard } from '@core/guards/contador.guard';
  * descoberta na apresentação.
  */
 describe('rotas por papel', () => {
-  const filhas = routes.find((r) => r.path === '')?.children ?? [];
+  const filhas = routes.find((r) => r.path === '' && r.children)?.children ?? [];
   const guardsDe = (path: string) => filhas.find((r) => r.path === path)?.canActivate ?? [];
 
   it.each(['dashboard', 'chat', 'escritorio'])('/%s é do produtor', (path) => {
@@ -78,7 +82,7 @@ describe('links do app (#112)', () => {
     '/tributario',
   ];
 
-  const caminhos = (routes.find((r) => r.path === '')?.children ?? [])
+  const caminhos = (routes.find((r) => r.path === '' && r.children)?.children ?? [])
     .map((r) => r.path)
     .filter((p): p is string => typeof p === 'string');
 
@@ -102,7 +106,7 @@ describe('links do app (#112)', () => {
     const rota = routes.find((r) => r.path === 'equipe/convite');
     expect(rota).toBeTruthy();
     expect(rota?.canActivate ?? []).toEqual([]);
-    const doShell = routes.find((r) => r.path === '')?.children ?? [];
+    const doShell = routes.find((r) => r.path === '' && r.children)?.children ?? [];
     expect(doShell.some((r) => r.path === 'equipe/convite')).toBe(false);
   });
 
@@ -134,4 +138,44 @@ describe('rotas no modo escritório', () => {
     expect(pagina).not.toBeInstanceOf(AvisoWwwPage);
     expect(pagina?.constructor.name).toContain('CadastroPage');
   });
+});
+
+/** A landing em `/` (#174): só para quem chega sem sessão ao endereço principal. */
+describe('landing em /', () => {
+  function decide(modo: ModoDoHost, logado: boolean): boolean {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: SessaoService, useValue: { logado: () => logado } },
+      ],
+    });
+    TestBed.inject(EscritorioDoHostService).modo.set(modo);
+    return TestBed.runInInjectionContext(() => visitanteNoPrincipal());
+  }
+
+  it('vem antes do shell e só casa o / exato, com o canMatch', () => {
+    const indice = routes.findIndex(
+      (r) => r.path === '' && r.canMatch?.includes(visitanteNoPrincipal),
+    );
+    const shell = routes.findIndex((r) => r.path === '' && r.children);
+    expect(indice).toBeGreaterThanOrEqual(0);
+    expect(indice).toBeLessThan(shell);
+    expect(routes[indice]?.pathMatch).toBe('full');
+  });
+
+  it('visitante sem sessão no www vê a landing', () => {
+    expect(decide('principal', false)).toBe(true);
+  });
+
+  it('com sessão, o / segue para o painel', () => {
+    expect(decide('principal', true)).toBe(false);
+  });
+
+  it.each<ModoDoHost>(['escritorio', 'nao-encontrado', 'indisponivel'])(
+    'no endereço de escritório (%s), o / continua do escritório',
+    (modo) => {
+      expect(decide(modo, false)).toBe(false);
+    },
+  );
 });

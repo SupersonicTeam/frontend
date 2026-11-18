@@ -1,0 +1,165 @@
+/* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
+   landing, sempre escura (classe .dark na raiz); movimento reduzido pela classe
+   .movimento-reduzido do PreferenciaMovimentoService. */
+
+html {
+  scroll-behavior: smooth;
+}
+.lp {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.6;
+}
+:where(.lp) :is(h1, h2, h3) {
+  font-family: var(--font-display);
+  line-height: 1.2;
+  text-wrap: balance;
+  margin: 0;
+}
+:where(.lp) h1 {
+  font-size: clamp(2rem, 1.3rem + 2.8vw, 3.25rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+:where(.lp) h2 {
+  font-size: clamp(1.6rem, 1.2rem + 1.6vw, 2.35rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+:where(.lp) h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+:where(.lp) p {
+  margin: 0;
+}
+:where(.lp) a {
+  color: var(--primary);
+}
+:where(.lp) :focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.miolo {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.faixa {
+  padding-block: clamp(3.5rem, 2rem + 5vw, 6rem);
+}
+.faixa.alt {
+  background: var(--surface2);
+}
+.sobre {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--primary);
+}
+.apoio {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.lead {
+  font-size: 1.1rem;
+  color: var(--muted);
+  max-width: 62ch;
+}
+.cabeca {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 46rem;
+  margin-bottom: 2.5rem;
+}
+.icone {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rotulo-ilustra {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* Botões */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0 1.15rem;
+  border-radius: var(--raio-ctl);
+  font: 600 0.95rem var(--font-body);
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.btn-primario {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+.btn-primario:hover {
+  filter: brightness(1.08);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--border);
+}
+.btn-ghost:hover {
+  background: var(--surface2);
+}
+.btn-sutil {
+  background: transparent;
+  color: var(--muted);
+  border: 0;
+  padding: 0 0.6rem;
+  font-weight: 500;
+}
+.btn-sutil:hover {
+  color: var(--fg);
+}
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+.email-linha {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.email-linha code {
+  font: 500 0.9rem var(--font-body);
+  color: var(--fg);
+  user-select: all;
+}
+
+/* Lugar da jornada 3D enquanto o @defer não chega: a página não pula. */
+.jornada-reserva {
+  min-height: 60vh;
+}
