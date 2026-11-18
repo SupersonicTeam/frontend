@@ -3,7 +3,6 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
 import { PrazosContador } from './prazos-contador';
-import { ToastService } from '@core/services/toast.service';
 import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import type { ProdutorCarteira } from '@models/carteira.model';
@@ -11,8 +10,9 @@ import type { ProdutorCarteira } from '@models/carteira.model';
 /**
  * Prazos na visão do contador: a fila de cobrança.
  *
- * Os testes de lançar guia e dar baixa vieram da tela de Acompanhamento, junto com a própria
- * funcionalidade — as guias eram mostradas inteiras nas duas telas.
+ * Os testes de lançar guia vieram da tela de Acompanhamento, junto com a própria funcionalidade —
+ * as guias eram mostradas inteiras nas duas telas. O de **dar baixa** virou o contrário: uma
+ * guarda de que esta tela não oferece a baixa (#198). Ver `PrazosProdutor`.
  */
 /** As guias de um cliente da carteira: `/contador/produtores/{id}/guias` (#198). */
 const ehGuiasDoCliente = (url: string) => /^\/contador\/produtores\/[^/]+\/guias$/.test(url);
@@ -174,17 +174,22 @@ describe('PrazosContador', () => {
     httpMock.expectOne((r) => ehGuiasDoCliente(r.url) && r.method === 'GET').flush([]);
   });
 
-  it('dar baixa chama PATCH e recarrega a lista', () => {
-    const toasts: string[] = [];
-    TestBed.inject(ToastService).success = (m: string) => void toasts.push(m);
+  it('não oferece a baixa: ela é do produtor e aqui respondia 403 (#198)', () => {
+    // O botão "Dar baixa" vivia nesta tela, em dois lugares, chamando a rota do PRODUTOR
+    // (`PATCH /api/guias/{id}/pagar`). O contador leva 403 `PAPEL_NAO_AUTORIZADO` nela: era a
+    // única baixa do sistema e não funcionava para ninguém, enquanto o produtor não tinha botão.
+    // O teste é a guarda de que ele não volta para cá.
+    const f = montar([guia({ id: 'g9', status: 'pendente', dataVencimento: emDias(-5) })]);
+    const texto = ((f.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
 
-    const cmp = montar([guia({ id: 'g9' })]).componentInstance;
-    cmp.marcarPaga(cmp.guias()[0]);
+    expect(texto).not.toContain('Dar baixa');
+    expect(texto).toContain('Quem dá baixa é o produtor');
+    expect(httpMock.match((r) => r.url.includes('/pagar')).length).toBe(0);
 
-    httpMock.expectOne((r) => r.url === '/guias/g9/pagar').flush({});
-    httpMock.expectOne((r) => ehGuiasDoCliente(r.url) && r.method === 'GET').flush([]);
-
-    expect(toasts[0]).toContain('ICMS');
+    // E a tela não tem mais por onde pedir a baixa, nem por fora do template.
+    expect((f.componentInstance as unknown as Record<string, unknown>)['marcarPaga']).toBe(
+      undefined,
+    );
   });
 
   it('guia paga diz quando foi paga (`dataPagamento`, #116)', () => {

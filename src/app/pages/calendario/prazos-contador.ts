@@ -20,7 +20,6 @@ import {
 } from '@services/notificacao/data-access/notificacao.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
 import { CarteiraApi } from '@services/contador/data-access/carteira.service';
-import { GuiasApi } from '@services/guias/data-access/guias.service';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import { SeletorCliente } from '@shared/contador/seletor-cliente';
 import { UiButton } from '@shared/ui/ui-button';
@@ -47,7 +46,17 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
  * aviso, o outro emite a guia.
  *
  * Por isso aqui não há calendário mensal, nem "o próximo prazo", nem conselho de procurar o escritório
- * — o escritório é quem está lendo. Há a fila de cobrança, o lançamento e a baixa.
+ * — o escritório é quem está lendo. Há a fila de cobrança e o lançamento.
+ *
+ * ## A baixa não é daqui (#198)
+ *
+ * Esta tela tinha um botão "Dar baixa" em dois lugares, e ele **nunca funcionou**: a baixa é do
+ * produtor por contrato (`PATCH /api/guias/{id}/pagar`, backend#273) e o contador leva
+ * 403 `PAPEL_NAO_AUTORIZADO` nela. Medido contra a API local em 18/11/2026: 403 em toda guia, de
+ * todo cliente. Era um botão que só sabia dar errado — e, enquanto ele morava aqui, parecia que a
+ * baixa estava resolvida, então o **produtor não tinha onde pagar**. A ação foi para os Prazos
+ * dele (`PrazosProdutor`), a única ponta que o backend autoriza; aqui ficou dito quem dá baixa,
+ * para o escritório não procurar o botão.
  *
  * **As guias vivem aqui, e não no Acompanhamento.** A tela de Acompanhamento é a triagem ("o que
  * impede fechar"); ela aponta para cá em vez de repetir a tabela. Antes as mesmas guias apareciam
@@ -77,7 +86,6 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
 })
 export class PrazosContador {
   private readonly carteiraApi = inject(CarteiraApi);
-  private readonly guiasApi = inject(GuiasApi);
   private readonly toast = inject(ToastService);
 
   private readonly notificacaoApi = inject(NotificacaoApi);
@@ -324,22 +332,6 @@ export class PrazosContador {
           this.toast.error(falhaDaApi(err).mensagem);
         },
       });
-  }
-
-  /**
-   * Dar baixa. **Pelo contrato a baixa é do produtor** (backend#273: `PATCH /api/guias/{id}/pagar`,
-   * contador recebe 403 `PAPEL_NAO_AUTORIZADO`), e já era assim na rota antiga. O botão segue aqui
-   * até o time decidir se ele sai desta tela e vai para a do produtor; a migração (#198) não
-   * muda o que ele faz.
-   */
-  marcarPaga(guia: GuiaFiscal): void {
-    this.guiasApi.pagar(guia.id).subscribe({
-      next: () => {
-        this.toast.success(`Guia de ${guia.tipoGuia} marcada como paga.`);
-        this.carregar();
-      },
-      error: (err: HttpErrorResponse) => this.toast.error(falhaDaApi(err).mensagem),
-    });
   }
 
   /** Dias de hoje até a data (negativo = já passou). */
