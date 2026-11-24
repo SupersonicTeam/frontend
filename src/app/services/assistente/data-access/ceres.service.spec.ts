@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import type { CeresEvento, CeresResposta } from '@dtos/assistente/ceres.response';
 import { CeresApi, CeresError, extrairEventosSse } from './ceres.service';
 
 /**
@@ -170,6 +171,21 @@ describe('CeresApi — modo síncrono', () => {
     await expect(semTurno).resolves.toMatchObject({ turno: null, perguntaInterpretada: null });
   });
 
+  /** #187: o backend manda o campo **ausente** quando não há explicação; `null` vale o mesmo. */
+  it('explicacao: texto quando vem, null quando ausente ou null', async () => {
+    const corpo = { resposta: 'ok', rota: 'DADOS', citacoes: [], fontesDados: [] };
+    const casos: [Record<string, unknown>, string | null][] = [
+      [{ ...corpo, explicacao: 'É o IBS menos os créditos.' }, 'É o IBS menos os créditos.'],
+      [corpo, null],
+      [{ ...corpo, explicacao: null }, null],
+    ];
+    for (const [bruto, esperado] of casos) {
+      const recebida = new Promise((resolve) => api.perguntar('oi').subscribe(resolve));
+      httpMock.expectOne((r) => r.url === '/assistente/chat').flush(bruto);
+      await expect(recebida).resolves.toMatchObject({ explicacao: esperado });
+    }
+  });
+
   it('servidor inalcançável é SEM_CONEXAO, não assistente fora do ar', async () => {
     const capturado = new Promise<CeresError>((resolve) =>
       api.perguntar('pergunta').subscribe({ error: resolve }),
@@ -179,6 +195,106 @@ describe('CeresApi — modo síncrono', () => {
       .error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
 
     expect((await capturado).codigo).toBe('SEM_CONEXAO');
+  });
+});
+
+/**
+ * O `perguntarEmStream` de ponta a ponta, com o corpo do SSE vindo de um `fetch` falso.
+ * O foco é a explicação depois do número (#187, backend#268/#538).
+ */
+describe('CeresApi — streaming', () => {
+  let api: CeresApi;
+
+  const RESPOSTA =
+    '{"resposta":"R$ 1.809,50.","rota":"DADOS","citacoes":[],"fontesDados":[],"modoFallback":false}';
+
+  /** Responde ao `fetch` com estes pedaços de SSE, um por chunk. */
+  function servirSse(...pedacos: string[]) {
+    const corpo = new ReadableStream<Uint8Array>({
+      start(controle) {
+        const codificador = new TextEncoder();
+        for (const p of pedacos) controle.enqueue(codificador.encode(p));
+        controle.close();
+      },
+    });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(corpo, { status: 200 })),
+    );
+  }
+
+  async function eventosDe(): Promise<CeresEvento[]> {
+    const eventos: CeresEvento[] = [];
+    await api.perguntarEmStream('Quanto eu pago?', (e) => eventos.push(e));
+    return eventos;
+  }
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    api = TestBed.inject(CeresApi);
+  });
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('com explicação: rota, resposta, explicacao e fim, nessa ordem', async () => {
+    servirSse(
+      'event:rota\ndata:{"rota":"DADOS"}\n\n',
+      `event:resposta\ndata:${RESPOSTA}\n\n`,
+      // Cortada no meio pela fronteira do chunk, como chega de verdade.
+      'event:explicacao\ndata:{"explicacao":"É o IBS',
+      ' menos os créditos."}\n\nevent:fim\ndata:{}\n\n',
+    );
+
+    const eventos = await eventosDe();
+
+    expect(eventos.map((e) => e.evento)).toEqual(['rota', 'resposta', 'explicacao', 'fim']);
+    expect(eventos[2]).toEqual({
+      evento: 'explicacao',
+      dado: { explicacao: 'É o IBS menos os créditos.' },
+    });
+    // A explicação nunca vem dentro da resposta.
+    expect((eventos[1]?.dado as CeresResposta).explicacao).toBeNull();
+  });
+
+  it('sem explicação: o fim chega logo depois da resposta e não é erro', async () => {
+    servirSse(`event:resposta\ndata:${RESPOSTA}\n\nevent:fim\ndata:{}\n\n`);
+
+    const eventos = await eventosDe();
+
+    expect(eventos.map((e) => e.evento)).toEqual(['resposta', 'fim']);
+  });
+
+  it('explicação sem texto é o mesmo que não ter vindo', async () => {
+    servirSse(
+      `event:resposta\ndata:${RESPOSTA}\n\n`,
+      'event:explicacao\ndata:{"explicacao":"  "}\n\n',
+      'event:explicacao\ndata:{}\n\n',
+      'event:fim\ndata:{}\n\n',
+    );
+
+    expect((await eventosDe()).map((e) => e.evento)).toEqual(['resposta', 'fim']);
+  });
+
+  /** Quem decide manter a resposta é o store; aqui o erro só precisa chegar classificado. */
+  it('erro depois da resposta: a resposta já foi entregue e o erro sobe classificado', async () => {
+    servirSse(
+      `event:resposta\ndata:${RESPOSTA}\n\n`,
+      'event:erro\ndata:{"errors":[{"code":"ASSISTENTE_TEMPO_ESGOTADO","message":"Demorou."}]}\n\n',
+    );
+    const eventos: CeresEvento[] = [];
+
+    const erro = await api
+      .perguntarEmStream('Quanto eu pago?', (e) => eventos.push(e))
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+
+    expect(eventos.map((e) => e.evento)).toEqual(['resposta']);
+    expect(erro).toBeInstanceOf(CeresError);
+    expect((erro as CeresError).codigo).toBe('ASSISTENTE_TEMPO_ESGOTADO');
   });
 });
 

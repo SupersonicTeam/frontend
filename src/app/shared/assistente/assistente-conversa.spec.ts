@@ -58,6 +58,29 @@ describe('AssistenteConversa — resposta da Ceres', () => {
     ]);
   });
 
+  /** #187: a explicação entra abaixo do número, à parte, sem mexer no texto da resposta. */
+  it('mostra a explicação abaixo da resposta, num bloco "Entenda"', () => {
+    const el = montar({ ...resumo, explicacao: 'É o IBS menos os créditos do mês.' });
+    const textos = el.querySelectorAll('app-ceres-texto');
+
+    expect(textos).toHaveLength(2);
+    expect(textos[0]?.textContent).toContain('2 pontos de atencao');
+    expect(textos[0]?.textContent).not.toContain('IBS menos');
+    expect(textos[1]?.textContent).toContain('É o IBS menos os créditos do mês.');
+    expect(el.textContent).toContain('Entenda');
+    expect(el.textContent).not.toContain('Preparando a explicação');
+  });
+
+  it('enquanto a explicação pode chegar, avisa; sem ela, não mostra nada', () => {
+    expect(montar({ ...resumo, explicacaoPendente: true }).textContent).toContain(
+      'Preparando a explicação',
+    );
+    TestBed.resetTestingModule();
+    const semNada = montar(resumo);
+    expect(semNada.textContent).not.toContain('Entenda');
+    expect(semNada.textContent).not.toContain('Preparando a explicação');
+  });
+
   it('continua texto puro: marcação na resposta aparece como texto, não vira HTML', () => {
     const el = montar({ ...resumo, texto: 'Veja <b>isto</b>\n\n- <img src=x onerror=alert(1)>' });
     const texto = el.querySelector('app-ceres-texto')!;

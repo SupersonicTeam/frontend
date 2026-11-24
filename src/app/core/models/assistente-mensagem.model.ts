@@ -44,4 +44,15 @@ export interface AssistenteMensagem {
    * mantém fora do histórico. Nunca aparece na tela e nunca sai da memória.
    */
   turno?: CeresTurno;
+  /**
+   * A explicação do número, abaixo da resposta e com estilo secundário (#187). Chega
+   * segundos depois dela no SSE, ou junto no síncrono. Pode nunca vir, e isso não é erro.
+   * Não entra no `turno`.
+   */
+  explicacao?: string;
+  /**
+   * O stream desta resposta ainda está aberto e pode trazer a explicação. Some no `fim`,
+   * num erro depois da resposta ou quando a pessoa faz outra pergunta.
+   */
+  explicacaoPendente?: boolean;
 }

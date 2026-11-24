@@ -207,7 +207,7 @@ export class CeresApi {
 
   /**
    * Pergunta em streaming. Chama `aoEvento` para cada evento do SSE (`rota`,
-   * `resposta`, `fim`) e **lança** `CeresError` no evento `erro` — e também nos
+   * `resposta`, `explicacao`, `fim`) e **lança** `CeresError` no evento `erro` — e também nos
    * erros que acontecem antes de o stream abrir (400/401/403/413 e o 503
    * `ASSISTENTE_OCUPADO`), que vêm como resposta HTTP comum em JSON.
    *
@@ -315,6 +315,14 @@ export class CeresApi {
     if (bloco.nome === 'resposta') {
       return { evento: 'resposta', dado: this.normalizar(dado as Partial<CeresResposta> | null) };
     }
+    if (bloco.nome === 'explicacao') {
+      // #187: `{"explicacao": "texto"}`, só com a função ligada no backend. Sem texto, não há
+      // o que mostrar — o mesmo que ela não ter vindo.
+      const explicacao = (dado as { explicacao?: unknown } | null)?.explicacao;
+      return typeof explicacao === 'string' && explicacao.trim()
+        ? { evento: 'explicacao', dado: { explicacao } }
+        : null;
+    }
     if (bloco.nome === 'fim') {
       return { evento: 'fim', dado: {} };
     }
@@ -340,6 +348,9 @@ export class CeresApi {
       // "esta resposta não entra no histórico".
       turno: bruto?.turno ?? null,
       perguntaInterpretada: bruto?.perguntaInterpretada ?? null,
+      // #187: ausente e `null` querem dizer o mesmo, "sem explicação". Só o síncrono a traz
+      // aqui; no SSE ela vem no evento próprio.
+      explicacao: bruto?.explicacao?.trim() ? bruto.explicacao : null,
     };
   }
 
