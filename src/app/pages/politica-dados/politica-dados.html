@@ -33,8 +33,7 @@
           Versão {{ p.versao }}. Controlador: {{ p.controlador }}. Encarregado:
           <a [href]="'mailto:' + p.contatoEncarregado" class="font-medium text-primary underline">{{
             p.contatoEncarregado
-          }}</a
-          >.
+          }}</a>.
         </p>
 
         @for (s of secoes(); track s.titulo) {
@@ -45,6 +44,50 @@
                 <li>{{ item }}</li>
               }
             </ul>
+          </section>
+        }
+
+        <!-- Os operadores de fora do Brasil (#206). Sem o campo, nenhuma seção aparece: os mesmos
+             fatos seguem nas listas acima, e um título vazio diria que falta algo. -->
+        @if (operadores().length) {
+          <section class="space-y-3">
+            <h2 class="font-heading text-base font-semibold text-foreground">
+              Serviços de fora do Brasil que tratam dados por nós
+            </h2>
+            <p class="text-apoio leading-relaxed text-muted-foreground">
+              Eles são operadores: tratam dados em nome da GWNext, cada um só com o que a função
+              dele exige. O que não é enviado está escrito em cada quadro.
+            </p>
+            @for (o of operadores(); track o.nome) {
+              <article class="space-y-3 rounded-controle border border-border bg-muted/40 p-4">
+                <header class="space-y-1">
+                  <h3 class="font-heading text-base font-semibold text-foreground">{{ o.nome }}</h3>
+                  <p class="text-apoio leading-relaxed text-foreground">{{ o.servico }}</p>
+                </header>
+                <dl class="space-y-2">
+                  @for (linha of o.linhas; track linha.rotulo) {
+                    <div>
+                      <dt class="text-apoio font-semibold text-foreground">{{ linha.rotulo }}</dt>
+                      @if (linha.texto) {
+                        <dd class="text-apoio leading-relaxed text-muted-foreground">
+                          {{ linha.texto }}
+                        </dd>
+                      } @else {
+                        <dd>
+                          <ul
+                            class="list-disc space-y-1 pl-5 text-apoio leading-relaxed text-muted-foreground"
+                          >
+                            @for (item of linha.itens; track $index) {
+                              <li>{{ item }}</li>
+                            }
+                          </ul>
+                        </dd>
+                      }
+                    </div>
+                  }
+                </dl>
+              </article>
+            }
           </section>
         }
 

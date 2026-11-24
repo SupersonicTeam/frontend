@@ -60,6 +60,29 @@ describe('AssistenteConversa — resposta da Ceres', () => {
     ]);
   });
 
+  /** #187: a explicação entra abaixo do número, à parte, sem mexer no texto da resposta. */
+  it('mostra a explicação abaixo da resposta, num bloco "Entenda"', () => {
+    const el = montar({ ...resumo, explicacao: 'É o IBS menos os créditos do mês.' });
+    const textos = el.querySelectorAll('app-ceres-texto');
+
+    expect(textos).toHaveLength(2);
+    expect(textos[0]?.textContent).toContain('2 pontos de atencao');
+    expect(textos[0]?.textContent).not.toContain('IBS menos');
+    expect(textos[1]?.textContent).toContain('É o IBS menos os créditos do mês.');
+    expect(el.textContent).toContain('Entenda');
+    expect(el.textContent).not.toContain('Preparando a explicação');
+  });
+
+  it('enquanto a explicação pode chegar, avisa; sem ela, não mostra nada', () => {
+    expect(montar({ ...resumo, explicacaoPendente: true }).textContent).toContain(
+      'Preparando a explicação',
+    );
+    TestBed.resetTestingModule();
+    const semNada = montar(resumo);
+    expect(semNada.textContent).not.toContain('Entenda');
+    expect(semNada.textContent).not.toContain('Preparando a explicação');
+  });
+
   it('continua texto puro: marcação na resposta aparece como texto, não vira HTML', () => {
     const el = montar({ ...resumo, texto: 'Veja <b>isto</b>\n\n- <img src=x onerror=alert(1)>' });
     const texto = el.querySelector('app-ceres-texto')!;
@@ -201,6 +224,47 @@ describe('AssistenteConversa — resposta da Ceres', () => {
     );
     expect(el.textContent).not.toContain('Calculado a partir das suas notas');
     expect(el.textContent).toContain('resposta do AgroConIA');
+  });
+
+  /**
+   * O aviso de envio ao provedor (#183). Ele precisa estar no ar **antes** de a flag ser
+   * ligada na VPS: quem decide é o backend, e a tela não pode inventar o aviso nem
+   * escondê-lo quando o campo chega.
+   */
+  describe('aviso de envio ao provedor (#183)', () => {
+    const TRECHO = 'provedor de IA fora do Brasil';
+
+    function montarComUso(conversaVaiAoProvedor?: boolean): HTMLElement {
+      TestBed.configureTestingModule({
+        imports: [AssistenteConversa],
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      });
+      entrarComo('PRODUTOR');
+      TestBed.inject(AssistenteStore).uso.set({
+        plano: 'padrao',
+        habilitada: true,
+        creditosSemana: 1000,
+        consumidos: 0,
+        restantes: 1000,
+        renovaEm: '2026-11-19T00:00:00-03:00',
+        ...(conversaVaiAoProvedor === undefined ? {} : { conversaVaiAoProvedor }),
+      });
+      const fixture = TestBed.createComponent(AssistenteConversa);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('com a continuidade ligada, avisa que a conversa sai do Brasil', () => {
+      expect(montarComUso(true).textContent).toContain(TRECHO);
+    });
+
+    it('com a continuidade desligada, não avisa nada', () => {
+      expect(montarComUso(false).textContent).not.toContain(TRECHO);
+    });
+
+    it('backend sem o campo não mostra aviso — ausente vale false', () => {
+      expect(montarComUso(undefined).textContent).not.toContain(TRECHO);
+    });
   });
 
   /**

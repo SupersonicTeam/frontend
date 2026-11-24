@@ -136,6 +136,13 @@ Ceres, todos pedindo dado de um usuário que ainda não existe; e uma tela de lo
 login quem não tem sessão — em volta. Sem sessão, o `sessaoGuard` manda para lá **com `returnUrl`**, para
 que o endereço pedido (uma nota, um cliente da carteira) não se perca no caminho.
 
+**O `returnUrl` atravessa o cadastro** (#182): quem chega por um link de convite sem ter conta faz
+login → "Criar conta" → cadastro → login, e o destino morria no primeiro salto (caía no painel em vez
+do convite). O login repassa o `returnUrl` ao "Criar conta" e o cadastro o devolve ao `/login` depois de
+criar a conta e no link "Entrar" (`paramsDeRetorno` nas duas telas). **O cadastro só carrega o valor** —
+quem valida que o caminho é interno (e não é `/login`) continua sendo o `destino()` do login, no único
+ponto em que ele vira navegação. Duas cópias dessa checagem seriam a forma de uma ficar para trás.
+
 **As telas dos dois papéis são separadas, e isso é imposto por guard** — endereço é digitável, esconder o
 link do menu não protege. O contador chegava em `/calendario` e `/tributario` e lia texto escrito para o
 produtor, inclusive "procure o seu escritório de contabilidade" mostrado para o escritório. O que ele
@@ -198,7 +205,7 @@ duas telas. A triagem aponta para a cobrança; a cobrança é quem lança e dá 
 | `PendenciasApi` | `@services/pendencias/data-access/pendencias.service` | **Pedidos de documento do lado do produtor** (backend#180): `GET /api/pendencias`, detalhe e `POST /{id}/anexos` (multipart, parte `arquivo`, **sem** `Content-Type` — o boundary é do navegador). Erro sobe: a tela separa `ANEXO_INVALIDO`, `ANEXO_INFECTADO`, `LIMITE_ANEXOS` e `TRANSICAO_PENDENCIA_INVALIDA`. **A lista devolve `anexos: []`** — os metadados (e a `situacao` do antivírus) só vêm no detalhe. |
 | `AuthApi` | `@services/auth/data-access/auth.service` | **Autenticação** (#93): `entrar()` (`POST /auth/login` → `{accessToken, tokenType, expiraEm, papel, usuarioId}`, e o nome vem de um `GET /auth/me` em seguida — o login **não** o devolve), `renovar()` (`POST /auth/refresh`, **fila de uma renovação por vez**), `sair()` (`POST /auth/logout`, nunca falha para quem chama) e `carregar()` (`/auth/me`, que responde da sessão quando já há uma). As três primeiras usam `HttpClient` direto com **`withCredentials`**: o refresh mora num cookie HttpOnly (`agro_refresh`, `Path=/api/auth`, `SameSite=Strict`) que o `ApiService` não saberia pedir. |
 | `NotificacaoApi` | `@services/notificacao/data-access/notificacao.service` | Notificações externas (WhatsApp). |
-| `PrivacidadeApi` | `@services/privacidade/data-access/privacidade.service` | `politica()` — `GET /politica-dados`, pública (#137). A exclusão da conta mora no `AuthApi.excluirMinhaConta(senha)` (`DELETE /usuarios/{id}/dados`, 204; `SENHA_ATUAL_INCORRETA`; id de outro → 404), que reaproveita a tradução de erro de conta. A auditoria por cliente é `CarteiraApi.auditoriaDoCliente`. |
+| `PrivacidadeApi` | `@services/privacidade/data-access/privacidade.service` | `politica()` — `GET /politica-dados`, pública (#137). Desde a política `2026-11-17` ela traz **`operadoresExternos`** (#206, backend#586): Resend e Anthropic, cada um com finalidade, o que é enviado, **o que não é**, onde fica, base do art. 33 e retenção. O campo é **opcional** — backend mais antigo não o manda, e aí a seção simplesmente não aparece. A exclusão da conta mora no `AuthApi.excluirMinhaConta(senha)` (`DELETE /usuarios/{id}/dados`, 204; `SENHA_ATUAL_INCORRETA`; id de outro → 404), que reaproveita a tradução de erro de conta. A auditoria por cliente é `CarteiraApi.auditoriaDoCliente`. |
 | `VinculosApi` | `@services/vinculos/data-access/vinculos.service` | **Lado do produtor** do vínculo com o escritório (backend#177): `listar(situacoes?)` (`GET /vinculos`; sem argumento, ativos e suspensos; com `ENCERRADO`, o histórico, backend#353), `encerrar(id)`, e os convites (`convites()`, `aceitarConvite(id)`, `recusarConvite(id)`, #147). **Rotas do produtor**: nunca com sessão de contador (403). |
 | `EscritorioApi` | `@services/escritorio/data-access/escritorio.service` | Escritório e equipe (backend#228, #148). `meuEscritorio()` traz `minhaFuncao` (e, desde a #175, `slug`/`enderecoHost`/`enderecoAlteravelEm`; `definirEndereco(slug)` e `removerEndereco()`) (`ADMINISTRADOR`/`CONTADOR`/`ASSISTENTE` — o token só diz `CONTADOR`) **em cache na sessão** (falha não fica guardada; limpo no Sair e ao trocar de equipe). `ehAdministrador()`/`podeReabrirApuracao()` decidem os botões e, na falha, respondem `false`. Também: `atualizar`, `membros`, `alterarFuncao` (409 `ULTIMO_ADMINISTRADOR`), `removerMembro`, `convidarMembro` (202 sempre), `convitesDeEquipe`, `aceitarConvite(token)`. O 403 `SEM_ESCRITORIO` (membro removido) vira, no `apiInterceptor`, um aviso único de que a pessoa saiu do escritório. |
 
@@ -451,6 +458,7 @@ O que o contrato da Ceres impõe e onde isso mora:
 | `AbortController` ao sair da tela | `store.cancelar(false)` no `ngOnDestroy` da `ChatPage`; botão "Cancelar" durante a espera |
 | Chat escondido para contador (403 `PAPEL_NAO_AUTORIZADO`) | `store.disponivel()` + `produtorGuard` na rota |
 | `resposta` é texto puro | `<app-ceres-texto>`: parágrafos (`\n\n`) e linhas `- ` como `<ul>`, tudo por interpolação; **nunca** `[innerHTML]` |
+| Explicação depois do número (#187, backend#268/#538): SSE `rota` → `resposta` → `explicacao` (opcional) → `fim`; no síncrono, campo `explicacao` **ausente** ou `null` = sem explicação | o store põe a resposta na conversa **ao receber o evento** e encerra o "pensando"; a leitura segue até o `fim` (`leituraPendente`) só para acrescentar o bloco "Entenda" abaixo do texto, com "Preparando a explicação…" enquanto isso. Erro depois da resposta não a apaga nem vira falha; a pergunta seguinte (ou o logout) fecha esse stream (`soltarExplicacao`). A explicação não entra no `turno`. Desligada por padrão no backend (`AI_EXPLICACAO_HABILITADA`): aí `resposta` e `fim` chegam juntos e nada muda na tela |
 
 Falha **não vira texto de assistente**: a mensagem carrega `falha` com o código do backend e a tela
 escolhe o que dizer (`tituloDaFalha`/`detalheDaFalha` em `assistente-conversa.ts`). "Modelo fora do ar"
@@ -463,6 +471,35 @@ do backend; sem o campo, a tela cai na conta com os créditos. **Nenhum número 
 O anel, a barra, a cor e o número saem todos da mesma `fracaoUsada()` em `assistente-conversa.ts` —
 discordarem sobre a mesma semana é pior que qualquer um deles errar sozinho. Cota zerada no servidor
 (`creditosSemana: 0`) conta como **100% usado**; antes dava "0% usado" ao lado de um anel vazio.
+### Continuidade da conversa (#183, backend#499)
+
+Cada pergunta chega isolada ao backend — era por isso que "tem certeza?" respondia "Não consegui
+identificar qual dado consultar". Agora a tela manda de volta as últimas trocas:
+
+- **O `turno` é opaco.** Vem na resposta (`CeresTurno`: pergunta, resposta e assinatura), é guardado
+  **como veio** na mensagem (`AssistenteMensagem.turno`) e volta **como veio** no `historico`. Nada de
+  `trim`, reformatação ou par montado com o texto da tela: a assinatura vale para os bytes exatos, e
+  qualquer mudança faz o backend **ignorar o histórico em silêncio** — sem erro nenhum para avisar.
+- **Quem monta o contexto é o store**, em `contextoDaConversa()`, **antes** de a pergunta nova entrar na
+  lista. No `historico` vão os `turno` das últimas `MAX_TURNOS_HISTORICO` (3) respostas que os trouxeram;
+  recusa, conversa leve, modo fallback, falha e cancelamento vêm **sem** `turno` e nunca entram. O
+  `ultimaRespostaSemTurno` olha a **última** mensagem da Ceres (com `turno` ou sem) e é o que impede um
+  "tem certeza?" depois de uma recusa de refazer a consulta de duas respostas atrás.
+- **O reenvio do 503 manda o mesmo contexto**, não um recalculado: a conversa não andou entre o
+  `ASSISTENTE_OCUPADO` e o reenvio.
+- **Só na memória.** O `turno` leva valores, datas e os textos do escritório: nada de `localStorage`,
+  `sessionStorage` nem `console.log`, e ele nunca aparece na tela. O `limpar()` do logout zera tudo.
+- **Cancelar passou a custar o que já foi gasto**: o backend só percebe o cancelamento na chamada
+  seguinte ao modelo, então a cota é recarregada ~5 s depois do botão (`ESPERA_USO_APOS_CANCELAR_MS`), e o
+  valor é provisório até a próxima resposta. O `limpar()` desarma esse timer — senão ele pediria
+  `/assistente/uso` depois do logout.
+- **Aviso de envio ao provedor:** com `uso().conversaVaiAoProvedor`, a conversa mostra uma linha fixa
+  dizendo que as últimas perguntas e respostas vão a um provedor de IA fora do Brasil. Ausente vale
+  `false`. Junto, os quatro campos de texto que o escritório escreve e o produtor lê (motivo da devolução
+  da nota, motivo no pedido e os dois títulos de pedido) levam o `AVISO_TEXTO_DO_ESCRITORIO`, de
+  `@core/utils/ceres`.
+- `perguntar()` passou a usar o **mesmo `normalizar`** do streaming: as duas portas da mesma pergunta
+  entregavam formas diferentes à tela (lista ausente crua num caminho, `turno` `undefined` contra `null`).
 
 **Medição:** `docs/ux-audit.js` — cole no console e rode `uxAudit()`. Devolve alvos abaixo de 44px, textos
 abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o critério de aceite numérico das fases.

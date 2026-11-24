@@ -1,7 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { SessaoService } from '@core/services/sessao.service';
-import { TAMANHO_MAXIMO_PERGUNTA, etapaDaRota } from '@core/utils/ceres';
+import { MAX_TURNOS_HISTORICO, TAMANHO_MAXIMO_PERGUNTA, etapaDaRota } from '@core/utils/ceres';
 import { apenasUltimaChecagem } from '@core/utils/validacoes';
 import type { CeresResposta, RotaCeres } from '@dtos/assistente/ceres.response';
 import type { NotaValidacaoResponse } from '@dtos/notas/sefaz.response';
@@ -12,6 +12,7 @@ import {
   CeresApi,
   CeresCancelada,
   CeresError,
+  type ContextoConversa,
 } from '@services/assistente/data-access/ceres.service';
 import { DashboardApi } from '@services/dashboard/data-access/dashboard.service';
 import { NotasApi } from '@services/notas/data-access/notas.service';
@@ -21,6 +22,15 @@ const TENTATIVAS_POR_PERGUNTA = 2;
 
 /** Espera padrão quando o 503 `ASSISTENTE_OCUPADO` vem sem `Retry-After`. */
 const ESPERA_PADRAO_SEGUNDOS = 5;
+
+/**
+ * Quanto esperar, depois de cancelar, para recarregar a cota (#183).
+ *
+ * Cancelar passou a custar o que já foi gasto: o backend percebe o cancelamento só na
+ * chamada seguinte ao modelo, então pedir o uso na hora traria o número de antes. O valor
+ * que a barra mostra nesse meio-tempo é provisório, e a próxima resposta o acerta.
+ */
+const ESPERA_USO_APOS_CANCELAR_MS = 5000;
 
 /**
  * Estado único da conversa com a **Ceres**, a assistente fiscal (issue #76).
@@ -96,7 +106,11 @@ export class AssistenteStore {
   private carregou = false;
 
   private controle: AbortController | null = null;
+  /** O stream de uma resposta já mostrada, aberto à espera da explicação (#187). */
+  private leituraPendente: AbortController | null = null;
   private esperaDeVaga: ReturnType<typeof setTimeout> | null = null;
+  /** Recarga da cota agendada depois de um cancelamento (#183). */
+  private esperaDoUso: ReturnType<typeof setTimeout> | null = null;
 
   readonly limiteDeCaracteres = TAMANHO_MAXIMO_PERGUNTA;
 
@@ -253,6 +267,13 @@ export class AssistenteStore {
    */
   limpar(): void {
     this.cancelar(false);
+    this.soltarExplicacao();
+    // Uma recarga de cota agendada por um cancelamento anterior não pode disparar depois
+    // do logout: ela chamaria `/assistente/uso` sem sessão e encheria o signal de novo.
+    if (this.esperaDoUso !== null) {
+      clearTimeout(this.esperaDoUso);
+      this.esperaDoUso = null;
+    }
     this.mensagens.set([]);
     this.entrada.set('');
     this.aberto.set(false);
@@ -273,9 +294,38 @@ export class AssistenteStore {
     if (!pergunta || this.enviando() || !this.disponivel()) return;
     if (pergunta.length > TAMANHO_MAXIMO_PERGUNTA) return;
 
+    // O contexto sai **antes** de a pergunta nova entrar na lista: ela não faz parte do
+    // histórico, e calcular depois a arrastaria para dentro dele.
+    const contexto = this.contextoDaConversa();
+
+    // A pergunta nova não espera a explicação da anterior (#187).
+    this.soltarExplicacao();
     this.entrada.set('');
     this.mensagens.update((lista) => [...lista, { autor: 'produtor', texto: pergunta }]);
-    void this.perguntar(pergunta, TENTATIVAS_POR_PERGUNTA);
+    void this.perguntar(pergunta, TENTATIVAS_POR_PERGUNTA, contexto);
+  }
+
+  /**
+   * O que mandar ao backend sobre a conversa até aqui (#183).
+   *
+   * Duas regras que parecem uma só e não são:
+   *
+   * - no `historico` entram **apenas** as respostas que trouxeram `turno` — recusa,
+   *   conversa leve, modo fallback, falha e cancelamento não têm o que assinar;
+   * - o `ultimaRespostaSemTurno` olha a **última** mensagem da Ceres, com `turno` ou sem.
+   *   É o que impede um "tem certeza?" logo depois de uma recusa de refazer a consulta de
+   *   duas respostas atrás, como se a recusa não tivesse acontecido.
+   *
+   * Os `turno` vão por referência, sem cópia: a assinatura vale para os bytes exatos.
+   */
+  private contextoDaConversa(): ContextoConversa {
+    const daCeres = this.mensagens().filter((m) => m.autor === 'ceres');
+    const historico = daCeres
+      .flatMap((m) => (m.turno ? [m.turno] : []))
+      .slice(-MAX_TURNOS_HISTORICO);
+    const ultima = daCeres.at(-1);
+
+    return { historico, ultimaRespostaSemTurno: historico.length > 0 && !ultima?.turno };
   }
 
   /**
@@ -304,7 +354,20 @@ export class AssistenteStore {
         ...lista,
         { autor: 'ceres', texto: '', falha: 'CANCELADA' },
       ]);
+      // Cancelar passou a custar o que já foi gasto (#183). O backend só percebe o
+      // cancelamento na chamada seguinte ao modelo, então pedir a cota agora traria o
+      // número de antes. Só no cancelamento do botão: no `limpar()` do logout não há mais
+      // sessão para consultar, e o timer é desarmado lá.
+      this.agendarUso();
     }
+  }
+
+  private agendarUso(): void {
+    if (this.esperaDoUso !== null) clearTimeout(this.esperaDoUso);
+    this.esperaDoUso = setTimeout(() => {
+      this.esperaDoUso = null;
+      this.atualizarUso();
+    }, ESPERA_USO_APOS_CANCELAR_MS);
   }
 
   /**
@@ -312,33 +375,33 @@ export class AssistenteStore {
    * stream — é o que permite dizer *o que* a Ceres está fazendo antes de a
    * resposta chegar, que pode levar mais de um minuto. Sem isso, cai no síncrono.
    */
-  private async perguntar(pergunta: string, tentativasRestantes: number): Promise<void> {
+  private async perguntar(
+    pergunta: string,
+    tentativasRestantes: number,
+    contexto: ContextoConversa,
+  ): Promise<void> {
     const controle = new AbortController();
     this.controle = controle;
     this.enviando.set(true);
     this.rotaEmCurso.set(null);
     this.aguardandoVaga.set(null);
 
-    try {
-      const resposta = this.ceres.suportaStream()
-        ? await this.emStream(pergunta, controle.signal)
-        : await firstValueFrom(this.ceres.perguntar(pergunta));
+    // A mensagem da resposta, quando ela já entrou na conversa. Depois disso nada que
+    // aconteça no stream (erro, cancelamento) a apaga ou vira mensagem de falha (#187).
+    // Caixa pelo mesmo motivo do `emStream`: atribuição dentro de callback.
+    const estado = { respondida: false };
 
-      this.mensagens.update((lista) => [
-        ...lista,
-        {
-          autor: 'ceres',
-          texto: resposta.resposta,
-          rota: resposta.rota,
-          citacoes: resposta.citacoes,
-          fontesDados: resposta.fontesDados,
-          modoFallback: resposta.modoFallback,
-          atalhos: traduzirAtalhos(resposta.atalhos),
-        },
-      ]);
-      this.atualizarUso();
-      this.encerrar(controle);
+    try {
+      if (this.ceres.suportaStream()) {
+        await this.emStream(pergunta, controle, contexto, () => (estado.respondida = true));
+      } else {
+        const resposta = await firstValueFrom(this.ceres.perguntar(pergunta, contexto));
+        this.registrarResposta(resposta, false);
+        this.atualizarUso();
+        this.encerrar(controle);
+      }
     } catch (erro) {
+      if (estado.respondida) return; // a resposta está na tela; o `finally` do stream fechou o resto.
       if (erro instanceof CeresCancelada || controle.signal.aborted) return; // `cancelar()` cuidou.
 
       if (
@@ -346,7 +409,7 @@ export class AssistenteStore {
         erro.codigo === 'ASSISTENTE_OCUPADO' &&
         tentativasRestantes > 1
       ) {
-        this.reenviarQuandoLiberar(pergunta, erro, tentativasRestantes - 1, controle);
+        this.reenviarQuandoLiberar(pergunta, erro, tentativasRestantes - 1, controle, contexto);
         return;
       }
 
@@ -366,25 +429,114 @@ export class AssistenteStore {
     }
   }
 
-  /** Consome o SSE e devolve a resposta final do evento `resposta`. */
-  private async emStream(pergunta: string, sinal: AbortSignal): Promise<CeresResposta> {
+  /**
+   * Consome o SSE (#187): `rota` → `resposta` → `explicacao` (opcional) → `fim`.
+   *
+   * A `resposta` entra na conversa **assim que chega** e encerra o "pensando": a pessoa lê o
+   * número enquanto a Ceres ainda escreve a explicação, que pode levar segundos. A pergunta
+   * seguinte já pode sair; ela abandona a explicação pendente (`soltarExplicacao`). A leitura
+   * continua até o `fim` só para acrescentar a explicação, se vier, abaixo do texto.
+   *
+   * Com a explicação desligada no backend (o padrão), `resposta` e `fim` chegam juntos e a
+   * tela não vê diferença nenhuma.
+   */
+  private async emStream(
+    pergunta: string,
+    controle: AbortController,
+    contexto: ContextoConversa,
+    aoResponder: () => void,
+  ): Promise<void> {
     // Caixa em vez de variável solta: o TypeScript não acompanha atribuição feita
     // dentro do callback e estreitaria o tipo para `null` depois do `await`.
-    const capturado: { resposta?: CeresResposta } = {};
+    const capturado: { msg?: AssistenteMensagem } = {};
 
-    await this.ceres.perguntarEmStream(
-      pergunta,
-      (evento) => {
-        if (evento.evento === 'rota') this.rotaEmCurso.set(evento.dado.rota);
-        else if (evento.evento === 'resposta') capturado.resposta = evento.dado;
-      },
-      sinal,
-    );
+    try {
+      await this.ceres.perguntarEmStream(
+        pergunta,
+        (evento) => {
+          if (evento.evento === 'rota') {
+            this.rotaEmCurso.set(evento.dado.rota);
+          } else if (evento.evento === 'resposta' && !capturado.msg) {
+            capturado.msg = this.registrarResposta(evento.dado, true);
+            aoResponder();
+            this.leituraPendente = controle;
+            this.atualizarUso();
+            this.encerrar(controle);
+          } else if (evento.evento === 'explicacao' && capturado.msg) {
+            capturado.msg = this.trocarMensagem(capturado.msg, {
+              explicacao: evento.dado.explicacao,
+            });
+          }
+        },
+        controle.signal,
+        contexto,
+      );
+    } finally {
+      // `fim`, erro depois da resposta ou pergunta nova: a explicação não vem mais.
+      if (capturado.msg) {
+        this.trocarMensagem(capturado.msg, { explicacaoPendente: false });
+        if (this.leituraPendente === controle) this.leituraPendente = null;
+      }
+    }
 
-    if (!capturado.resposta) {
+    if (!capturado.msg) {
       throw new CeresError('DESCONHECIDO', 0, 'A Ceres encerrou sem enviar a resposta.');
     }
-    return capturado.resposta;
+  }
+
+  /** Põe a resposta na conversa e devolve a mensagem criada. */
+  private registrarResposta(
+    resposta: CeresResposta,
+    explicacaoPendente: boolean,
+  ): AssistenteMensagem {
+    const msg: AssistenteMensagem = {
+      autor: 'ceres',
+      texto: resposta.resposta,
+      rota: resposta.rota,
+      citacoes: resposta.citacoes,
+      fontesDados: resposta.fontesDados,
+      modoFallback: resposta.modoFallback,
+      atalhos: traduzirAtalhos(resposta.atalhos),
+      // Guardado como veio. Sem `turno` (backend sem continuidade, recusa, fallback),
+      // a mensagem fica sem o campo e nunca entra no histórico.
+      turno: resposta.turno ?? undefined,
+      // No síncrono ela já vem aqui; no SSE chega depois, pelo evento próprio.
+      explicacao: resposta.explicacao ?? undefined,
+      explicacaoPendente: explicacaoPendente || undefined,
+    };
+    this.mensagens.update((lista) => [...lista, msg]);
+    return msg;
+  }
+
+  /**
+   * Troca uma mensagem já na conversa por uma cópia com `mudanca` e devolve a cópia. Pela
+   * referência, não pelo índice: entre a resposta e a explicação a lista cresce. Se a
+   * mensagem não está mais lá (a conversa foi limpa), não faz nada.
+   */
+  private trocarMensagem(
+    msg: AssistenteMensagem,
+    mudanca: Partial<AssistenteMensagem>,
+  ): AssistenteMensagem {
+    const nova: AssistenteMensagem = { ...msg, ...mudanca };
+    if (!nova.explicacaoPendente) delete nova.explicacaoPendente;
+    let trocou = false;
+    this.mensagens.update((lista) =>
+      lista.map((m) => {
+        if (m !== msg) return m;
+        trocou = true;
+        return nova;
+      }),
+    );
+    return trocou ? nova : msg;
+  }
+
+  /**
+   * Abandona a explicação que ainda pode chegar (#187). Fecha a conexão daquela resposta,
+   * como o `cancelar()` faz com a pergunta, e o backend libera a vaga. A resposta fica.
+   */
+  private soltarExplicacao(): void {
+    this.leituraPendente?.abort();
+    this.leituraPendente = null;
   }
 
   /** `503 ASSISTENTE_OCUPADO`: espera o `Retry-After` e reenvia uma vez. */
@@ -393,6 +545,7 @@ export class AssistenteStore {
     erro: CeresError,
     tentativasRestantes: number,
     controle: AbortController,
+    contexto: ContextoConversa,
   ): void {
     const segundos = erro.retryAfterSegundos ?? ESPERA_PADRAO_SEGUNDOS;
     this.aguardandoVaga.set(segundos);
@@ -400,7 +553,9 @@ export class AssistenteStore {
     this.esperaDeVaga = setTimeout(() => {
       this.esperaDeVaga = null;
       if (controle.signal.aborted) return;
-      void this.perguntar(pergunta, tentativasRestantes);
+      // O **mesmo** contexto: a conversa não andou entre o 503 e o reenvio, e recalcular
+      // aqui mudaria o histórico de uma pergunta que já saiu.
+      void this.perguntar(pergunta, tentativasRestantes, contexto);
     }, segundos * 1000);
   }
 
