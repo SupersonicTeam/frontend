@@ -1,9 +1,11 @@
 import { TestBed } from '@angular/core/testing';
+import type { ComponentFixture } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { DocumentosPage } from './documentos';
 import { ToastService } from '@core/services/toast.service';
+import type { NotaFiscalRequest } from '@dtos/notas/nota-fiscal.request';
 
 describe('DocumentosPage', () => {
   let httpMock: HttpTestingController;
@@ -1710,6 +1712,10 @@ describe('DocumentosPage', () => {
           quantidade: '10',
           valorUnitario: '2',
           valorTotal: '20',
+          cClassTrib: '',
+          cClassTribModo: '',
+          cstIcms: '',
+          origemIcms: '',
         },
       ]);
     }
@@ -1851,6 +1857,293 @@ describe('DocumentosPage', () => {
         'Esta nota é uma compra: quem cancela é o fornecedor que a emitiu.',
       );
       expect(cmp.cancelarAlvo()).toBeNull();
+    });
+  });
+  /**
+   * Classificação tributária do item (#208, backend#299): o cClassTrib informado e o que a tela
+   * não mostra, mas o `PUT` apagava.
+   */
+  describe('classificação do IBS/CBS no item', () => {
+    /** Nota em rascunho com o item já classificado, como a API e o seed a devolvem. */
+    function notaClassificada(itemOver: Record<string, unknown> = {}) {
+      return nota('n1', '2026-11-01', {
+        status: 'RASCUNHO',
+        destinatarioNome: 'Cooperativa Agroindustrial Celeste',
+        destinatarioCpfCnpj: '11222333000181',
+        itens: [
+          {
+            numeroItem: 1,
+            descricao: 'Soja em grãos',
+            ncm: '12019000',
+            cfop: '5101',
+            unidade: 'KG',
+            quantidade: 36850,
+            valorUnitario: 2.12,
+            valorTotal: 78122,
+            cClassTrib: '200020',
+            cstIcms: '51',
+            origemIcms: '0',
+            ...itemOver,
+          },
+        ],
+      });
+    }
+
+    /** Preenche uma nota nova com um item válido, pronta para salvar. */
+    function preencherNotaNova(cmp: DocumentosPage) {
+      cmp.abrirNovaNota();
+      httpMock
+        .match((r) => r.url === '/notas/proximo-numero')
+        .forEach((r) => r.flush({ serie: 1, numero: 10 }));
+      // Abrir o modal tambem recarrega a lista; sem responder, o `verify` do afterEach reclama.
+      httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush(pagina([])));
+      cmp.formNumero.set('10');
+      cmp.formNatureza.set('Venda de produção');
+      cmp.formData.set('2026-11-01');
+      cmp.formDestNome.set('Cooperativa Agroindustrial Celeste');
+      cmp.formDestCpfCnpj.set('11222333000181');
+      cmp.formItens.set([
+        {
+          descricao: 'Soja em grãos',
+          codigoProduto: '',
+          ncm: '12019000',
+          cfop: '5101',
+          unidade: 'KG',
+          quantidade: '10',
+          valorUnitario: '2',
+          valorTotal: '20',
+          cClassTrib: '',
+          cClassTribModo: '',
+          cstIcms: '',
+          origemIcms: '',
+        },
+      ]);
+    }
+
+    /** Edita a nota dada, salva e devolve o corpo do `PUT`. */
+    function editarESalvar(notaDoServidor: Record<string, unknown>): NotaFiscalRequest {
+      const cmp = comNotas([notaDoServidor]).componentInstance;
+      cmp.editarNota(cmp.notas()[0]!);
+      cmp.salvarNota();
+
+      const put = httpMock.expectOne((r) => r.url === '/notas/n1' && r.method === 'PUT');
+      const corpo = put.request.body as NotaFiscalRequest;
+      put.flush(notaDoServidor);
+      httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush(pagina([])));
+      flushPendencias();
+      return corpo;
+    }
+
+    it('reenvia cClassTrib, cstIcms e origemIcms ao editar, mesmo sem campo visível', () => {
+      const corpo = editarESalvar(notaClassificada());
+
+      expect(corpo.itens[0]).toMatchObject({
+        cClassTrib: '200020',
+        cstIcms: '51',
+        origemIcms: '0',
+      });
+    });
+
+    it('abre a nota com a classificação da cooperativa já escolhida no item', () => {
+      const cmp = comNotas([notaClassificada()]).componentInstance;
+
+      cmp.editarNota(cmp.notas()[0]!);
+
+      expect(cmp.formItens()[0]!.cClassTribModo).toBe('200020');
+      expect(cmp.formItens()[0]!.cClassTrib).toBe('200020');
+    });
+
+    it('código fora da lista abre o campo livre com ele, e volta igual no PUT', () => {
+      const corpo = editarESalvar(notaClassificada({ cClassTrib: '200036' }));
+
+      expect(corpo.itens[0]!.cClassTrib).toBe('200036');
+    });
+
+    it('item sem classificação fica em "pela regra do NCM" e não manda cClassTrib', () => {
+      const corpo = editarESalvar(notaClassificada({ cClassTrib: null }));
+
+      expect(corpo.itens[0]!.cClassTrib).toBeUndefined();
+    });
+
+    it('escolher a cooperativa no item manda o 200020 ao criar a nota', () => {
+      const fixture = comNotas([]);
+      const cmp = fixture.componentInstance;
+      preencherNotaNova(cmp);
+
+      cmp.escolherClassTrib(0, '200020');
+      cmp.salvarNota();
+
+      const post = httpMock.expectOne((r) => r.url === '/notas' && r.method === 'POST');
+      expect((post.request.body as NotaFiscalRequest).itens[0]!.cClassTrib).toBe('200020');
+      post.flush(nota('n9', '2026-11-01', { status: 'RASCUNHO' }));
+      httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush(pagina([])));
+      flushPendencias();
+    });
+
+    it('o item ganhou o campo de classificação, com a cooperativa e o leite', () => {
+      const fixture = comNotas([]);
+      preencherNotaNova(fixture.componentInstance);
+      fixture.detectChanges();
+
+      const select = (fixture.nativeElement as HTMLElement).querySelector<HTMLSelectElement>(
+        'select[aria-label="Classificação do IBS/CBS do produto 1"]',
+      );
+      expect(select).not.toBeNull();
+      expect([...select!.options].map((o) => o.value)).toEqual(['', '200020', '200003', 'OUTRO']);
+      const textos = [...select!.options].map((o) => o.textContent ?? '').join(' | ');
+      expect(textos).toContain('regra do NCM');
+      expect(textos).toContain('cooperativa');
+      expect(textos).toContain('Leite');
+    });
+
+    it('escolher na tela guarda o código, e o campo de digitar só vem no "outro"', () => {
+      const fixture = comNotas([]);
+      const cmp = fixture.componentInstance;
+      preencherNotaNova(cmp);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      const seletorLivre = 'input[aria-label="Código da classificação do IBS/CBS do produto 1"]';
+      const select = el.querySelector<HTMLSelectElement>(
+        'select[aria-label="Classificação do IBS/CBS do produto 1"]',
+      )!;
+
+      select.value = '200020';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(cmp.formItens()[0]!.cClassTrib).toBe('200020');
+      expect(el.querySelector(seletorLivre)).toBeNull();
+
+      select.value = 'OUTRO';
+      select.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+
+      expect(el.querySelector(seletorLivre)).not.toBeNull();
+      expect(cmp.formItens()[0]!.cClassTrib).toBe('');
+    });
+
+    it('código livre pela metade não deixa salvar e explica no item', () => {
+      const cmp = comNotas([]).componentInstance;
+      preencherNotaNova(cmp);
+
+      cmp.escolherClassTrib(0, 'OUTRO');
+      cmp.updateItem(0, 'cClassTrib', '2000');
+
+      expect(cmp.canSubmitNota()).toBe(false);
+      expect(cmp.itemErro(cmp.formItens()[0]!)).toContain('6 dígitos');
+      // O rodape diz o que falta: o botao cinza sem motivo foi o que levou a essa lista.
+      expect(cmp.camposPendentes()).toContain('Classificação do IBS/CBS do item (6 dígitos)');
+    });
+
+    /** Responde o POST com os avisos dados e deixa a tela quieta. */
+    function salvarComAvisos(fixture: ComponentFixture<DocumentosPage>, avisos: unknown[]) {
+      fixture.componentInstance.salvarNota();
+      httpMock
+        .expectOne((r) => r.url === '/notas' && r.method === 'POST')
+        .flush({ ...nota('n9', '2026-11-01', { status: 'RASCUNHO' }), avisos });
+      httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush(pagina([])));
+      flushPendencias();
+      fixture.detectChanges();
+    }
+
+    const avisoCooperativa = {
+      codigo: 'COOPERATIVA_OPTANTE_A_CONFIRMAR',
+      numeroItem: 1,
+      campo: 'cClassTrib',
+      mensagem:
+        'O cClassTrib 200020 (alíquota zero) vale só na venda à cooperativa que optou pelo' +
+        ' regime específico do IBS/CBS (LC 214/2025, art. 271) e da qual você é associado. O' +
+        ' sistema não confere isso: guarde a comunicação da cooperativa sobre a opção.',
+    };
+
+    it('o aviso da cooperativa fica ao lado do item, e o formulário continua aberto', () => {
+      const fixture = comNotas([]);
+      const cmp = fixture.componentInstance;
+      preencherNotaNova(cmp);
+      cmp.escolherClassTrib(0, '200020');
+
+      salvarComAvisos(fixture, [avisoCooperativa]);
+
+      const texto = ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+      expect(texto).toContain('guarde a comunicação da cooperativa sobre a opção');
+      expect(cmp.showFormNota()).toBe(true);
+      // Continuar no formulário não pode criar uma segunda nota: agora ele edita a que foi salva.
+      expect(cmp.formNotaId()).toBe('n9');
+    });
+
+    it('o 422 do gerar-xml com o 200020 aparece em português, com a saída', () => {
+      const fixture = comNotas([notaClassificada()]);
+      const cmp = fixture.componentInstance;
+      const alvo = cmp.notas()[0]!;
+      cmp.abrirPreview(alvo);
+
+      cmp.gerarXml(alvo);
+      httpMock.expectOne('/notas/n1/gerar-xml').flush(
+        {
+          message: 'Nota inválida para emissão',
+          errors: [
+            {
+              code: '200020',
+              field: 'itens[0].cClassTrib',
+              message:
+                'cClassTrib 200020 (venda do associado à cooperativa optante, LC 214/2025, art.' +
+                ' 271) não vale nesta operação: o destinatário tem de ter CNPJ: cooperativa é' +
+                ' pessoa jurídica',
+              suggestion:
+                'Use o 200020 só na venda a cooperativa brasileira de que você é associado;' +
+                ' senão, retire o cClassTrib do item e vale a regra do NCM',
+            },
+          ],
+        },
+        { status: 422, statusText: 'Unprocessable Entity' },
+      );
+      httpMock.expectOne('/notas/n1/validacoes').flush([]);
+      fixture.detectChanges();
+
+      const texto = ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+      expect(texto).toContain('Classificação do IBS/CBS do item');
+      // O caminho da propriedade e para o codigo, nao para quem emite a nota.
+      expect(texto).not.toContain('itens[0].cClassTrib');
+      expect(texto).toContain('retire o cClassTrib do item');
+    });
+
+    it('mexer nos itens tira o aviso, em vez de o deixar apontando para outro', () => {
+      const fixture = comNotas([]);
+      const cmp = fixture.componentInstance;
+      preencherNotaNova(cmp);
+      cmp.escolherClassTrib(0, '200020');
+      cmp.addItem();
+
+      salvarComAvisos(fixture, [avisoCooperativa]);
+      expect(cmp.avisosDoItem(0)).toHaveLength(1);
+
+      // O item 1 sai: o aviso era dele, e o de baixo sobe para o lugar dele.
+      cmp.removeItem(0);
+      fixture.detectChanges();
+
+      expect(cmp.avisosDoItem(0)).toHaveLength(0);
+      const texto = ((fixture.nativeElement as HTMLElement).textContent ?? '').replace(/\s+/g, ' ');
+      expect(texto).not.toContain('guarde a comunicação da cooperativa');
+    });
+
+    it('sem aviso, salvar fecha o formulário como antes', () => {
+      const fixture = comNotas([]);
+      preencherNotaNova(fixture.componentInstance);
+
+      salvarComAvisos(fixture, []);
+
+      expect(fixture.componentInstance.showFormNota()).toBe(false);
+    });
+
+    it('com os 6 dígitos o código livre volta a valer', () => {
+      const cmp = comNotas([]).componentInstance;
+      preencherNotaNova(cmp);
+
+      cmp.escolherClassTrib(0, 'OUTRO');
+      cmp.updateItem(0, 'cClassTrib', '200036');
+
+      expect(cmp.canSubmitNota()).toBe(true);
+      expect(cmp.itemErro(cmp.formItens()[0]!)).toBeNull();
     });
   });
 });

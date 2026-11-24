@@ -32,6 +32,13 @@ export interface NotaFiscalItemRequest {
   cstIbsCbs?: string;
   cClassTrib?: string;
   percentualReducao?: number;
+  /**
+   * CST do ICMS (40, 41, 50, 51 ou 90), combinado com o contador. Opcional: sem ele, a emissão
+   * decide (51 na venda interna de produção própria a destinatário com IE).
+   */
+  cstIcms?: string;
+  /** Origem da mercadoria (tabela Torig, 0 a 8). Opcional; padrão 0, nacional. */
+  origemIcms?: string;
 }
 
 export interface NotaFiscalRequest {

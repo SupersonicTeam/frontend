@@ -52,6 +52,8 @@ const ROTULOS: Record<string, string> = {
   numero: 'Número da nota',
   serie: 'Série da nota',
   itens: 'Produtos da nota',
+  // O validador aponta o item pelo indice (`itens[0].cClassTrib`); o rotulo vale para todos.
+  'itens.cClassTrib': 'Classificação do IBS/CBS do item',
 
   destinatarioNome: 'Nome do destinatário',
   destinatarioCpfCnpj: 'CPF/CNPJ do destinatário',

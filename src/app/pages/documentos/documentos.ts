@@ -96,6 +96,20 @@ export interface ItemForm {
   quantidade: string;
   valorUnitario: string;
   valorTotal: string;
+  /** cClassTrib informado no item; vazio = pela regra do NCM (#208, backend#299). */
+  cClassTrib: string;
+  /**
+   * Qual escolha da lista está marcada: um dos códigos conhecidos, `OUTRO` (código digitado) ou
+   * vazio (pela regra do NCM). Só a tela usa; o que vai para a API é o `cClassTrib`.
+   */
+  cClassTribModo: string;
+  /**
+   * CST do ICMS e origem da mercadoria: **não têm campo na tela**, e ficam aqui só para voltarem
+   * no `PUT`, que substitui os itens. Sem isto, editar uma nota criada pela API ou pelo seed
+   * apagava a declaração de ICMS do item em silêncio (#208).
+   */
+  cstIcms: string;
+  origemIcms: string;
 }
 
 const emptyItem = (): ItemForm => ({
@@ -107,8 +121,24 @@ const emptyItem = (): ItemForm => ({
   quantidade: '',
   valorUnitario: '',
   valorTotal: '',
+  cClassTrib: '',
+  cClassTribModo: '',
+  cstIcms: '',
+  origemIcms: '',
 });
 
+/**
+ * Classificação do IBS/CBS que a tela oferece por nome (#208, backend#299). O resto do catálogo
+ * (tabela oficial IT 2025.002) fica no `OUTRO`, digitado — é código de contador, não de produtor.
+ */
+const CLASS_TRIB_OUTRO = 'OUTRO';
+const CLASS_TRIB_LISTADOS: readonly string[] = ['200020', '200003'];
+
+/** A escolha da lista que corresponde ao código informado no item. */
+function modoDoClassTrib(cClassTrib: string): string {
+  if (!cClassTrib) return '';
+  return CLASS_TRIB_LISTADOS.includes(cClassTrib) ? cClassTrib : CLASS_TRIB_OUTRO;
+}
 /** Quanto a busca espera depois da última tecla antes de ir ao servidor (#116). */
 const DEBOUNCE_BUSCA_MS = 300;
 
@@ -659,6 +689,17 @@ export class DocumentosPage implements OnInit {
     );
   }
 
+  /**
+   * Escolheu "outro código" e ainda não digitou os 6 dígitos que a API exige.
+   *
+   * Não entra no {@link itemValido}: ele é quem filtra os itens que vão no request, e um item
+   * barrado ali sairia da nota em silêncio. Aqui o item fica, e quem não deixa salvar é o
+   * {@link canSubmitNota}, com a frase do {@link itemErro} à vista.
+   */
+  classTribIncompleto(i: ItemForm): boolean {
+    return i.cClassTribModo === CLASS_TRIB_OUTRO && !/^\d{6}$/.test(i.cClassTrib.trim());
+  }
+
   /** Item ainda no estado inicial (usuário não digitou nada) — não mostrar erro ainda. */
   private itemIntocado(i: ItemForm): boolean {
     return (
@@ -677,6 +718,10 @@ export class DocumentosPage implements OnInit {
    * já usado no CPF/CNPJ e no CEP/IBGE do destinatário.
    */
   itemErro(i: ItemForm): string | null {
+    // Antes do "intocado": quem escolheu a classificação tocou no item, mesmo sem digitar o resto.
+    if (this.classTribIncompleto(i)) {
+      return 'Classificação do IBS/CBS: informe os 6 dígitos do código ou escolha "pela regra do NCM".';
+    }
     if (this.itemIntocado(i)) return null;
     if (!i.descricao.trim()) return 'Descrição é obrigatória.';
     if (!/^\d{8}$/.test(i.ncm.trim())) return 'NCM deve ter exatamente 8 dígitos numéricos.';
@@ -715,6 +760,9 @@ export class DocumentosPage implements OnInit {
     if (!this.cepValido()) faltando.push('CEP do destinatário (8 dígitos)');
     if (!this.ibgeValido()) faltando.push('Código IBGE do destinatário (7 dígitos)');
     if (!this.formItens().some((i) => this.itemValido(i))) faltando.push('Ao menos um item válido');
+    if (this.formItens().some((i) => this.classTribIncompleto(i))) {
+      faltando.push('Classificação do IBS/CBS do item (6 dígitos)');
+    }
     return faltando;
   });
 
@@ -727,7 +775,8 @@ export class DocumentosPage implements OnInit {
       cpfCnpjValido(this.formDestCpfCnpj()) &&
       this.cepValido() &&
       this.ibgeValido() &&
-      this.formItens().some((i) => this.itemValido(i))
+      this.formItens().some((i) => this.itemValido(i)) &&
+      !this.formItens().some((i) => this.classTribIncompleto(i))
     );
   });
 
@@ -1372,6 +1421,7 @@ export class DocumentosPage implements OnInit {
     this.formEndCep.set('');
     this.formItens.set([emptyItem()]);
     this.erroNota.set([]);
+    this.esquecerAvisos();
   }
 
   /**
@@ -1521,6 +1571,11 @@ export class DocumentosPage implements OnInit {
         quantidade: String(it.quantidade ?? ''),
         valorUnitario: String(it.valorUnitario ?? ''),
         valorTotal: String(it.valorTotal ?? ''),
+        // O que a tela mostra (o cClassTrib) e o que ela não mostra (o ICMS) voltam no `PUT`.
+        cClassTrib: it.cClassTrib ?? '',
+        cClassTribModo: modoDoClassTrib(it.cClassTrib ?? ''),
+        cstIcms: it.cstIcms ?? '',
+        origemIcms: it.origemIcms ?? '',
       })),
     );
     if (!this.formItens().length) this.formItens.set([emptyItem()]);
@@ -1550,6 +1605,11 @@ export class DocumentosPage implements OnInit {
   }
 
   private buildNotaRequest(): NotaFiscalRequest {
+    // De qual posicao do formulario saiu cada item enviado: o request renumera de 1 em diante
+    // depois de descartar os invalidos, e e por esse numero que os avisos do servidor voltam.
+    this.posicaoDosItensEnviados = this.formItens()
+      .map((item, idx) => (this.itemValido(item) ? idx : -1))
+      .filter((idx) => idx >= 0);
     const itens: NotaFiscalItemRequest[] = this.formItens()
       .filter((i) => this.itemValido(i))
       .map((item, idx) => ({
@@ -1561,6 +1621,10 @@ export class DocumentosPage implements OnInit {
         unidade: item.unidade.trim(),
         quantidade: Number(item.quantidade),
         valorUnitario: Number(item.valorUnitario),
+        cClassTrib: item.cClassTrib.trim() || undefined,
+        // Reenviados como vieram: o `PUT` substitui os itens, e o que não for enviado se perde.
+        cstIcms: item.cstIcms.trim() || undefined,
+        origemIcms: item.origemIcms.trim() || undefined,
       }));
 
     const req: NotaFiscalRequest = {
@@ -1593,6 +1657,7 @@ export class DocumentosPage implements OnInit {
     if (!this.canSubmitNota() || this.salvando()) return;
     this.salvando.set(true);
     this.erroNota.set([]);
+    this.esquecerAvisos();
     const req = this.buildNotaRequest();
     const id = this.formNotaId();
     const req$ = id ? this.notasApi.atualizar(id, req) : this.notasApi.criar(req);
@@ -1601,11 +1666,20 @@ export class DocumentosPage implements OnInit {
         this.salvando.set(false);
         this.toastService.success(id ? 'Nota atualizada!' : 'Nota criada em rascunho!');
         // backend#389: a nota foi salva, mas algo merece atenção (ex.: cClassTrib não admitido
-        // para o NCM). É aviso, não erro: o formulário fecha do mesmo jeito.
-        for (const aviso of salva?.avisos ?? []) {
+        // para o NCM, ou o 200020 da cooperativa). É aviso, não erro: nada foi recusado.
+        const avisos = salva?.avisos ?? [];
+        for (const aviso of avisos) {
           this.toastService.warning(DocumentosPage.textoDoAviso(aviso));
         }
-        this.fecharForm();
+        this.avisosDaNota.set(avisos);
+        if (avisos.length) {
+          // O formulario fica aberto com o aviso ao lado do item: o toast some, e o do 200020
+          // pede uma providencia fora do sistema. Como a nota ja esta gravada, o formulario
+          // passa a editar ESTA nota -- salvar de novo nao pode criar uma segunda.
+          if (salva?.id) this.formNotaId.set(salva.id);
+        } else {
+          this.fecharForm();
+        }
         this.recarregarAposMudanca();
         // A nota corrigida sai da fila (ou continua, se o fisco ainda reclamar).
         this.carregarFilaDeAjustes();
@@ -1623,6 +1697,21 @@ export class DocumentosPage implements OnInit {
     });
   }
 
+  /**
+   * Avisos da última gravação (backend#389), para ficarem à vista no item — o toast passa, e o
+   * `COOPERATIVA_OPTANTE_A_CONFIRMAR` pede uma providência fora do sistema: guardar a
+   * comunicação da cooperativa (#208).
+   */
+  readonly avisosDaNota = signal<AvisoNota[]>([]);
+  private posicaoDosItensEnviados: number[] = [];
+
+  /** Os avisos que o servidor devolveu para este item do formulário. */
+  avisosDoItem(idx: number): AvisoNota[] {
+    const numeroItem = this.posicaoDosItensEnviados.indexOf(idx) + 1;
+    if (numeroItem === 0) return [];
+    return this.avisosDaNota().filter((a) => a.numeroItem === numeroItem);
+  }
+
   /** "Item 2: ..." — o aviso com o item, quando o servidor diz qual. */
   private static textoDoAviso(aviso: AvisoNota): string {
     return aviso.numeroItem ? `Item ${aviso.numeroItem}: ${aviso.mensagem}` : aviso.mensagem;
@@ -1636,10 +1725,41 @@ export class DocumentosPage implements OnInit {
   // Itens do formulário
   addItem(): void {
     this.formItens.update((list) => [...list, emptyItem()]);
+    this.esquecerAvisos();
   }
   removeItem(idx: number): void {
     this.formItens.update((list) => list.filter((_, i) => i !== idx));
+    this.esquecerAvisos();
   }
+
+  /**
+   * Larga os avisos da última gravação. Eles chegam por **número de item**, e a lista de itens
+   * acabou de mudar: mantê-los apontaria o aviso de um item para o que subiu no lugar dele.
+   */
+  private esquecerAvisos(): void {
+    this.avisosDaNota.set([]);
+    this.posicaoDosItensEnviados = [];
+  }
+  /**
+   * Marca a classificação do IBS/CBS do item. `OUTRO` abre o campo de digitar e começa vazio: o
+   * código anterior era de outra escolha, e deixá-lo ali o mandaria sem ninguém ter digitado.
+   */
+  escolherClassTrib(idx: number, modo: string): void {
+    this.formItens.update((list) =>
+      list.map((item, i) =>
+        i === idx
+          ? {
+              ...item,
+              cClassTribModo: modo,
+              cClassTrib: modo === CLASS_TRIB_OUTRO ? '' : modo,
+            }
+          : item,
+      ),
+    );
+  }
+
+  protected readonly classTribOutro = CLASS_TRIB_OUTRO;
+
   updateItem(idx: number, field: keyof ItemForm, value: string): void {
     this.formItens.update((list) =>
       list.map((item, i) => {

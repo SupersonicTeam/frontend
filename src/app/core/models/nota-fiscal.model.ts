@@ -45,6 +45,14 @@ export interface ItemNotaFiscal {
   /** cClassTrib usado no cálculo e no XML: o informado ou o da regra pelo NCM (backend#272). */
   cClassTribAplicado?: string | null;
   /**
+   * CST do ICMS do item (40, 41, 50, 51 ou 90), combinado com o contador. O sistema não calcula
+   * ICMS: o CST é declarado. Nulo = não informado, e aí a emissão decide (51 na venda interna de
+   * produção própria a destinatário com IE; 422 `ICMS_A_DEFINIR` nos outros casos).
+   */
+  cstIcms?: string | null;
+  /** Origem da mercadoria (tabela Torig, 0 a 8). Nulo = não informado, e vale 0 (nacional). */
+  origemIcms?: string | null;
+  /**
    * Base de cálculo IBS/CBS = **valor cheio do item**. A LC 214 reduz a alíquota, não a base
    * (backend#278): o tributo é base × alíquota × (1 − redução aplicada).
    */

@@ -56,6 +56,11 @@ describe('validacoes', () => {
       expect(rotuloDoCampo('itens[0].ncm')).toBe('Produtos da nota');
     });
 
+    it('a classificacao do IBS/CBS tem nome proprio, em qualquer item (#208)', () => {
+      expect(rotuloDoCampo('itens[0].cClassTrib')).toBe('Classificação do IBS/CBS do item');
+      expect(rotuloDoCampo('itens[2].cClassTrib')).toBe('Classificação do IBS/CBS do item');
+    });
+
     it('campo desconhecido devolve o proprio identificador, nao esconde a informacao', () => {
       expect(rotuloDoCampo('campoNovoDoBackend')).toBe('campoNovoDoBackend');
       expect(rotuloDoCampo(null)).toBe('Dados da nota');
