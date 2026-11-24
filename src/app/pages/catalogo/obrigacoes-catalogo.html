@@ -1,0 +1,145 @@
+<section
+  class="rounded-card border border-border bg-card p-5 shadow-suave"
+  aria-labelledby="obrigacoes-titulo"
+>
+  <div class="flex flex-wrap items-start justify-between gap-3">
+    <div class="min-w-0 flex-1">
+      <h2 id="obrigacoes-titulo" class="font-heading text-lg font-semibold text-foreground">
+        Obrigações do escritório
+      </h2>
+      <p class="mt-1 text-apoio text-muted-foreground">
+        O que está aqui aparece no calendário dos seus clientes, conforme o regime e o tipo de cada
+        um. Tirar do calendário não apaga: dá para devolver depois.
+      </p>
+    </div>
+    @if (administrador() && !carregando() && !falhaAoCarregar()) {
+      <ui-button (click)="formulario.set(null)">Nova obrigação</ui-button>
+    }
+  </div>
+
+  @if (erroDaAcao()) {
+    <p
+      role="alert"
+      class="mt-3 rounded-controle border border-perigo-borda bg-perigo-soft px-3 py-2 text-apoio text-perigo-ink"
+    >
+      {{ erroDaAcao() }}
+    </p>
+  }
+
+  @if (carregando()) {
+    <div class="mt-4" aria-busy="true">
+      <ui-skeleton [linhas]="4" />
+    </div>
+  } @else if (falhaAoCarregar()) {
+    <!-- Erro não é lista vazia: "nenhuma obrigação" aqui diria que o calendário dos clientes
+         está sem prazo nenhum, quando a verdade é que a lista não chegou. -->
+    <div class="mt-4">
+      <ui-empty-state
+        titulo="Não foi possível carregar as obrigações"
+        [descricao]="falhaAoCarregar()"
+      >
+        <ui-button acao variant="ghost" (click)="carregar()">Tentar de novo</ui-button>
+      </ui-empty-state>
+    </div>
+  } @else {
+    @if (!administrador()) {
+      <p class="mt-3 text-apoio text-muted-foreground">
+        Só o administrador do escritório altera o catálogo. Você vê o que está valendo.
+      </p>
+    }
+
+    @if (ativas().length) {
+      <ul class="mt-3 divide-y divide-border">
+        @for (o of ativas(); track o.id) {
+          <li class="flex flex-wrap items-start gap-3 py-3">
+            <div class="min-w-0 flex-1">
+              <p class="font-medium text-foreground">{{ o.titulo }}</p>
+              <p class="text-apoio text-muted-foreground">
+                {{ quandoVence(o) }}
+                @if (aQuemSeAplica(o)) {
+                  · {{ aQuemSeAplica(o) }}
+                }
+              </p>
+              @if (o.descricao) {
+                <p class="mt-1 text-apoio text-foreground">{{ o.descricao }}</p>
+              }
+              <p class="mt-1 text-apoio text-muted-foreground">
+                {{ rotuloDaOrigem[o.origemCatalogo] }}
+                @if (o.origem) {
+                  · {{ o.origem }}
+                }
+              </p>
+            </div>
+            @if (administrador()) {
+              <div class="flex flex-wrap gap-2">
+                <ui-button variant="sutil" (click)="formulario.set(o)">Editar</ui-button>
+                @if (podeRestaurar(o)) {
+                  <ui-button
+                    variant="sutil"
+                    [carregando]="ocupado(o, 'padrao')"
+                    [disabled]="!!emCurso()"
+                    (click)="restaurarPadrao(o)"
+                  >
+                    Voltar ao padrão
+                  </ui-button>
+                }
+                <ui-button
+                  variant="ghost"
+                  [carregando]="ocupado(o, 'calendario')"
+                  [disabled]="!!emCurso()"
+                  (click)="alternarNoCalendario(o)"
+                >
+                  Tirar do calendário
+                </ui-button>
+              </div>
+            }
+          </li>
+        }
+      </ul>
+    } @else {
+      <div class="mt-4">
+        <ui-empty-state
+          titulo="Nenhuma obrigação no calendário dos seus clientes"
+          [descricao]="
+            foraDoCalendario().length
+              ? 'As que o escritório tirou estão logo abaixo e podem voltar.'
+              : 'Quando houver uma, ela aparece aqui e no calendário de cada cliente.'
+          "
+        />
+      </div>
+    }
+
+    @if (foraDoCalendario().length) {
+      <div class="mt-5 border-t border-border pt-4">
+        <h3 class="font-heading font-semibold text-foreground">Fora do calendário</h3>
+        <ul class="mt-2 divide-y divide-border">
+          @for (o of foraDoCalendario(); track o.id) {
+            <li class="flex flex-wrap items-center gap-3 py-2">
+              <span class="min-w-0 flex-1 text-apoio text-muted-foreground">
+                {{ o.titulo }} · {{ quandoVence(o) }}
+              </span>
+              @if (administrador()) {
+                <ui-button
+                  variant="ghost"
+                  [carregando]="ocupado(o, 'calendario')"
+                  [disabled]="!!emCurso()"
+                  (click)="alternarNoCalendario(o)"
+                >
+                  Devolver ao calendário
+                </ui-button>
+              }
+            </li>
+          }
+        </ul>
+      </div>
+    }
+  }
+</section>
+
+@if (formulario() !== undefined) {
+  <app-formulario-obrigacao
+    [obrigacao]="formulario() ?? null"
+    (salvo)="aoSalvar($event)"
+    (fechar)="formulario.set(undefined)"
+  />
+}

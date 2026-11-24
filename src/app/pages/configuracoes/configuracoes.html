@@ -216,94 +216,25 @@
     </p>
   }
 
-  <!-- ── Catálogo de obrigações do escritório (backend#181) ──
-       É o que alimenta as obrigações no calendário dos clientes: o que estiver aqui como ativa
-       aparece lá. Coisa do escritório, então só o contador vê. -->
+  <!-- O catalogo de obrigacoes morou aqui (backend#181) e ficava escondido entre o tema e a
+       senha; desde a #185 e a aba "Modelos e obrigacoes" do menu, junto com os modelos de pedido.
+       A linha fica para quem ainda vem procurar aqui. -->
   @if (sessao.ehContador()) {
-    <div class="rounded-card border border-border bg-card p-5 shadow-suave">
-      <h2 class="font-heading text-lg font-semibold text-foreground">Obrigações do escritório</h2>
-      <p class="mt-1 text-apoio text-muted-foreground">
-        O que está aqui aparece no calendário dos seus clientes, conforme o regime e o tipo de cada
-        um. Tirar do calendário não apaga: dá para devolver depois.
-      </p>
-
-      @if (erroDoCatalogo()) {
-        <p class="mt-3 rounded-controle bg-perigo-soft px-3 py-2 text-apoio text-perigo-ink">
-          {{ erroDoCatalogo() }}
-        </p>
-      }
-
-      @if (carregandoCatalogo()) {
-        <p class="mt-3 text-apoio text-muted-foreground">Carregando…</p>
-      } @else {
-        @if (obrigacoesAtivas().length) {
-          <ul class="mt-3 divide-y divide-border">
-            @for (o of obrigacoesAtivas(); track o.id) {
-              <li class="flex flex-wrap items-start gap-3 py-3">
-                <div class="min-w-0 flex-1">
-                  <p class="font-medium text-foreground">{{ o.titulo }}</p>
-                  <p class="text-apoio text-muted-foreground">
-                    {{ quandoVence(o) }}
-                    @if (aQuemSeAplica(o)) {
-                      · {{ aQuemSeAplica(o) }}
-                    }
-                  </p>
-                  @if (o.origem) {
-                    <p class="text-apoio text-muted-foreground">{{ o.origem }}</p>
-                  }
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  @if (podeRestaurar(o)) {
-                    <ui-button variant="sutil" (click)="restaurarPadrao(o)">
-                      Voltar ao padrão
-                    </ui-button>
-                  }
-                  <ui-button
-                    variant="ghost"
-                    [carregando]="mexendoEm() === o.id"
-                    (click)="alternarNoCalendario(o)"
-                  >
-                    Tirar do calendário
-                  </ui-button>
-                </div>
-              </li>
-            }
-          </ul>
-        } @else {
-          <p class="mt-3 text-apoio text-muted-foreground">
-            Nenhuma obrigação no calendário dos seus clientes.
-          </p>
-        }
-
-        @if (obrigacoesForaDoCalendario().length) {
-          <div class="mt-5 border-t border-border pt-4">
-            <h3 class="font-heading font-semibold text-foreground">Fora do calendário</h3>
-            <ul class="mt-2 divide-y divide-border">
-              @for (o of obrigacoesForaDoCalendario(); track o.id) {
-                <li class="flex flex-wrap items-center gap-3 py-2">
-                  <span class="min-w-0 flex-1 text-apoio text-muted-foreground">
-                    {{ o.titulo }} · {{ quandoVence(o) }}
-                  </span>
-                  <ui-button
-                    variant="ghost"
-                    [carregando]="mexendoEm() === o.id"
-                    (click)="alternarNoCalendario(o)"
-                  >
-                    Devolver ao calendário
-                  </ui-button>
-                </li>
-              }
-            </ul>
-          </div>
-        }
-
-        <p class="mt-4 border-t border-border pt-3 text-apoio text-muted-foreground">
-          Criar uma obrigação própria e editar os prazos de uma existente ainda não têm formulário
-          aqui — as rotas existem (<code>POST</code> e <code>PUT /api/contador/obrigacoes</code>).
-          Só o administrador do escritório pode alterar o catálogo.
-        </p>
-      }
-    </div>
+    <p
+      class="rounded-card border border-border bg-card px-5 py-4 text-apoio text-muted-foreground shadow-suave"
+    >
+      <svg
+        lucideListChecks
+        [size]="18"
+        class="mr-2 inline-block align-middle text-primary"
+        aria-hidden="true"
+      />As obrigações do calendário e os modelos de pedido agora ficam em
+      <a
+        routerLink="/catalogo"
+        class="tap-target inline-flex items-center font-medium text-primary underline"
+        >Modelos e obrigações</a
+      >.
+    </p>
   }
 
   <!-- Privacidade e dados (#137, LGPD): a politica e a exclusao da conta, para os dois papeis. -->

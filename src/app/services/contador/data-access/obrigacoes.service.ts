@@ -46,7 +46,26 @@ export interface ObrigacaoRequest {
   origem?: string;
   tipoProdutor?: string;
   regimes?: string[];
+  /**
+   * `NENHUM`, `ANTECIPA` ou `POSTERGA`. A tela não o edita (#185), mas o `PUT` substitui a
+   * obrigação inteira: na edição ele volta **como veio**, senão um modelo que antecipa o
+   * vencimento do fim de semana viraria "sem ajuste" só por ter o título corrigido.
+   */
+  ajusteFimDeSemana?: string;
 }
+
+/** As periodicidades que o backend aceita (`Periodicidade.java`). */
+export const PERIODICIDADES = ['MENSAL', 'ANUAL'] as const;
+
+/** Os regimes a que uma obrigação pode valer (`RegimeTributario.java`). Vazio = todos. */
+export const REGIMES_DA_OBRIGACAO = ['MEI', 'SIMPLES', 'PRESUMIDO', 'REAL'] as const;
+
+/** De onde a obrigação veio, na voz de quem lê o catálogo. */
+export const ORIGEM_CATALOGO_LABEL: Record<OrigemCatalogo, string> = {
+  MODELO: 'Padrão do sistema',
+  PERSONALIZADA: 'Padrão ajustado pelo escritório',
+  PROPRIA: 'Criada pelo escritório',
+};
 
 /**
  * O catálogo de obrigações do escritório (backend#181).

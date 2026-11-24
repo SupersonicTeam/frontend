@@ -14,6 +14,11 @@ import {
   LucideUserX,
 } from '@lucide/angular';
 import { CarteiraApi } from '@services/contador/data-access/carteira.service';
+import {
+  ModelosPedidoApi,
+  dataLimiteDoModelo,
+  type ModeloPedido,
+} from '@services/contador/data-access/modelos-pedido.service';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import {
   type Pendencia,
@@ -377,6 +382,19 @@ export class ClientePage {
   readonly novoTitulo = signal('');
   readonly novoPrazo = signal('');
   readonly novaDescricao = signal('');
+  /** Observações ao produtor. O formulário não as pedia; o modelo de pedido as traz (#185). */
+  readonly novasObservacoes = signal('');
+
+  /**
+   * Os modelos de pedido do escritório (#185, backend#517), para o "Usar um modelo".
+   *
+   * Buscados **cada vez que o formulário abre**, sem cache: a lista é curta (até 50), e o modelo
+   * que o administrador acabou de criar tem de aparecer para o colega. Se a busca falhar, a
+   * lista fica vazia e o formulário funciona como sempre funcionou — modelo é atalho, não
+   * requisito para pedir.
+   */
+  private readonly modelosApi = inject(ModelosPedidoApi);
+  readonly modelos = signal<ModeloPedido[]>([]);
   readonly novosTipos = signal<TipoDocumentoPendencia[]>([]);
   readonly tiposPossiveis = TIPOS_DOCUMENTO;
   readonly rotuloDoTipo = TIPO_DOCUMENTO_LABEL;
@@ -574,6 +592,34 @@ export class ClientePage {
   }
 
   /** Cria o pedido. Só vai o que tem valor: campo vazio não vira string vazia no corpo. */
+  /** Abre ou fecha o formulário de pedido; ao abrir, busca os modelos do escritório. */
+  alternarPedido(): void {
+    const abrindo = !this.pedindo();
+    this.pedindo.set(abrindo);
+    if (!abrindo) return;
+    this.modelosApi.listar().subscribe({
+      next: (lista) => this.modelos.set(lista),
+      error: () => this.modelos.set([]),
+    });
+  }
+
+  /**
+   * Preenche o formulário com um modelo. **Só preenche**: o contador ajusta e é ele quem envia,
+   * pelo mesmo `POST .../pendencias` de sempre. O pedido não guarda referência ao modelo, então
+   * editar ou apagar o modelo depois não muda o que já saiu.
+   *
+   * O prazo vira data: hoje (no fuso de Brasília) mais os dias do modelo; sem prazo, fica vazio.
+   */
+  usarModelo(id: string): void {
+    const modelo = this.modelos().find((m) => m.id === id);
+    if (!modelo) return;
+    this.novoTitulo.set(modelo.titulo);
+    this.novaDescricao.set(modelo.descricao ?? '');
+    this.novasObservacoes.set(modelo.observacoes ?? '');
+    this.novosTipos.set([...modelo.tiposDocumento]);
+    this.novoPrazo.set(dataLimiteDoModelo(modelo.prazoEmDias));
+  }
+
   criarPedido(): void {
     if (!this.podeCriarPedido()) return;
     const pedido: NovoPedidoDocumento = {
@@ -582,6 +628,7 @@ export class ClientePage {
     };
     if (this.novoPrazo()) pedido.dataLimite = this.novoPrazo();
     if (this.novaDescricao().trim()) pedido.descricao = this.novaDescricao().trim();
+    if (this.novasObservacoes().trim()) pedido.observacoes = this.novasObservacoes().trim();
 
     this.executando.set('novo');
     this.carteiraApi.criarPendencia(this.produtorId, pedido).subscribe({
@@ -592,6 +639,7 @@ export class ClientePage {
         this.novoTitulo.set('');
         this.novoPrazo.set('');
         this.novaDescricao.set('');
+        this.novasObservacoes.set('');
         this.novosTipos.set([]);
         this.toast.success('Pedido enviado ao produtor.');
       },
