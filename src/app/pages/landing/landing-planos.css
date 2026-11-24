@@ -130,13 +130,13 @@
 .plano .btn {
   width: 100%;
 }
-.credito-ajuda {
+.uso-ajuda {
   margin-top: 1.25rem;
   display: grid;
   gap: 0.5rem;
   justify-items: start;
 }
-.credito-ajuda p {
+.uso-ajuda p {
   max-width: 60ch;
   font-size: 0.92rem;
   color: var(--muted);

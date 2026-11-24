@@ -308,14 +308,14 @@ export function ligarInteracoes(raiz: HTMLElement, reduzido: () => boolean): () 
   }
   if (location.hash === '#planos-escritorio') abrirAba('escritorio', false);
 
-  // "O que é um crédito?"
-  um('#o-que-credito')?.addEventListener(
+  // "Como o limite é medido?"
+  um('#o-que-uso')?.addEventListener(
     'click',
     (e) => {
       const botao = e.currentTarget as HTMLElement;
       const aberto = botao.getAttribute('aria-expanded') === 'true';
       botao.setAttribute('aria-expanded', String(!aberto));
-      const texto = um('#texto-credito');
+      const texto = um('#texto-uso');
       if (texto) texto.hidden = aberto;
     },
     { signal },
