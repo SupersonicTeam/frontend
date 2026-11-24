@@ -1,4 +1,9 @@
-import type { CeresCitacao, CeresFonteDado, RotaCeres } from '@dtos/assistente/ceres.response';
+import type {
+  CeresCitacao,
+  CeresFonteDado,
+  CeresTurno,
+  RotaCeres,
+} from '@dtos/assistente/ceres.response';
 import type { CodigoCeres } from '@services/assistente/data-access/ceres.service';
 
 /**
@@ -32,4 +37,22 @@ export interface AssistenteMensagem {
   atalhos?: AtalhoCeres[];
   /** Quando preenchido, a mensagem é um estado de falha — não uma resposta. */
   falha?: CodigoCeres | 'CANCELADA';
+  /**
+   * O par desta resposta, guardado **como veio** para voltar ao backend na pergunta
+   * seguinte (#183). Só nas mensagens da Ceres, e só nas que o trouxeram — mensagem de
+   * falha, de cancelamento, de recusa e de conversa leve ficam sem ele, e é isso que as
+   * mantém fora do histórico. Nunca aparece na tela e nunca sai da memória.
+   */
+  turno?: CeresTurno;
+  /**
+   * A explicação do número, abaixo da resposta e com estilo secundário (#187). Chega
+   * segundos depois dela no SSE, ou junto no síncrono. Pode nunca vir, e isso não é erro.
+   * Não entra no `turno`.
+   */
+  explicacao?: string;
+  /**
+   * O stream desta resposta ainda está aberto e pode trazer a explicação. Some no `fim`,
+   * num erro depois da resposta ou quando a pessoa faz outra pergunta.
+   */
+  explicacaoPendente?: boolean;
 }

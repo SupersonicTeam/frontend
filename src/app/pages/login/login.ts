@@ -2,7 +2,7 @@ import { Location } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, type Params, Router, RouterLink } from '@angular/router';
 import { LucideLoaderCircle, LucideLogIn } from '@lucide/angular';
 import { SessaoService } from '@core/services/sessao.service';
 import { AuthApi } from '@services/auth/data-access/auth.service';
@@ -67,6 +67,18 @@ export class LoginPage {
   readonly hostWww = semProtocolo(this.www);
   /** O último erro foi um 401: no modo escritório, a dica para entrar por www aparece. */
   readonly foi401 = signal(false);
+  /**
+   * O destino pedido, repassado ao "Criar conta" (#182).
+   *
+   * Quem chega pelo link de um convite e **ainda não tem conta** passa por aqui, pelo cadastro e
+   * pelo login de novo. O `returnUrl` morria no primeiro salto, e a pessoa caía no painel em vez
+   * do convite. O cadastro só carrega o valor adiante; quem **valida** continua sendo o
+   * `destino()` aqui embaixo, no único lugar onde ele vira navegação.
+   */
+  readonly paramsDeRetorno: Params = (() => {
+    const pedido = this.rota.snapshot.queryParamMap.get('returnUrl');
+    return pedido ? { returnUrl: pedido } : {};
+  })();
   /**
    * Uma frase deixada por quem encerrou a sessão (`EncerramentoService.encerrar(_, aviso)`), no
    * `state` da navegação: "Este endereço não é mais o do seu escritório...".

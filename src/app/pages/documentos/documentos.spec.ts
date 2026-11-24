@@ -800,7 +800,7 @@ describe('DocumentosPage', () => {
       const cmp = abrirPagina().componentInstance;
       cmp.abrirNovaNota();
       httpMock
-        .match((r) => r.url === '/notas')
+        .match((r) => r.url === '/notas' || r.url === '/notas/proximo-numero')
         .forEach((r) => r.flush({ content: [], totalElements: 0 }));
 
       expect(cmp.abaNota()).toBe('criar');
@@ -811,7 +811,7 @@ describe('DocumentosPage', () => {
       const cmp = abrirPagina().componentInstance;
       cmp.abrirNovaNota('carregar');
       httpMock
-        .match((r) => r.url === '/notas')
+        .match((r) => r.url === '/notas' || r.url === '/notas/proximo-numero')
         .forEach((r) => r.flush({ content: [], totalElements: 0 }));
 
       expect(cmp.abaNota()).toBe('carregar');
@@ -821,7 +821,7 @@ describe('DocumentosPage', () => {
       const cmp = abrirPagina().componentInstance;
       cmp.abrirNovaNota('carregar');
       httpMock
-        .match((r) => r.url === '/notas')
+        .match((r) => r.url === '/notas' || r.url === '/notas/proximo-numero')
         .forEach((r) => r.flush({ content: [], totalElements: 0 }));
 
       cmp.editarNota({
@@ -866,7 +866,7 @@ describe('DocumentosPage', () => {
 
       fixture.componentInstance.abrirNovaNota('ajustar');
       httpMock
-        .match((r) => r.url === '/notas')
+        .match((r) => r.url === '/notas' || r.url === '/notas/proximo-numero')
         .forEach((r) => r.flush({ content: notas, totalElements: notas.length }));
       return fixture;
     }
@@ -893,7 +893,7 @@ describe('DocumentosPage', () => {
       const daFila = httpMock.match((r) => r.url === '/notas' && r.params.get('size') === '100');
       expect(daFila.length).toBe(1);
       httpMock
-        .match((r) => r.url === '/notas')
+        .match((r) => r.url === '/notas' || r.url === '/notas/proximo-numero')
         .forEach((r) => r.flush({ content: [], totalElements: 0 }));
     });
 
@@ -922,11 +922,141 @@ describe('DocumentosPage', () => {
 
       fixture.componentInstance.abrirNovaNota();
       httpMock
-        .match((r) => r.url === '/notas')
+        .match((r) => r.url === '/notas' || r.url === '/notas/proximo-numero')
         .forEach((r) => r.flush({ content: [], totalElements: 0 }));
 
       fixture.componentInstance.fecharForm();
       expect(fixture.componentInstance.showFormNota()).toBe(false);
+    });
+  });
+
+  /**
+   * Número sugerido em "Nova nota" (#195, backend#539). Vinha do maior número de todas as notas,
+   * compras importadas inclusive, e sobrescrevia o que a pessoa já tinha digitado.
+   */
+  describe('número sugerido da nova nota', () => {
+    const ehSugestao = (r: { url: string }) => r.url === '/notas/proximo-numero';
+
+    function abrirModal() {
+      const fixture = TestBed.createComponent(DocumentosPage);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url === '/notas').flush({ content: [], totalElements: 0 });
+      flushPendencias();
+      const cmp = fixture.componentInstance;
+      cmp.abrirNovaNota();
+      // A fila de ajustes que o modal também busca.
+      httpMock.match((r) => r.url === '/notas').forEach((r) => r.flush(pagina([])));
+      return cmp;
+    }
+
+    it('pede a sugestão da série do formulário e preenche o campo vazio', () => {
+      const cmp = abrirModal();
+
+      const req = httpMock.expectOne(ehSugestao);
+      expect(req.request.params.get('serie')).toBe('1');
+      req.flush({ serie: 1, numero: 3185 });
+
+      expect(cmp.formNumero()).toBe('3185');
+    });
+
+    it('não usa mais a maior nota da lista (que inclui as compras importadas)', () => {
+      abrirModal();
+
+      expect(
+        httpMock.match((r) => r.url === '/notas' && r.params.get('sort') === 'numero,desc'),
+      ).toHaveLength(0);
+      httpMock.expectOne(ehSugestao).flush({ serie: 1, numero: 1 });
+    });
+
+    it('o número digitado antes de a sugestão chegar continua o mesmo', () => {
+      const cmp = abrirModal();
+
+      cmp.digitarNumero('77');
+      httpMock.match(ehSugestao).forEach((r) => {
+        if (!r.cancelled) r.flush({ serie: 1, numero: 3185 });
+      });
+
+      expect(cmp.formNumero()).toBe('77');
+    });
+
+    it('apagar o que digitou não traz a sugestão de volta', () => {
+      const cmp = abrirModal();
+      httpMock.expectOne(ehSugestao).flush({ serie: 1, numero: 3185 });
+
+      cmp.digitarNumero('');
+      cmp.digitarSerie('2');
+
+      expect(httpMock.match(ehSugestao)).toHaveLength(0);
+      expect(cmp.formNumero()).toBe('');
+    });
+
+    it('trocar a série pede a sugestão de novo enquanto o número for o sugerido', () => {
+      const cmp = abrirModal();
+      httpMock.expectOne(ehSugestao).flush({ serie: 1, numero: 3185 });
+
+      cmp.digitarSerie('2');
+
+      expect(cmp.formNumero()).toBe('');
+      const req = httpMock.expectOne(ehSugestao);
+      expect(req.request.params.get('serie')).toBe('2');
+      req.flush({ serie: 2, numero: 12 });
+      expect(cmp.formNumero()).toBe('12');
+    });
+
+    it('trocar a série não mexe no número que a pessoa digitou', () => {
+      const cmp = abrirModal();
+      httpMock.expectOne(ehSugestao).flush({ serie: 1, numero: 3185 });
+
+      cmp.digitarNumero('500');
+      cmp.digitarSerie('2');
+
+      expect(httpMock.match(ehSugestao)).toHaveLength(0);
+      expect(cmp.formNumero()).toBe('500');
+    });
+
+    it('a resposta de uma série antiga não preenche o campo da série nova', () => {
+      const cmp = abrirModal();
+      const daSerie1 = httpMock.expectOne(ehSugestao);
+
+      cmp.digitarSerie('2');
+      const daSerie2 = httpMock.expectOne(ehSugestao);
+
+      // A primeira foi cancelada ao trocar a série; a segunda é a que vale.
+      expect(daSerie1.cancelled).toBe(true);
+      daSerie2.flush({ serie: 2, numero: 12 });
+      expect(cmp.formNumero()).toBe('12');
+    });
+
+    it('série fora de 0 a 999 não pede sugestão e deixa o campo vazio', () => {
+      const cmp = abrirModal();
+      httpMock.expectOne(ehSugestao).flush({ serie: 1, numero: 3185 });
+
+      cmp.digitarSerie('1000');
+      cmp.digitarSerie('');
+      cmp.digitarSerie('1.5');
+
+      expect(httpMock.match(ehSugestao)).toHaveLength(0);
+      expect(cmp.formNumero()).toBe('');
+    });
+
+    /** 404 inclusive: a rota está na `main` do backend, mas ainda não na VPS. */
+    it('falha da chamada deixa o campo vazio e o modal aberto', () => {
+      const cmp = abrirModal();
+
+      httpMock.expectOne(ehSugestao).flush(null, { status: 404, statusText: 'Not Found' });
+
+      expect(cmp.formNumero()).toBe('');
+      expect(cmp.showFormNota()).toBe(true);
+    });
+
+    it('editar uma nota enquanto a sugestão corria não troca o número dela', () => {
+      const cmp = abrirModal();
+      const req = httpMock.expectOne(ehSugestao);
+
+      cmp.editarNota({ id: 'n7', numero: 7, serie: 1, status: 'RASCUNHO', itens: [] } as never);
+      if (!req.cancelled) req.flush({ serie: 1, numero: 3185 });
+
+      expect(cmp.formNumero()).toBe('7');
     });
   });
 
@@ -1562,6 +1692,9 @@ describe('DocumentosPage', () => {
   describe('regra fiscal do XML e avisos ao salvar', () => {
     function preencherNota(cmp: DocumentosPage) {
       cmp.abrirNovaNota();
+      httpMock
+        .match((r) => r.url === '/notas/proximo-numero')
+        .forEach((r) => r.flush({ serie: 1, numero: 10 }));
       cmp.formNumero.set('10');
       cmp.formNatureza.set('Venda de produção');
       cmp.formData.set('2026-11-01');

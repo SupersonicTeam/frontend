@@ -1,6 +1,6 @@
 import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, type Params, Router, RouterLink } from '@angular/router';
 import { LucideLoaderCircle, LucideUserPlus } from '@lucide/angular';
 import { ToastService } from '@core/services/toast.service';
 import { criarCampoCpfCnpj } from '@core/utils/campo-cpf-cnpj';
@@ -27,6 +27,20 @@ export class CadastroPage {
   private readonly auth = inject(AuthApi);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly rota = inject(ActivatedRoute);
+
+  /**
+   * O destino pedido, que esta tela só **carrega adiante** (#182).
+   *
+   * Quem chega pelo link de um convite sem ter conta passa por login → cadastro → login. O
+   * `returnUrl` morria aqui, e a pessoa caía no painel em vez do convite. Esta tela nunca navega
+   * para o valor: quem o valida (caminho interno, nunca `/login`) é a tela de login, no único
+   * lugar onde ele vira navegação de verdade.
+   */
+  readonly paramsDeRetorno: Params = (() => {
+    const pedido = this.rota.snapshot.queryParamMap.get('returnUrl');
+    return pedido ? { returnUrl: pedido } : {};
+  })();
 
   readonly papel = signal<Papel>('PRODUTOR');
   readonly nome = signal('');
@@ -90,7 +104,8 @@ export class CadastroPage {
         this.enviando.set(false);
         // O cadastro **não** devolve token: quem acabou de criar a conta ainda precisa entrar.
         this.toast.success('Conta criada. Entre com o seu e-mail e a sua senha.');
-        void this.router.navigateByUrl('/login');
+        // O destino segue junto (#182): sem ele, quem veio de um convite entra e cai no painel.
+        void this.router.navigate(['/login'], { queryParams: this.paramsDeRetorno });
       },
       error: (falha: ContaError) => {
         this.enviando.set(false);

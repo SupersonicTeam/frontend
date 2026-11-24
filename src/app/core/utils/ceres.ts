@@ -15,6 +15,28 @@ import type { CeresFonteDado, RotaCeres } from '@dtos/assistente/ceres.response'
 export const TAMANHO_MAXIMO_PERGUNTA = 1000;
 
 /**
+ * Quantos `turno` a tela manda de volta a cada pergunta (#183, backend#499). Três é o
+ * que o backend lê; mandar mais só engorda o corpo (o 413 vem acima de 80 KB) e aumenta
+ * o que sai para o provedor do modelo.
+ */
+export const MAX_TURNOS_HISTORICO = 3;
+
+/**
+ * A dica dos campos de texto que o **escritório** escreve e o **produtor** lê: motivo da
+ * devolução da nota, motivo no pedido e título do pedido (#183).
+ *
+ * Esses textos entram na conversa da Ceres quando o produtor pergunta sobre a nota ou a
+ * pendência — e, com a continuidade ligada, saem para o provedor do modelo dentro do
+ * `turno`. Quem escreve precisa saber disso na hora de escrever, não depois.
+ *
+ * Mora aqui, numa constante só, porque são **quatro** campos em dois arquivos: escrita à
+ * mão em cada um, a frase divergiria no primeiro ajuste de texto.
+ */
+export const AVISO_TEXTO_DO_ESCRITORIO =
+  'Não escreva dados pessoais de terceiros (nome, CPF, telefone). ' +
+  'O produtor lê este texto, e a Ceres pode enviá-lo ao provedor de IA.';
+
+/**
  * As 13 consultas que a Ceres faz, conferidas contra os `@Tool` de
  * `FerramentasDadosProdutor.java` no backend (#132). A lista dá origem ao tipo
  * `FuncaoCeres`, e o `Record` de rótulos abaixo exige uma entrada para cada uma:

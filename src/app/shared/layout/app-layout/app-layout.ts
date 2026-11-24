@@ -17,6 +17,7 @@ import {
   LucideSparkles,
   LucideClipboardList,
   LucideUsers,
+  LucideListChecks,
   LucideBuilding2,
   LucideDynamicIcon,
   type LucideIcon,
@@ -73,6 +74,7 @@ const MENU_PRODUTOR: readonly ItemDoMenu[] = [
  * - `/tributario` e `/calendario` são as mesmas rotas do produtor com telas diferentes
  *   (`ImpostosContador` para conferir e fechar, `PrazosContador` para cobrar).
  * - Equipe (#157) foi seção de Configurações até ficar evidente que ninguém a achava lá.
+ * - Modelos e obrigações (#185) é o mesmo caso: o catálogo de obrigações também morava lá.
  */
 const MENU_CONTADOR: readonly ItemDoMenu[] = [
   { rota: '/contador', rotulo: 'Acompanhamento', icone: LucideCalculator },
@@ -80,6 +82,7 @@ const MENU_CONTADOR: readonly ItemDoMenu[] = [
   { rota: '/tributario', rotulo: 'Fechamento', icone: LucideReceipt },
   { rota: '/calendario', rotulo: 'Prazos e cobrança', icone: LucideCalendar },
   { rota: '/equipe', rotulo: 'Equipe', icone: LucideUsers },
+  { rota: '/catalogo', rotulo: 'Modelos e obrigações', icone: LucideListChecks },
 ];
 
 @Component({
