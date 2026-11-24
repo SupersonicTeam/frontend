@@ -683,8 +683,7 @@
         <ul class="space-y-1.5">
           @for (erro of errosFiscais(); track erro.code + erro.field) {
             <li class="text-apoio text-foreground">
-              <span class="font-medium">{{ erro.field }}</span
-              >: {{ erro.message }}
+              <span class="font-medium">{{ rotuloDoCampo(erro.field) }}</span>: {{ erro.message }}
               @if (erro.suggestion) {
                 <span class="block text-muted-foreground">{{ erro.suggestion }}</span>
               }
@@ -1515,8 +1514,53 @@
               [value]="item.valorTotal"
             />
           </div>
+          <!--
+            Classificacao do IBS/CBS do item (#208, backend#299). Vazio = pela regra do NCM, que
+            e o padrao e o caso da esmagadora maioria. Os dois codigos nomeados sao os que o
+            produtor reconhece; o resto da tabela oficial fica no "outro", digitado pelo contador.
+          -->
+          <div class="grid gap-2" [class.grid-cols-2]="item.cClassTribModo === classTribOutro">
+            <select
+              [attr.aria-label]="'Classificação do IBS/CBS do produto ' + (idx + 1)"
+              class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+              [value]="item.cClassTribModo"
+              (change)="escolherClassTrib(idx, $any($event.target).value)"
+            >
+              <option value="">Classificação do IBS/CBS: pela regra do NCM</option>
+              <option value="200020">
+                Venda a cooperativa optante de que sou associado (alíquota zero)
+              </option>
+              <option value="200003">Leite de consumo direto (alíquota zero)</option>
+              <option value="OUTRO">Outro código (6 dígitos)</option>
+            </select>
+            @if (item.cClassTribModo === classTribOutro) {
+              <input
+                type="text"
+                placeholder="Código (6 díg)"
+                [attr.aria-label]="'Código da classificação do IBS/CBS do produto ' + (idx + 1)"
+                maxlength="6"
+                inputmode="numeric"
+                class="px-3 py-2 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
+                [value]="item.cClassTrib"
+                (input)="updateItem(idx, 'cClassTrib', $any($event.target).value)"
+              />
+            }
+          </div>
           @if (itemErro(item); as msgErro) {
             <p class="text-apoio text-destructive">{{ msgErro }}</p>
+          }
+          <!--
+            Aviso do servidor para este item (backend#389, #208). Nao e erro: a nota foi gravada.
+            Fica aqui porque o toast passa, e o do 200020 pede guardar a comunicacao da
+            cooperativa -- coisa que se faz fora do sistema.
+          -->
+          @for (aviso of avisosDoItem(idx); track $index) {
+            <p
+              class="flex items-start gap-1.5 rounded-controle bg-aviso-soft p-2 text-apoio text-aviso-ink"
+            >
+              <svg lucideTriangleAlert [size]="14" class="mt-0.5 shrink-0" />
+              <span>{{ aviso.mensagem }}</span>
+            </p>
           }
         </div>
       }
