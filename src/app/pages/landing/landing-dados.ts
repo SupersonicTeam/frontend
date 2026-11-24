@@ -27,7 +27,7 @@ export const PLANOS_PRODUTOR: readonly PlanoLanding[] = [
       'Nota com IBS e CBS e avisos antes de emitir',
       'Revisão pelo escritório',
       'Notas de compra, créditos estimados, apuração e painel',
-      '150 créditos da Ceres por semana (uso leve)',
+      'Ceres para uso leve, com limite semanal',
     ],
   },
   {
@@ -37,13 +37,13 @@ export const PLANOS_PRODUTOR: readonly PlanoLanding[] = [
     itens: [
       'Tudo do Essencial, mais:',
       'Relatório de conformidade em PDF',
-      '500 créditos da Ceres por semana (uso moderado)',
+      'Ceres para uso moderado, com limite semanal',
     ],
   },
   {
     nome: 'Safra',
     para: 'Para a operação grande, com muitas perguntas',
-    itens: ['Tudo do Profissional, mais:', '1.500 créditos da Ceres por semana (uso intenso)'],
+    itens: ['Tudo do Profissional, mais:', 'Ceres para uso intenso, com limite semanal'],
   },
 ];
 
@@ -110,9 +110,9 @@ export const PERGUNTAS: readonly PerguntaLanding[] = [
       'O vínculo e os pedidos de documento funcionam no plano Grátis do produtor. Para a nota passar pela revisão, o produtor precisa de um plano a partir do Essencial, e o escritório, de um plano de escritório.',
   },
   {
-    pergunta: 'O que são os créditos da Ceres?',
+    pergunta: 'Como funciona o limite de uso da Ceres?',
     resposta:
-      'É o saldo semanal da Ceres, para os planos do produtor. Renova toda segunda-feira e não acumula, e as três perguntas prontas da tela não gastam créditos.',
+      'É um limite semanal de uso, para os planos do produtor. Renova toda segunda-feira e não acumula, e as três perguntas prontas da tela não entram no limite. No app, a Ceres mostra quanto da semana já foi usado, em porcentagem.',
   },
   {
     pergunta: 'Já posso emitir NF-e com valor fiscal?',
