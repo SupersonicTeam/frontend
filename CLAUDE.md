@@ -136,6 +136,13 @@ Ceres, todos pedindo dado de um usuário que ainda não existe; e uma tela de lo
 login quem não tem sessão — em volta. Sem sessão, o `sessaoGuard` manda para lá **com `returnUrl`**, para
 que o endereço pedido (uma nota, um cliente da carteira) não se perca no caminho.
 
+**O `returnUrl` atravessa o cadastro** (#182): quem chega por um link de convite sem ter conta faz
+login → "Criar conta" → cadastro → login, e o destino morria no primeiro salto (caía no painel em vez
+do convite). O login repassa o `returnUrl` ao "Criar conta" e o cadastro o devolve ao `/login` depois de
+criar a conta e no link "Entrar" (`paramsDeRetorno` nas duas telas). **O cadastro só carrega o valor** —
+quem valida que o caminho é interno (e não é `/login`) continua sendo o `destino()` do login, no único
+ponto em que ele vira navegação. Duas cópias dessa checagem seriam a forma de uma ficar para trás.
+
 **As telas dos dois papéis são separadas, e isso é imposto por guard** — endereço é digitável, esconder o
 link do menu não protege. O contador chegava em `/calendario` e `/tributario` e lia texto escrito para o
 produtor, inclusive "procure o seu escritório de contabilidade" mostrado para o escritório. O que ele
