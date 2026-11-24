@@ -464,6 +464,13 @@ Falha **não vira texto de assistente**: a mensagem carrega `falha` com o códig
 escolhe o que dizer (`tituloDaFalha`/`detalheDaFalha` em `assistente-conversa.ts`). "Modelo fora do ar"
 (`ASSISTENTE_INDISPONIVEL`) e "servidor fora do ar" (`SEM_CONEXAO`) são coisas diferentes e a tela diz qual é.
 
+**O uso da semana aparece só em porcentagem** (#184, backend#511). O crédito virou 1 token: a cota é de
+1.000.000 por semana e uma pergunta custa uns 6.800 — "993.200 restantes" não ajuda ninguém a decidir se
+pergunta. `CeresUso.percentualUsado` (0 a 100, arredondado para cima, no máximo 99 com saldo) vem pronto
+do backend; sem o campo, a tela cai na conta com os créditos. **Nenhum número de crédito vai à tela.**
+O anel, a barra, a cor e o número saem todos da mesma `fracaoUsada()` em `assistente-conversa.ts` —
+discordarem sobre a mesma semana é pior que qualquer um deles errar sozinho. Cota zerada no servidor
+(`creditosSemana: 0`) conta como **100% usado**; antes dava "0% usado" ao lado de um anel vazio.
 ### Continuidade da conversa (#183, backend#499)
 
 Cada pergunta chega isolada ao backend — era por isso que "tem certeza?" respondia "Não consegui

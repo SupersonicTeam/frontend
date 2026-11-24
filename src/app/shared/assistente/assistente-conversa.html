@@ -199,7 +199,10 @@
             class="tap-target flex items-center justify-center rounded-full transition-colors hover:bg-muted"
             [attr.aria-expanded]="cotaAberta()"
             [attr.aria-label]="
-              uso.restantes + ' de ' + uso.creditosSemana + ' créditos nesta semana. Ver detalhes'
+              percentualUsado(uso) +
+              '% do limite da semana usado. Renova em ' +
+              dataDaRenovacao(uso) +
+              '. Ver detalhes'
             "
             (click)="cotaAberta.set(!cotaAberta())"
           >
@@ -235,17 +238,20 @@
             <div
               class="animate-entra-subindo absolute right-0 bottom-full z-20 mb-2 w-64 rounded-card border border-border bg-card p-4 shadow-alta"
               role="dialog"
-              aria-label="Créditos da Ceres"
+              aria-label="Uso da Ceres nesta semana"
             >
               <p class="font-heading text-base font-semibold text-foreground">Uso</p>
 
               <!-- Barra do que foi GASTO, como qualquer medidor de consumo: ela enche conforme a
                    semana corre. O anel do lado de fora faz o contrario, esvazia -- por isso cada
-                   um diz em palavras o que mostra ("usado" aqui, "restantes" na linha abaixo),
-                   em vez de deixar a direcao do desenho no ar. -->
+                   um diz em palavras o que mostra ("usado" aqui, "disponivel" no rotulo do anel),
+                   em vez de deixar a direcao do desenho no ar.
+                   Desde a #184 nao ha numero de credito em lugar nenhum: o credito virou 1 token,
+                   a cota e de 1.000.000 por semana e uma pergunta custa uns 6.800 -- numeros que
+                   nao ajudam ninguem a decidir se pergunta ou nao. -->
               <div class="mt-3">
                 <div class="flex items-baseline justify-between gap-2">
-                  <span class="text-apoio font-medium text-foreground">Créditos da semana</span>
+                  <span class="text-apoio font-medium text-foreground">Limite da semana</span>
                   <span class="text-apoio tabular-nums text-muted-foreground">
                     {{ percentualUsado(uso) }}% usado
                   </span>
@@ -258,9 +264,8 @@
                   ></div>
                 </div>
                 <p class="mt-1.5 text-apoio text-muted-foreground">
-                  {{ uso.restantes }} de {{ uso.creditosSemana }} restantes
+                  Renova em {{ dataDaRenovacao(uso) }}
                 </p>
-                <p class="text-apoio text-muted-foreground">Renova em {{ dataDaRenovacao(uso) }}</p>
               </div>
 
               <div class="mt-3 border-t border-border pt-3">
