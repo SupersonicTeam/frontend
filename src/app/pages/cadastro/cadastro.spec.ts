@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { Router, provideRouter } from '@angular/router';
+import { ActivatedRoute, Router, convertToParamMap, provideRouter } from '@angular/router';
 import { vi } from 'vitest';
 import { SessaoService } from '@core/services/sessao.service';
 import { CadastroPage } from './cadastro';
@@ -17,18 +17,35 @@ describe('CadastroPage', () => {
   let sessao: SessaoService;
   let navegouPara: string[];
 
-  function montar() {
+  /** Monta a tela com o `returnUrl` que o login teria repassado (#182). */
+  function montar(returnUrl?: string) {
     localStorage.clear();
     TestBed.configureTestingModule({
       imports: [CadastroPage],
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([]),
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap(returnUrl ? { returnUrl } : {}) },
+          },
+        },
+      ],
     });
     httpMock = TestBed.inject(HttpTestingController);
     sessao = TestBed.inject(SessaoService);
 
     navegouPara = [];
-    vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockImplementation((d) => {
+    const router = TestBed.inject(Router);
+    vi.spyOn(router, 'navigateByUrl').mockImplementation((d) => {
       navegouPara.push(String(d));
+      return Promise.resolve(true);
+    });
+    // A ida ao login leva query params desde a #182, entao e `navigate`, nao `navigateByUrl`.
+    vi.spyOn(router, 'navigate').mockImplementation((comandos, extras) => {
+      navegouPara.push(router.createUrlTree(comandos, extras).toString());
       return Promise.resolve(true);
     });
 
@@ -150,6 +167,53 @@ describe('CadastroPage', () => {
     expect(cmp.enviando()).toBe(false);
     expect(sessao.logado()).toBe(false);
     expect(navegouPara).toEqual(['/login']);
+  });
+
+  /**
+   * O caminho de quem chega por um convite **sem ter conta** (#182): login → "Criar conta" →
+   * cadastro → login → o convite. O destino morria aqui, e a pessoa caía no painel; o e-mail do
+   * backend ainda manda abrir "Escritório" no menu, mas quem não lê o e-mail inteiro se perde.
+   *
+   * Esta tela **nunca navega para o `returnUrl`** — ela só o carrega adiante. Quem valida que o
+   * caminho é interno é o login, no único ponto em que ele vira navegação.
+   */
+  describe('o destino pedido atravessa o cadastro (#182)', () => {
+    it('depois de criar a conta, o login recebe o mesmo returnUrl', () => {
+      const cmp = montar('/equipe/convite');
+      preencher(cmp);
+
+      cmp.criar();
+      httpMock.expectOne('/auth/cadastro').flush(null, { status: 201, statusText: 'Created' });
+
+      expect(navegouPara).toEqual(['/login?returnUrl=%2Fequipe%2Fconvite']);
+    });
+
+    it('sem returnUrl, vai para o login limpo, como antes', () => {
+      const cmp = montar();
+      preencher(cmp);
+
+      cmp.criar();
+      httpMock.expectOne('/auth/cadastro').flush(null, { status: 201, statusText: 'Created' });
+
+      expect(navegouPara).toEqual(['/login']);
+      expect(cmp.paramsDeRetorno).toEqual({});
+    });
+
+    it('o link "Entrar" leva o mesmo destino', () => {
+      const cmp = montar('/escritorio');
+
+      expect(cmp.paramsDeRetorno).toEqual({ returnUrl: '/escritorio' });
+    });
+
+    /**
+     * Repassar não é validar: um `returnUrl` externo continua chegando ao login, que o recusa.
+     * A checagem mora num lugar só — duas cópias dela seria a forma de uma ficar para trás.
+     */
+    it('não julga o valor: um returnUrl externo segue para o login decidir', () => {
+      const cmp = montar('//site.externo/phishing');
+
+      expect(cmp.paramsDeRetorno).toEqual({ returnUrl: '//site.externo/phishing' });
+    });
   });
 
   describe('os erros caem onde a pessoa pode agir', () => {

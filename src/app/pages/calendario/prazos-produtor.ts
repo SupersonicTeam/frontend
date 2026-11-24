@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
+import type { HttpErrorResponse } from '@angular/common/http';
 import { RouterLink } from '@angular/router';
 import {
   LucideCalendar,
@@ -10,13 +11,17 @@ import {
   LucideRefreshCw,
 } from '@lucide/angular';
 import { CalendarioApi } from '@services/calendario/data-access/calendario.service';
+import { GuiasApi } from '@services/guias/data-access/guias.service';
 import {
   NotificacaoApi,
   type NotificacaoError,
   type NotificacaoRegistrada,
 } from '@services/notificacao/data-access/notificacao.service';
 import { ToastService } from '@core/services/toast.service';
+import { falhaDaApi } from '@core/utils/erro-api';
 import { UiSkeleton } from '@shared/ui/ui-skeleton';
+import { UiModal } from '@shared/ui/ui-modal';
+import { UiButton } from '@shared/ui/ui-button';
 import { VencimentoFiscal } from '@models/vencimento-fiscal.model';
 import { switchMap } from 'rxjs';
 import { AuthApi } from '@services/auth/data-access/auth.service';
@@ -34,11 +39,14 @@ import { AuthApi } from '@services/auth/data-access/auth.service';
     LucideLoaderCircle,
     LucideRefreshCw,
     UiSkeleton,
+    UiModal,
+    UiButton,
   ],
   templateUrl: './prazos-produtor.html',
 })
 export class PrazosProdutor implements OnInit {
   private readonly calendarioService = inject(CalendarioApi);
+  private readonly guiasApi = inject(GuiasApi);
   private readonly authApi = inject(AuthApi);
   private readonly notificacaoService = inject(NotificacaoApi);
   private readonly toastService = inject(ToastService);
@@ -727,6 +735,98 @@ export class PrazosProdutor implements OnInit {
   readonly primeiraGuiaAtrasada = computed(
     () => this.atrasados().find((v) => this.ehGuia(v)) ?? null,
   );
+
+  // ── A BAIXA DA GUIA (#198) ──
+  //
+  // **O produtor é a única ponta que pode dar baixa.** `PATCH /api/guias/{id}/pagar` tira o
+  // produtor do token e responde 403 `PAPEL_NAO_AUTORIZADO` ao contador (backend#273). O botão
+  // existia só na tela do contador, onde levava 403 em todo clique (medido contra a API local em
+  // 18/11/2026), e aqui não havia nenhum: **ninguém conseguia dar baixa em guia nenhuma**.
+  //
+  // **O `id` do item serve de id da guia, sem busca nenhuma.** No item `tipo: "imposto"` o
+  // calendário devolve o próprio id da guia -- conferido contra a API local em 18/11: o
+  // `a9f6ae64…` que veio de `/calendario-fiscal/{id}/vencimentos` é o mesmo de `/guias`. Só a
+  // obrigação tem id composto (`<obrigacaoId>:<data>`), e obrigação não se paga.
+
+  /** A guia que está esperando confirmação, ou `null` com o modal fechado. */
+  readonly guiaParaBaixa = signal<VencimentoFiscal | null>(null);
+
+  /** A baixa em andamento — uma por vez, e é ela que tranca o modal. */
+  readonly dandoBaixa = signal(false);
+
+  /**
+   * Por que a baixa não saiu, dito **dentro da confirmação**.
+   *
+   * `/api/guias` está nos prefixos sem toast global do `apiInterceptor` (#198): o combinado é que
+   * a tela mostra a falha no lugar dela. Sem isto o erro não aparecia em canto nenhum -- medido
+   * no navegador em 18/11/2026, pedindo a baixa de uma guia já paga: 409 no console, e a tela
+   * muda nada. É o mesmo silêncio que o botão do contador tinha com o 403 dele.
+   */
+  readonly erroBaixa = signal<string | null>(null);
+
+  /** Só guia não paga: obrigação não se paga, e a paga já está paga. */
+  podeDarBaixa(vencimento: VencimentoFiscal): boolean {
+    return this.ehGuia(vencimento) && vencimento.status !== 'pago';
+  }
+
+  /**
+   * Pede confirmação antes de marcar como paga.
+   *
+   * **Não há rota de desfazer**: o backend tem `pagar`, e nada que volte uma guia para em aberto.
+   * Um clique errado numa lista de prazos ficaria registrado como pagamento, e o produtor
+   * passaria a ver "paga" uma guia que ele não pagou -- que é exatamente o engano que a tela
+   * existe para evitar.
+   */
+  confirmarBaixa(vencimento: VencimentoFiscal): void {
+    if (!this.podeDarBaixa(vencimento)) return;
+    this.erroBaixa.set(null);
+    this.guiaParaBaixa.set(vencimento);
+  }
+
+  fecharBaixa(): void {
+    if (this.dandoBaixa()) return;
+    this.guiaParaBaixa.set(null);
+    this.erroBaixa.set(null);
+  }
+
+  /** Marca a guia confirmada como paga. */
+  marcarPaga(): void {
+    const guia = this.guiaParaBaixa();
+    if (!guia || this.dandoBaixa()) return;
+
+    this.dandoBaixa.set(true);
+    this.erroBaixa.set(null);
+    this.guiasApi.pagar(guia.id).subscribe({
+      next: (paga) => {
+        this.dandoBaixa.set(false);
+        this.guiaParaBaixa.set(null);
+        // O item é corrigido no lugar, com o status que o servidor acabou de confirmar, em vez de
+        // recarregar a janela inteira: a linha do tempo não pisca e a guia desce para "já pagos".
+        this.trocarStatusNoCache(guia.id, paga.status);
+        this.toastService.success(`Guia de ${this.rotuloCurto(guia.titulo)} marcada como paga.`);
+      },
+      // A falha fica **na confirmação**, que é onde a pessoa está olhando, com a mensagem do
+      // servidor ("Guia já está paga", por exemplo) -- e não em toast, que esta rota não tem
+      // (ver `erroBaixa`). O modal segue aberto: a mensagem perderia o lugar dela, e numa queda
+      // de rede o botão ali é o "tentar de novo". E o status não muda: a guia só fica paga
+      // quando o servidor diz que ficou (#50).
+      error: (err: HttpErrorResponse) => {
+        this.dandoBaixa.set(false);
+        this.erroBaixa.set(falhaDaApi(err).mensagem);
+      },
+    });
+  }
+
+  /** Troca o status de um item já carregado, sem pedir a janela de novo. */
+  private trocarStatusNoCache(id: string, status: VencimentoFiscal['status']): void {
+    this.vencimentosPorMes.update((mapa) => {
+      const copia: Record<string, VencimentoFiscal[]> = {};
+      for (const [chave, itens] of Object.entries(mapa)) {
+        copia[chave] = itens.map((v) => (v.id === id ? { ...v, status } : v));
+      }
+      return copia;
+    });
+  }
 
   /**
    * A cara do dia na grade.

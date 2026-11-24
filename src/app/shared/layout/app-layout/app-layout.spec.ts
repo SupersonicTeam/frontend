@@ -269,6 +269,21 @@ describe('AppLayout', () => {
       expect(links(montar(), 'aside')).toContain('/equipe');
     });
 
+    /** Modelos e obrigações (#185): o catálogo saiu da engrenagem para o menu do contador. */
+    it('o contador tem a aba Modelos e obrigações na barra lateral', () => {
+      entrarComo('CONTADOR');
+      const f = montar();
+      expect(links(f, 'aside')).toContain('/catalogo');
+      expect((f.nativeElement as HTMLElement).querySelector('aside')?.textContent).toContain(
+        'Modelos e obrigações',
+      );
+    });
+
+    it('o produtor não vê a aba Modelos e obrigações', () => {
+      entrarComo('PRODUTOR');
+      expect(links(montar(), 'aside')).not.toContain('/catalogo');
+    });
+
     it('o produtor não vê a aba Equipe, e tem a Meu escritório', () => {
       entrarComo('PRODUTOR');
       const hrefs = links(montar(), 'aside');
@@ -308,7 +323,14 @@ describe('AppLayout', () => {
       const hrefs = [...(nav?.querySelectorAll('a[href]') ?? [])].map((a) =>
         a.getAttribute('href'),
       );
-      expect(hrefs).toEqual(['/contador', '/documentos', '/tributario', '/calendario', '/equipe']);
+      expect(hrefs).toEqual([
+        '/contador',
+        '/documentos',
+        '/tributario',
+        '/calendario',
+        '/equipe',
+        '/catalogo',
+      ]);
       expect(nav?.textContent).toContain('Notas do produtor');
       expect(nav?.textContent).not.toContain('Minhas notas');
     });

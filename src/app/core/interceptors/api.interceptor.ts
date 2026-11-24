@@ -17,6 +17,9 @@ const PREFIXOS_SEM_TOAST = [
   '/api/dashboard',
   '/api/calendario-fiscal',
   '/api/contador',
+  // Guias do produtor (#198): ate a migracao elas moravam em `/api/contador/guias` e ja eram
+  // caladas pela linha de cima. A tela de impostos mostra a falha no lugar dela.
+  '/api/guias',
   // Escritorio e equipe (#148): a secao de equipe mostra cada falha no lugar certo.
   '/api/escritorio',
   // Auditoria (#137): a secao da ficha mostra a falha no lugar dela.

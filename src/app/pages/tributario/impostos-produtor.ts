@@ -16,9 +16,7 @@ import {
 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { TributarioApi } from '@services/tributario/data-access/tributario.service';
-import { ContadorApi } from '@services/contador/data-access/contador.service';
-import { switchMap } from 'rxjs';
-import { AuthApi } from '@services/auth/data-access/auth.service';
+import { GuiasApi } from '@services/guias/data-access/guias.service';
 import type { GuiaFiscal } from '@models/solicitacao-contador.model';
 import { Apuracao, RelatorioConformidade } from '@models/tributario.model';
 import { StatusApuracao } from '@core/enums/status-apuracao.enum';
@@ -95,8 +93,7 @@ const MESES = [
 })
 export class ImpostosProdutor implements OnInit {
   private readonly api = inject(TributarioApi);
-  private readonly contadorApi = inject(ContadorApi);
-  private readonly authApi = inject(AuthApi);
+  private readonly guiasApi = inject(GuiasApi);
   private readonly toast = inject(ToastService);
   protected readonly assistente = inject(AssistenteStore);
 
@@ -258,8 +255,8 @@ export class ImpostosProdutor implements OnInit {
    * Guias lançadas pelo escritório para este período — é o que transforma "você deve R$ X" em
    * "vence dia 20". Antes o valor ficava órfão aqui e a guia morava só na tela de Prazos.
    *
-   * O recorte por período é feito aqui porque `GET /contador/guias` só aceita `produtorId`
-   * (sem filtro de data). Com filtro no servidor isto sai — ver SupersonicTeam/backend#174.
+   * O recorte por período é feito aqui porque `GET /guias` não tem filtro de data (só página e
+   * tamanho). Com filtro no servidor isto sai — ver SupersonicTeam/backend#174.
    */
   private readonly guias = signal<GuiaFiscal[]>([]);
 
@@ -389,23 +386,20 @@ export class ImpostosProdutor implements OnInit {
   private carregarGuias(): void {
     this.guiasCarregadas.set(false);
     this.erroGuias.set(null);
-    // O id do produtor vem do servidor, nao de constante (#106): `GET /auth/me` ja existe e
-    // devolve o id do autenticado. Ver `AuthApi`.
-    this.authApi
-      .carregar()
-      .pipe(switchMap((sessao) => this.contadorApi.getGuias(sessao.usuarioId)))
-      .subscribe({
-        next: (lista) => {
-          this.guias.set(lista);
-          this.guiasCarregadas.set(true);
-        },
-        // A lista **não** é zerada: o que estava na tela é o último dado verdadeiro do servidor.
-        // Zerar em falha fazia a guia sumir como se tivesse sido paga (#107).
-        error: (err: HttpErrorResponse) => {
-          this.erroGuias.set(falhaDaApi(err));
-          this.guiasCarregadas.set(true);
-        },
-      });
+    // A rota do produtor (#198) tira o produtor do token: antes era preciso o id dele, que vinha
+    // de um `GET /auth/me` antes de cada busca (#106).
+    this.guiasApi.minhas().subscribe({
+      next: (lista) => {
+        this.guias.set(lista);
+        this.guiasCarregadas.set(true);
+      },
+      // A lista **não** é zerada: o que estava na tela é o último dado verdadeiro do servidor.
+      // Zerar em falha fazia a guia sumir como se tivesse sido paga (#107).
+      error: (err: HttpErrorResponse) => {
+        this.erroGuias.set(falhaDaApi(err));
+        this.guiasCarregadas.set(true);
+      },
+    });
   }
 
   /** `pago`/`vencido`/`pendente` em palavra de produtor. */

@@ -12,7 +12,7 @@
           as guias que você lançou para
           <span class="font-medium text-foreground">{{ c.nomeCompleto }}</span>
         } @else {
-          as guias de um cliente da carteira, para cobrar e dar baixa
+          as guias de um cliente da carteira, para lançar e cobrar
         }
       </p>
     </div>
@@ -83,13 +83,6 @@
                 <span class="font-semibold tabular-nums text-foreground">
                   {{ formatCurrency(guia.valor) }}
                 </span>
-                <button
-                  type="button"
-                  class="tap-target inline-flex items-center gap-1.5 rounded-controle border border-border bg-card px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
-                  (click)="marcarPaga(guia)"
-                >
-                  <svg lucideCheck [size]="15" aria-hidden="true" /> Dar baixa
-                </button>
               </span>
             </li>
           }
@@ -194,7 +187,6 @@
                 <th scope="col">Vencimento</th>
                 <th scope="col" class="text-right">Valor</th>
                 <th scope="col">Situação</th>
-                <th scope="col"><span class="sr-only">Ações</span></th>
               </tr>
             </thead>
             <tbody>
@@ -214,22 +206,20 @@
                       <span class="block text-apoio text-muted-foreground">em {{ quando }}</span>
                     }
                   </td>
-                  <td class="text-right">
-                    @if (guia.status !== 'pago') {
-                      <button
-                        type="button"
-                        class="tap-target inline-flex items-center gap-1.5 rounded-controle border border-border px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
-                        (click)="marcarPaga(guia)"
-                      >
-                        <svg lucideCheck [size]="15" aria-hidden="true" /> Dar baixa
-                      </button>
-                    }
-                  </td>
                 </tr>
               }
             </tbody>
           </table>
         </ui-table>
+
+        <!-- Onde ficava a coluna com o botão "Dar baixa" (#198). A baixa é do produtor, e a rota
+             dela responde 403 ao contador: o botão levava 403 em todo clique. Dizer quem dá baixa
+             evita a procura pelo botão -- e evita que ele volte. Fica sob a tabela, e não na fila
+             de cobrança, porque a fila some quando não há nada a cobrar. -->
+        <p class="mt-1 text-apoio text-muted-foreground">
+          Quem dá baixa é o produtor, nos Prazos dele. Avise pelo WhatsApp e a guia aparece como
+          paga aqui.
+        </p>
       }
     </section>
   }
@@ -238,7 +228,7 @@
 <ui-modal
   [aberto]="showNovaGuia()"
   titulo="Nova guia fiscal"
-  descricao="Lance a guia para acompanhar o prazo e dar baixa quando for paga."
+  descricao="Lance a guia para acompanhar o prazo. Quem dá baixa é o produtor, quando pagar."
   tamanho="sm"
   [travado]="salvando()"
   (fechar)="showNovaGuia.set(false)"

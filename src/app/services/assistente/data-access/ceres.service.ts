@@ -5,6 +5,7 @@ import {
   TimeoutError,
   catchError,
   firstValueFrom,
+  map,
   of,
   throwError,
   timeout,
@@ -16,10 +17,23 @@ import { AuthApi } from '@services/auth/data-access/auth.service';
 import type { ApiErrorEnvelope } from '@dtos/shared/responses/api-error.response';
 import type {
   CeresEvento,
+  CeresPergunta,
   CeresResposta,
+  CeresTurno,
   CeresUso,
   RotaCeres,
 } from '@dtos/assistente/ceres.response';
+
+/**
+ * O que a tela sabe da conversa até aqui (#183). Quem monta é o `AssistenteStore`, que é
+ * o dono das mensagens; o service só traduz para o corpo da requisição.
+ */
+export interface ContextoConversa {
+  /** Do mais antigo para o mais recente, no máximo `MAX_TURNOS_HISTORICO`. */
+  historico: CeresTurno[];
+  /** A última mensagem da Ceres na tela não tem `turno` (recusa, falha, cancelamento). */
+  ultimaRespostaSemTurno: boolean;
+}
 
 /**
  * Códigos de erro da Ceres (seção 5 do contrato). A decisão na tela é **pelo
@@ -150,11 +164,34 @@ export class CeresApi {
    * `ASSISTENTE_TEMPO_ESGOTADO` dele chegar antes de o cliente desistir — assim a
    * tela mostra o motivo real em vez de um silêncio genérico.
    */
-  perguntar(pergunta: string): Observable<CeresResposta> {
-    return this.api.post<CeresResposta>('/assistente/chat', { pergunta }).pipe(
-      timeout(TIMEOUT_SINCRONO_MS),
-      catchError((erro: unknown) => throwError(() => this.classificar(erro))),
-    );
+  perguntar(pergunta: string, contexto?: ContextoConversa): Observable<CeresResposta> {
+    return this.api
+      .post<Partial<CeresResposta>>('/assistente/chat', this.corpo(pergunta, contexto))
+      .pipe(
+        timeout(TIMEOUT_SINCRONO_MS),
+        // O mesmo `normalizar` do streaming: as duas portas da mesma pergunta não podem
+        // entregar formas diferentes à tela. Aqui a lista ausente chegava crua, e `turno`
+        // vinha `undefined` num caminho e `null` no outro.
+        map((bruto) => this.normalizar(bruto)),
+        catchError((erro: unknown) => throwError(() => this.classificar(erro))),
+      );
+  }
+
+  /**
+   * O corpo da pergunta. Os dois campos da continuidade (#183) são **omitidos** quando não
+   * há o que mandar, em vez de irem vazios: `historico: []` e `ultimaRespostaSemTurno:
+   * false` são a mesma coisa que ausentes para o backend, e mandar o campo à toa faz
+   * parecer, na aba Network, que a tela mandou conversa quando não mandou.
+   *
+   * O `historico` vai **como veio** — nenhuma cópia campo a campo aqui, porque a
+   * assinatura vale para os bytes exatos.
+   */
+  private corpo(pergunta: string, contexto?: ContextoConversa): CeresPergunta {
+    return {
+      pergunta,
+      ...(contexto?.historico.length ? { historico: contexto.historico } : {}),
+      ...(contexto?.ultimaRespostaSemTurno ? { ultimaRespostaSemTurno: true } : {}),
+    };
   }
 
   /**
@@ -170,7 +207,7 @@ export class CeresApi {
 
   /**
    * Pergunta em streaming. Chama `aoEvento` para cada evento do SSE (`rota`,
-   * `resposta`, `fim`) e **lança** `CeresError` no evento `erro` — e também nos
+   * `resposta`, `explicacao`, `fim`) e **lança** `CeresError` no evento `erro` — e também nos
    * erros que acontecem antes de o stream abrir (400/401/403/413 e o 503
    * `ASSISTENTE_OCUPADO`), que vêm como resposta HTTP comum em JSON.
    *
@@ -181,6 +218,7 @@ export class CeresApi {
     pergunta: string,
     aoEvento: (evento: CeresEvento) => void,
     sinal?: AbortSignal,
+    contexto?: ContextoConversa,
   ): Promise<void> {
     const cabecalhos: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -194,7 +232,7 @@ export class CeresApi {
       resposta = await fetch(`${environment.apiUrl}/assistente/chat/stream`, {
         method: 'POST',
         headers: cabecalhos,
-        body: JSON.stringify({ pergunta }),
+        body: JSON.stringify(this.corpo(pergunta, contexto)),
         signal: sinal,
       });
     } catch (erro) {
@@ -277,6 +315,14 @@ export class CeresApi {
     if (bloco.nome === 'resposta') {
       return { evento: 'resposta', dado: this.normalizar(dado as Partial<CeresResposta> | null) };
     }
+    if (bloco.nome === 'explicacao') {
+      // #187: `{"explicacao": "texto"}`, só com a função ligada no backend. Sem texto, não há
+      // o que mostrar — o mesmo que ela não ter vindo.
+      const explicacao = (dado as { explicacao?: unknown } | null)?.explicacao;
+      return typeof explicacao === 'string' && explicacao.trim()
+        ? { evento: 'explicacao', dado: { explicacao } }
+        : null;
+    }
     if (bloco.nome === 'fim') {
       return { evento: 'fim', dado: {} };
     }
@@ -296,6 +342,15 @@ export class CeresApi {
       fontesDados: bruto?.fontesDados ?? [],
       modoFallback: bruto?.modoFallback ?? false,
       atalhos: bruto?.atalhos ?? [],
+      // O `turno` passa **inteiro, por referência** (#183): copiar campo a campo aqui
+      // seria o primeiro lugar onde a assinatura deixaria de bater com o conteúdo.
+      // Backend sem continuidade não manda o campo, e `null` é o jeito de dizer
+      // "esta resposta não entra no histórico".
+      turno: bruto?.turno ?? null,
+      perguntaInterpretada: bruto?.perguntaInterpretada ?? null,
+      // #187: ausente e `null` querem dizer o mesmo, "sem explicação". Só o síncrono a traz
+      // aqui; no SSE ela vem no evento próprio.
+      explicacao: bruto?.explicacao?.trim() ? bruto.explicacao : null,
     };
   }
 

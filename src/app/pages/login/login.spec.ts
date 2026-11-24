@@ -148,6 +148,41 @@ describe('LoginPage', () => {
     },
   );
 
+  /**
+   * Quem veio de um convite e **ainda não tem conta** sai daqui para o cadastro e volta. O
+   * destino ia junto só na primeira metade do caminho: depois do cadastro a pessoa entrava e
+   * caía no painel, não no convite (#182).
+   */
+  describe('o "Criar conta" leva o destino pedido (#182)', () => {
+    it('repassa o returnUrl quando ele existe', async () => {
+      const cmp = (await montar('/equipe/convite')).componentInstance;
+
+      expect(cmp.paramsDeRetorno).toEqual({ returnUrl: '/equipe/convite' });
+    });
+
+    it('sem returnUrl, o link do cadastro vai limpo', async () => {
+      const cmp = (await montar()).componentInstance;
+
+      expect(cmp.paramsDeRetorno).toEqual({});
+    });
+
+    /** O repasse não julga o valor: quem recusa caminho externo é o `destino()`, na entrada. */
+    it('repassa até o que o login vai recusar depois', async () => {
+      const cmp = (await montar('//site.externo')).componentInstance;
+
+      expect(cmp.paramsDeRetorno).toEqual({ returnUrl: '//site.externo' });
+    });
+
+    it('o link renderizado carrega a query', async () => {
+      const fixture = await montar('/escritorio');
+      const link = (fixture.nativeElement as HTMLElement).querySelector<HTMLAnchorElement>(
+        'a[href*="cadastro"]',
+      );
+
+      expect(link?.getAttribute('href')).toBe('/cadastro?returnUrl=%2Fescritorio');
+    });
+  });
+
   describe('quando não entra', () => {
     /**
      * `CREDENCIAIS_INVALIDAS` é a mesma resposta para e-mail sem conta, senha errada e conta

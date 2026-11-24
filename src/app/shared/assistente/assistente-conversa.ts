@@ -11,6 +11,7 @@ import {
 import { LucideCircleStop, LucideSend, LucideTriangleAlert, LucideUser } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
 import { rotuloRota } from '@core/utils/ceres';
+import type { CeresUso } from '@dtos/assistente/ceres.response';
 import type { AssistenteMensagem } from '@models/assistente-mensagem.model';
 import { UiButton } from '@shared/ui/ui-button';
 import { AssistenteStore } from './assistente.store';
@@ -85,12 +86,33 @@ export class AssistenteConversa {
   /**
    * Quanto da cota ainda resta, de 0 a 1 -- e o quanto do anel fica aceso.
    *
-   * Cota zerada no servidor devolve 0 creditos na semana; dividir por ela daria `NaN` e o anel
-   * sumiria em vez de aparecer vazio, que e justamente o estado que importa mostrar.
+   * Sai da **mesma** fração que o número em porcentagem (#184): anel, barra, cor e texto
+   * discordarem sobre a mesma semana é pior do que qualquer um deles estar errado sozinho.
    */
-  protected fracaoDaCota(uso: { restantes: number; creditosSemana: number }): number {
-    if (!uso.creditosSemana) return 0;
-    return Math.max(0, Math.min(1, uso.restantes / uso.creditosSemana));
+  protected fracaoDaCota(uso: CeresUso): number {
+    return 1 - this.fracaoUsada(uso);
+  }
+
+  /**
+   * Quanto da semana já foi gasto, de 0 a 1. **Fonte única** do anel, da barra, da cor e do
+   * número.
+   *
+   * Desde a #184 quem calcula é o backend (`percentualUsado`), porque o crédito virou 1 token: a
+   * cota passou a 1.000.000 por semana e uma pergunta custa uns 6.800. A conta com créditos fica
+   * como reserva para um backend que ainda não manda o campo.
+   *
+   * Cota zerada no servidor (`creditosSemana: 0`) é **tudo usado**, não "nada usado": dividir por
+   * ela daria `NaN`, e o anel sumiria em vez de aparecer vazio -- que é justamente o estado que
+   * importa mostrar. Antes esse caso dava "0% usado" ao lado de um anel vazio.
+   */
+  private fracaoUsada(uso: CeresUso): number {
+    const doBackend = uso.percentualUsado;
+    if (typeof doBackend === 'number' && Number.isFinite(doBackend)) {
+      return Math.max(0, Math.min(1, doBackend / 100));
+    }
+    if (!uso.creditosSemana) return 1;
+    const usado = (uso.creditosSemana - uso.restantes) / uso.creditosSemana;
+    return Math.max(0, Math.min(1, usado));
   }
 
   /**
@@ -112,20 +134,21 @@ export class AssistenteConversa {
   }
 
   /**
-   * Quanto por cento da cota ja foi gasto -- o numero que vai no painel, ao lado da barra.
+   * Quanto por cento da semana já foi gasto -- **o único número de uso que a tela mostra** (#184).
    *
-   * Arredonda para cima acima de zero: com 1 credito gasto de 1000, "0% usado" ao lado de uma
-   * barra com um fiozinho aceso seria contraditorio. Zero e zero; qualquer gasto e ao menos 1%.
+   * Arredonda para cima acima de zero: com um gasto mínimo, "0% usado" ao lado de uma barra com um
+   * fiozinho aceso seria contraditório. Zero é zero; qualquer gasto é ao menos 1%. Quando o número
+   * vem do backend ele já chega assim, e aqui só é limitado a 0-100 -- um campo fora da faixa não
+   * pode virar uma barra de 140% de largura.
    */
-  protected percentualUsado(uso: { restantes: number; creditosSemana: number }): number {
-    if (!uso.creditosSemana) return 0;
-    const usado = uso.creditosSemana - uso.restantes;
-    if (usado <= 0) return 0;
-    return Math.max(1, Math.round((usado / uso.creditosSemana) * 100));
+  protected percentualUsado(uso: CeresUso): number {
+    const fracao = this.fracaoUsada(uso);
+    if (fracao <= 0) return 0;
+    return Math.max(1, Math.min(100, Math.round(fracao * 100)));
   }
 
   /** A mesma escala de cor do anel, em fundo -- a barra e o anel nunca discordam. */
-  protected corDaBarra(uso: { restantes: number; creditosSemana: number }): string {
+  protected corDaBarra(uso: CeresUso): string {
     const fracao = this.fracaoDaCota(uso);
     if (fracao <= 0.05) return 'bg-perigo';
     if (fracao <= 0.2) return 'bg-aviso';
@@ -139,7 +162,7 @@ export class AssistenteConversa {
    * pergunta sem necessidade. Abaixo de 20% vira aviso, e abaixo de 5%, urgencia -- ai sim a cor
    * esta dizendo algo que o numero sozinho demoraria a dizer.
    */
-  protected corDaCota(uso: { restantes: number; creditosSemana: number }): string {
+  protected corDaCota(uso: CeresUso): string {
     const fracao = this.fracaoDaCota(uso);
     if (fracao <= 0.05) return 'text-perigo';
     if (fracao <= 0.2) return 'text-aviso';

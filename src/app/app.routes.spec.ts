@@ -42,6 +42,11 @@ describe('rotas por papel', () => {
     expect(guardsDe('equipe')).toContain(contadorGuard);
   });
 
+  /** Modelos e obrigações (#185): saiu de Configurações para uma aba do menu do contador. */
+  it('/catalogo é do contador', () => {
+    expect(guardsDe('catalogo')).toContain(contadorGuard);
+  });
+
   it('/documentos é dos dois — e despacha para a tela de cada papel (#136)', () => {
     expect(guardsDe('documentos')).toEqual([]);
   });
@@ -72,6 +77,7 @@ describe('links do app (#112)', () => {
   /** Todos os `routerLink="/..."` que existem nos templates, em 29/10/2026. */
   const DESTINOS = [
     '/calendario',
+    '/catalogo',
     '/chat',
     '/configuracoes',
     '/contador',

@@ -27,6 +27,12 @@ export interface RevisaoNota {
  *
  * Todos opcionais e combináveis. O `totalElements` da resposta reflete o filtro.
  */
+/** Resposta de `GET /api/notas/proximo-numero` (#195). */
+export interface ProximoNumeroNota {
+  serie: number;
+  numero: number;
+}
+
 export interface Pageable {
   page?: number;
   size?: number;
@@ -106,6 +112,16 @@ export class NotasApi {
     if (pageable.emitidaAte) params['emitidaAte'] = pageable.emitidaAte;
     if (pageable.busca) params['busca'] = pageable.busca;
     return this.api.get<Page<NotaFiscal>>('/notas', params);
+  }
+
+  /**
+   * `GET /api/notas/proximo-numero?serie=` (#195, backend#539) — o número sugerido para a próxima
+   * nota própria daquela série: o maior número já usado nela mais 1 (rascunho, cancelada e
+   * rejeitada contam; compra importada e outra série não). **É só sugestão, sem reserva**: duas
+   * abas recebem o mesmo número, e o `POST` responde 409 na segunda.
+   */
+  proximoNumero(serie: number): Observable<ProximoNumeroNota> {
+    return this.api.get<ProximoNumeroNota>('/notas/proximo-numero', { serie });
   }
 
   /** GET /api/notas/{id}. */

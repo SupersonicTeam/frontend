@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { PrazosProdutor } from './prazos-produtor';
+import { ToastService } from '@core/services/toast.service';
 
 /**
  * O calendário tinha **duas fontes para a mesma guia**: `/calendario-fiscal/{id}/vencimentos` e
@@ -812,6 +813,124 @@ describe('PrazosProdutor', () => {
 
       expect(cmp.rotuloDoAviso('PROXIMAS_OBRIGACOES')).toContain('próximos 7 dias');
       expect(cmp.rotuloDoAviso('TODOS_ATRASADOS')).toContain('atrasado');
+    });
+  });
+
+  /**
+   * A baixa da guia (#198).
+   *
+   * Ela é do produtor por contrato (`PATCH /api/guias/{id}/pagar` tira o produtor do token e
+   * responde 403 `PAPEL_NAO_AUTORIZADO` ao contador, backend#273), mas o botão existia **só na
+   * tela do contador** -- onde levava 403 em todo clique, medido contra a API local em 18/11/2026.
+   * Era a única baixa do sistema, e não funcionava para ninguém.
+   */
+  describe('a baixa da guia (#198)', () => {
+    /** Uma guia vencendo em `dias` dias, como o calendário a devolve. */
+    function guiaEm(dias: number, over: Record<string, unknown> = {}) {
+      return {
+        id: 'g-icms',
+        evento: 'Guia ICMS',
+        descricao: null,
+        dataVencimento: emDias(dias),
+        tipo: 'imposto',
+        status: 'pendente',
+        valor: 1500,
+        ...over,
+      };
+    }
+
+    function abrirCom(itens: unknown[]) {
+      const fixture = TestBed.createComponent(PrazosProdutor);
+      fixture.detectChanges();
+      httpMock.expectOne((r) => r.url.includes('/calendario-fiscal')).flush(itens);
+      fixture.detectChanges();
+      flushContadorVazio();
+      return fixture;
+    }
+
+    it('dá baixa pela rota do produtor e a guia desce para paga, sem segunda busca', () => {
+      const toasts: string[] = [];
+      TestBed.inject(ToastService).success = (m: string) => void toasts.push(m);
+
+      const fixture = abrirCom([guiaEm(-5)]);
+      const cmp = fixture.componentInstance;
+      expect(cmp.atrasados().map((v) => v.id)).toEqual(['g-icms']);
+
+      // A confirmação vem antes de propósito: não há rota de desfazer, e o clique errado numa
+      // lista de prazos registraria um pagamento que não houve.
+      cmp.confirmarBaixa(cmp.atrasados()[0]);
+      expect(cmp.guiaParaBaixa()?.id).toBe('g-icms');
+      cmp.marcarPaga();
+
+      const req = httpMock.expectOne((r) => r.url === '/guias/g-icms/pagar');
+      expect(req.request.method).toBe('PATCH');
+      req.flush({
+        id: 'g-icms',
+        produtorId: 'produtor-de-teste',
+        tipoGuia: 'ICMS',
+        dataVencimento: emDias(-5),
+        valor: 1500,
+        status: 'PAGA',
+      });
+
+      // O status é o que o servidor confirmou, aplicado no item que já estava na tela: a janela
+      // inteira não é pedida de novo (a linha do tempo não pisca).
+      expect(httpMock.match((r) => r.url.includes('/calendario-fiscal')).length).toBe(0);
+      expect(cmp.atrasados()).toEqual([]);
+      expect(cmp.jaPagos().map((v) => v.id)).toEqual(['g-icms']);
+      expect(cmp.guiaParaBaixa()).toBe(null);
+      expect(toasts[0]).toContain('ICMS');
+    });
+
+    it('a falha não transforma a guia em paga', () => {
+      const cmp = abrirCom([guiaEm(-5)]).componentInstance;
+      cmp.confirmarBaixa(cmp.atrasados()[0]);
+      cmp.marcarPaga();
+
+      httpMock
+        .expectOne((r) => r.url === '/guias/g-icms/pagar')
+        .flush({ message: 'Guia já está paga.' }, { status: 409, statusText: 'Conflict' });
+
+      // Mostrar "paga" sem o servidor ter confirmado é o engano que a tela existe para evitar
+      // (#50). A guia continua atrasada, e o modal continua clicável.
+      expect(cmp.atrasados().map((v) => v.id)).toEqual(['g-icms']);
+      expect(cmp.jaPagos()).toEqual([]);
+      expect(cmp.dandoBaixa()).toBe(false);
+
+      // E a pessoa fica sabendo: `/api/guias` não tem toast global (está nos prefixos do
+      // `apiInterceptor`), então a mensagem do servidor tem de sair aqui. Sem isto o 409 era
+      // silêncio absoluto -- o mesmo silêncio do botão que o contador tinha.
+      expect(cmp.erroBaixa()).toBe('Guia já está paga.');
+      expect(cmp.guiaParaBaixa()?.id).toBe('g-icms');
+    });
+
+    it('só a guia não paga ganha o botão: obrigação não se paga', () => {
+      const fixture = abrirCom([
+        guiaEm(10),
+        guiaEm(12, { id: 'g-paga', status: 'pago' }),
+        {
+          id: '00000000-0000-4000-8181-0000000000ff:2026-12-31',
+          evento: 'Fechamento da apuração do mês',
+          descricao: null,
+          dataVencimento: emDias(14),
+          tipo: 'obrigacao',
+          status: null,
+          valor: null,
+        },
+      ]);
+      const cmp = fixture.componentInstance;
+
+      const botoes = (fixture.nativeElement as HTMLElement).querySelectorAll(
+        'button[aria-label^="Marcar"]',
+      );
+      expect(botoes.length).toBe(1);
+      expect(botoes.item(0)?.getAttribute('aria-label')).toContain('Guia ICMS');
+
+      const porId = (id: string) => cmp.vencimentos().find((v) => v.id === id)!;
+      expect(cmp.podeDarBaixa(porId('g-paga'))).toBe(false);
+      expect(cmp.podeDarBaixa(porId('00000000-0000-4000-8181-0000000000ff:2026-12-31'))).toBe(
+        false,
+      );
     });
   });
 });

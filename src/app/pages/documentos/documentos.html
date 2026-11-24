@@ -1177,7 +1177,7 @@
           class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
           id="nf-numero"
           [value]="formNumero()"
-          (input)="formNumero.set($any($event.target).value)"
+          (input)="digitarNumero($any($event.target).value)"
         />
         @if (erroDe('numero'); as e) {
           <p class="text-apoio text-destructive mt-1">{{ e.message }}</p>
@@ -1194,7 +1194,7 @@
           class="w-full px-3 py-2.5 rounded-controle border border-border bg-background text-apoio focus:outline-none focus:ring-2 focus:ring-primary/30"
           id="nf-serie"
           [value]="formSerie()"
-          (input)="formSerie.set($any($event.target).value)"
+          (input)="digitarSerie($any($event.target).value)"
         />
       </div>
       <div>

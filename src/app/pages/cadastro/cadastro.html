@@ -601,7 +601,13 @@
 
       <p class="text-center text-apoio text-muted-foreground">
         Já tem conta?
-        <a routerLink="/login" class="font-medium text-primary hover:underline">Entrar</a>
+        <!-- Leva o destino pedido junto (#182), como o envio do formulário. -->
+        <a
+          routerLink="/login"
+          [queryParams]="paramsDeRetorno"
+          class="font-medium text-primary hover:underline"
+          >Entrar</a
+        >
       </p>
     </form>
   </div>
