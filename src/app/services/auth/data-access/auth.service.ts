@@ -26,13 +26,60 @@ export interface SessaoAtual {
 }
 
 /** O corpo de `POST /api/auth/cadastro`. */
+/** O endereço postal do escritório (#186, backend#523). Tudo obrigatório, menos o complemento. */
+export interface EnderecoEscritorioRequest {
+  /** 8 dígitos, sem máscara. */
+  cep: string;
+  logradouro: string;
+  numero: string;
+  complemento?: string;
+  bairro: string;
+  /** 7 dígitos, **coerente com a `uf`** — o backend confere e recusa o de outro estado. */
+  codigoMunicipioIbge: string;
+  municipio: string;
+  /** Sigla em maiúsculas. */
+  uf: string;
+}
+
+/**
+ * O escritório criado junto com a conta empresarial (#186, backend#523). **Só no
+ * `tipoConta: 'EMPRESARIAL'`**: mandá-lo no pessoal, sem tipo ou no produtor é 400.
+ */
+export interface EscritorioNoCadastro {
+  nome: string;
+  /** 14 dígitos com DV válido, sem máscara. Obrigatório aqui (não é único entre escritórios). */
+  cnpj: string;
+  /** Só dígitos, 10 ou 11. */
+  telefone: string;
+  endereco: EnderecoEscritorioRequest;
+  /** O `{slug}.{base}`. Não conta para a carência de 30 dias da troca. */
+  slug: string;
+  /** Tem de ser `true`: o endereço fica público e permanente. */
+  cienteExposicaoPublica: boolean;
+}
+
 export interface CadastroRequest {
   papel: Papel;
   nomeCompleto: string;
-  /** **Só dígitos**, com DV válido — 11 (CPF) ou 14 (CNPJ). A máscara é da tela. */
+  /**
+   * **Só dígitos**, com DV válido. No `PRODUTOR`, CPF ou CNPJ; no `CONTADOR`, **só CPF** desde a
+   * #186 — o documento do contador é o da pessoa, e o CNPJ do escritório vai em `escritorio.cnpj`.
+   */
   cpfCnpj: string;
   email: string;
   senha: string;
+  /**
+   * O aceite dos termos (#186). Vale para todos os papéis: `false` é 400, e o backend grava a data
+   * e a versão do texto aceito.
+   */
+  aceiteTermos: boolean;
+  /** Registro no CRC, só no `CONTADOR`, até 20 caracteres. `''` = não informado. */
+  crc?: string;
+  /** Telefone **da pessoa**, nos dois papéis. Só dígitos, 10 ou 11. `''` = não informado. */
+  telefone?: string;
+  /** Só no `CONTADOR`. Ausente vale `PESSOAL`: o escritório nasce com o nome da pessoa. */
+  tipoConta?: 'PESSOAL' | 'EMPRESARIAL';
+  escritorio?: EscritorioNoCadastro;
 }
 
 /** Os códigos de erro da conta, **medidos** contra a API local em 03/11. */
@@ -43,6 +90,9 @@ export type CodigoConta =
   | 'SENHA_ATUAL_INCORRETA'
   | 'MUITAS_TENTATIVAS'
   | 'CONVITE_EQUIPE_INVALIDO'
+  /** Do slug do escritório no cadastro empresarial (#186): 400 na forma, 409 em uso/reservado. */
+  | 'SLUG_INVALIDO'
+  | 'SLUG_INDISPONIVEL'
   | 'DESCONHECIDO';
 
 /**
@@ -62,6 +112,14 @@ export class ContaError extends Error {
     readonly campo?: string,
     /** Segundos até poder tentar de novo — só no `MUITAS_TENTATIVAS`. */
     readonly retryAfterSegundos?: number,
+    /**
+     * **Todos** os campos recusados, do `field` ao `message` (#186). O `campo` acima é o primeiro
+     * deles, mantido porque as telas antigas o usam.
+     *
+     * O cadastro empresarial manda 14 campos de uma vez, e o backend responde com todos os erros
+     * juntos no `errors[]`. Mostrar só o primeiro faria a pessoa corrigir um campo por tentativa.
+     */
+    readonly campos: Readonly<Record<string, string>> = {},
   ) {
     super(mensagem);
     this.name = 'ContaError';
@@ -207,13 +265,17 @@ export class AuthApi {
     nomeCompleto: string;
     cpfCnpj: string;
     senha: string;
+    /** O mesmo aceite do cadastro comum (#186). */
+    aceiteTermos: boolean;
   }): Observable<void> {
     return this.api
       .post<void>('/auth/cadastro/equipe', {
         token: dados.token,
         nomeCompleto: dados.nomeCompleto.trim(),
+        // Só CPF desde a #186: o documento do contador é o da pessoa.
         cpfCnpj: soDigitos(dados.cpfCnpj),
         senha: dados.senha,
+        aceiteTermos: dados.aceiteTermos,
       })
       .pipe(AuthApi.traduzirFalhaDeConta<void>());
   }
@@ -362,11 +424,20 @@ export class AuthApi {
       'SENHA_ATUAL_INCORRETA',
       'MUITAS_TENTATIVAS',
       'CONVITE_EQUIPE_INVALIDO',
+      'SLUG_INVALIDO',
+      'SLUG_INDISPONIVEL',
     ];
     const codigo = conhecidos.find((c) => c === primeiro?.code) ?? 'DESCONHECIDO';
 
     const bruto = falha?.headers?.get?.('Retry-After');
     const segundos = bruto ? Number(bruto) : undefined;
+
+    // Todos os campos recusados, não só o primeiro (#186): o cadastro empresarial manda 14 de uma
+    // vez. O primeiro `field` de cada campo vence, que é a ordem em que o backend os lista.
+    const campos: Record<string, string> = {};
+    for (const item of envelope?.errors ?? []) {
+      if (item.field && item.message && !(item.field in campos)) campos[item.field] = item.message;
+    }
 
     return new ContaError(
       codigo,
@@ -374,6 +445,7 @@ export class AuthApi {
       mensagem,
       campo,
       Number.isFinite(segundos) ? segundos : undefined,
+      campos,
     );
   }
 }

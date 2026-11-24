@@ -2,6 +2,37 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, map, of, shareReplay, tap } from 'rxjs';
 import { skipErrorNotify } from '@core/interceptors/error-notify.context';
+import type { EnderecoEscritorioRequest } from '@services/auth/data-access/auth.service';
+
+/** Conta pessoal (um usuário só) ou empresarial (CNPJ, equipe e endereço próprio), #186. */
+export type TipoEscritorio = 'PESSOAL' | 'EMPRESARIAL';
+
+/** O endereço postal do escritório, como o servidor o devolve — o mesmo formato do envio. */
+export type EnderecoEscritorio = EnderecoEscritorioRequest;
+
+/** Corpo do `POST /api/escritorio/tornar-empresarial`: tudo obrigatório. */
+export interface TornarEmpresarialRequest {
+  nome: string;
+  /** 14 dígitos com DV válido, sem máscara. */
+  cnpj: string;
+  /** Só dígitos, 10 ou 11. */
+  telefone: string;
+  endereco: EnderecoEscritorio;
+}
+
+/**
+ * Corpo do `PATCH /api/escritorio`. **O que não vem fica como está** (backend#524): mandar só o
+ * `nome` e o `cnpj` não apaga telefone nem endereço. O `endereco`, quando vem, substitui o
+ * endereço inteiro — um `complemento` que não vier sai.
+ */
+export interface AtualizarEscritorioRequest {
+  nome: string;
+  /** `''` apaga — só no pessoal. No empresarial é 422 `ESCRITORIO_EMPRESARIAL_EXIGE_CNPJ`. */
+  cnpj?: string;
+  /** Só dígitos, 10 ou 11. Vazio ou ausente mantém o atual: não se apaga por aqui. */
+  telefone?: string;
+  endereco?: EnderecoEscritorio;
+}
 
 /**
  * Onde a página `/equipe/convite` guarda o token durante a ida ao login (#148). Mora aqui, e não na
@@ -35,6 +66,22 @@ export interface Escritorio {
   enderecoHost?: string | null;
   /** Até quando a troca do endereço está bloqueada (30 dias depois da última); `null` = liberada. */
   enderecoAlteravelEm?: string | null;
+  /**
+   * `PESSOAL` ou `EMPRESARIAL` (#186, backend#523). O pessoal é de um usuário só: não convida
+   * equipe nem tem endereço próprio (409 `ESCRITORIO_PESSOAL`), e pode virar empresarial.
+   * Escritório antigo com CNPJ ou com equipe vem como `EMPRESARIAL`. Ausente num backend antigo:
+   * a tela trata como empresarial, que é como tudo funcionava antes.
+   */
+  tipo?: TipoEscritorio;
+  /** Só dígitos, ou `null`. Os escritórios antigos vêm sem. */
+  telefone?: string | null;
+  endereco?: EnderecoEscritorio | null;
+  /**
+   * A GWNext conferiu a titularidade do CNPJ, fora do sistema (backend#520). Enquanto for `false`,
+   * o endereço próprio fica **reservado mas fora do ar**. Trocar o CNPJ tira a verificação na
+   * hora; trocar o nome, não.
+   */
+  escritorioVerificado?: boolean;
 }
 
 /** Um membro da equipe (`GET /api/escritorio/membros`). */
@@ -117,10 +164,26 @@ export class EscritorioApi {
     );
   }
 
-  /** `PATCH /api/escritorio` — nome (até 255) e CNPJ (14 dígitos; vazio apaga). Só administrador. */
-  atualizar(dados: { nome: string; cnpj: string }): Observable<Escritorio> {
+  /**
+   * `PATCH /api/escritorio` — nome (até 255), CNPJ, telefone e endereço postal. Só administrador.
+   * **O que não vem fica como está** (ver `AtualizarEscritorioRequest`). Erros: 422
+   * `ESCRITORIO_EMPRESARIAL_EXIGE_CNPJ` (apagar o CNPJ do empresarial) e `ENDERECO_EXIGE_CNPJ`.
+   */
+  atualizar(dados: AtualizarEscritorioRequest): Observable<Escritorio> {
     return this.http
       .patch<Escritorio>('/escritorio', dados)
+      .pipe(tap((novo) => (this.escritorio$ = of(novo))));
+  }
+
+  /**
+   * `POST /api/escritorio/tornar-empresarial` — o escritório pessoal vira empresarial (#186,
+   * backend#524). Só administrador; todos os campos obrigatórios. Devolve o escritório com
+   * `tipo: 'EMPRESARIAL'` e `slug` nulo: o endereço próprio é escolhido depois, pelo
+   * `definirEndereco`. Já empresarial → 409 `ESCRITORIO_JA_EMPRESARIAL`. Voltar a pessoal não existe.
+   */
+  tornarEmpresarial(dados: TornarEmpresarialRequest): Observable<Escritorio> {
+    return this.http
+      .post<Escritorio>('/escritorio/tornar-empresarial', dados)
       .pipe(tap((novo) => (this.escritorio$ = of(novo))));
   }
 

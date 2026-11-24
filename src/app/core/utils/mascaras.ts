@@ -119,6 +119,32 @@ export function mascaraCep(valor: string): string {
 }
 
 /**
+ * Telefone: `(45) 3333-0000` com 10 dígitos e `(45) 99999-0000` com 11 (#186).
+ *
+ * O backend quer **só dígitos** e recusa máscara, espaço e `+55`; a máscara é só da tela, e o
+ * `soDigitos` desfaz no envio — do mesmo jeito que o CPF/CNPJ.
+ */
+export function mascaraTelefone(valor: string): string {
+  const d = soDigitos(valor).slice(0, 11);
+  if (d.length <= 2) return d;
+  const ddd = `(${d.slice(0, 2)}) `;
+  const resto = d.slice(2);
+  if (resto.length <= 4) return ddd + resto;
+  // Com 11 dígitos o nono entra antes do hífen (celular); com 10, o corte é no quarto.
+  const corte = resto.length > 8 ? 5 : 4;
+  return `${ddd}${resto.slice(0, corte)}-${resto.slice(corte)}`;
+}
+
+/** Por que o telefone digitado não serve, ou `null`. Vazio é "não informado", e passa. */
+export function erroDoTelefone(valor: string): string | null {
+  const d = soDigitos(valor);
+  if (!d) return null;
+  return d.length === 10 || d.length === 11
+    ? null
+    : 'Informe o DDD e o número, com 10 ou 11 dígitos.';
+}
+
+/**
  * Onde fica o cursor depois de `quantos` dígitos, no texto já formatado.
  *
  * Caminha o texto contando algarismos e para logo depois do n-ésimo. Com `12.734.567/8909` e

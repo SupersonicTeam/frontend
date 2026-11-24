@@ -60,6 +60,8 @@ describe('CadastroPage', () => {
     cmp.cpfCnpj.set('529.982.247-25');
     cmp.email.set('maria@exemplo.com.br');
     cmp.senha.set(senha);
+    // Sem o aceite dos termos não há conta nenhuma desde a #186.
+    cmp.aceiteTermos.set(true);
   }
 
   afterEach(() => {
@@ -322,6 +324,224 @@ describe('CadastroPage', () => {
 
       expect(navegouPara).toEqual([]);
       expect(sessao.logado()).toBe(false);
+    });
+  });
+
+  /**
+   * Conta pessoal ou empresarial do contador, e o aceite dos termos (#186, backend#523).
+   *
+   * O que estes testes protegem é o **corpo** que sai daqui: o backend recusa `crc`, `tipoConta` e
+   * `escritorio` no produtor, recusa `escritorio` sem `tipoConta: EMPRESARIAL`, e exige só dígitos
+   * em CNPJ, telefone e CEP. Cada um desses enganos vira um 400 que a pessoa não causou.
+   */
+  describe('conta pessoal ou empresarial (#186)', () => {
+    /** Preenche o escritório inteiro com dados válidos. */
+    function preencherEscritorio(cmp: CadastroPage) {
+      cmp.papel.set('CONTADOR');
+      cmp.cpfCnpj.set('529.982.247-25');
+      cmp.tipoConta.set('EMPRESARIAL');
+      cmp.escNome.set('  Contabilidade Campo Verde ');
+      cmp.escDocumento.valor.set('11.444.777/0001-61');
+      cmp.escTelefone.set('(45) 3333-0000');
+      cmp.escCep.set('85810-000');
+      cmp.escLogradouro.set('Rua Paraná');
+      cmp.escNumero.set('1200');
+      cmp.escComplemento.set('Sala 3');
+      cmp.escBairro.set('Centro');
+      cmp.escMunicipio.set('Cascavel');
+      cmp.escIbge.set('4104808');
+      cmp.escUf.set('PR');
+      cmp.escSlug.set('  CampoVerde ');
+      cmp.escCiente.set(true);
+    }
+
+    it('sem o aceite dos termos o botão não libera', () => {
+      const cmp = montar();
+      preencher(cmp);
+      expect(cmp.podeEnviar()).toBe(true);
+
+      cmp.aceiteTermos.set(false);
+      expect(cmp.podeEnviar()).toBe(false);
+    });
+
+    it('no produtor, o corpo não leva tipoConta, crc nem escritório', () => {
+      const cmp = montar();
+      preencher(cmp);
+
+      cmp.criar();
+      const corpo = httpMock.expectOne('/auth/cadastro').request.body as Record<string, unknown>;
+
+      expect(corpo['papel']).toBe('PRODUTOR');
+      expect(corpo['aceiteTermos']).toBe(true);
+      expect('tipoConta' in corpo).toBe(false);
+      expect('crc' in corpo).toBe(false);
+      expect('escritorio' in corpo).toBe(false);
+      httpMock.expectNone('/auth/cadastro');
+    });
+
+    it('contador pessoal manda tipoConta, o CRC e o telefone só com dígitos', () => {
+      const cmp = montar();
+      preencher(cmp);
+      cmp.papel.set('CONTADOR');
+      cmp.crc.set(' PR-012345/O ');
+      cmp.telefone.set('(45) 99999-0000');
+
+      cmp.criar();
+      const corpo = httpMock.expectOne('/auth/cadastro').request.body as Record<string, unknown>;
+
+      expect(corpo['tipoConta']).toBe('PESSOAL');
+      expect(corpo['crc']).toBe('PR-012345/O');
+      expect(corpo['telefone']).toBe('45999990000');
+      expect('escritorio' in corpo).toBe(false);
+    });
+
+    /** O documento do contador é o da pessoa: o CNPJ do escritório tem campo próprio. */
+    it('contador com CNPJ no documento é barrado antes de sair', () => {
+      const cmp = montar();
+      preencher(cmp);
+      cmp.papel.set('CONTADOR');
+      cmp.cpfCnpj.set('11.444.777/0001-61');
+
+      cmp.criar();
+
+      httpMock.expectNone('/auth/cadastro');
+      expect(cmp.erroDocumento()).toContain('Informe o seu CPF');
+    });
+
+    it('conta empresarial manda o escritório inteiro, sem máscara e com o slug normalizado', () => {
+      const cmp = montar();
+      preencher(cmp);
+      preencherEscritorio(cmp);
+
+      cmp.criar();
+      const corpo = httpMock.expectOne('/auth/cadastro').request.body as Record<string, unknown>;
+
+      expect(corpo['tipoConta']).toBe('EMPRESARIAL');
+      expect(corpo['escritorio']).toEqual({
+        nome: 'Contabilidade Campo Verde',
+        cnpj: '11444777000161',
+        telefone: '4533330000',
+        endereco: {
+          cep: '85810000',
+          logradouro: 'Rua Paraná',
+          numero: '1200',
+          complemento: 'Sala 3',
+          bairro: 'Centro',
+          codigoMunicipioIbge: '4104808',
+          municipio: 'Cascavel',
+          uf: 'PR',
+        },
+        slug: 'campoverde',
+        cienteExposicaoPublica: true,
+      });
+      // O telefone da pessoa não vai junto: na empresarial o que vale é o do escritório.
+      expect('telefone' in corpo).toBe(false);
+    });
+
+    it('complemento vazio não vira campo vazio no corpo', () => {
+      const cmp = montar();
+      preencher(cmp);
+      preencherEscritorio(cmp);
+      cmp.escComplemento.set('   ');
+
+      cmp.criar();
+      const corpo = httpMock.expectOne('/auth/cadastro').request.body as {
+        escritorio: { endereco: Record<string, unknown> };
+      };
+
+      expect('complemento' in corpo.escritorio.endereco).toBe(false);
+    });
+
+    it('o botão só libera com o escritório inteiro e a ciência marcada', () => {
+      const cmp = montar();
+      preencher(cmp);
+      preencherEscritorio(cmp);
+      expect(cmp.podeEnviar()).toBe(true);
+
+      cmp.escCiente.set(false);
+      expect(cmp.podeEnviar()).toBe(false);
+      cmp.escCiente.set(true);
+      cmp.escIbge.set('');
+      expect(cmp.podeEnviar()).toBe(false);
+    });
+
+    it('a prévia do endereço sai do slug digitado, já normalizado', () => {
+      const cmp = montar();
+      cmp.escSlug.set(' CampoVerde ');
+
+      expect(cmp.previaDoEndereco()).toContain('campoverde.');
+      expect(cmp.erroDoSlug()).toBeNull();
+
+      cmp.escSlug.set('campo_verde');
+      expect(cmp.previaDoEndereco()).toBeNull();
+      expect(cmp.erroDoSlug()).toContain('letras minúsculas');
+    });
+
+    it('CNPJ, telefone, CEP e IBGE errados são recusados antes de ir ao servidor', () => {
+      const cmp = montar();
+      preencher(cmp);
+      preencherEscritorio(cmp);
+      cmp.escDocumento.valor.set('11.444.777/0001-00');
+      cmp.escTelefone.set('(45) 333');
+      cmp.escCep.set('858');
+      cmp.escIbge.set('410');
+
+      cmp.criar();
+
+      httpMock.expectNone('/auth/cadastro');
+      expect(cmp.erroEm('escritorio.cnpj')).toContain('14 dígitos');
+      expect(cmp.erroEm('escritorio.telefone')).toContain('10 ou 11');
+      expect(cmp.erroEm('escritorio.endereco.cep')).toContain('8 dígitos');
+      expect(cmp.erroEm('escritorio.endereco.codigoMunicipioIbge')).toContain('7 dígitos');
+    });
+
+    /**
+     * O backend manda **todos** os campos recusados de uma vez. Mostrar só o primeiro faria a
+     * pessoa corrigir um campo por tentativa num formulário de 14.
+     */
+    it('os erros do servidor caem cada um no seu campo, todos de uma vez', () => {
+      const cmp = montar();
+      preencher(cmp);
+      preencherEscritorio(cmp);
+
+      cmp.criar();
+      httpMock.expectOne('/auth/cadastro').flush(
+        {
+          errors: [
+            { code: 'VALIDATION_ERROR', field: 'escritorio.nome', message: 'Informe o nome.' },
+            {
+              code: 'VALIDATION_ERROR',
+              field: 'escritorio.endereco.codigoMunicipioIbge',
+              message: 'O município não é do estado informado.',
+            },
+            { code: 'VALIDATION_ERROR', field: 'crc', message: 'CRC muito longo.' },
+          ],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+
+      expect(cmp.erroEm('escritorio.nome')).toBe('Informe o nome.');
+      expect(cmp.erroEm('escritorio.endereco.codigoMunicipioIbge')).toContain('não é do estado');
+      expect(cmp.erroEm('crc')).toBe('CRC muito longo.');
+    });
+
+    it('slug em uso aparece sob o campo do endereço, sem dizer por quê', () => {
+      const cmp = montar();
+      preencher(cmp);
+      preencherEscritorio(cmp);
+
+      cmp.criar();
+      httpMock
+        .expectOne('/auth/cadastro')
+        .flush(
+          { errors: [{ code: 'SLUG_INDISPONIVEL', message: 'Em uso.' }] },
+          { status: 409, statusText: 'Conflict' },
+        );
+
+      expect(cmp.erroEm('escritorio.slug')).toBe(
+        'Este endereço não está disponível. Escolha outro.',
+      );
+      expect(cmp.erro()).toBeNull();
     });
   });
 });

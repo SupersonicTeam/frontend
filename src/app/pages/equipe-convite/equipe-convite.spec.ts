@@ -66,21 +66,36 @@ describe('EquipeConvitePage', () => {
     expect(sessionStorage.getItem(CHAVE_TOKEN_CONVITE)).toBeNull();
   });
 
-  it('ESCRITORIO_ATUAL_EM_USO explica o que fazer, sem matar o link', () => {
-    entrarComo('CONTADOR');
-    const f = abrir();
-    f.componentInstance.aceitar();
-    httpMock
-      .expectOne('/escritorio/membros/convites/aceitar')
-      .flush(
-        { errors: [{ code: 'ESCRITORIO_ATUAL_EM_USO', message: 'x' }] },
-        { status: 409, statusText: 'Conflict' },
-      );
-    f.detectChanges();
+  /**
+   * O 409 `ESCRITORIO_ATUAL_EM_USO` tem dois motivos desde a backend#524: o escritório atual tem
+   * clientes ou equipe, ou quem aceita é administrador de um empresarial. A frase fixa da tela só
+   * servia ao primeiro; agora vale a do servidor, com a sugestão dele.
+   */
+  it.each([
+    [
+      'O seu escritório atual ainda tem clientes ou equipe.',
+      'Encerre os vínculos e remova a equipe antes.',
+    ],
+    ['O administrador de um escritório empresarial não entra em outra equipe.', undefined],
+  ])(
+    'ESCRITORIO_ATUAL_EM_USO mostra a frase do servidor, sem matar o link (%s)',
+    (message, suggestion) => {
+      entrarComo('CONTADOR');
+      const f = abrir();
+      f.componentInstance.aceitar();
+      httpMock
+        .expectOne('/escritorio/membros/convites/aceitar')
+        .flush(
+          { errors: [{ code: 'ESCRITORIO_ATUAL_EM_USO', message, suggestion }] },
+          { status: 409, statusText: 'Conflict' },
+        );
+      f.detectChanges();
 
-    expect(texto(f)).toContain('ainda tem clientes ou equipe');
-    expect(f.componentInstance.linkInvalido()).toBe(false);
-  });
+      expect(texto(f)).toContain(message);
+      if (suggestion) expect(texto(f)).toContain(suggestion);
+      expect(f.componentInstance.linkInvalido()).toBe(false);
+    },
+  );
 
   it('link invalido ou vencido vira a tela de "nao vale mais"', () => {
     entrarComo('CONTADOR');
@@ -103,6 +118,7 @@ describe('EquipeConvitePage', () => {
     cmp.nome.set(' Ana Souza ');
     cmp.cpfCnpj.set('529.982.247-25');
     cmp.senha.set('uma-senha-longa');
+    cmp.aceiteTermos.set(true);
     cmp.cadastrar();
 
     const req = httpMock.expectOne('/auth/cadastro/equipe');
@@ -111,6 +127,7 @@ describe('EquipeConvitePage', () => {
       nomeCompleto: 'Ana Souza',
       cpfCnpj: '52998224725',
       senha: 'uma-senha-longa',
+      aceiteTermos: true,
     });
     req.flush(null, { status: 201, statusText: 'Created' });
     expect(navegou).toContain('/login');
@@ -121,6 +138,7 @@ describe('EquipeConvitePage', () => {
     cmp.nome.set('Ana Souza');
     cmp.cpfCnpj.set('123.456.789-00');
     cmp.senha.set('uma-senha-longa');
+    cmp.aceiteTermos.set(true);
     cmp.cadastrar();
 
     httpMock.expectNone('/auth/cadastro/equipe');
