@@ -152,12 +152,44 @@ describe('CarteiraApi', () => {
     httpMock.expectOne((r) => r.url === '/contador/produtores/p9/pendencias').flush([]);
   });
 
-  it('guiasDoCliente usa produtorId na query: esta rota é anterior ao padrão do path', () => {
+  it('guiasDoCliente usa a rota do cliente, com o produtor no caminho (#198)', () => {
     service.guiasDoCliente('p9').subscribe();
 
-    const req = httpMock.expectOne((r) => r.url === '/contador/guias');
-    expect(req.request.params.get('produtorId')).toBe('p9');
+    const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p9/guias');
+    expect(req.request.params.has('produtorId')).toBe(false);
     req.flush([]);
+  });
+
+  it('lancarGuia manda o POST na rota do cliente, sem produtorId no corpo (#198)', () => {
+    let criada: { status: string } | undefined;
+    service
+      .lancarGuia('p9', { tipoGuia: 'DARF', dataVencimento: '2099-12-31', valor: 500 })
+      .subscribe((g) => (criada = g));
+
+    const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p9/guias');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({
+      tipoGuia: 'DARF',
+      dataVencimento: '2099-12-31',
+      valor: 500,
+    });
+    req.flush({ id: 'nova', tipoGuia: 'DARF', dataVencimento: '2099-12-31', status: 'PENDENTE' });
+
+    // CTD-10c: a guia recém-criada volta com o status já traduzido.
+    expect(criada?.status).toBe('pendente');
+  });
+
+  it('lancarGuia deixa o erro subir, em vez de devolver null (#107)', () => {
+    let falhou = false;
+    service
+      .lancarGuia('p9', { tipoGuia: 'DARF', dataVencimento: '2099-12-31', valor: 120 })
+      .subscribe({ error: () => (falhou = true) });
+
+    httpMock
+      .expectOne((r) => r.url === '/contador/produtores/p9/guias')
+      .flush({ errors: [] }, { status: 400, statusText: 'Bad Request' });
+
+    expect(falhou).toBe(true);
   });
 
   it('guiasDoCliente traduz o status e deriva o atraso, para não discordar da triagem', () => {
@@ -165,7 +197,7 @@ describe('CarteiraApi', () => {
     service.guiasDoCliente('p9').subscribe((r) => (recebido = r));
 
     httpMock
-      .expectOne((r) => r.url === '/contador/guias')
+      .expectOne((r) => r.url === '/contador/produtores/p9/guias')
       .flush([
         // O backend devolve MAIÚSCULO e não deriva o atraso: esta venceu e vem como PENDENTE.
         { id: 'g1', status: 'PENDENTE', dataVencimento: '2020-01-10' },
@@ -181,7 +213,7 @@ describe('CarteiraApi', () => {
     service.guiasDoCliente('p9').subscribe({ error: () => (falhou = true) });
 
     httpMock
-      .expectOne((r) => r.url === '/contador/guias')
+      .expectOne((r) => r.url === '/contador/produtores/p9/guias')
       .flush({ errors: [] }, { status: 404, statusText: 'Not Found' });
 
     expect(falhou).toBe(true);

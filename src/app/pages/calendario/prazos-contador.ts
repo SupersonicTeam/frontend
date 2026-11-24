@@ -19,7 +19,7 @@ import {
   type NotificacaoError,
 } from '@services/notificacao/data-access/notificacao.service';
 import type { GuiaFiscal, TipoGuia } from '@models/solicitacao-contador.model';
-import { ContadorApi } from '@services/contador/data-access/contador.service';
+import { CarteiraApi } from '@services/contador/data-access/carteira.service';
 import type { ProdutorCarteira } from '@models/carteira.model';
 import { SeletorCliente } from '@shared/contador/seletor-cliente';
 import { UiButton } from '@shared/ui/ui-button';
@@ -46,7 +46,17 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
  * aviso, o outro emite a guia.
  *
  * Por isso aqui não há calendário mensal, nem "o próximo prazo", nem conselho de procurar o escritório
- * — o escritório é quem está lendo. Há a fila de cobrança, o lançamento e a baixa.
+ * — o escritório é quem está lendo. Há a fila de cobrança e o lançamento.
+ *
+ * ## A baixa não é daqui (#198)
+ *
+ * Esta tela tinha um botão "Dar baixa" em dois lugares, e ele **nunca funcionou**: a baixa é do
+ * produtor por contrato (`PATCH /api/guias/{id}/pagar`, backend#273) e o contador leva
+ * 403 `PAPEL_NAO_AUTORIZADO` nela. Medido contra a API local em 18/11/2026: 403 em toda guia, de
+ * todo cliente. Era um botão que só sabia dar errado — e, enquanto ele morava aqui, parecia que a
+ * baixa estava resolvida, então o **produtor não tinha onde pagar**. A ação foi para os Prazos
+ * dele (`PrazosProdutor`), a única ponta que o backend autoriza; aqui ficou dito quem dá baixa,
+ * para o escritório não procurar o botão.
  *
  * **As guias vivem aqui, e não no Acompanhamento.** A tela de Acompanhamento é a triagem ("o que
  * impede fechar"); ela aponta para cá em vez de repetir a tabela. Antes as mesmas guias apareciam
@@ -75,7 +85,7 @@ type Situacao = 'todas' | 'cobrar' | 'pendente' | 'pago';
   templateUrl: './prazos-contador.html',
 })
 export class PrazosContador {
-  private readonly contadorApi = inject(ContadorApi);
+  private readonly carteiraApi = inject(CarteiraApi);
   private readonly toast = inject(ToastService);
 
   private readonly notificacaoApi = inject(NotificacaoApi);
@@ -275,7 +285,7 @@ export class PrazosContador {
     this.carregando.set(true);
     this.erro.set(null);
     this.hoje.set(PrazosContador.hojeISO());
-    this.contadorApi.getGuias(cliente).subscribe({
+    this.carteiraApi.guiasDoCliente(cliente).subscribe({
       next: (lista) => {
         this.guias.set(lista);
         this.carregando.set(false);
@@ -301,9 +311,8 @@ export class PrazosContador {
     const cliente = this.clienteId();
     if (!this.formValido() || !cliente) return;
     this.salvando.set(true);
-    this.contadorApi
-      .anexarGuia({
-        produtorId: cliente,
+    this.carteiraApi
+      .lancarGuia(cliente, {
         tipoGuia: this.formTipo(),
         dataVencimento: this.formVencimento(),
         valor: Number(this.formValor()),
@@ -323,16 +332,6 @@ export class PrazosContador {
           this.toast.error(falhaDaApi(err).mensagem);
         },
       });
-  }
-
-  marcarPaga(guia: GuiaFiscal): void {
-    this.contadorApi.marcarGuiaPaga(guia.id).subscribe({
-      next: () => {
-        this.toast.success(`Guia de ${guia.tipoGuia} marcada como paga.`);
-        this.carregar();
-      },
-      error: (err: HttpErrorResponse) => this.toast.error(falhaDaApi(err).mensagem),
-    });
   }
 
   /** Dias de hoje até a data (negativo = já passou). */

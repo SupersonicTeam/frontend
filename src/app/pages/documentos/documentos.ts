@@ -32,7 +32,6 @@ import {
   TAMANHO_MAXIMO_BUSCA,
   buscaQueValeNoServidor,
 } from '@services/notas/data-access/notas.service';
-import { ContadorApi } from '@services/contador/data-access/contador.service';
 import { ToastService } from '@core/services/toast.service';
 import {
   AvisoNota,
@@ -217,7 +216,6 @@ export class DocumentosPage implements OnInit {
   protected readonly assistenteDisponivel = this.assistente.disponivel;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly contadorService = inject(ContadorApi);
   private readonly pendenciasApi = inject(PendenciasApi);
   private readonly vinculosApi = inject(VinculosApi);
   private readonly toastService = inject(ToastService);

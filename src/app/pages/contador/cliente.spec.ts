@@ -128,7 +128,7 @@ describe('ClientePage', () => {
       .expectOne((r) => r.url === '/contador/produtores')
       .flush(opcoes.carteira ?? [cliente()]);
     httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush(opcoes.notas ?? []);
-    httpMock.expectOne((r) => r.url === '/contador/guias').flush(opcoes.guias ?? []);
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/guias').flush(opcoes.guias ?? []);
     httpMock
       .expectOne((r) => r.url === '/contador/produtores/p1/pendencias')
       .flush(opcoes.pendencias ?? []);
@@ -204,7 +204,7 @@ describe('ClientePage', () => {
     ]);
     req.flush([]);
 
-    httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/guias').flush([]);
     httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias').flush([]);
   });
 
@@ -296,7 +296,7 @@ describe('ClientePage', () => {
     // Nenhuma das três listas é pedida: sem vínculo o backend responderia 404 nas três, e pedir
     // seria gastar requisição para receber erro.
     httpMock.expectNone((r) => r.url === '/contador/produtores/p1/notas');
-    httpMock.expectNone((r) => r.url === '/contador/guias');
+    httpMock.expectNone((r) => r.url === '/contador/produtores/p1/guias');
     httpMock.expectNone((r) => r.url === '/contador/produtores/p1/pendencias');
   });
 
@@ -397,7 +397,7 @@ describe('ClientePage', () => {
       abrir();
       httpMock.expectOne((r) => r.url === '/contador/produtores').flush([cliente()]);
       httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush([]);
-      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+      httpMock.expectOne((r) => r.url === '/contador/produtores/p1/guias').flush([]);
 
       const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias');
       // Filtrar por ENVIADA escondia o que o escritorio pediu e ainda nao voltou -- justamente o

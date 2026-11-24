@@ -106,6 +106,20 @@
                 }
               </p>
             }
+            <!-- A baixa da guia (#198). Ela é do produtor por contrato, e o botão só existia na tela
+                 do contador, onde respondia 403 em todo clique: era a única baixa do sistema, e
+                 não funcionava para ninguém. Obrigação não ganha botão -- ela não se paga. -->
+            @if (podeDarBaixa(v)) {
+              <button
+                type="button"
+                class="tap-target mt-2 inline-flex items-center gap-1.5 rounded-controle border border-border bg-card px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
+                [attr.aria-label]="'Marcar ' + v.titulo + ' como paga'"
+                (click)="confirmarBaixa(v)"
+              >
+                <svg lucideCheck [size]="15" aria-hidden="true" />
+                Marcar como paga
+              </button>
+            }
           </li>
         }
 
@@ -157,6 +171,20 @@
                 Anexar documento
               </a>
             }
+            <!-- A baixa da guia (#198). Ela é do produtor por contrato, e o botão só existia na tela
+                 do contador, onde respondia 403 em todo clique: era a única baixa do sistema, e
+                 não funcionava para ninguém. Obrigação não ganha botão -- ela não se paga. -->
+            @if (podeDarBaixa(v)) {
+              <button
+                type="button"
+                class="tap-target mt-2 inline-flex items-center gap-1.5 rounded-controle border border-border bg-card px-3 text-apoio font-medium text-foreground transition-colors hover:bg-muted"
+                [attr.aria-label]="'Marcar ' + v.titulo + ' como paga'"
+                (click)="confirmarBaixa(v)"
+              >
+                <svg lucideCheck [size]="15" aria-hidden="true" />
+                Marcar como paga
+              </button>
+            }
           </li>
         }
 
@@ -168,8 +196,12 @@
               aria-hidden="true"
             ></span>
             <div class="flex flex-wrap items-baseline justify-between gap-x-4">
+              <!-- Era "Pago em <data>", com a data de VENCIMENTO: a guia paga hoje, que vencia
+                   dia 30, aparecia como "Pago em 30 de novembro". Virou visível agora que a baixa
+                   é dada aqui. O calendário não devolve `dataPagamento` (só `/guias` tem, #116),
+                   então a tela diz o que sabe: que está paga, e qual era o prazo. -->
               <p class="text-apoio font-medium text-sucesso-ink">
-                Pago em {{ dataPorExtenso(v.dataVencimento) }}
+                Pago · vencimento em {{ dataPorExtenso(v.dataVencimento) }}
               </p>
               @if (v.valor) {
                 <p class="text-apoio tabular-nums text-muted-foreground">
@@ -459,3 +491,52 @@
     }
   </section>
 </div>
+
+<!--
+  Confirmar a baixa. **Não há rota de desfazer** (o backend tem `pagar` e nada que volte a guia
+  para em aberto), e o botão vive numa lista de prazos: o clique errado registraria um pagamento
+  que não houve, e o produtor passaria a ver como paga uma guia que ele deve.
+-->
+<ui-modal
+  [aberto]="!!guiaParaBaixa()"
+  titulo="Marcar como paga?"
+  tamanho="sm"
+  [travado]="dandoBaixa()"
+  (fechar)="fecharBaixa()"
+>
+  @if (guiaParaBaixa(); as guia) {
+    <div class="flex flex-col gap-2">
+      <p class="text-valor font-medium text-foreground">
+        {{ guia.titulo }}
+        @if (guia.valor) {
+          <span class="tabular-nums">— {{ formatCurrency(guia.valor) }}</span>
+        }
+      </p>
+      <p class="text-apoio text-muted-foreground">
+        Vencimento em {{ dataPorExtenso(guia.dataVencimento) }}.
+      </p>
+      <p class="text-apoio leading-relaxed text-muted-foreground">
+        Isto registra que você pagou esta guia, e o seu escritório passa a ver a baixa. Não dá para
+        desfazer por aqui: se marcar sem querer, fale com o escritório.
+      </p>
+    </div>
+  }
+
+  @if (erroBaixa(); as erro) {
+    <!-- A falha fica aqui, e não em toast: `/api/guias` está nos prefixos sem toast global
+         (#198), e sem isto o 409 de "guia já paga" não aparecia em lugar nenhum. -->
+    <p
+      role="alert"
+      class="mt-3 rounded-controle bg-perigo-soft px-3 py-2 text-apoio leading-relaxed text-perigo-ink"
+    >
+      {{ erro }}
+    </p>
+  }
+
+  <div rodape>
+    <ui-button variant="ghost" [disabled]="dandoBaixa()" (click)="fecharBaixa()">
+      Cancelar
+    </ui-button>
+    <ui-button [carregando]="dandoBaixa()" (click)="marcarPaga()">Marcar como paga</ui-button>
+  </div>
+</ui-modal>
