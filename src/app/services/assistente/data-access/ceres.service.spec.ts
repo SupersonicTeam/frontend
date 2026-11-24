@@ -94,6 +94,82 @@ describe('CeresApi — modo síncrono', () => {
     expect(erro.message).toBe('Falha nova do servidor');
   });
 
+  /**
+   * O corpo da continuidade (#183). Os dois campos são **omitidos** quando não há o que
+   * mandar: para o backend dá na mesma, e na aba Network a diferença entre "mandei a
+   * conversa" e "não mandei" é a única pista de que a tela está certa.
+   */
+  describe('corpo com o histórico da conversa (#183)', () => {
+    const turno = { pergunta: 'p1', resposta: 'r1', assinatura: 'v1.aaa' };
+
+    function corpoDe(contexto?: {
+      historico: (typeof turno)[];
+      ultimaRespostaSemTurno: boolean;
+    }): Record<string, unknown> {
+      api.perguntar('tem certeza?', contexto).subscribe({ error: () => undefined });
+      const req = httpMock.expectOne((r) => r.url === '/assistente/chat');
+      const corpo = req.request.body as Record<string, unknown>;
+      req.flush({ resposta: 'ok', rota: 'DADOS', citacoes: [], fontesDados: [] });
+      return corpo;
+    }
+
+    it('sem contexto, manda só a pergunta', () => {
+      expect(corpoDe()).toEqual({ pergunta: 'tem certeza?' });
+    });
+
+    it('histórico vazio não vira campo vazio no corpo', () => {
+      expect(corpoDe({ historico: [], ultimaRespostaSemTurno: false })).toEqual({
+        pergunta: 'tem certeza?',
+      });
+    });
+
+    it('com histórico, manda os turnos como vieram', () => {
+      expect(corpoDe({ historico: [turno], ultimaRespostaSemTurno: false })).toEqual({
+        pergunta: 'tem certeza?',
+        historico: [turno],
+      });
+    });
+
+    it('ultimaRespostaSemTurno só aparece quando é verdadeiro', () => {
+      expect(corpoDe({ historico: [turno], ultimaRespostaSemTurno: true })).toEqual({
+        pergunta: 'tem certeza?',
+        historico: [turno],
+        ultimaRespostaSemTurno: true,
+      });
+    });
+  });
+
+  /**
+   * O `normalizar` existe para o template nunca receber `null` onde espera lista. O
+   * `turno`, porém, **não é normalizado**: ele passa inteiro, porque a assinatura vale
+   * para os bytes exatos (#183).
+   */
+  it('preserva turno e perguntaInterpretada, e usa null quando não vêm', async () => {
+    const turno = { pergunta: 'p', resposta: 'r\n\n  com espaços  ', assinatura: 'v1.zzz' };
+    const comTurno = new Promise((resolve) => api.perguntar('oi').subscribe(resolve));
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush({
+        resposta: 'ok',
+        rota: 'DADOS',
+        citacoes: [],
+        fontesDados: [],
+        modoFallback: false,
+        turno,
+        perguntaInterpretada: 'Tenho algum crédito?',
+      });
+    await expect(comTurno).resolves.toMatchObject({
+      turno,
+      perguntaInterpretada: 'Tenho algum crédito?',
+    });
+
+    const semTurno = new Promise((resolve) => api.perguntar('oi').subscribe(resolve));
+    httpMock
+      .expectOne((r) => r.url === '/assistente/chat')
+      .flush({ resposta: 'ok', rota: 'DADOS', citacoes: [], fontesDados: [] });
+    await expect(semTurno).resolves.toMatchObject({ turno: null, perguntaInterpretada: null });
+  });
+
   it('servidor inalcançável é SEM_CONEXAO, não assistente fora do ar', async () => {
     const capturado = new Promise<CeresError>((resolve) =>
       api.perguntar('pergunta').subscribe({ error: resolve }),

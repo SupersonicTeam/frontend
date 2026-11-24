@@ -200,4 +200,45 @@ describe('AssistenteConversa — resposta da Ceres', () => {
     expect(el.textContent).not.toContain('Calculado a partir das suas notas');
     expect(el.textContent).toContain('resposta do AgroConIA');
   });
+
+  /**
+   * O aviso de envio ao provedor (#183). Ele precisa estar no ar **antes** de a flag ser
+   * ligada na VPS: quem decide é o backend, e a tela não pode inventar o aviso nem
+   * escondê-lo quando o campo chega.
+   */
+  describe('aviso de envio ao provedor (#183)', () => {
+    const TRECHO = 'provedor de IA fora do Brasil';
+
+    function montarComUso(conversaVaiAoProvedor?: boolean): HTMLElement {
+      TestBed.configureTestingModule({
+        imports: [AssistenteConversa],
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      });
+      entrarComo('PRODUTOR');
+      TestBed.inject(AssistenteStore).uso.set({
+        plano: 'padrao',
+        habilitada: true,
+        creditosSemana: 1000,
+        consumidos: 0,
+        restantes: 1000,
+        renovaEm: '2026-11-19T00:00:00-03:00',
+        ...(conversaVaiAoProvedor === undefined ? {} : { conversaVaiAoProvedor }),
+      });
+      const fixture = TestBed.createComponent(AssistenteConversa);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('com a continuidade ligada, avisa que a conversa sai do Brasil', () => {
+      expect(montarComUso(true).textContent).toContain(TRECHO);
+    });
+
+    it('com a continuidade desligada, não avisa nada', () => {
+      expect(montarComUso(false).textContent).not.toContain(TRECHO);
+    });
+
+    it('backend sem o campo não mostra aviso — ausente vale false', () => {
+      expect(montarComUso(undefined).textContent).not.toContain(TRECHO);
+    });
+  });
 });

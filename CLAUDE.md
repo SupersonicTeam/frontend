@@ -456,6 +456,36 @@ Falha **não vira texto de assistente**: a mensagem carrega `falha` com o códig
 escolhe o que dizer (`tituloDaFalha`/`detalheDaFalha` em `assistente-conversa.ts`). "Modelo fora do ar"
 (`ASSISTENTE_INDISPONIVEL`) e "servidor fora do ar" (`SEM_CONEXAO`) são coisas diferentes e a tela diz qual é.
 
+### Continuidade da conversa (#183, backend#499)
+
+Cada pergunta chega isolada ao backend — era por isso que "tem certeza?" respondia "Não consegui
+identificar qual dado consultar". Agora a tela manda de volta as últimas trocas:
+
+- **O `turno` é opaco.** Vem na resposta (`CeresTurno`: pergunta, resposta e assinatura), é guardado
+  **como veio** na mensagem (`AssistenteMensagem.turno`) e volta **como veio** no `historico`. Nada de
+  `trim`, reformatação ou par montado com o texto da tela: a assinatura vale para os bytes exatos, e
+  qualquer mudança faz o backend **ignorar o histórico em silêncio** — sem erro nenhum para avisar.
+- **Quem monta o contexto é o store**, em `contextoDaConversa()`, **antes** de a pergunta nova entrar na
+  lista. No `historico` vão os `turno` das últimas `MAX_TURNOS_HISTORICO` (3) respostas que os trouxeram;
+  recusa, conversa leve, modo fallback, falha e cancelamento vêm **sem** `turno` e nunca entram. O
+  `ultimaRespostaSemTurno` olha a **última** mensagem da Ceres (com `turno` ou sem) e é o que impede um
+  "tem certeza?" depois de uma recusa de refazer a consulta de duas respostas atrás.
+- **O reenvio do 503 manda o mesmo contexto**, não um recalculado: a conversa não andou entre o
+  `ASSISTENTE_OCUPADO` e o reenvio.
+- **Só na memória.** O `turno` leva valores, datas e os textos do escritório: nada de `localStorage`,
+  `sessionStorage` nem `console.log`, e ele nunca aparece na tela. O `limpar()` do logout zera tudo.
+- **Cancelar passou a custar o que já foi gasto**: o backend só percebe o cancelamento na chamada
+  seguinte ao modelo, então a cota é recarregada ~5 s depois do botão (`ESPERA_USO_APOS_CANCELAR_MS`), e o
+  valor é provisório até a próxima resposta. O `limpar()` desarma esse timer — senão ele pediria
+  `/assistente/uso` depois do logout.
+- **Aviso de envio ao provedor:** com `uso().conversaVaiAoProvedor`, a conversa mostra uma linha fixa
+  dizendo que as últimas perguntas e respostas vão a um provedor de IA fora do Brasil. Ausente vale
+  `false`. Junto, os quatro campos de texto que o escritório escreve e o produtor lê (motivo da devolução
+  da nota, motivo no pedido e os dois títulos de pedido) levam o `AVISO_TEXTO_DO_ESCRITORIO`, de
+  `@core/utils/ceres`.
+- `perguntar()` passou a usar o **mesmo `normalizar`** do streaming: as duas portas da mesma pergunta
+  entregavam formas diferentes à tela (lista ausente crua num caminho, `turno` `undefined` contra `null`).
+
 **Medição:** `docs/ux-audit.js` — cole no console e rode `uxAudit()`. Devolve alvos abaixo de 44px, textos
 abaixo de 14px, largura aproveitada, maior card e estouro horizontal. É o critério de aceite numérico das fases.
 
