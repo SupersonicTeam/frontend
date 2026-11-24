@@ -1,6 +1,7 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import {
+  LucideBadgeCheck,
   LucideBuilding2,
   LucideClipboardList,
   LucideEye,
@@ -18,6 +19,7 @@ import type { Pendencia } from '@models/pendencia.model';
 import { ToastService } from '@core/services/toast.service';
 import { NotificacoesService } from '@core/services/notificacoes.service';
 import { formatarData } from '@core/utils/periodo';
+import { formatarCpfCnpj } from '@core/utils/mascaras';
 import { MOTIVO_ENCERRAMENTO_MAXIMO } from '@core/utils/encerramento-vinculo';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiModal } from '@shared/ui/ui-modal';
@@ -48,6 +50,7 @@ const PEDIDOS_NA_ABA = 3;
   standalone: true,
   imports: [
     RouterLink,
+    LucideBadgeCheck,
     LucideBuilding2,
     LucideClipboardList,
     LucideEye,
@@ -78,6 +81,24 @@ const PEDIDOS_NA_ABA = 3;
             }}. Aceitando, o escritório passa a ver as suas notas, guias e documentos. O convite
             vale até {{ data(c.expiraEm) }}.
           </p>
+          <!-- Quem convidou (backend#520). O nome do escritorio e texto livre: so o CNPJ
+               conferido pela GWNext diz quem e. Verificado, o selo com o CNPJ; sem verificacao,
+               o aviso vem ANTES do botao de aceitar -- e o mesmo texto do e-mail do convite. -->
+          @if (c.escritorioVerificado && c.escritorioCnpj) {
+            <p class="mt-2 flex items-center gap-1.5 text-apoio font-medium text-sucesso-ink">
+              <svg lucideBadgeCheck [size]="16" aria-hidden="true" />
+              CNPJ {{ formatarCpfCnpj(c.escritorioCnpj) }} verificado
+            </p>
+          } @else {
+            <p
+              role="note"
+              class="mt-2 rounded-controle border border-aviso-borda bg-aviso-soft px-3 py-2 text-apoio text-aviso-ink"
+            >
+              <strong>Escritório ainda não verificado.</strong> O AgroConIA ainda não conferiu o
+              CNPJ deste escritório, e o nome foi informado por ele mesmo. Antes de aceitar,
+              confirme o convite com o seu contador por um canal que você já conhece.
+            </p>
+          }
           <div class="mt-3 flex flex-wrap gap-2">
             <ui-button
               [carregando]="respondendo() === c.id + ':aceitar'"
@@ -131,6 +152,13 @@ const PEDIDOS_NA_ABA = 3;
                   <svg lucideBuilding2 [size]="18" class="text-primary" aria-hidden="true" />
                   {{ v.escritorio }}
                 </h2>
+                <!-- So o selo: na lista de quem ja atende, a falta dele nao pede aviso. -->
+                @if (v.escritorioVerificado && v.escritorioCnpj) {
+                  <p class="mt-1 flex items-center gap-1.5 text-apoio font-medium text-sucesso-ink">
+                    <svg lucideBadgeCheck [size]="16" aria-hidden="true" />
+                    CNPJ {{ formatarCpfCnpj(v.escritorioCnpj) }} verificado
+                  </p>
+                }
                 <dl class="mt-2 grid gap-x-6 gap-y-1 text-apoio sm:grid-cols-2">
                   <div>
                     <dt class="inline text-muted-foreground">Atende você desde</dt>
@@ -443,6 +471,9 @@ export class EscritorioProdutor implements OnInit {
     if (vinculo.encerradoPor == null) return 'Encerramento não registrado';
     return 'Encerrado';
   }
+
+  /** O CNPJ do selo de verificado, como se lê (o servidor manda só dígitos). */
+  readonly formatarCpfCnpj = formatarCpfCnpj;
 
   data(iso: string): string {
     return formatarData(iso);

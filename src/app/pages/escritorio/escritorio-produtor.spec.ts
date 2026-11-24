@@ -76,6 +76,58 @@ describe('EscritorioProdutor', () => {
     expect(texto(f)).toContain('convite de Ana, CRC PR-123');
   });
 
+  /**
+   * O selo de CNPJ verificado (#186, backend#520). O nome do escritório é texto livre: um
+   * cadastro qualquer pode convidar o produtor usando o nome de outro escritório. Só o CNPJ
+   * conferido pela GWNext diz quem convidou — e, sem ele, o aviso vem **antes** do botão.
+   */
+  describe('quem convidou, de verdade (#186)', () => {
+    const AVISO = 'Escritório ainda não verificado';
+
+    it('convite de escritório verificado mostra o selo com o CNPJ, sem aviso', () => {
+      const f = abrir(
+        [{ ...convite, escritorioVerificado: true, escritorioCnpj: '11444777000161' }],
+        [],
+      );
+
+      expect(texto(f)).toContain('CNPJ 11.444.777/0001-61 verificado');
+      expect(texto(f)).not.toContain(AVISO);
+    });
+
+    it('convite de escritório não verificado avisa antes do botão de aceitar', () => {
+      const f = abrir([{ ...convite, escritorioVerificado: false, escritorioCnpj: null }], []);
+      const cartao = (f.nativeElement as HTMLElement).querySelector('section') as HTMLElement;
+      const html = cartao.innerHTML;
+
+      expect(texto(f)).toContain(AVISO);
+      expect(texto(f)).toContain('confirme o convite com o seu contador');
+      // O aviso vem antes do botão: quem lê de cima para baixo o encontra antes de aceitar.
+      expect(html.indexOf(AVISO)).toBeLessThan(html.indexOf('Aceitar'));
+    });
+
+    /** Backend antigo não manda o campo: sem saber, a tela avisa — errar para o lado seguro. */
+    it('sem o campo de verificação, o convite também leva o aviso', () => {
+      expect(texto(abrir([convite], []))).toContain(AVISO);
+    });
+
+    it('na lista de quem atende, o verificado ganha o selo', () => {
+      const f = abrir(
+        [],
+        [{ ...vinculo('ATIVO'), escritorioVerificado: true, escritorioCnpj: '11444777000161' }],
+      );
+
+      expect(texto(f)).toContain('CNPJ 11.444.777/0001-61 verificado');
+    });
+
+    /** Quem já atende não pede aviso: basta não mostrar o selo. */
+    it('na lista de quem atende, o não verificado fica sem selo e sem aviso', () => {
+      const f = abrir([], [{ ...vinculo('ATIVO'), escritorioVerificado: false }]);
+
+      expect(texto(f)).not.toContain('verificado');
+      expect(texto(f)).not.toContain(AVISO);
+    });
+  });
+
   it('com escritório ativo, mostra quem atende, o responsável, o CRC e o que ele vê', () => {
     const f = abrir([], [vinculo('ATIVO')]);
     expect(texto(f)).toContain('Contabilidade Campo Bom');

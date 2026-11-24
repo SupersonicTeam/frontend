@@ -156,6 +156,19 @@ criar a conta e no link "Entrar" (`paramsDeRetorno` nas duas telas). **O cadastr
 quem valida que o caminho é interno (e não é `/login`) continua sendo o `destino()` do login, no único
 ponto em que ele vira navegação. Duas cópias dessa checagem seriam a forma de uma ficar para trás.
 
+**Escritório pessoal ou empresarial na aba Equipe** (#186 parte 2, backend#524 e #520). O `GET /api/escritorio` traz `tipo`, `telefone`, `endereco` e
+`escritorioVerificado`. No **pessoal** (um usuário só) a tela **não mostra** o convite de equipe nem o endereço próprio — os dois respondem 409
+`ESCRITORIO_PESSOAL` — e oferece **"Tornar empresarial"** ao administrador (`POST /escritorio/tornar-empresarial`, tudo obrigatório; volta com
+`slug` nulo, e o endereço próprio é escolhido depois). Sem o campo `tipo` (backend antigo), vale como empresarial. **Telefone e endereço postal
+valem nos dois tipos**, pelo `PATCH`, onde *o que não vem fica como está*: telefone vazio e endereço em branco nem viajam, e o endereço vai
+inteiro ou não vai (ele substitui o anterior). Os oito campos do endereço são o `<app-endereco-postal>` (`shared/contador/endereco-postal.ts`, um
+`model()` + as funções `errosDoEndereco`/`enderecoParaEnviar`), usado na edição e no "tornar empresarial"; o `/cadastro` ainda tem a cópia dele.
+**CNPJ verificado:** trocar o CNPJ de um escritório verificado desfaz a verificação na hora e tira o endereço do ar, então a tela avisa antes de
+salvar; com `slug` e `escritorioVerificado: false`, o bloco do endereço diz "Endereço reservado". Do lado do produtor (`/escritorio`), o convite
+e o vínculo de escritório verificado mostram **"CNPJ … verificado"**; convite **não** verificado (ou sem o campo) leva um aviso **antes** do botão
+de aceitar — o nome do escritório é texto livre, e só o CNPJ conferido diz quem convidou. No aceite do convite de equipe, o 409
+`ESCRITORIO_ATUAL_EM_USO` mostra a frase **do servidor** com a `suggestion`: desde a #524 ele tem dois motivos, e a frase fixa só servia a um.
+
 **As telas dos dois papéis são separadas, e isso é imposto por guard** — endereço é digitável, esconder o
 link do menu não protege. O contador chegava em `/calendario` e `/tributario` e lia texto escrito para o
 produtor, inclusive "procure o seu escritório de contabilidade" mostrado para o escritório. O que ele
