@@ -63,6 +63,13 @@ describe('apiInterceptor (toast global de erro)', () => {
     expect(toast.toasts().length).toBe(0);
   });
 
+  /** #198: as guias do produtor saíram de `/api/contador/guias`, que já era calado. */
+  it('NÃO exibe toast para /api/guias, como antes da migração', () => {
+    http.get('/guias').subscribe({ next: () => undefined, error: () => undefined });
+    httpMock.expectOne('/api/guias').flush({ message: 'x' }, { status: 500, statusText: 'x' });
+    expect(toast.toasts().length).toBe(0);
+  });
+
   it('respeita skipErrorNotify() na requisição', () => {
     http
       .get('/produtores/1', { context: skipErrorNotify() })

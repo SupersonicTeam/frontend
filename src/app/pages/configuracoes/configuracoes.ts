@@ -1,6 +1,4 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
-import type { Observable } from 'rxjs';
 import {
   LucideCircleAlert,
   LucideLock,
@@ -8,6 +6,7 @@ import {
   LucideSettings,
   LucideUser,
   LucideUsers,
+  LucideListChecks,
   LucideBuilding2,
 } from '@lucide/angular';
 import { RouterLink } from '@angular/router';
@@ -20,26 +19,6 @@ import { UiButton } from '@shared/ui/ui-button';
 import { EncerramentoService } from '@core/services/encerramento.service';
 import { ToastService } from '@core/services/toast.service';
 import { AuthApi, ContaError } from '@services/auth/data-access/auth.service';
-import {
-  ObrigacoesApi,
-  type ObrigacaoCatalogo,
-} from '@services/contador/data-access/obrigacoes.service';
-
-/** Para o rótulo "31 de maio" de uma obrigação anual. */
-const MESES_POR_EXTENSO = [
-  'janeiro',
-  'fevereiro',
-  'março',
-  'abril',
-  'maio',
-  'junho',
-  'julho',
-  'agosto',
-  'setembro',
-  'outubro',
-  'novembro',
-  'dezembro',
-];
 
 /**
  * Configurações — reescrita para mostrar só o que existe de verdade.
@@ -67,6 +46,7 @@ import { PrivacidadeConta } from './privacidade-conta';
   imports: [
     RouterLink,
     LucideUsers,
+    LucideListChecks,
     PrivacidadeConta,
     LucideBuilding2,
     UiCard,
@@ -101,117 +81,6 @@ export class ConfiguracoesPage implements OnInit {
       : 'Produtor rural (pessoa jurídica)';
   });
 
-  // ── Catálogo de obrigações do escritório (backend#181) ──
-
-  private readonly obrigacoesApi = inject(ObrigacoesApi);
-
-  private readonly obrigacoes = signal<ObrigacaoCatalogo[]>([]);
-  readonly carregandoCatalogo = signal(false);
-  readonly erroDoCatalogo = signal('');
-  readonly mexendoEm = signal<string | null>(null);
-
-  /** O que está no calendário dos clientes hoje. */
-  readonly obrigacoesAtivas = computed(() => this.obrigacoes().filter((o) => o.ativa));
-
-  /** O que o escritório tirou — continua aqui porque pode voltar. */
-  readonly obrigacoesForaDoCalendario = computed(() => this.obrigacoes().filter((o) => !o.ativa));
-
-  /** Busca o catálogo. Só o contador: é coisa do escritório, não do produtor. */
-  private carregarCatalogo(): void {
-    if (!this.sessao.ehContador()) return;
-    this.carregandoCatalogo.set(true);
-    this.obrigacoesApi.catalogo().subscribe({
-      next: (lista) => {
-        this.obrigacoes.set(lista);
-        this.carregandoCatalogo.set(false);
-      },
-      error: () => {
-        this.carregandoCatalogo.set(false);
-        this.erroDoCatalogo.set('Não foi possível carregar o catálogo de obrigações.');
-      },
-    });
-  }
-
-  /**
-   * Tira do calendário ou devolve a ele.
-   *
-   * **`DELETE` não apaga** — a obrigação volta com `ativa: false` e pode ser reativada. E num
-   * modelo do sistema o servidor devolve **a versão do escritório, com id novo**: por isso a lista
-   * troca o item pelo que voltou, em vez de virar um booleano local.
-   */
-  alternarNoCalendario(obrigacao: ObrigacaoCatalogo): void {
-    const chamada = obrigacao.ativa
-      ? this.obrigacoesApi.desativar(obrigacao.id)
-      : this.obrigacoesApi.reativar(obrigacao.id);
-
-    this.aplicar(obrigacao, chamada);
-  }
-
-  /** Joga fora a versão do escritório e volta ao modelo do sistema. */
-  restaurarPadrao(obrigacao: ObrigacaoCatalogo): void {
-    this.aplicar(obrigacao, this.obrigacoesApi.restaurarPadrao(obrigacao.id));
-  }
-
-  /** Só a versão do escritório tem padrão para onde voltar. */
-  podeRestaurar(obrigacao: ObrigacaoCatalogo): boolean {
-    return obrigacao.origemCatalogo === 'PERSONALIZADA';
-  }
-
-  /**
-   * Executa e substitui o item pelo que o servidor devolveu.
-   *
-   * O **403** ganha mensagem própria: qualquer membro lê o catálogo, mas só o administrador o
-   * altera. Dizer "erro" ali faria o assistente achar que o sistema quebrou, quando o sistema
-   * apenas disse não.
-   */
-  private aplicar(obrigacao: ObrigacaoCatalogo, chamada: Observable<ObrigacaoCatalogo>): void {
-    this.erroDoCatalogo.set('');
-    this.mexendoEm.set(obrigacao.id);
-    chamada.subscribe({
-      next: (atualizada) => {
-        this.mexendoEm.set(null);
-        this.obrigacoes.update((lista) =>
-          lista.map((o) => (o.id === obrigacao.id ? atualizada : o)),
-        );
-      },
-      error: (erro: HttpErrorResponse) => {
-        this.mexendoEm.set(null);
-        this.erroDoCatalogo.set(
-          erro.status === 403
-            ? 'Só o administrador do escritório pode mudar o catálogo de obrigações.'
-            : 'Não foi possível mudar esta obrigação. Tente de novo.',
-        );
-      },
-    });
-  }
-
-  /** "todo mês, dia 20" · "uma vez por ano, 31 de maio". O backend fala em caixa alta. */
-  quandoVence(obrigacao: ObrigacaoCatalogo): string {
-    const cada =
-      {
-        MENSAL: 'todo mês',
-        BIMESTRAL: 'a cada dois meses',
-        TRIMESTRAL: 'a cada três meses',
-        SEMESTRAL: 'a cada seis meses',
-        ANUAL: 'uma vez por ano',
-      }[obrigacao.periodicidade] ?? obrigacao.periodicidade.toLowerCase();
-
-    if (obrigacao.mes) {
-      const nome = MESES_POR_EXTENSO[obrigacao.mes - 1] ?? '';
-      return `${cada}, ${obrigacao.dia} de ${nome}`;
-    }
-    return `${cada}, dia ${obrigacao.dia}`;
-  }
-
-  /** A quem a obrigação se aplica, em português. Vazio quando vale para todos. */
-  aQuemSeAplica(obrigacao: ObrigacaoCatalogo): string {
-    const partes: string[] = [];
-    if (obrigacao.tipoProdutor === 'PESSOA_FISICA') partes.push('pessoa física');
-    if (obrigacao.tipoProdutor === 'PESSOA_JURIDICA') partes.push('pessoa jurídica');
-    if (obrigacao.regimes.length) partes.push(obrigacao.regimes.join(', ').toLowerCase());
-    return partes.join(' · ');
-  }
-
   ngOnInit(): void {
     // O service decide se precisa buscar, e nao sobrescreve painel pedido com periodo (#114).
     // So para produtor: `/api/dashboard` e do produtor do token e responde 403 ao contador (#136),
@@ -219,7 +88,6 @@ export class ConfiguracoesPage implements OnInit {
     if (this.sessao.ehProdutor()) {
       this.dashboardApi.garantirCarregado().subscribe({ error: () => undefined });
     }
-    this.carregarCatalogo();
   }
 
   // ── Acesso: trocar a senha e sair de todos (#131) ─────────────────────────

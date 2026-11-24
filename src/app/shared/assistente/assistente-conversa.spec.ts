@@ -1,8 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { entrarComo } from '@core/services/sessao.testing';
+import type { CeresUso } from '@dtos/assistente/ceres.response';
 import type { AssistenteMensagem } from '@models/assistente-mensagem.model';
 import { AssistenteConversa } from './assistente-conversa';
 import { AssistenteStore } from './assistente.store';
@@ -56,6 +58,29 @@ describe('AssistenteConversa — resposta da Ceres', () => {
       'Nota 3224 (serie 1): aguardando aprovacao do contador.',
       'Nota 3222 (serie 1): devolvida pelo contador.',
     ]);
+  });
+
+  /** #187: a explicação entra abaixo do número, à parte, sem mexer no texto da resposta. */
+  it('mostra a explicação abaixo da resposta, num bloco "Entenda"', () => {
+    const el = montar({ ...resumo, explicacao: 'É o IBS menos os créditos do mês.' });
+    const textos = el.querySelectorAll('app-ceres-texto');
+
+    expect(textos).toHaveLength(2);
+    expect(textos[0]?.textContent).toContain('2 pontos de atencao');
+    expect(textos[0]?.textContent).not.toContain('IBS menos');
+    expect(textos[1]?.textContent).toContain('É o IBS menos os créditos do mês.');
+    expect(el.textContent).toContain('Entenda');
+    expect(el.textContent).not.toContain('Preparando a explicação');
+  });
+
+  it('enquanto a explicação pode chegar, avisa; sem ela, não mostra nada', () => {
+    expect(montar({ ...resumo, explicacaoPendente: true }).textContent).toContain(
+      'Preparando a explicação',
+    );
+    TestBed.resetTestingModule();
+    const semNada = montar(resumo);
+    expect(semNada.textContent).not.toContain('Entenda');
+    expect(semNada.textContent).not.toContain('Preparando a explicação');
   });
 
   it('continua texto puro: marcação na resposta aparece como texto, não vira HTML', () => {
@@ -199,5 +224,132 @@ describe('AssistenteConversa — resposta da Ceres', () => {
     );
     expect(el.textContent).not.toContain('Calculado a partir das suas notas');
     expect(el.textContent).toContain('resposta do AgroConIA');
+  });
+
+  /**
+   * O aviso de envio ao provedor (#183). Ele precisa estar no ar **antes** de a flag ser
+   * ligada na VPS: quem decide é o backend, e a tela não pode inventar o aviso nem
+   * escondê-lo quando o campo chega.
+   */
+  describe('aviso de envio ao provedor (#183)', () => {
+    const TRECHO = 'provedor de IA fora do Brasil';
+
+    function montarComUso(conversaVaiAoProvedor?: boolean): HTMLElement {
+      TestBed.configureTestingModule({
+        imports: [AssistenteConversa],
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      });
+      entrarComo('PRODUTOR');
+      TestBed.inject(AssistenteStore).uso.set({
+        plano: 'padrao',
+        habilitada: true,
+        creditosSemana: 1000,
+        consumidos: 0,
+        restantes: 1000,
+        renovaEm: '2026-11-19T00:00:00-03:00',
+        ...(conversaVaiAoProvedor === undefined ? {} : { conversaVaiAoProvedor }),
+      });
+      const fixture = TestBed.createComponent(AssistenteConversa);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('com a continuidade ligada, avisa que a conversa sai do Brasil', () => {
+      expect(montarComUso(true).textContent).toContain(TRECHO);
+    });
+
+    it('com a continuidade desligada, não avisa nada', () => {
+      expect(montarComUso(false).textContent).not.toContain(TRECHO);
+    });
+
+    it('backend sem o campo não mostra aviso — ausente vale false', () => {
+      expect(montarComUso(undefined).textContent).not.toContain(TRECHO);
+    });
+  });
+
+  /**
+   * O uso da semana em porcentagem (#184, backend#511).
+   *
+   * O crédito virou 1 token: a cota passou a 1.000.000 por semana e uma pergunta custa uns
+   * 6.800. "993.200 de 1.000.000 restantes" não ajuda ninguém a decidir se pergunta ou não,
+   * então **nenhum número de crédito** aparece — só a porcentagem que o backend calcula.
+   */
+  describe('o uso da semana em porcentagem (#184)', () => {
+    function montarComUso(over: Partial<CeresUso> = {}): HTMLElement {
+      // Alguns testes montam duas vezes (dois valores de cota no mesmo caso), e o TestBed
+      // recusa reconfigurar um modulo ja instanciado.
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        imports: [AssistenteConversa],
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      });
+      entrarComo('PRODUTOR');
+      TestBed.inject(AssistenteStore).uso.set({
+        plano: 'padrao',
+        habilitada: true,
+        creditosSemana: 1_000_000,
+        consumidos: 0,
+        restantes: 1_000_000,
+        renovaEm: '2026-11-19T00:00:00-03:00',
+        ...over,
+      });
+      const fixture = TestBed.createComponent(AssistenteConversa);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    const rotuloDoAnel = (el: HTMLElement) =>
+      el.querySelector('[data-cota] button')?.getAttribute('aria-label') ?? '';
+
+    it.each([0, 1, 47, 100])('mostra o percentual que o backend mandou: %i%%', (percentual) => {
+      const el = montarComUso({ percentualUsado: percentual });
+
+      expect(rotuloDoAnel(el)).toContain(`${percentual}% do limite da semana usado`);
+      expect(rotuloDoAnel(el)).toContain('Renova em 19 de novembro');
+    });
+
+    it('nenhum número de crédito aparece na tela', () => {
+      const el = montarComUso({ percentualUsado: 7, consumidos: 68_000, restantes: 932_000 });
+      // O painel do detalhe e onde moravam os numeros: abre para conferir la dentro tambem.
+      el.querySelector<HTMLButtonElement>('[data-cota] button')?.click();
+      TestBed.inject(ApplicationRef).tick();
+
+      const texto = (el.textContent ?? '') + rotuloDoAnel(el);
+      expect(texto).toContain('7% usado');
+      expect(texto).not.toContain('1.000.000');
+      expect(texto).not.toContain('1000000');
+      expect(texto).not.toContain('932');
+      expect(texto).not.toContain('restantes');
+      expect(texto).not.toContain('créditos');
+    });
+
+    /** Backend antigo: a conta com créditos ainda vale, para o medidor não sumir. */
+    it('sem o campo, cai na conta com os créditos', () => {
+      const el = montarComUso({ consumidos: 250_000, restantes: 750_000 });
+
+      expect(rotuloDoAnel(el)).toContain('25% do limite da semana usado');
+    });
+
+    /**
+     * Qualquer gasto é ao menos 1%: "0% usado" ao lado de uma barra com um fiozinho aceso seria
+     * contraditório. Zero continua sendo zero.
+     */
+    it('no fallback, um gasto mínimo vira 1% e gasto nenhum continua 0%', () => {
+      expect(rotuloDoAnel(montarComUso({ restantes: 999_999 }))).toContain('1% do limite');
+      expect(rotuloDoAnel(montarComUso({ restantes: 1_000_000 }))).toContain('0% do limite');
+    });
+
+    /** Cota zerada no servidor é tudo usado — antes dava "0% usado" ao lado de um anel vazio. */
+    it('cota zerada no servidor aparece como 100% usado, não como 0%', () => {
+      expect(rotuloDoAnel(montarComUso({ creditosSemana: 0, restantes: 0 }))).toContain(
+        '100% do limite',
+      );
+    });
+
+    /** Campo fora da faixa não pode virar uma barra de 140% de largura. */
+    it('percentual fora de 0 a 100 é limitado', () => {
+      expect(rotuloDoAnel(montarComUso({ percentualUsado: 140 }))).toContain('100% do limite');
+      expect(rotuloDoAnel(montarComUso({ percentualUsado: -5 }))).toContain('0% do limite');
+    });
   });
 });

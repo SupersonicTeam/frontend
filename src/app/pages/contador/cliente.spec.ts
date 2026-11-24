@@ -128,7 +128,7 @@ describe('ClientePage', () => {
       .expectOne((r) => r.url === '/contador/produtores')
       .flush(opcoes.carteira ?? [cliente()]);
     httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush(opcoes.notas ?? []);
-    httpMock.expectOne((r) => r.url === '/contador/guias').flush(opcoes.guias ?? []);
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/guias').flush(opcoes.guias ?? []);
     httpMock
       .expectOne((r) => r.url === '/contador/produtores/p1/pendencias')
       .flush(opcoes.pendencias ?? []);
@@ -204,7 +204,7 @@ describe('ClientePage', () => {
     ]);
     req.flush([]);
 
-    httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+    httpMock.expectOne((r) => r.url === '/contador/produtores/p1/guias').flush([]);
     httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias').flush([]);
   });
 
@@ -296,7 +296,7 @@ describe('ClientePage', () => {
     // Nenhuma das três listas é pedida: sem vínculo o backend responderia 404 nas três, e pedir
     // seria gastar requisição para receber erro.
     httpMock.expectNone((r) => r.url === '/contador/produtores/p1/notas');
-    httpMock.expectNone((r) => r.url === '/contador/guias');
+    httpMock.expectNone((r) => r.url === '/contador/produtores/p1/guias');
     httpMock.expectNone((r) => r.url === '/contador/produtores/p1/pendencias');
   });
 
@@ -397,7 +397,7 @@ describe('ClientePage', () => {
       abrir();
       httpMock.expectOne((r) => r.url === '/contador/produtores').flush([cliente()]);
       httpMock.expectOne((r) => r.url === '/contador/produtores/p1/notas').flush([]);
-      httpMock.expectOne((r) => r.url === '/contador/guias').flush([]);
+      httpMock.expectOne((r) => r.url === '/contador/produtores/p1/guias').flush([]);
 
       const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias');
       // Filtrar por ENVIADA escondia o que o escritorio pediu e ainda nao voltou -- justamente o
@@ -521,6 +521,92 @@ describe('ClientePage', () => {
       req.flush(pedido({ id: 'novo', status: 'PENDENTE' }));
 
       expect(page.pendencias().length).toBe(1);
+    });
+
+    /**
+     * "Usar um modelo" (#185, backend#517). O escritório que pede "extrato bancário" a 30 clientes
+     * redigia o pedido 30 vezes. O modelo **só preenche**: quem envia é o contador, pelo mesmo
+     * `POST .../pendencias` de sempre, e o pedido não guarda referência ao modelo.
+     */
+    describe('usar um modelo (#185)', () => {
+      const modelo = {
+        id: 'm1',
+        titulo: 'Extrato bancário do mês',
+        descricao: 'Extrato de todas as contas',
+        tiposDocumento: ['EXTRATO'],
+        prazoEmDias: 10,
+        observacoes: 'Pode mandar em PDF',
+      };
+
+      it('abrir o formulário busca os modelos; fechar não busca nada', () => {
+        const page = abrirCom([]);
+
+        page.alternarPedido();
+        httpMock.expectOne((r) => r.url === '/contador/modelos-pedido').flush([modelo]);
+        expect(page.modelos().length).toBe(1);
+
+        page.alternarPedido();
+        httpMock.expectNone((r) => r.url === '/contador/modelos-pedido');
+        expect(page.pedindo()).toBe(false);
+      });
+
+      /** Modelo é atalho, não requisito: sem a lista, o formulário funciona como sempre. */
+      it('se os modelos não carregam, o formulário continua aberto e utilizável', () => {
+        const page = abrirCom([]);
+
+        page.alternarPedido();
+        httpMock
+          .expectOne((r) => r.url === '/contador/modelos-pedido')
+          .flush('erro', { status: 500, statusText: 'Server Error' });
+
+        expect(page.pedindo()).toBe(true);
+        expect(page.modelos()).toEqual([]);
+      });
+
+      it('o modelo preenche os campos, e o pedido sai sem referência a ele', () => {
+        const page = abrirCom([]);
+        page.alternarPedido();
+        httpMock.expectOne((r) => r.url === '/contador/modelos-pedido').flush([modelo]);
+
+        page.usarModelo('m1');
+
+        expect(page.novoTitulo()).toBe('Extrato bancário do mês');
+        expect(page.novaDescricao()).toBe('Extrato de todas as contas');
+        expect(page.novasObservacoes()).toBe('Pode mandar em PDF');
+        expect(page.novosTipos()).toEqual(['EXTRATO']);
+        expect(page.novoPrazo()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+        // O contador ajusta antes de enviar.
+        page.novoTitulo.set('Extrato bancário de outubro');
+        page.criarPedido();
+
+        const req = httpMock.expectOne((r) => r.url === '/contador/produtores/p1/pendencias');
+        expect(req.request.body).toEqual({
+          titulo: 'Extrato bancário de outubro',
+          tiposDocumento: ['EXTRATO'],
+          dataLimite: page.novoPrazo(),
+          descricao: 'Extrato de todas as contas',
+          observacoes: 'Pode mandar em PDF',
+        });
+        expect('modeloId' in (req.request.body as object)).toBe(false);
+        req.flush(pedido({ id: 'novo', status: 'PENDENTE' }));
+
+        // Depois de enviar, as observações também limpam: não vazam para o pedido seguinte.
+        expect(page.novasObservacoes()).toBe('');
+      });
+
+      it('modelo sem prazo deixa a data vazia', () => {
+        const page = abrirCom([]);
+        page.alternarPedido();
+        httpMock
+          .expectOne((r) => r.url === '/contador/modelos-pedido')
+          .flush([{ ...modelo, prazoEmDias: null }]);
+        page.novoPrazo.set('2026-12-01');
+
+        page.usarModelo('m1');
+
+        expect(page.novoPrazo()).toBe('');
+      });
     });
 
     it('pedido sem titulo ou sem tipo nao sai: o servidor exige os dois', () => {

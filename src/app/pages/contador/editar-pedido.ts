@@ -12,6 +12,7 @@ import {
 } from '@models/pendencia.model';
 import { ToastService } from '@core/services/toast.service';
 import { falhaDaApi } from '@core/utils/erro-api';
+import { AVISO_TEXTO_DO_ESCRITORIO } from '@core/utils/ceres';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiModal } from '@shared/ui/ui-modal';
 
@@ -46,6 +47,8 @@ import { UiModal } from '@shared/ui/ui-modal';
             (input)="titulo.set($any($event.target).value)"
           />
         </label>
+        <!-- #183: o título do pedido é lido pelo produtor e pode ir à Ceres. -->
+        <p class="text-apoio font-normal text-muted-foreground">{{ avisoTextoDoEscritorio }}</p>
         <fieldset class="flex flex-col gap-1">
           <legend class="text-apoio font-medium text-foreground">Tipos de documento (até 5)</legend>
           <div class="flex flex-wrap gap-2">
@@ -104,6 +107,8 @@ export class EditarPedido implements OnInit {
   readonly fechar = output<void>();
 
   readonly tiposPossiveis = TIPOS_DOCUMENTO;
+  /** A dica dos campos que o produtor le e a Ceres pode levar ao provedor (#183). */
+  readonly avisoTextoDoEscritorio = AVISO_TEXTO_DO_ESCRITORIO;
   readonly rotuloDoTipo = TIPO_DOCUMENTO_LABEL;
 
   readonly titulo = signal('');

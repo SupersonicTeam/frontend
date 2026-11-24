@@ -83,8 +83,7 @@
             <!-- Fixa, igual para qualquer 401: não revela se a conta existe nem de quem é. -->
             <span class="mt-1 block">
               Se você é produtor ou de outro escritório, entre por
-              <a [href]="www" class="font-medium underline">{{ hostWww }}</a
-              >.
+              <a [href]="www" class="font-medium underline">{{ hostWww }}</a>.
             </span>
           }
         </p>
@@ -150,7 +149,12 @@
         } @else {
           <span class="text-muted-foreground">
             Não tem conta?
-            <a routerLink="/cadastro" class="font-medium text-primary hover:underline"
+            <!-- O destino pedido vai junto (#182): quem veio de um convite e cria a conta
+                 agora volta ao convite depois de entrar, não ao painel. -->
+            <a
+              routerLink="/cadastro"
+              [queryParams]="paramsDeRetorno"
+              class="font-medium text-primary hover:underline"
               >Criar conta</a
             >
           </span>
