@@ -136,6 +136,19 @@ Ceres, todos pedindo dado de um usuário que ainda não existe; e uma tela de lo
 login quem não tem sessão — em volta. Sem sessão, o `sessaoGuard` manda para lá **com `returnUrl`**, para
 que o endereço pedido (uma nota, um cliente da carteira) não se perca no caminho.
 
+**O cadastro cria a conta e, no contador, o escritório** (#186, backend#523). "Você é" decide o papel; com
+**Contador**, aparecem o CRC (opcional) e a escolha **Pessoal / Empresarial**. No pessoal o escritório nasce
+com o nome da pessoa (é o que existia antes) e só o telefone é pedido; no empresarial o rótulo "Contador"
+vira **"Escritório"** (a `.roleta`, uma animação de entrada que o bloco global de movimento reduzido zera
+sozinho) e entram nome, CNPJ, telefone, endereço postal — com o **código do IBGE digitado**, como na NF-e,
+porque não há consulta de CEP no projeto — e o `{slug}` do endereço próprio, com prévia e a caixa de ciência
+da #175. **O documento do contador é o CPF** (o rótulo muda para "Seu CPF" e um CNPJ é barrado antes de
+sair). **Toda conta exige o aceite dos termos**, aqui e no `/equipe/convite`: sem a caixa marcada o botão não
+liga. O slug vai em minúsculas e sem espaços; CNPJ, telefone e CEP vão **só com dígitos**, e o `complemento`
+vazio não vira campo vazio. Os erros do servidor caem **cada um no seu campo** — o `ContaError` passou a
+trazer `campos` com todos os `field` do envelope, porque este formulário manda 14 de uma vez e mostrar só o
+primeiro faria corrigir um por tentativa; o slug é a exceção, que chega por código (`SLUG_INVALIDO` /
+`SLUG_INDISPONIVEL`).
 **O `returnUrl` atravessa o cadastro** (#182): quem chega por um link de convite sem ter conta faz
 login → "Criar conta" → cadastro → login, e o destino morria no primeiro salto (caía no painel em vez
 do convite). O login repassa o `returnUrl` ao "Criar conta" e o cadastro o devolve ao `/login` depois de
@@ -438,6 +451,7 @@ O `directive-selector` do ESLint aceita os prefixos `app` **e** `ui`, como o `co
 | `campo-cpf-cnpj.ts` | `criarCampoCpfCnpj()` — o estado de um campo de CPF/CNPJ digitado (#156), usado no `/cadastro`, no `/equipe/convite` e no destinatário da NF-e: `valor`, `erro`, `digitar(evento)` no `(input)`, `sair()` no `(blur)`, `conferir()` no envio e `recusadoPeloServidor()` no 400. **Sair do campo vazio não conta como tocado** — contava, e a frase vermelha voltava a cada tecla quando a pessoa voltava para digitar (achado do review). |
 | `recarga-apos-deploy.ts` | Aba aberta antes de um deploy (#162). Cada tela é um `chunk-<hash>.js`, o CD publica a cada merge e o deploy apaga os arquivos antigos: a aba velha pedia um chunk que dava 404 e o clique (ex.: "Criar conta") não fazia nada. `recarregarSeChunkFaltou()` roda no `withNavigationErrorHandler` do `app.config`: se o erro é de módulo dinâmico que não carregou, recarrega **no destino**. **Uma vez até a próxima navegação que der certo**: a marca fica no `sessionStorage` e sai no `NavigationEnd` (uma janela de tempo no lugar dela voltava a entrar em laço em rede lenta). **Offline não recarrega** — o navegador dá a mesma frase quando o sinal cai, e recarregar trocaria o app pela página de erro. O ambiente (storage, rede, navegação) vem do token `AMBIENTE_DE_RECARGA`, que os testes trocam por um falso. Junto, o `nginx.conf` manda o `index.html` com `no-cache`, e o `ThemeService` nasce num `provideAppInitializer` — antes só no dashboard e em Configurações, e o login recarregado abria claro para quem escolheu escuro. |
 | `encerramento-vinculo.ts` | `corpoDoEncerramento(motivo)` e `MOTIVO_ENCERRAMENTO_MAXIMO` (500), #173: o corpo opcional `{ motivo }` dos dois `POST .../encerrar` (produtor e escritório). Motivo em branco não vai, e o encerramento funciona como antes. |
+| `endereco.ts` | `UFS` (as 27 siglas, que moravam dentro de `documentos.ts`) e `erroDoFormatoDoSlug()` (3 a 32 caracteres, minúsculas, dígitos e hífen, sem hífen nas pontas — a mesma regra do backend). A função saiu do componente da aba Equipe na #186: o cadastro empresarial escolhe o slug no mesmo formulário, e importá-la de lá arrastaria aquela tela para o chunk do cadastro. A lista de slugs **reservados** não está aqui: muda e mora só no servidor. |
 | `host-escritorio.ts` | A regra do host (#175, compartilhada com a landing da #174), a mesma do backend (backend#464): `rotuloDeEscritorio`/`ehHostDeEscritorio` (um rótulo antes de `.` + base, diferente de `www`; o resto é o principal), `hostPrincipal` e `urlDoHost` — **toda URL de outro host sai dele**, a partir de um rótulo, nunca de host vindo de resposta. Tokens `HOST_ATUAL`, `DOMINIO_BASE`, `ENDERECO_PROPRIO_NO_AR` e `LOCALIZACAO_ATUAL` (no molde do `AMBIENTE_DE_RECARGA`): **ninguém lê `environment.dominioBase` nem `enderecoProprioNoAr` direto**. O domínio de produção não pode ser escrito à mão em `src/app/` (nem em comentário): o `scripts/conferir-build-producao.mjs` reprova na CI. |
 | `download.ts` | Salvar blob (DANFE, XML, prévia). **A prévia vem do servidor**, não é montada aqui: `GET /notas/{id}/danfe-preview` devolve a DANFE do rascunho (o `nota-pdf.ts`, que desenhava uma aproximação com `jspdf`, foi apagado e a dependência saiu junto). Quem decide se o documento fiscal já existe é `temArquivosFiscais(status)`, no enum: é pergunta de **estado**, não de permissão — e as duas rotas nunca servem a mesma nota (a oficial dá 409 em rascunho, a prévia dá 409 em nota emitida). |
 

@@ -17,15 +17,9 @@ import {
   semProtocolo,
   urlDoHost,
 } from '@core/utils/host-escritorio';
+import { erroDoFormatoDoSlug } from '@core/utils/endereco';
 import { UiButton } from '@shared/ui/ui-button';
 import { UiModal } from '@shared/ui/ui-modal';
-
-/**
- * O formato do slug, o mesmo do backend (contrato da backend#464): 3 a 32 caracteres, letras
- * minúsculas, dígitos e hífen, sem hífen nas pontas. A lista de **reservados não** fica aqui: ela
- * muda e mora só no servidor, que responde 409 `SLUG_INDISPONIVEL`.
- */
-const FORMATO_DO_SLUG = /^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])$/;
 
 /** "09/12/2026, 11:30" no fuso de Brasília, como o contrato pede para o `expectedValue`. */
 const DATA_E_HORA = new Intl.DateTimeFormat('pt-BR', {
@@ -39,18 +33,6 @@ function formatarInstante(iso: string | null | undefined): string | null {
   if (!iso) return null;
   const data = new Date(iso);
   return Number.isNaN(data.getTime()) ? null : DATA_E_HORA.format(data);
-}
-
-/** Por que o valor digitado não serve, antes de ir ao servidor. `null` = serve (pelo formato). */
-export function erroDoFormatoDoSlug(slug: string): string | null {
-  if (!slug) return null;
-  if (slug.length < 3 || slug.length > 32) return 'Use de 3 a 32 caracteres.';
-  if (/^\d+$/.test(slug)) return 'Use ao menos uma letra.';
-  if (slug.includes('--')) return 'Não use dois hífens seguidos.';
-  if (!FORMATO_DO_SLUG.test(slug)) {
-    return 'Use só letras minúsculas sem acento, números e hífen, sem hífen no começo ou no fim.';
-  }
-  return null;
 }
 
 /**
@@ -94,14 +76,13 @@ export function erroDoFormatoDoSlug(slug: string): string | null {
               target="_blank"
               rel="noopener"
               class="font-medium text-primary underline"
-              >{{ hostAtual() }}</a
-            >, com a marca do escritório no login.
+              >{{ hostAtual() }}</a>, com a marca do escritório no login.
           </p>
         } @else {
           <p class="text-apoio text-muted-foreground">
             O escritório ainda não tem endereço próprio. Com ele, a equipe entra por
-            <span class="font-medium text-foreground">{{ exemplo() }}</span
-            >, com a marca do escritório no login.
+            <span class="font-medium text-foreground">{{ exemplo() }}</span>, com a marca do
+            escritório no login.
           </p>
         }
 

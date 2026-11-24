@@ -289,6 +289,7 @@ describe('AuthApi', () => {
           cpfCnpj: '529.982.247-25',
           email: '  maria@exemplo.com.br ',
           senha: 'UmaSenhaBoa2026!',
+          aceiteTermos: true,
         })
         .subscribe();
 
@@ -300,6 +301,7 @@ describe('AuthApi', () => {
         cpfCnpj: '52998224725',
         email: 'maria@exemplo.com.br',
         senha: 'UmaSenhaBoa2026!',
+        aceiteTermos: true,
       });
       req.flush(null, { status: 201, statusText: 'Created' });
     });
@@ -312,6 +314,7 @@ describe('AuthApi', () => {
           cpfCnpj: '11144477735',
           email: 'e@x.com.br',
           senha: 'UmaSenhaBoa2026!',
+          aceiteTermos: true,
         })
         .subscribe();
       httpMock.expectOne('/auth/cadastro').flush(null, { status: 201, statusText: 'Created' });
@@ -331,6 +334,7 @@ describe('AuthApi', () => {
           cpfCnpj: '52998224725',
           email: 'x@x.com.br',
           senha: 'curta',
+          aceiteTermos: true,
         })
         .subscribe({ error: (e) => (erro = e) });
 
@@ -427,6 +431,7 @@ describe('AuthApi', () => {
           cpfCnpj: '52998224725',
           email: 'x@x.com.br',
           senha: 'UmaSenhaBoa2026!',
+          aceiteTermos: true,
         })
         .subscribe({ error: (e) => (erro = e) });
 

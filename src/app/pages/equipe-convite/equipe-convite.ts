@@ -7,7 +7,13 @@ import { ClienteEmFocoService } from '@core/services/cliente-em-foco.service';
 import { ToastService } from '@core/services/toast.service';
 import { falhaDaApi } from '@core/utils/erro-api';
 import { criarCampoCpfCnpj } from '@core/utils/campo-cpf-cnpj';
+import { soDigitos } from '@core/utils/mascaras';
 import { AuthApi, ContaError } from '@services/auth/data-access/auth.service';
+
+/** A frase do backend quando chega um CNPJ no documento de quem entra pelo convite (#186). */
+const SO_CPF_NO_CONVITE =
+  'Informe o seu CPF, com 11 dígitos: o documento do contador é o da pessoa. ' +
+  'O CNPJ do escritório fica nos dados do escritório, na aba Equipe.';
 import {
   CHAVE_TOKEN_CONVITE_EQUIPE,
   EscritorioApi,
@@ -61,12 +67,15 @@ export class EquipeConvitePage {
   readonly documento = criarCampoCpfCnpj();
   readonly cpfCnpj = this.documento.valor;
   readonly senha = signal('');
+  /** O mesmo aceite do `/cadastro` (#186): toda conta passa por ele. */
+  readonly aceiteTermos = signal(false);
   readonly podeCadastrar = computed(
     () =>
       !this.enviando() &&
       this.nome().trim().length > 0 &&
       this.cpfCnpj().trim().length > 0 &&
-      this.senha().length > 0,
+      this.senha().length > 0 &&
+      this.aceiteTermos(),
   );
 
   private readonly campoDocumento = viewChild<ElementRef<HTMLInputElement>>('campoDocumento');
@@ -110,6 +119,13 @@ export class EquipeConvitePage {
       this.campoDocumento()?.nativeElement.focus();
       return;
     }
+    // Só CPF desde a #186: o documento do contador é o da pessoa, e o CNPJ do escritório fica
+    // nos dados do escritório, na aba Equipe. O backend responde 400 com esta mesma frase.
+    if (soDigitos(this.cpfCnpj()).length !== 11) {
+      this.documento.erroServidor.set(SO_CPF_NO_CONVITE);
+      this.campoDocumento()?.nativeElement.focus();
+      return;
+    }
     this.enviando.set(true);
     this.erro.set(null);
     this.auth
@@ -118,6 +134,7 @@ export class EquipeConvitePage {
         nomeCompleto: this.nome(),
         cpfCnpj: this.cpfCnpj(),
         senha: this.senha(),
+        aceiteTermos: this.aceiteTermos(),
       })
       .subscribe({
         next: () => {
