@@ -1,6 +1,8 @@
 import { TestBed } from '@angular/core/testing';
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { firstValueFrom, of, throwError } from 'rxjs';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes, visitanteNoPrincipal } from './app.routes';
@@ -146,18 +148,44 @@ describe('rotas no modo escritório', () => {
   });
 });
 
-/** A landing em `/` (#174): só para quem chega sem sessão ao endereço principal. */
+/**
+ * A landing em `/` (#174) e a sessão vencida (#213).
+ *
+ * `true` = a landing casa a rota; `false` = o `/` cai no shell, que leva ao painel. A armadilha
+ * que esta suíte guarda: **sessão vencida no `localStorage` não é sessão**. Perguntar só
+ * `logado()` escondia a landing de quem já tinha entrado uma vez, para sempre.
+ */
 describe('landing em /', () => {
-  function decide(modo: ModoDoHost, logado: boolean): boolean {
+  /** A sessão como o guard a enxerga: existe, e venceu ou não. */
+  function sessaoFalsa(estado: 'nenhuma' | 'valida' | 'vencida') {
+    return {
+      logado: () => estado !== 'nenhuma',
+      expirado: () => estado === 'vencida',
+      encerrar: vi.fn(),
+    };
+  }
+
+  function montar(modo: ModoDoHost, sessao: ReturnType<typeof sessaoFalsa>, renovar?: () => unknown) {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: SessaoService, useValue: { logado: () => logado } },
+        { provide: SessaoService, useValue: sessao },
+        { provide: AuthApi, useValue: { renovar: renovar ?? (() => of('token-novo')) } },
       ],
     });
     TestBed.inject(EscritorioDoHostService).modo.set(modo);
     return TestBed.runInInjectionContext(() => visitanteNoPrincipal());
+  }
+
+  /** O guard pode responder na hora ou depois da renovação; o teste não quer saber qual. */
+  async function decide(
+    modo: ModoDoHost,
+    sessao: ReturnType<typeof sessaoFalsa>,
+    renovar?: () => unknown,
+  ): Promise<boolean> {
+    const resposta = montar(modo, sessao, renovar);
+    return typeof resposta === 'boolean' ? resposta : firstValueFrom(resposta);
   }
 
   it('vem antes do shell e só casa o / exato, com o canMatch', () => {
@@ -170,18 +198,51 @@ describe('landing em /', () => {
     expect(routes[indice]?.pathMatch).toBe('full');
   });
 
-  it('visitante sem sessão no www vê a landing', () => {
-    expect(decide('principal', false)).toBe(true);
+  it('visitante sem sessão no www vê a landing', async () => {
+    await expect(decide('principal', sessaoFalsa('nenhuma'))).resolves.toBe(true);
   });
 
-  it('com sessão, o / segue para o painel', () => {
-    expect(decide('principal', true)).toBe(false);
+  it('com sessão válida, o / segue para o painel sem pedir renovação', async () => {
+    const renovar = vi.fn(() => of('nao deveria'));
+    await expect(decide('principal', sessaoFalsa('valida'), renovar)).resolves.toBe(false);
+    expect(renovar).not.toHaveBeenCalled();
+  });
+
+  it('sessão vencida e refresh aceito: o / segue para o painel', async () => {
+    const sessao = sessaoFalsa('vencida');
+    await expect(decide('principal', sessao, () => of('token-novo'))).resolves.toBe(false);
+    expect(sessao.encerrar).not.toHaveBeenCalled();
+  });
+
+  it('sessão vencida e refresh recusado: a landing, com a sessão local esquecida', async () => {
+    const sessao = sessaoFalsa('vencida');
+    const recusado = () => throwError(() => new HttpErrorResponse({ status: 401 }));
+    await expect(decide('principal', sessao, recusado)).resolves.toBe(true);
+    expect(sessao.encerrar).toHaveBeenCalledTimes(1);
+  });
+
+  it('servidor fora do ar: a landing, mas a sessão local é preservada', async () => {
+    // Um 0 (rede) ou um 502 não dizem que a sessão acabou, dizem que ninguém respondeu.
+    // Apagá-la aqui deslogaria quem só pegou o backend reiniciando.
+    const sessao = sessaoFalsa('vencida');
+    const foraDoAr = () => throwError(() => new HttpErrorResponse({ status: 0 }));
+    await expect(decide('principal', sessao, foraDoAr)).resolves.toBe(true);
+    expect(sessao.encerrar).not.toHaveBeenCalled();
+  });
+
+  it('a renovação é pedida uma vez só', async () => {
+    const renovar = vi.fn(() => of('token-novo'));
+    await decide('principal', sessaoFalsa('vencida'), renovar);
+    expect(renovar).toHaveBeenCalledTimes(1);
   });
 
   it.each<ModoDoHost>(['escritorio', 'nao-encontrado', 'indisponivel'])(
     'no endereço de escritório (%s), o / continua do escritório',
-    (modo) => {
-      expect(decide(modo, false)).toBe(false);
+    async (modo) => {
+      const renovar = vi.fn(() => of('nao deveria'));
+      await expect(decide(modo, sessaoFalsa('vencida'), renovar)).resolves.toBe(false);
+      // O host decide antes da sessão: num subdomínio não se mexe na sessão de ninguém.
+      expect(renovar).not.toHaveBeenCalled();
     },
   );
 });
