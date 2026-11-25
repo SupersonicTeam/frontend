@@ -1,8 +1,8 @@
 import { EMAIL_CONTATO } from './landing-dados';
 
 /**
- * As interações da landing (#174) que mexem direto no DOM: menu, âncoras, a nota do hero, as
- * entradas ao aparecer, a linha do tempo, o simulador, a carteira, a Ceres, as abas dos planos.
+ * As interações da landing (#174) que mexem direto no DOM: menu, âncoras, a entrada e o parallax
+ * do hero, as entradas ao aparecer, a linha do tempo, o simulador, a carteira, a Ceres, as abas dos planos.
  *
  * Vieram do `<script>` da prévia estática (`rascunhos/previa-landing/`), presas à raiz da página e
  * com tudo desfeito no fim: cada ouvinte usa o mesmo `AbortSignal`, e o observador e os timers são
@@ -11,6 +11,17 @@ import { EMAIL_CONTATO } from './landing-dados';
  *
  * `reduzido()` é lido **na hora**, não guardado: "Reduzir animações" pode mudar no meio da página.
  */
+/**
+ * O deslocamento do parallax, limitado a uma tela de distância do centro (#215).
+ *
+ * Sem limite, o ponteiro capturado fora do hero (um arrasto que começa dentro) manda valores
+ * sem teto, e os cartões saem voando. O CSS multiplica isto por até 22 px.
+ */
+export function limitarParallax(valor: number): number {
+  if (!Number.isFinite(valor)) return 0;
+  return Math.max(-1, Math.min(1, valor));
+}
+
 export function ligarInteracoes(raiz: HTMLElement, reduzido: () => boolean): () => void {
   const controle = new AbortController();
   const { signal } = controle;
@@ -111,19 +122,59 @@ export function ligarInteracoes(raiz: HTMLElement, reduzido: () => boolean): () 
     );
   }
 
-  // A nota do hero, conferida item a item
-  const itens = um('#itens');
-  const rodape = um('#nota-rodape');
-  const tocarNota = () => {
-    if (reduzido() || !itens || !rodape) return;
-    itens.classList.remove('anima');
-    rodape.classList.remove('anima-solo');
-    void itens.offsetWidth;
-    itens.classList.add('anima');
-    rodape.classList.add('anima-solo');
-  };
-  tocarNota();
-  um('#ver-de-novo')?.addEventListener('click', tocarNota, { signal });
+  // A entrada do hero (#215), uma vez. O estado final é o padrão: sem a classe, nada fica
+  // invisível — era o que o protótipo fazia ao contrário, e numa aba em segundo plano o conteúdo
+  // demorava a aparecer.
+  const heroTexto = um('.hero-texto');
+  const heroProva = um('.hero-prova');
+  if (!reduzido()) {
+    heroTexto?.classList.add('anima');
+    heroProva?.classList.add('anima');
+  }
+
+  // Parallax leve dos cartões do hero no ponteiro. Só com ponteiro fino: no toque não há hover, e
+  // `pointermove` ali viraria arrasto. O ouvinte é passivo e só guarda dois números; quem escreve
+  // no estilo é um `requestAnimationFrame`, um por quadro. Nada de ouvinte de rolagem (#174, 6.7).
+  const hero = um('.hero');
+  const ponteiroFino =
+    typeof matchMedia === 'function' && matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (hero && heroProva && ponteiroFino) {
+    let px = 0;
+    let py = 0;
+    let quadro = 0;
+    const aplicar = () => {
+      quadro = 0;
+      heroProva.style.setProperty('--px', String(px));
+      heroProva.style.setProperty('--py', String(py));
+    };
+    const agendar = () => {
+      if (!quadro) quadro = requestAnimationFrame(aplicar);
+    };
+    hero.addEventListener(
+      'pointermove',
+      (evento) => {
+        if (reduzido()) return;
+        const area = hero.getBoundingClientRect();
+        px = limitarParallax(((evento.clientX - area.left) / area.width - 0.5) * 2);
+        py = limitarParallax(((evento.clientY - area.top) / area.height - 0.5) * 2);
+        agendar();
+      },
+      { passive: true, signal },
+    );
+    // Sair do hero devolve os cartões ao lugar, em vez de deixá-los tortos para sempre.
+    hero.addEventListener(
+      'pointerleave',
+      () => {
+        px = 0;
+        py = 0;
+        agendar();
+      },
+      { signal },
+    );
+    signal.addEventListener('abort', () => {
+      if (quadro) cancelAnimationFrame(quadro);
+    });
+  }
 
   // Entradas ao aparecer (uma vez)
   const acoes = new Map<Element, () => void>();

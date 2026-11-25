@@ -163,3 +163,48 @@ html {
 .jornada-reserva {
   min-height: 60vh;
 }
+
+/* Os selos de status, usados em quase toda seção (hero, calendário, planos, pronto hoje). Moraram
+   no `landing-hero.css` até a #215, porque nasceram na nota do hero; o hero mudou e eles ficaram.
+   Classe de cor sem token não falha em lugar nenhum no Tailwind v4, e aqui é CSS próprio: um
+   `.selo` sem regra vira texto solto nas 24 ocorrências, sem erro de build. */
+.selo {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.selo.sucesso {
+  background: var(--sucesso-soft);
+  color: var(--sucesso-ink);
+  border-color: var(--sucesso-borda);
+}
+.selo.aviso {
+  background: var(--aviso-soft);
+  color: var(--aviso-ink);
+  border-color: var(--aviso-borda);
+}
+.selo.info {
+  background: var(--info-soft);
+  color: var(--info-ink);
+  border-color: var(--info-borda);
+}
+.selo.perigo {
+  background: var(--perigo-soft);
+  color: var(--perigo-ink);
+  border-color: var(--perigo-borda);
+}
+.selo.neutro {
+  background: var(--surface2);
+  color: var(--muted);
+  border-color: var(--border);
+}
+.selo.assist {
+  background: var(--assist-soft);
+  color: var(--assist-ink);
+  border-color: var(--assist-borda);
+}

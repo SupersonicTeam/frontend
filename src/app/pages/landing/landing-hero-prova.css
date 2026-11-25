@@ -1,0 +1,206 @@
+/* A prova visual do hero (#215): o painel do app numa moldura de navegador, com três cartões
+   flutuando em volta. Arquivo à parte do `landing-hero.css` só por causa do orçamento de estilo
+   por arquivo (aviso em 4 kB). Escopo: .lp, como todo o CSS da landing. */
+
+/* ── A prova: o painel do app com três cartões em volta ─────────────────────────────────── */
+.hero-prova {
+  position: relative;
+  margin: 0;
+  min-width: 0;
+  /* O parallax do ponteiro escreve estas duas (landing-interacoes.ts), limitadas lá. */
+  --px: 0;
+  --py: 0;
+}
+.janela {
+  border: 1px solid var(--border);
+  border-radius: var(--raio);
+  background: var(--card);
+  box-shadow: var(--sombra-alta);
+  overflow: hidden;
+  transform: translate3d(calc(var(--px) * 6px), calc(var(--py) * 6px), 0);
+}
+.janela-barra {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.85rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.janela-ponto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border);
+}
+.janela-url {
+  margin-left: 0.6rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.janela-corpo {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+}
+.painel-topo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.painel-topo strong {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+.painel-numeros {
+  display: grid;
+  gap: 0.5rem;
+}
+.painel-numeros div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+.painel-numeros strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 1rem;
+}
+.painel-numeros div:last-child strong {
+  color: var(--primary);
+}
+.painel-barras {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+  height: 4.5rem;
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--border);
+}
+.painel-barras span {
+  flex: 1;
+  height: var(--h, 50%);
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--primary) 45%, transparent);
+}
+.painel-barras span:last-child {
+  background: var(--primary);
+}
+.painel-prazos {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.painel-prazos div {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.painel-prazos div span:nth-of-type(1) {
+  flex: 1;
+  min-width: 0;
+}
+.painel-prazos strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.cartao-flutua {
+  position: absolute;
+  border: 1px solid var(--border);
+  border-radius: var(--raio);
+  background: var(--card);
+  box-shadow: var(--sombra-alta);
+  padding: 0.8rem 0.95rem;
+}
+.cartao-aprovado {
+  top: -1.1rem;
+  right: -0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  transform: translate3d(calc(var(--px) * 16px), calc(var(--py) * 16px), 0);
+}
+.cartao-marca {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--sucesso-soft);
+  color: var(--sucesso-ink);
+}
+.cartao-marca .icone {
+  width: 17px;
+  height: 17px;
+}
+.cartao-nota {
+  right: -1.5rem;
+  bottom: 3.5rem;
+  display: grid;
+  gap: 0.45rem;
+  width: min(20rem, 82%);
+  transform: translate3d(calc(var(--px) * 22px), calc(var(--py) * 22px), 0) rotate(-2deg);
+}
+.cartao-nota-topo {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px dashed var(--border);
+}
+.cartao-linha {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.cartao-linha .nome {
+  flex: 1;
+  min-width: 0;
+}
+.cartao-linha .ok {
+  color: var(--sucesso-ink);
+}
+.cartao-linha .alerta {
+  color: var(--aviso-ink);
+}
+.cartao-ceres {
+  left: -1.75rem;
+  bottom: -1.25rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  width: min(19rem, 80%);
+  transform: translate3d(calc(var(--px) * 10px), calc(var(--py) * 10px), 0);
+}
+.cartao-ceres-marca {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--assist-soft);
+  color: var(--assist-ink);
+  font-weight: 700;
+}
+.cartao-ceres .ben-texto > span:nth-of-type(2) {
+  font-size: 0.85rem;
+  color: var(--fg);
+}
+.cartao-lei {
+  font-size: 0.75rem;
+  color: var(--assist-ink);
+}
+.hero-prova figcaption {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: right;
+}

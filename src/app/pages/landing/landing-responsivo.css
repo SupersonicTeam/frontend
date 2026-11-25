@@ -19,8 +19,29 @@
   transition: none !important;
 }
 
+/* O hero empilha antes das outras grades: com duas colunas abaixo de ~1060 px o título de duas
+   linhas e os cartões flutuantes se atropelam. */
+@media (max-width: 1060px) {
+  .hero-grade {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 3rem;
+  }
+  /* Empilhado, os cartões saem de cima do painel e viram uma lista abaixo dele. */
+  .cartao-flutua {
+    position: static;
+    transform: none;
+    width: auto;
+  }
+  .hero-prova {
+    display: grid;
+    gap: 0.9rem;
+  }
+  .hero-prova figcaption {
+    text-align: left;
+  }
+}
+
 @media (max-width: 900px) {
-  .hero-grade,
   .publico-grade.p57,
   .publico-grade.p75,
   .ceres-grade,
@@ -51,19 +72,6 @@
   }
 }
 @media (max-width: 767px) {
-  figure.nota {
-    transform: none;
-    min-height: 0;
-  }
-  .item.so-desktop {
-    display: none;
-  }
-  .so-desktop-txt {
-    display: none;
-  }
-  .so-celular {
-    display: block;
-  }
   .tempo {
     grid-template-columns: minmax(0, 1fr);
     padding: 0 0 0 1.75rem;
