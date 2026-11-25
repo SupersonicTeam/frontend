@@ -35,7 +35,9 @@
         </p>
 
         @for (s of secoes(); track s.id) {
-          <section [id]="s.id" class="space-y-2 scroll-mt-4">
+          <!-- `tabindex="-1"`: a seção não entra na ordem de tabulação, mas pode receber o foco
+               quando se chega nela por âncora. -->
+          <section [id]="s.id" tabindex="-1" class="space-y-2 scroll-mt-4">
             <h2 class="font-heading text-base font-semibold text-foreground">
               {{ s.numero }}. {{ s.titulo }}
             </h2>
