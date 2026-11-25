@@ -383,7 +383,7 @@
             ></span
           >
           <span
-            >Conforme a lei em [data da revisão, Murillo]. Datas e alíquotas podem mudar com a
+            >Conforme a lei em {{ dataRevisaoLegal }}. Datas e alíquotas podem mudar com a
             regulamentação.</span
           >
         </div>
@@ -779,8 +779,9 @@
               <svg class="icone" aria-hidden="true"><use href="#i-escudo" /></svg
               ><strong>Privacidade.</strong
               ><span
-                >Na versão atual, o modelo roda no servidor da AgroConIA, e o histórico de uso não
-                guarda o texto da pergunta nem o da resposta.</span
+                >A pergunta passa por um filtro que tira CPF, CNPJ, chave de acesso, e-mail,
+                telefone e CEP antes de ir ao modelo, que é da Anthropic e fica fora do Brasil. O
+                AgroConIA não grava o texto da pergunta nem o da resposta.</span
               >
             </li>
           </ul>
@@ -866,10 +867,7 @@
             <ul>
               <li>Planos e contratação</li>
               <li>Ceres para o escritório</li>
-              <li>
-                Endereço próprio do escritório
-                <span class="pendente">(só se o Murillo se comprometer)</span>
-              </li>
+              <li>Endereço próprio do escritório</li>
             </ul>
           </div>
         </div>
@@ -1140,12 +1138,11 @@
           <h3>Empresa</h3>
           <p class="apoio">AgroConIA é um produto da GWNext.</p>
           <p class="apoio">{{ empresa.razaoSocial }}</p>
-          <p class="apoio">
-            CNPJ {{ empresa.cnpj }}
-            @if (empresa.cnpjProvisorio) {
-              (provisório)
-            }
-          </p>
+          <!-- Enquanto o CNPJ for o marcador provisório, a linha não aparece: mostrá-lo zerado
+               faz a empresa parecer falsa (#212). O número real entra em `dados-empresa.ts`. -->
+          @if (!empresa.cnpjProvisorio) {
+            <p class="apoio">CNPJ {{ empresa.cnpj }}</p>
+          }
           <p class="apoio">{{ empresa.endereco }}</p>
           <p class="apoio">{{ empresa.contato }}</p>
         </div>
@@ -1164,7 +1161,7 @@
         </div>
       </div>
       <div class="linha-final">
-        <span>Desenvolvido como TCC 2026 pela GWNext · © {{ ano }} GWNext</span>
+        <span>Desenvolvido pela Supersonic Team como TCC 2026 · © {{ ano }} GWNext</span>
         <button
           type="button"
           class="btn btn-sutil"

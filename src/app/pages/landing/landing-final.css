@@ -90,10 +90,6 @@ footer {
 .rodape-grade a:hover {
   color: var(--fg);
 }
-.pendente {
-  color: var(--aviso-ink);
-  font-style: italic;
-}
 .linha-final {
   margin-top: 2.5rem;
   padding-top: 1.25rem;
