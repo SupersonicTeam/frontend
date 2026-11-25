@@ -1,7 +1,10 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
+import { Observable, catchError, map, of } from 'rxjs';
 import { EscritorioDoHostService } from '@core/services/escritorio-do-host.service';
 import { SessaoService } from '@core/services/sessao.service';
+import { AuthApi } from '@services/auth/data-access/auth.service';
 import { AppLayout } from '@shared/layout/app-layout/app-layout';
 import { sessaoGuard } from '@core/guards/sessao.guard';
 import { produtorGuard } from '@core/guards/produtor.guard';
@@ -13,12 +16,50 @@ function noEnderecoDoEscritorio(): boolean {
 }
 
 /**
- * A landing (#174) é de quem chega **sem sessão** ao endereço **principal** (www). Com sessão, o `/`
- * segue para o shell e o painel, como sempre foi. Num endereço de escritório (#175), em qualquer
- * modo dele (inclusive o de erro), o `/` continua sendo do escritório: a landing é do www.
+ * A landing (#174) é de quem chega ao endereço **principal** (www) e não tem uma sessão que ainda
+ * sirva. Com sessão válida, o `/` segue para o shell e o painel, como sempre foi. Num endereço de
+ * escritório (#175), em qualquer modo dele (inclusive o de erro), o `/` continua sendo do
+ * escritório: a landing é do www.
+ *
+ * **Sessão vencida no `localStorage` não é sessão** (#213). A versão anterior perguntava só
+ * `logado()`, que é `estado() !== null` e não olha a validade: quem entrou uma vez e deixou vencer
+ * nunca mais via a landing — o `/` recusava a landing, caía no shell, redirecionava para
+ * `/dashboard`, o `sessaoGuard` tentava renovar e, com o refresh também vencido, terminava no
+ * `/login`. Isso pega justamente quem testou o sistema e volta semanas depois pelo endereço
+ * principal: a banca, o Show Rural, os contadores convidados.
+ *
+ * Com a sessão local vencida, **uma** renovação decide:
+ *
+ * - deu certo: o token foi trocado, a pessoa continua logada e o `/` segue para o painel;
+ * - recusada: a sessão local é esquecida e o visitante vê a **landing**, não o login.
+ *
+ * A renovação é a do `AuthApi`, que tem fila de uma por vez: o refresh é rotativo, e reusar um
+ * já trocado encerra a linhagem inteira. Por isso aqui não se abre uma chamada própria.
  */
-export function visitanteNoPrincipal(): boolean {
-  return inject(EscritorioDoHostService).modo() === 'principal' && !inject(SessaoService).logado();
+export function visitanteNoPrincipal(): Observable<boolean> | boolean {
+  if (inject(EscritorioDoHostService).modo() !== 'principal') return false;
+
+  const sessao = inject(SessaoService);
+  if (!sessao.logado()) return true;
+  if (!sessao.expirado()) return false;
+
+  return inject(AuthApi)
+    .renovar()
+    .pipe(
+      map(() => false),
+      catchError((erro: unknown) => {
+        // **Recusa e indisponibilidade não são a mesma coisa.** Com 401 (ou 403), o refresh
+        // venceu ou foi revogado: não há sessão para onde voltar, e esquecê-la aqui é o que
+        // evita repetir a chamada a cada navegação para o `/`. Já um erro de rede ou um 5xx
+        // dizem que o **servidor** não respondeu: a sessão pode estar inteira, e apagá-la
+        // deslogaria quem só pegou o backend reiniciando. Nos dois casos o visitante vê a
+        // landing, que é uma página estática e não depende de nada disso.
+        if (erro instanceof HttpErrorResponse && (erro.status === 401 || erro.status === 403)) {
+          sessao.encerrar();
+        }
+        return of(true);
+      }),
+    );
 }
 
 /**
