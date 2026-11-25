@@ -11,6 +11,7 @@ import { PreferenciaMovimentoService } from '@core/services/preferencia-moviment
 import { DADOS_EMPRESA } from './dados-empresa';
 import { JornadaMilho } from './jornada/jornada-milho';
 import {
+  DATA_REVISAO_LEGAL,
   PERGUNTAS,
   PLANOS_ESCRITORIO,
   PLANOS_PRODUTOR,
@@ -23,8 +24,9 @@ import { ligarInteracoes } from './landing-interacoes';
  * A landing do AgroConIA (#174), com a jornada do milho em 3D entre o hero e "O que muda".
  *
  * O markup e o CSS vêm da prévia estática da especificação (`rascunhos/previa-landing/`), que é
- * a referência de texto e de layout; o 3D é o player de `jornada/`. Os textos marcados com
- * "(Murillo)" e os preços continuam pendentes dele.
+ * a referência de texto e de layout; o 3D é o player de `jornada/`. Os preços continuam
+ * pendentes do Murillo. Marcador de rascunho no template, não: a `landing-dados.spec.ts` falha se
+ * voltar um (#212).
  *
  * O CSS é da página, não do app: tem os próprios tokens, escopados em `.lp` (a raiz do template),
  * e por isso a página não usa encapsulamento — ele só existe enquanto ela está na tela. Está
@@ -58,6 +60,7 @@ export class LandingPage {
   protected readonly empresa = DADOS_EMPRESA;
   protected readonly mailtoDoPlano = mailtoDoPlano;
   protected readonly rotuloDoPlano = rotuloDoPlano;
+  protected readonly dataRevisaoLegal = DATA_REVISAO_LEGAL;
   protected readonly ano = new Date().getFullYear();
 
   constructor() {

@@ -22,6 +22,8 @@
 //    copia. Trocar a versão no `package.json` sem reler a licença reprova aqui.
 // 6. (#174, PR J) a rota `/previa-landing` chegou ao carregamento inicial: a prévia da landing é
 //    só de desenvolvimento, desligada por uma constante de compilação (`define` PREVIA_LANDING).
+// 7. (#212) um marcador de rascunho ("Murillo", `TODO:`, `lorem ipsum`) chegou ao que o navegador
+//    baixa, ou o texto da landing ainda tem um `[falta preencher]` entre colchetes.
 //
 // Node puro, sem dependência. Uso: `node scripts/conferir-build-producao.mjs` (depois do build).
 
@@ -128,6 +130,46 @@ if (existsSync(indexHtml)) {
           'produção (define PREVIA_LANDING no angular.json).',
       );
     }
+  }
+}
+
+// 7. (#212) Nenhum marcador de rascunho vai ao ar.
+//
+// A landing em produção mostrou por semanas "(só se o Murillo se comprometer)" e "Conforme a lei
+// em [data da revisão, Murillo]". Anotação interna não quebra teste nenhum: ela só é vista por
+// quem abre o site — a banca, um contador, um produtor. Por isso a conferência é aqui, no que o
+// build publica, e não num spec sobre o fonte.
+//
+// `Murillo` em comentário de `.ts` é esperado e some na minificação; o que esta regra pega é o
+// nome num texto que chega ao navegador.
+const MARCADORES_DE_RASCUNHO = [/\bMurillo\b/i, /lorem ipsum/i, /\bTODO:/, /\bFIXME\b/];
+const publicados = [...bundles, ...(existsSync(indexHtml) ? [indexHtml] : [])];
+for (const arquivo of publicados) {
+  const conteudo = readFileSync(arquivo, 'utf8');
+  for (const marcador of MARCADORES_DE_RASCUNHO) {
+    const achado = conteudo.match(marcador);
+    if (achado) {
+      falhas.push(
+        `${relative(DIST, arquivo)} publica o marcador de rascunho "${achado[0]}": anotação ` +
+          'interna não pode chegar ao navegador.',
+      );
+    }
+  }
+}
+
+// E o colchete de "falta preencher" no texto da landing. No template só se olha o **texto
+// visível**: `[...]` em atributo é binding do Angular, e em comentário é anotação de código.
+const TEMPLATE_DA_LANDING = join(APP, 'pages', 'landing', 'landing.html');
+if (existsSync(TEMPLATE_DA_LANDING)) {
+  const visivel = readFileSync(TEMPLATE_DA_LANDING, 'utf8')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]*>/g, ' ');
+  const colchete = visivel.match(/\[[^\]\n]{3,}\]/);
+  if (colchete) {
+    falhas.push(
+      `landing.html mostra "${colchete[0].trim()}" no texto da página: troque o marcador pelo ` +
+        'valor real.',
+    );
   }
 }
 

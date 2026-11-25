@@ -8,6 +8,13 @@
 
 export const EMAIL_CONTATO = 'contato@gwnext.com.br';
 
+/**
+ * Quando o conteúdo legal da landing foi conferido contra a lei (#212). Aparece na seção da
+ * reforma, logo abaixo da lista de artigos, e é a data que a #221 quer visível para buscadores e
+ * IAs. **Atualize junto com o texto**: data velha ali é pior que data nenhuma.
+ */
+export const DATA_REVISAO_LEGAL = '24/11/2026';
+
 export type PublicoLanding = 'produtor' | 'escritorio';
 
 export interface PlanoLanding {
@@ -147,7 +154,7 @@ export const PERGUNTAS: readonly PerguntaLanding[] = [
   {
     pergunta: 'O que acontece com as minhas perguntas à Ceres?',
     resposta:
-      'CPF, CNPJ, e-mail, telefone e CEP nos formatos usuais são mascarados antes de chegar ao modelo, que na versão atual roda no servidor da AgroConIA. Evite escrever dados pessoais na pergunta. O histórico de uso guarda só metadados.',
+      'CPF, CNPJ, chave de acesso, e-mail, telefone e CEP nos formatos usuais são mascarados antes de a pergunta chegar ao modelo, que é da Anthropic e fica fora do Brasil. O filtro não retira um nome escrito por extenso, então evite escrever dados pessoais na pergunta. O AgroConIA não grava o texto da pergunta nem o da resposta: o histórico de uso guarda só metadados.',
   },
   {
     pergunta: 'Como excluo a minha conta?',
