@@ -51,8 +51,13 @@ describe('CadastroPage', () => {
 
     const fixture = TestBed.createComponent(CadastroPage);
     fixture.detectChanges();
+    // Guardado para os poucos testes que olham o HTML; quase todos querem só o componente.
+    ultimaTela = fixture.nativeElement as HTMLElement;
     return fixture.componentInstance;
   }
+
+  /** O HTML da última tela montada. */
+  let ultimaTela: HTMLElement;
 
   /** Preenche tudo com dados válidos, deixando a senha por conta do teste. */
   function preencher(cmp: CadastroPage, senha = 'UmaSenhaBoa2026!') {
@@ -354,6 +359,22 @@ describe('CadastroPage', () => {
       cmp.escSlug.set('  CampoVerde ');
       cmp.escCiente.set(true);
     }
+
+    it('o aceite liga para os Termos de uso e para a Política, em aba nova (#211)', () => {
+      montar();
+      const links = [...ultimaTela.querySelectorAll('a')];
+      const termos = links.find((a) => a.textContent?.trim() === 'Termos de uso');
+      const politica = links.find((a) => a.textContent?.trim() === 'Política de privacidade');
+
+      // Até a #211 a caixa pedia aceite de um texto que não estava em lugar nenhum.
+      expect(termos?.getAttribute('href')).toBe('/termos-de-uso');
+      expect(politica?.getAttribute('href')).toBe('/politica-dados');
+      // Aba nova: ler os termos não pode custar o formulário já preenchido.
+      for (const link of [termos, politica]) {
+        expect(link?.getAttribute('target')).toBe('_blank');
+        expect(link?.getAttribute('rel')).toBe('noopener');
+      }
+    });
 
     it('sem o aceite dos termos o botão não libera', () => {
       const cmp = montar();

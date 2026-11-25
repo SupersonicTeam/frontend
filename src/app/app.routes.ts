@@ -131,6 +131,13 @@ export const routes: Routes = [
       import('@pages/politica-dados/politica-dados').then((m) => m.PoliticaDadosPage),
   },
   {
+    // Termos de uso (#211): publica pela mesma razao que a politica. O cadastro exige marcar
+    // "Li e aceito" -- ate agora, de um texto que nao estava em lugar nenhum.
+    path: 'termos-de-uso',
+    loadComponent: () =>
+      import('@pages/termos-de-uso/termos-de-uso').then((m) => m.TermosDeUsoPage),
+  },
+  {
     path: 'equipe/convite',
     canMatch: [noEnderecoDoEscritorio],
     data: { aviso: 'convite' },

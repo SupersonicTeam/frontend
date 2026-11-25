@@ -112,6 +112,20 @@ describe('EquipeConvitePage', () => {
     expect(texto(f)).toContain('Este convite não vale mais');
   });
 
+  it('o aceite liga para os Termos de uso e para a Politica, em aba nova (#211)', () => {
+    const f = abrir();
+    const links = [...(f.nativeElement as HTMLElement).querySelectorAll('a')];
+    const termos = links.find((a) => a.textContent?.trim() === 'Termos de uso');
+    const politica = links.find((a) => a.textContent?.trim() === 'Política de privacidade');
+
+    expect(termos?.getAttribute('href')).toBe('/termos-de-uso');
+    expect(politica?.getAttribute('href')).toBe('/politica-dados');
+    for (const link of [termos, politica]) {
+      expect(link?.getAttribute('target')).toBe('_blank');
+      expect(link?.getAttribute('rel')).toBe('noopener');
+    }
+  });
+
   it('sem conta: cria a de contador pelo link, com o documento so em digitos, e vai ao login', () => {
     const f = abrir();
     const cmp = f.componentInstance;
