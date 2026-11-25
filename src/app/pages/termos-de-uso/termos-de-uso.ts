@@ -1,5 +1,6 @@
-import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { DOCUMENT } from '@angular/common';
+import { Component, Injector, OnInit, afterNextRender, computed, inject, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { SessaoService } from '@core/services/sessao.service';
 import {
   TermosApi,
@@ -35,6 +36,9 @@ export interface SecaoNumerada extends SecaoTermos {
 })
 export class TermosDeUsoPage implements OnInit {
   private readonly api = inject(TermosApi);
+  private readonly rota = inject(ActivatedRoute);
+  private readonly documento = inject(DOCUMENT);
+  private readonly injector = inject(Injector);
   protected readonly sessao = inject(SessaoService);
 
   readonly termos = signal<TermosDeUso | null>(null);
@@ -47,9 +51,40 @@ export class TermosDeUsoPage implements OnInit {
   carregar(): void {
     this.erro.set(false);
     this.api.termos().subscribe({
-      next: (t) => this.termos.set(t),
+      next: (t) => {
+        this.termos.set(t);
+        this.irParaAAncora(t);
+      },
       error: () => this.erro.set(true),
     });
+  }
+
+  /**
+   * `/termos-de-uso#ceres` leva à seção da Ceres.
+   *
+   * Sem isto a âncora existe no HTML e não serve para nada: o router não tem `anchorScrolling`,
+   * e ligá-lo também não bastaria — quando a navegação termina, as seções ainda não existem,
+   * porque o texto vem do backend. Então quem rola é a própria página, **depois** de o documento
+   * chegar e ser desenhado (daí o `afterNextRender`, que só roda no navegador).
+   *
+   * Só rola para uma das seções recebidas. O fragmento vem da URL, e procurar por ele solto no
+   * documento levaria a qualquer elemento que tivesse aquele `id`.
+   */
+  private irParaAAncora(termos: TermosDeUso): void {
+    const fragmento = this.rota.snapshot.fragment;
+    if (!fragmento || !termos.secoes.some((s) => s.id === fragmento)) return;
+
+    afterNextRender(
+      () => {
+        const alvo = this.documento.getElementById(fragmento);
+        if (!alvo) return;
+        alvo.scrollIntoView();
+        // Rolar move os olhos; o foco também tem de ir, senão quem usa teclado ou leitor de tela
+        // continua no topo do documento. `preventScroll` para não disputar com a linha acima.
+        alvo.focus({ preventScroll: true });
+      },
+      { injector: this.injector },
+    );
   }
 
   /** A versão em `dd/MM/aaaa`, que é o que a seção "Mudanças" promete no topo. */
