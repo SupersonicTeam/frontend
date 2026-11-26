@@ -1,194 +1,211 @@
-/* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
-   landing, sempre escura (classe .dark na raiz); movimento reduzido pela classe
-   .movimento-reduzido do PreferenciaMovimentoService. */
+/* O hero (#215). Escopo: .lp, a raiz da landing, sempre escura (classe .dark na raiz); movimento
+   reduzido pela classe .movimento-reduzido do PreferenciaMovimentoService.
+
+   A direção veio do protótipo do .zip da revisão de 24/11, mas os valores aqui são os tokens da
+   landing (`landing-tokens.css`), não os do protótipo: a paleta é assunto da #216. */
 
 /* 3.2 Hero */
 .hero {
   position: relative;
   overflow: hidden;
-  padding-block: clamp(2.5rem, 1.5rem + 4vw, 5rem);
+  padding-block: clamp(2rem, 1rem + 3vw, 3.5rem) clamp(3rem, 2rem + 4vw, 5.5rem);
 }
+
+/* O hero usa um miolo mais largo que as seções de leitura: numa tela de 1920 px sobravam 384 px
+   vazios de cada lado. As seções de texto seguem em 72rem de propósito — linha longa demais
+   cansa a leitura, e aqui o que ocupa a largura é a ilustração, não o parágrafo. */
+.miolo-largo {
+  max-width: 82.5rem;
+}
+
 .hero-grade {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: clamp(2rem, 4vw, 4rem);
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  gap: clamp(2rem, 4vw, 3.5rem);
   align-items: center;
 }
 .hero-texto {
   display: grid;
-  gap: 1.25rem;
+  gap: 1.6rem;
   min-width: 0;
 }
-.hero-texto .publico {
-  font-size: 0.95rem;
-  color: var(--fg);
-  padding-left: 0.85rem;
-  border-left: 3px solid var(--lima);
-}
-.so-celular {
-  display: none;
-}
-.curvas {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0.07;
-  pointer-events: none;
-  color: var(--primary);
-}
-.brilho {
-  position: absolute;
-  right: -10%;
-  top: 5%;
-  width: 60%;
-  aspect-ratio: 1;
-  max-width: 100%;
-  border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    color-mix(in srgb, var(--lima) 30%, transparent),
-    color-mix(in srgb, var(--teal) 12%, transparent) 45%,
-    transparent 70%
-  );
-  pointer-events: none;
-}
-figure.nota {
-  position: relative;
-  margin: 0;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--raio);
-  box-shadow: var(--sombra-alta);
-  padding: 1.25rem;
-  transform: rotate(-1deg);
-  min-height: 23rem;
+
+/* O título chama o público na primeira linha, menor e em lima, no lugar da etiqueta solta que
+   ficava acima dele. */
+#titulo-hero {
   display: grid;
-  gap: 0.85rem;
-  align-content: start;
-  min-width: 0;
+  gap: 0.6rem;
+  margin: 0;
 }
-.nota-topo {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 1rem;
-  border-bottom: 1px dashed var(--border);
-  padding-bottom: 0.75rem;
+.h1-publico {
+  font-size: clamp(1.4rem, 1rem + 1vw, 1.9rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+  color: var(--lima);
 }
-.nota-topo strong {
-  font-family: var(--font-display);
-  font-size: 1rem;
+.h1-frase {
+  font-size: clamp(2.4rem, 1.2rem + 2.6vw, 3.9rem);
+  font-weight: 800;
+  line-height: 1.03;
+  letter-spacing: -0.035em;
+  text-wrap: balance;
+  color: var(--fg);
 }
-.nota-topo span {
-  font-size: 0.8rem;
+/* O grifo é um degradê parado, não um fundo cheio: sobre o texto ele vira tarja. */
+.grifo {
+  color: var(--lima);
+  background-image: linear-gradient(
+    transparent 68%,
+    color-mix(in srgb, var(--lima) 22%, transparent) 68%,
+    color-mix(in srgb, var(--lima) 22%, transparent) 92%,
+    transparent 92%
+  );
+}
+
+.hero-texto .lead {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 1.15rem;
+  line-height: 1.6;
   color: var(--muted);
-  font-variant-numeric: tabular-nums;
+  text-wrap: pretty;
 }
-.itens {
-  list-style: none;
+.hero-texto .lead strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.hero-beneficios {
+  display: grid;
+  gap: 0.9rem;
   margin: 0;
   padding: 0;
-  display: grid;
-  gap: 0.55rem;
+  list-style: none;
 }
-.item {
+.hero-beneficios li {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--raio-ctl);
-  background: var(--bg);
+  align-items: flex-start;
+  gap: 0.85rem;
 }
-.item .nome {
-  flex: 1;
-  font-weight: 500;
-  min-width: 0;
-}
-.item .ok {
-  color: var(--sucesso-ink);
-}
-.item .alerta {
-  color: var(--aviso-ink);
-}
-.selo {
+.ben-icone {
+  flex: none;
   display: inline-flex;
   align-items: center;
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.15rem 0.55rem;
-  border-radius: 999px;
-  border: 1px solid;
-  white-space: nowrap;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--raio-ctl);
 }
-.selo.sucesso {
+.ben-icone .icone {
+  width: 20px;
+  height: 20px;
+}
+.ben-verde {
   background: var(--sucesso-soft);
   color: var(--sucesso-ink);
-  border-color: var(--sucesso-borda);
 }
-.selo.aviso {
+.ben-aviso {
   background: var(--aviso-soft);
   color: var(--aviso-ink);
-  border-color: var(--aviso-borda);
 }
-.selo.info {
-  background: var(--info-soft);
-  color: var(--info-ink);
-  border-color: var(--info-borda);
-}
-.selo.perigo {
-  background: var(--perigo-soft);
-  color: var(--perigo-ink);
-  border-color: var(--perigo-borda);
-}
-.selo.neutro {
-  background: var(--surface2);
-  color: var(--muted);
-  border-color: var(--border);
-}
-.selo.assist {
+.ben-ia {
   background: var(--assist-soft);
   color: var(--assist-ink);
-  border-color: var(--assist-borda);
 }
-.item.aviso-item {
-  border-color: var(--aviso-borda);
-  background: var(--aviso-soft);
+.ben-texto {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
 }
-.nota-rodape {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--aviso-ink);
+.ben-texto strong {
+  font-size: 1.05rem;
+  font-weight: 700;
 }
-.falso-botao {
-  display: inline-flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 0 0.85rem;
-  border-radius: var(--raio-ctl);
-  background: var(--primary);
-  color: var(--on-primary);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-.nota-acoes {
-  display: flex;
-  gap: 0.5rem;
-  min-height: 44px;
-  align-items: center;
-}
-figure.nota figcaption {
-  font-size: 0.8rem;
+.ben-texto > span {
+  font-size: 0.95rem;
   color: var(--muted);
 }
 
-/* Entradas animadas: o estado final é o padrão; a classe .anima toca a entrada uma vez. */
+.hero .ctas .icone {
+  width: 18px;
+  height: 18px;
+}
+/* A seta anda um fio no hover, só no ponteiro fino e com movimento liberado. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .hero .btn-primario .icone {
+    transition: transform 0.15s ease-out;
+  }
+  .hero .btn-primario:hover .icone {
+    transform: translateX(3px);
+  }
+}
+
+.hero-notas {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+.hero-notas span {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+.hero-notas .icone {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 0.15rem;
+  color: var(--primary);
+}
+
+/* Fundo: fileiras de lavoura em perspectiva e o sol baixo. Rascunho em CSS — a textura de
+   verdade entra depois, fora do caminho crítico do LCP (ver a #215). */
+.hero-fileiras {
+  position: absolute;
+  inset: 0 0 auto 38%;
+  height: 100%;
+  background-image: repeating-linear-gradient(
+    118deg,
+    color-mix(in srgb, var(--primary) 9%, transparent) 0 2px,
+    transparent 2px 28px
+  );
+  mask-image: radial-gradient(ellipse 70% 60% at 65% 45%, #000 20%, transparent 75%);
+  pointer-events: none;
+}
+.brilho {
+  position: absolute;
+  top: -18%;
+  right: -12%;
+  width: 46rem;
+  max-width: 85%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--lima) 16%, transparent) 0%,
+    transparent 62%
+  );
+  pointer-events: none;
+}
+
+/* O ícone do cartão aprovado dá um pulso quando o cartão entra. Uma vez, não em laço. */
+@keyframes pulso-aprovado {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.18);
+  }
+}
+.anima .cartao-marca {
+  animation: pulso-aprovado 0.5s ease-out 1.1s both;
+}
+
+/* Entradas: o estado final é o padrão; a classe .anima toca a entrada uma vez. Sem ela, nada
+   fica invisível — é a regra da #174, e o que o protótipo fazia ao contrário. */
 @keyframes entra {
   from {
     opacity: 0;
@@ -200,27 +217,20 @@ figure.nota figcaption {
   }
 }
 .anima > * {
-  animation: entra 0.3s ease-out both;
+  animation: entra 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
 .anima > *:nth-child(2) {
-  animation-delay: 0.3s;
+  animation-delay: 0.1s;
 }
 .anima > *:nth-child(3) {
-  animation-delay: 0.6s;
+  animation-delay: 0.2s;
 }
 .anima > *:nth-child(4) {
-  animation-delay: 0.9s;
+  animation-delay: 0.3s;
 }
 .anima > *:nth-child(5) {
-  animation-delay: 1.2s;
+  animation-delay: 0.4s;
 }
 .anima > *:nth-child(6) {
-  animation-delay: 1.5s;
-}
-.itens.anima > * {
-  animation-delay: calc(0.6s + var(--i, 0) * 0.3s);
-}
-.nota-rodape.anima-solo {
-  animation: entra 0.3s ease-out both;
-  animation-delay: 1.5s;
+  animation-delay: 0.5s;
 }

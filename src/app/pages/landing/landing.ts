@@ -7,6 +7,7 @@ import {
   inject,
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { DOMINIO_BASE } from '@core/utils/host-escritorio';
 import { PreferenciaMovimentoService } from '@core/services/preferencia-movimento.service';
 import { DADOS_EMPRESA } from './dados-empresa';
 import { JornadaMilho } from './jornada/jornada-milho';
@@ -42,6 +43,7 @@ import { ligarInteracoes } from './landing-interacoes';
     './landing-base.css',
     './landing-cabecalho.css',
     './landing-hero.css',
+    './landing-hero-prova.css',
     './landing-reforma.css',
     './landing-publico.css',
     './landing-meio.css',
@@ -60,6 +62,8 @@ export class LandingPage {
   protected readonly empresa = DADOS_EMPRESA;
   protected readonly mailtoDoPlano = mailtoDoPlano;
   protected readonly rotuloDoPlano = rotuloDoPlano;
+  /** Só para a barra de endereço da ilustração do hero: o domínio nunca é escrito à mão. */
+  protected readonly dominioBase = inject(DOMINIO_BASE);
   protected readonly dataRevisaoLegal = DATA_REVISAO_LEGAL;
   protected readonly ano = new Date().getFullYear();
 

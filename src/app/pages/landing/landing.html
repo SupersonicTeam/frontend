@@ -6,6 +6,7 @@
       <path d="M12 9v4M12 17h.01" />
     </symbol>
     <symbol id="i-chev" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+    <symbol id="i-seta" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" /></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></symbol>
     <symbol id="i-copiar" viewBox="0 0 24 24">
       <rect x="9" y="9" width="13" height="13" rx="2" />
@@ -45,7 +46,9 @@
 
   <header class="topo" id="cabecalho">
     <a class="pular" href="#conteudo" id="pular">Pular para o conteúdo</a>
-    <div class="miolo">
+    <!-- O cabeçalho acompanha a largura do hero (#215): eles são contínuos na primeira dobra, e
+         uma barra 84 px mais estreita que o hero logo abaixo dela aparece como desalinho. -->
+    <div class="miolo miolo-largo">
       <a class="logo" href="#topo" aria-label="AgroConIA, início">
         <img class="pos" src="/agroconia-horizontal.svg" width="137" height="34" alt="AgroConIA" />
         <img
@@ -99,105 +102,152 @@
   <main id="conteudo" tabindex="-1">
     <!-- 3.2 Hero -->
     <section class="hero" id="topo" aria-labelledby="titulo-hero">
-      <svg
-        class="curvas"
-        viewBox="0 0 1200 600"
-        preserveAspectRatio="xMidYMid slice"
-        aria-hidden="true"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-      >
-        <path d="M-50 480C150 420 300 520 520 450S900 360 1250 420" />
-        <path d="M-50 420C170 360 320 460 540 390S910 300 1250 360" />
-        <path d="M-50 360C190 300 340 400 560 330S920 240 1250 300" />
-        <path d="M-50 300C210 240 360 340 580 270S930 180 1250 240" />
-        <path d="M-50 240C230 180 380 280 600 210S940 120 1250 180" />
-        <path d="M-50 180C250 120 400 220 620 150S950 60 1250 120" />
-      </svg>
+      <!-- Fileiras de lavoura em perspectiva e o sol da tarde: decoração, atrás de tudo. -->
+      <div class="hero-fileiras" aria-hidden="true"></div>
       <div class="brilho" aria-hidden="true"></div>
-      <div class="miolo hero-grade">
+      <div class="miolo miolo-largo hero-grade">
         <div class="hero-texto">
-          <p class="sobre">Reforma tributária do agro · IBS e CBS</p>
-          <h1 id="titulo-hero">IBS e CBS na nota do produtor, conferidos antes de emitir</h1>
-          <p class="lead so-desktop-txt">
-            A AgroConIA calcula o IBS e a CBS de cada produto pela tabela oficial, avisa o que
-            conferir e leva a nota para o seu escritório aprovar. Apuração do mês, prazos e, para o
-            produtor, uma assistente que cita a lei, num lugar só.
-          </p>
-          <p class="lead so-celular">
-            Calcula o IBS e a CBS de cada produto e avisa o que conferir antes de emitir.
-          </p>
-          <p class="publico so-desktop-txt">
-            Para o produtor que fatura mais de R$ 3,6 milhões por ano ou optou pelo regime regular
-            do IBS e da CBS, e para o escritório que o atende.
-          </p>
-          <p class="publico so-celular">
-            Para o produtor no regime regular do IBS e da CBS e o escritório que o atende.
-          </p>
-          <div class="ctas">
-            <a
-              class="btn btn-primario"
-              href="mailto:contato&#64;gwnext.com.br?subject=AgroConIA%20-%20demonstra%C3%A7%C3%A3o"
-              >Pedir uma demonstração</a
+          <h1 id="titulo-hero">
+            <span class="h1-publico">Produtor rural,</span>
+            <span class="h1-frase"
+              >sua nota fiscal <span class="grifo">certa</span> na reforma tributária</span
             >
-            <a class="btn btn-ghost" href="#planos" data-rotulo-planos
-              >Ver o que cada plano inclui</a
-            >
-          </div>
-          <div class="email-linha">
-            Atendimento da GWNext, dona da AgroConIA: <code>contato&#64;gwnext.com.br</code>
-            <button class="btn btn-sutil" data-copiar>Copiar e-mail</button>
-          </div>
-          <p class="apoio">Com base na EC 132/2023 e na LC 214/2025.</p>
-        </div>
-        <figure class="nota" id="nota">
-          <div class="nota-topo">
-            <strong>Nota de venda nº 1.024</strong><span>NF-e 4.00 · rascunho</span>
-          </div>
-          <ul class="itens" id="itens">
-            <li class="item" style="--i: 0">
-              <svg class="icone ok" aria-hidden="true"><use href="#i-check" /></svg
-              ><span class="nome">Soja em grão</span
-              ><span class="selo sucesso">Redução de 60%</span>
+          </h1>
+          <p class="lead">
+            Você lança a venda. A AgroConIA calcula o IBS e a CBS de cada produto, avisa o que está
+            errado e leva a nota para o seu contador aprovar,
+            <strong>antes de emitir</strong>.
+          </p>
+          <ul class="hero-beneficios">
+            <li>
+              <span class="ben-icone ben-verde" aria-hidden="true"
+                ><svg class="icone"><use href="#i-balanca" /></svg
+              ></span>
+              <span class="ben-texto">
+                <strong>Imposto certo em cada produto</strong>
+                <span>Soja, milho, leite: cada um com a regra da tabela oficial.</span>
+              </span>
             </li>
-            <li class="item so-desktop" style="--i: 1">
-              <svg class="icone ok" aria-hidden="true"><use href="#i-check" /></svg
-              ><span class="nome">Milho em grão</span
-              ><span class="selo sucesso">Redução de 60%</span>
+            <li>
+              <span class="ben-icone ben-aviso" aria-hidden="true"
+                ><svg class="icone"><use href="#i-alerta" /></svg
+              ></span>
+              <span class="ben-texto">
+                <strong>O erro aparece antes da nota sair</strong>
+                <span>Nota repetida, valor fora do padrão, item que parece serviço.</span>
+              </span>
             </li>
-            <li class="item" style="--i: 2">
-              <svg class="icone ok" aria-hidden="true"><use href="#i-check" /></svg
-              ><span class="nome">Leite UHT integral</span
-              ><span class="selo sucesso">Alíquota zero</span>
-            </li>
-            <li class="item aviso-item" style="--i: 3">
-              <svg class="icone alerta" aria-hidden="true"><use href="#i-alerta" /></svg
-              ><span class="nome">Frete até o armazém</span
-              ><span class="selo aviso">Parece serviço: confira</span>
+            <li>
+              <span class="ben-icone ben-ia" aria-hidden="true"
+                ><svg class="icone"><use href="#i-users" /></svg
+              ></span>
+              <span class="ben-texto">
+                <strong>Seu contador confere junto</strong>
+                <span>A nota vai para o escritório aprovar no mesmo sistema.</span>
+              </span>
             </li>
           </ul>
-          <div class="nota-rodape" id="nota-rodape">
-            <span>1 ponto para conferir antes de emitir</span
-            ><span class="falso-botao" aria-hidden="true">Enviar para o escritório aprovar</span>
+          <div class="ctas">
+            <a class="btn btn-primario" routerLink="/cadastro"
+              >Criar conta grátis<svg class="icone" aria-hidden="true">
+                <use href="#i-seta" /></svg
+            ></a>
+            <a class="btn btn-ghost" href="#como-funciona">Ver como funciona</a>
           </div>
-          <div class="nota-acoes">
-            <button class="btn btn-ghost" id="ver-de-novo" [hidden]="movimento.reduzido()">
-              Ver de novo
-            </button>
-            <button
-              type="button"
-              class="btn btn-sutil"
-              [attr.aria-pressed]="movimento.reduzido()"
-              (click)="movimento.alternar()"
+          <div class="hero-notas">
+            <span
+              ><svg class="icone" aria-hidden="true"><use href="#i-check" /></svg>Grátis para ligar
+              ao seu escritório e acompanhar os prazos.</span
             >
-              Reduzir animações
-            </button>
+            <span
+              ><svg class="icone" aria-hidden="true"><use href="#i-users" /></svg>Para quem fatura
+              mais de R$ 3,6 milhões por ano ou optou pelo regime regular.</span
+            >
           </div>
-          <figcaption>
-            Ilustração com dados fictícios. Conferida item a item, a nota segue para o escritório
-            aprovar.
-          </figcaption>
+        </div>
+
+        <!-- A prova é o próprio produto: o painel da apuração, com três cartões em volta.
+             Tudo com dados fictícios, e dito na legenda. -->
+        <figure class="hero-prova">
+          <div class="janela">
+            <div class="janela-barra" aria-hidden="true">
+              <span class="janela-ponto"></span><span class="janela-ponto"></span
+              ><span class="janela-ponto"></span>
+              <span class="janela-url">{{ dominioBase }}/painel</span>
+            </div>
+            <div class="janela-corpo">
+              <div class="painel-topo">
+                <div>
+                  <span class="apoio">Fazenda Boa Vista</span>
+                  <strong>Apuração de novembro</strong>
+                </div>
+                <span class="selo sucesso">Mês aberto</span>
+              </div>
+              <div class="painel-numeros">
+                <div><span>IBS e CBS das vendas</span><strong>R$ 4.218,40</strong></div>
+                <div><span>Créditos das compras</span><strong>− R$ 1.102,75</strong></div>
+                <div><span>Estimativa a pagar</span><strong>R$ 3.115,65</strong></div>
+              </div>
+              <div class="painel-barras" aria-hidden="true">
+                <span style="--h: 42%"></span><span style="--h: 68%"></span
+                ><span style="--h: 55%"></span><span style="--h: 83%"></span
+                ><span style="--h: 61%"></span><span style="--h: 74%"></span>
+              </div>
+              <div class="painel-prazos">
+                <span class="apoio">Próximos prazos</span>
+                <div>
+                  <strong>20/11</strong><span>Guia do Funrural</span
+                  ><span class="selo aviso">Vence em 3 dias</span>
+                </div>
+                <div>
+                  <strong>30/11</strong><span>Fechamento do mês</span
+                  ><span class="selo neutro">Apuração</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cartao-flutua cartao-aprovado">
+            <span class="cartao-marca" aria-hidden="true"
+              ><svg class="icone"><use href="#i-check" /></svg
+            ></span>
+            <span class="ben-texto">
+              <strong>Nota aprovada pelo contador</strong>
+              <span>Escritório Rural Oeste · agora</span>
+            </span>
+          </div>
+
+          <div class="cartao-flutua cartao-nota">
+            <div class="cartao-nota-topo">
+              <strong>Nota de venda nº 1.024</strong><span class="apoio">rascunho</span>
+            </div>
+            <div class="cartao-linha">
+              <svg class="icone ok" aria-hidden="true"><use href="#i-check" /></svg>
+              <span class="nome">Soja em grão</span
+              ><span class="selo sucesso">−60% no imposto</span>
+            </div>
+            <div class="cartao-linha">
+              <svg class="icone ok" aria-hidden="true"><use href="#i-check" /></svg>
+              <span class="nome">Leite UHT integral</span
+              ><span class="selo sucesso">Alíquota zero</span>
+            </div>
+            <div class="cartao-linha">
+              <svg class="icone alerta" aria-hidden="true"><use href="#i-alerta" /></svg>
+              <span class="nome">Frete até o armazém</span
+              ><span class="selo aviso">Confira: parece serviço</span>
+            </div>
+          </div>
+
+          <div class="cartao-flutua cartao-ceres">
+            <span class="cartao-ceres-marca" aria-hidden="true">C</span>
+            <span class="ben-texto">
+              <span class="apoio">Ceres, a assistente</span>
+              <span>Soja em grão tem redução de 60% no IBS e na CBS.</span>
+              <span class="cartao-lei">LC 214/2025, art. 137</span>
+            </span>
+          </div>
+
+          <figcaption>Ilustração com dados fictícios</figcaption>
         </figure>
       </div>
     </section>
