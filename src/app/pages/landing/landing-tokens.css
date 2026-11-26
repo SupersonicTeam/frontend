@@ -1,6 +1,12 @@
 /* Gerado a partir de rascunhos/previa-landing/previa-landing.html (#174). Escopo: .lp, a raiz da
    landing, sempre escura (classe .dark na raiz); movimento reduzido pela classe
-   .movimento-reduzido do PreferenciaMovimentoService. */
+   .movimento-reduzido do PreferenciaMovimentoService.
+
+   A paleta segue a regra 60-30-10 (#216): --bg é a base (60%), --surface2/--card/--card2 são as
+   superfícies (30%) e o verde --primary mais o --lima são o destaque (10%). O verde é da ação
+   (botão, link, número-chave); o lima é destaque SEM clique (grifo, selo, número de passo) e
+   nunca veste um botão — dois verdes de ação, um em cada ponta da página, é o que a medição de
+   24/11 pegou. Os valores vêm do tokens.css do protótipo do hero. */
 
 /* Layout: faixas de largura total alternando fundo, conteúdo em coluna de 72rem; grade 6/6 no hero,
    5/7 e 7/5 nas seções de público. Cores e fontes do app (styles.css) + a marca do logo. */
@@ -8,6 +14,7 @@
   --bg: hsl(40 25% 97%);
   --surface2: hsl(140 16% 96%);
   --card: hsl(0 0% 100%);
+  --card2: hsl(0 0% 100%);
   --fg: hsl(142 30% 12%);
   --muted: hsl(142 10% 38%);
   --border: hsl(142 15% 88%);
@@ -15,14 +22,16 @@
   --on-primary: hsl(80 30% 97%);
   --lima: #d8f07a;
   --lima-ink: #13261a;
+  /* Atenção ao nome: este --teal é o verde escuro da marca (hsl 146), usado só em degradê. O teal
+     de verdade, o da Ceres, é o --assist. */
   --teal: #2e8b57;
   --profunda: #1b4630;
   --on-profunda: #eaf3e4;
   --on-profunda-2: #c4d8c6;
-  --assist: hsl(262 52% 52%);
-  --assist-soft: hsl(262 60% 96%);
-  --assist-ink: hsl(262 45% 36%);
-  --assist-borda: hsl(262 38% 87%);
+  --assist: hsl(174 64% 26%);
+  --assist-soft: hsl(174 45% 93%);
+  --assist-ink: hsl(174 68% 20%);
+  --assist-borda: hsl(174 35% 78%);
   --aviso-soft: hsl(40 84% 94%);
   --aviso-ink: hsl(30 66% 29%);
   --aviso-borda: hsl(39 60% 83%);
@@ -45,33 +54,42 @@
   --raio-ctl: 10px;
 }
 .lp.dark {
-  --bg: hsl(150 18% 9%);
-  --surface2: hsl(150 16% 12%);
-  --card: hsl(150 16% 13%);
-  --fg: hsl(80 12% 90%);
-  --muted: hsl(80 6% 64%);
-  --border: hsl(150 10% 22%);
-  --primary: hsl(142 50% 58%);
-  --on-primary: hsl(150 30% 10%);
-  --profunda: hsl(150 16% 14%);
-  --on-profunda: hsl(80 12% 92%);
-  --on-profunda-2: hsl(80 6% 70%);
-  --assist: hsl(262 68% 72%);
-  --assist-soft: hsl(262 32% 18%);
-  --assist-ink: hsl(262 70% 84%);
-  --assist-borda: hsl(262 26% 32%);
-  --aviso-soft: hsl(36 32% 16%);
-  --aviso-ink: hsl(38 78% 76%);
-  --aviso-borda: hsl(37 26% 30%);
-  --sucesso-soft: hsl(152 30% 15%);
-  --sucesso-ink: hsl(152 52% 74%);
-  --sucesso-borda: hsl(152 24% 28%);
-  --info-soft: hsl(210 34% 17%);
-  --info-ink: hsl(210 72% 80%);
-  --info-borda: hsl(210 28% 31%);
-  --perigo-soft: hsl(0 30% 17%);
-  --perigo-ink: hsl(0 72% 80%);
-  --perigo-borda: hsl(0 26% 32%);
+  /* Os quatro degraus de luminosidade da fatia dos 30%: 7 → 10 → 13 → 16%. Eram 9 → 12 → 13%, e
+     um ponto de diferença entre a faixa alternada e o cartão não separava nada — só a borda
+     separava. O --card2 é o cartão que pousa sobre outro cartão (o chat da Ceres, o simulador) e
+     a faixa profunda da chamada final, que antes tinha luminosidade própria. */
+  --bg: hsl(150 20% 7%);
+  --surface2: hsl(150 16% 10%);
+  --card: hsl(150 14% 13%);
+  --card2: hsl(150 13% 16%);
+  --fg: hsl(80 14% 94%);
+  --muted: hsl(80 8% 70%);
+  --border: hsl(150 10% 24%);
+  --primary: hsl(142 55% 55%);
+  --on-primary: hsl(150 45% 8%);
+  --profunda: hsl(150 13% 16%);
+  --on-profunda: hsl(80 14% 94%);
+  --on-profunda-2: hsl(80 8% 70%);
+  /* A Ceres é teal, a cor de IA do design system. O roxo ocupava sozinho 8,9% da página — a fatia
+     inteira dos 10% — sem ser cor da marca. */
+  --assist: hsl(174 55% 55%);
+  --assist-soft: hsl(174 32% 15%);
+  --assist-ink: hsl(174 60% 78%);
+  --assist-borda: hsl(174 28% 28%);
+  /* Âmbar, azul e vermelho só aparecem dentro das ilustrações, e menos saturados do que eram: com
+     sete matizes na mesma tela, nenhum deles significava nada. */
+  --aviso-soft: hsl(36 30% 16%);
+  --aviso-ink: hsl(38 60% 76%);
+  --aviso-borda: hsl(37 24% 30%);
+  --sucesso-soft: hsl(152 28% 15%);
+  --sucesso-ink: hsl(152 45% 76%);
+  --sucesso-borda: hsl(152 22% 28%);
+  --info-soft: hsl(210 30% 17%);
+  --info-ink: hsl(210 50% 80%);
+  --info-borda: hsl(210 26% 31%);
+  --perigo-soft: hsl(0 26% 17%);
+  --perigo-ink: hsl(0 55% 78%);
+  --perigo-borda: hsl(0 24% 32%);
   --previa-bg: hsl(80 20% 88%);
   --previa-fg: hsl(142 30% 12%);
   --sombra: 0 1px 2px #0006, 0 8px 24px #0005;

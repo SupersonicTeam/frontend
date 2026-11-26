@@ -62,7 +62,7 @@
 .plano.indicado {
   border: 2px solid transparent;
   background:
-    linear-gradient(var(--card), var(--card)) padding-box,
+    linear-gradient(var(--card2), var(--card2)) padding-box,
     linear-gradient(135deg, var(--lima), var(--teal)) border-box;
   box-shadow: var(--sombra);
   transform: scale(1.02);

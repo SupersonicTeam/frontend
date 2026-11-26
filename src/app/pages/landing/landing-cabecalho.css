@@ -95,7 +95,9 @@ nav.secoes a:hover {
   border-top: 1px solid var(--border);
   background: var(--bg);
 }
-.menu-painel a {
+/* O :not(.btn) é o que salva o CTA do menu do celular: a regra do link é mais específica que a do
+   botão e pintava o texto de --fg sobre o verde — 1,84:1, medido na #216. */
+.menu-painel a:not(.btn) {
   display: flex;
   align-items: center;
   min-height: 44px;

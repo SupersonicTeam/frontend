@@ -103,9 +103,9 @@ details.dados ul {
 }
 
 /* 3.10 Ceres */
-.ceres {
-  background: var(--assist-soft);
-}
+/* Sem faixa inteira colorida (#216): a seção segue a alternância de fundo das outras, e o teal
+   aparece no chat, nos ícones e nos selos. Pintada por inteiro, ela sozinha respondia por 8,9% da
+   página — a fatia que a regra 60-30-10 reserva ao destaque. */
 .ceres .sobre {
   color: var(--assist-ink);
 }
@@ -132,7 +132,7 @@ details.dados ul {
   background: var(--card);
   border: 1px solid var(--assist-borda);
   border-radius: var(--raio);
-  box-shadow: 0 8px 28px hsl(262 52% 52% / 0.18);
+  box-shadow: 0 8px 28px color-mix(in srgb, var(--assist) 16%, transparent);
   padding: 1.25rem;
   display: grid;
   gap: 1rem;
