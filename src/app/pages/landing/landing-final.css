@@ -37,17 +37,13 @@
 .final p {
   color: var(--on-profunda-2);
 }
-.final .btn-lima {
-  background: var(--lima);
-  color: var(--lima-ink);
-}
 .final .btn-claro {
   border-color: color-mix(in srgb, var(--on-profunda) 55%, transparent);
   color: var(--on-profunda);
   background: transparent;
 }
 .final :focus-visible {
-  outline-color: var(--lima);
+  outline-color: var(--primary);
   outline-offset: 3px;
 }
 .final .email-linha,

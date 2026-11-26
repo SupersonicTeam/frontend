@@ -104,8 +104,10 @@
   gap: 0.35rem;
   align-content: start;
 }
+/* Os números-chave levam o verde da ação (#216): eles e os botões eram 0,4% da página. */
 .tempo .ano {
   font-family: var(--font-display);
+  color: var(--primary);
   font-weight: 700;
   font-size: 1.1rem;
   font-variant-numeric: tabular-nums;
@@ -177,6 +179,7 @@
 }
 .resultado {
   font-family: var(--font-display);
+  color: var(--primary);
   font-weight: 600;
   font-size: 1.15rem;
   margin-top: 1rem;
