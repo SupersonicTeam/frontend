@@ -127,9 +127,23 @@ export function ligarInteracoes(raiz: HTMLElement, reduzido: () => boolean): () 
   // demorava a aparecer.
   const heroTexto = um('.hero-texto');
   const heroProva = um('.hero-prova');
+  let quadroDaEntrada = 0;
   if (!reduzido()) {
-    heroTexto?.classList.add('anima');
-    heroProva?.classList.add('anima');
+    // A classe entra **num quadro**, não na hora. Numa aba que não está desenhando — um link
+    // aberto em segundo plano, a janela minimizada —, a linha do tempo do documento fica parada:
+    // a animação nasce `running` com `currentTime` 0 e nunca anda, e o `animation-fill-mode:
+    // both` segura o primeiro quadro dela, que é `opacity: 0`. O hero inteiro ficaria em branco
+    // até alguém olhar para ele. Sem quadro, sem classe — e aí vale o estado final, que é o
+    // padrão. Medido em produção em 26/11: `timeline.currentTime` 0 e os cinco blocos do hero
+    // em opacidade 0.
+    quadroDaEntrada = requestAnimationFrame(() => {
+      quadroDaEntrada = 0;
+      heroTexto?.classList.add('anima');
+      heroProva?.classList.add('anima');
+    });
+    signal.addEventListener('abort', () => {
+      if (quadroDaEntrada) cancelAnimationFrame(quadroDaEntrada);
+    });
   }
 
   // Parallax leve dos cartões do hero no ponteiro. Só com ponteiro fino: no toque não há hover, e
